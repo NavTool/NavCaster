@@ -16,8 +16,8 @@
 #include <memory>
 #include <unordered_map>
 #include "ntrip_global.h"
-#include "knt/knt.h"
-#include "knt/base64.h"
+#include "knt.h"
+#include "base64.h"
 
 // 连接建立成功，后发送验证信息，验证通过之后，创建一个创建relay_server的请求
 

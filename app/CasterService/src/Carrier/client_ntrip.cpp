@@ -1,5 +1,5 @@
 #include "client_ntrip.h"
-#include "knt/knt.h"
+#include "knt.h"
 #include <iostream>
 
 #define __class__ "client_ntrip"

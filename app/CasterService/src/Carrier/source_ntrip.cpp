@@ -1,5 +1,5 @@
 #include "source_ntrip.h"
-#include "knt/knt.h"
+#include "knt.h"
 
 #define __class__ "source_ntrip"
 

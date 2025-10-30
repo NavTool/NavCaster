@@ -27,8 +27,8 @@
 #include "ntrip_global.h"
 #include "process_queue.h"
 
-#include "knt/knt.h"
-#include "knt/base64.h"
+#include "knt.h"
+#include "base64.h"
 
 #include <event2/event.h>
 #include <event2/listener.h>
