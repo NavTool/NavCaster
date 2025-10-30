@@ -13,15 +13,9 @@
 [submodule "rely/json"]
 	path = rely/json
 	url = git@github.com:nlohmann/json.git
-[submodule "lib"]
-	path = lib
-	url = git@github.com:Navtool/navtool_libs.git
 [submodule "rely/rtklib"]
 	path = rely/rtklib
 	url = git@github.com:Navtool/rtklib-2.4.3b34.git
-[submodule "rely/PROJ"]
-	path = rely/PROJ
-	url = git@github.com:OSGeo/PROJ.git
 [submodule "rely/yaml-cpp"]
 	path = rely/yaml-cpp
 	url = git@github.com:jbeder/yaml-cpp.git
