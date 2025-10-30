@@ -1,0 +1,24 @@
+[submodule "rely/hiredis"]
+	path = rely/hiredis
+	url = git@github.com:redis/hiredis.git
+[submodule "rely/libevent"]
+	path = rely/libevent
+	url = git@github.com:libevent/libevent.git
+[submodule "rely/FluentUI-Pro"]
+	path = rely/FluentUI-Pro
+	url = git@github.com:Zhuzichu520/FluentUI-Pro.git
+[submodule "rely/spdlog"]
+	path = rely/spdlog
+	url = git@github.com:gabime/spdlog.git
+[submodule "rely/json"]
+	path = rely/json
+	url = git@github.com:nlohmann/json.git
+[submodule "lib"]
+	path = lib
+	url = git@github.com:Navtool/navtool_libs.git
+[submodule "rely/rtklib"]
+	path = rely/rtklib
+	url = git@github.com:Navtool/rtklib-2.4.3b34.git
+[submodule "rely/PROJ"]
+	path = rely/PROJ
+	url = git@github.com:OSGeo/PROJ.git
