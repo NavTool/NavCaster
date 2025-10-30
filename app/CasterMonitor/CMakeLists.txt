@@ -34,14 +34,24 @@ set(QML_FILES
 # dialog
 
 # extra
-
+# 扩展样式组件    
+    qml/extra/DataGridEx.qml
+    qml/extra/ExpanderEx.qml
+    qml/extra/NavigationViewEx.qml
+    qml/extra/PageRouterEx.qml
+    qml/extra/PageRouterViewEx.qml
+    qml/extra/TabViewEx.qml
+    qml/extra/TreeDataGridEx.qml
 # page
 # Mointor页面
     qml/page/Monitor/Page_Resource_Client.qml
     qml/page/Monitor/Page_Resource_Server.qml
     qml/page/Monitor/Page_Resource.qml
 # 通用 页面
+    qml/page/Page_About.qml
+    qml/page/Page_Home.qml
     qml/page/Page_Setting.qml
+
 # plot
 
 #reuse
@@ -70,6 +80,13 @@ set(RESOURCES_FILES
     res/logo.png
     res/CasterMonitor_zh_CN.qm
     res/CasterMonitor_en_US.qm
+    res/bg_home_header.webp
+
+    res/image/StandardUICommand.png
+    res/image/AnimatedIcon.png
+    res/image/AppBarToggleButton.png
+    res/image/Checkbox.png
+
 )
 
 include_directories(${PROJECT_NAME} ${CMAKE_BINARY_DIR})
@@ -80,6 +97,7 @@ set(SOURCE_FILES
     src/AppInfo.h src/AppInfo.cpp
     src/Log.h src/Log.cpp
     src/CircularReveal.h src/CircularReveal.cpp
+    src/PerformanceMonitor.h src/PerformanceMonitor.cpp
     )
 
 set_source_files_properties(${QML_SINGLETONS} PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

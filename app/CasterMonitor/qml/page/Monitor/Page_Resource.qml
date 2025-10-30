@@ -36,36 +36,6 @@ Frame{
             title: "静态基线"
             icon.name: FluentIcons.graph_ResizeTouchLarger
             icon.color:  Theme.res.textFillColorPrimary
-        },
-        PaneItem{
-            key: "/gnss/page/resource/baseline"
-            title: "动态基线"
-            icon.name: FluentIcons.graph_MarketDown
-            icon.color:  Theme.res.textFillColorPrimary
-        },
-        PaneItem{
-            key: "/gnss/page/resource/closeloop"
-            title: "闭合环"
-            icon.name: FluentIcons.graph_Eject
-            icon.color:  Theme.res.textFillColorPrimary
-        },
-        PaneItem{
-            key: "/gnss/page/resource/quality"
-            title: "数据质量"
-            icon.name: FluentIcons.graph_Trackers
-            icon.color:  Theme.res.textFillColorPrimary
-        },
-        PaneItem{
-            key: "/gnss/page/resource/solution"
-            title: "解算结果"
-            icon.name: FluentIcons.graph_BulletedList
-            icon.color:  Theme.res.textFillColorPrimary
-        },
-        PaneItem{
-            key: "/gnss/page/resource/navfile"
-            title: "星历文件"
-            icon.name: FluentIcons.graph_Globe
-            icon.color:  Theme.res.textFillColorPrimary
         }
 
     ]
@@ -99,14 +69,15 @@ Frame{
             "/gnss/page/resource/option":{url: R.resolvedUrl("qml/page/GNSS/Page_Resource_Option.qml"),singleton:true}
         }
     }
-    NavigationViewEx{
+    NavigationView{
         anchors.fill: parent
         //logo: "qrc:/qt/qml/Gallery/res/image/logo.png"
         //title: "FluentUI Gallery"
         router: page_router
         items: originalItems
         footerItems: originalFooterItems
-        displayMode: NavigationViewType.Compact
+        displayMode: NavigationViewType.Top
+
         sideBarShadow: false
         goBackButton.visible: false
         appBarHeight: 5
@@ -121,13 +92,13 @@ Frame{
                 }
             }
         Component.onCompleted: {
-            page_router.go(GNSS.displayResourcePage)
+            page_router.go(Monitor.displayResourcePage)
         }
 
         Connections{
-            target:GNSS
+            target:Monitor
             function onDisplayResourcePageChanged(){
-                page_router.go(GNSS.displayResourcePage)
+                page_router.go(Monitor.displayResourcePage)
             }
         }
 
