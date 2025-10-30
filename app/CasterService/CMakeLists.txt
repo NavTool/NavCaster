@@ -1,4 +1,4 @@
-project(Caster_Service LANGUAGES CXX)
+project(CasterService LANGUAGES CXX)
 
 # 默认版本号
 set(VERSION_MAJOR 1)

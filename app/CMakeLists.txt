@@ -1,2 +1,2 @@
-# add_subdirectory(NavPost)
-add_subdirectory(CasterService)
+add_subdirectory(CasterMonitor/)
+add_subdirectory(CasterService/)
