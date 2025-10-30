@@ -22,3 +22,6 @@
 [submodule "rely/PROJ"]
 	path = rely/PROJ
 	url = git@github.com:OSGeo/PROJ.git
+[submodule "rely/yaml-cpp"]
+	path = rely/yaml-cpp
+	url = git@github.com:jbeder/yaml-cpp.git
