@@ -1,0 +1,23 @@
+#pragma once
+
+// 版本内部信息
+#define PROJECT_SET_NAME "@PROJECT_NAME@"            //整个项目的名称
+#define PROJECT_SET_VERSION "@PROJECT_VERSION@"      //软件版本：[x.x.x].[x]  ([主版本].[当前版本的提交次数])
+#define PROJECT_GIT_BRANCH "@PROJECT_GIT_BRANCH@"    //软件的git分支
+#define PROJECT_GIT_VERSION "@PROJECT_GIT_VERSION@"  //软件的git版本
+#define PROJECT_TAG_VERSION "@PROJECT_TAG_VERSION@"  //完整的tag描述
+#define PORJECT_UPDATE_TIME "@PROJECT_COMMIT_DATE@"  // 代码提交日期
+
+// 构建相关信息
+#define BUILD_SYSTEM "@CMAKE_SYSTEM@"                     // 编译环境
+#define BUILD_SYSTEM_PROCESSOR "@CMAKE_SYSTEM_PROCESSOR@" // 处理器架构
+#define BUILD_TYPE "@CMAKE_BUILD_TYPE@"                   // 编译类型
+#define BUILD_DATE "@PROJECT_BUILD_DATE@"                 // 编译日期  可执行程序生成日期（精确到日）
+#define BUILD_COMPILER_VERSION "@QT_COMPILER_VERSION@"    // Qt编译器版本
+
+// 支持信息
+#define SUPPORT_DEVELOPER "NavTool"                                  // 开发组织
+#define SUPPORT_OFFICIAL_DOMAIN "https://github.com/NavTool"         // 官方网站
+#define SUPPORT_PROJECT_DOMAIN "https://github.com/NavTool/NavCaster"  // 项目网站
+#define SUPPORT_FEEDBACK "https://github.com/NavTool"                // 反馈
+#define SUPPORT_COPYRIGHT "\u00A9 2025 NavTool's Lab. All rights reserved." //

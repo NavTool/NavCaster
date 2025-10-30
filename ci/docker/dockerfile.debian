@@ -1,0 +1,15 @@
+# 使用指定的基础镜像
+ARG BASE_IMAGE=ubuntu
+
+FROM ${BASE_IMAGE}
+
+
+# 设置 tzdata 为非交互模式
+ENV DEBIAN_FRONTEND=noninteractive
+# 设置时区环境变量 (比如设为 Asia/Shanghai)
+ENV TZ=Asia/Shanghai
+
+# 安装必要的软件和工具
+RUN apt-get update && apt-get install gcc g++ make cmake git -y 
+
+CMD ["tail", "-f", "/dev/null"]

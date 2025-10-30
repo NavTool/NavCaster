@@ -1,0 +1,37 @@
+安装docker
+    yum install docker
+安装docker compose（对于低版本的docker 内部不集成compose，因此还需要下载docker-compose）
+    yum install docker-compose
+
+启动docker
+    systemctl start docker
+配置开机自启
+    systemctl enable docker
+
+导入镜像
+    docker load -i   xxxxx.tar
+
+在docker-compose工作目录下执行
+    docker-compose up -d        启动compose  -d是后台运行
+    docker-compose ps           查看状态
+    docker-compose down         停止compose，并删除容器
+
+
+
+容器化运行时候的目录结构
+
+docker-compose工作目录必要文件
+
+app/                                    应用程序目录
+    conf/
+        Auth_Verify.yml                     配置文件   (如果要连接的redis也在容器中运行，配置文件中redis的ip和端口要配置成 redis:6379)
+        Caster_Core.yml                     配置文件   (如果要连接的redis也在容器中运行，配置文件中redis的ip和端口要配置成 redis:6379)
+        Service_Setting.yml                 配置文件
+    env/                                依赖环境目录
+        redis.conf                          redis的配置文件
+        redis-server                        redis-server可执行程序
+    Caster_Service                      Caster可执行程序
+img/                                    镜像目录
+    redis_7.4.0.tar                         redis7.4的容器镜像
+    ubuntu-24.04.tar                        ubuntu24.04的容器镜像
+docker-compose.yml                      docker-compose文件，用于依次启动redis和caster
