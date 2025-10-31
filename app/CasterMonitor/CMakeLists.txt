@@ -43,14 +43,21 @@ set(QML_FILES
     qml/extra/TabViewEx.qml
     qml/extra/TreeDataGridEx.qml
 # page
+# 初始页面
+    qml/page/Init/Page_About.qml
+    qml/page/Init/Page_Home.qml
+    qml/page/Init/Page_Setting.qml
 # Mointor页面
-    qml/page/Monitor/Page_Resource_Client.qml
-    qml/page/Monitor/Page_Resource_Server.qml
-    qml/page/Monitor/Page_Resource.qml
-# 通用 页面
-    qml/page/Page_About.qml
-    qml/page/Page_Home.qml
-    qml/page/Page_Setting.qml
+    qml/page/Monitor/Page_Client.qml
+    qml/page/Monitor/Page_Event.qml
+    qml/page/Monitor/Page_Exit.qml
+    qml/page/Monitor/Page_Map.qml
+    qml/page/Monitor/Page_Mpt.qml
+    qml/page/Monitor/Page_Option.qml
+    qml/page/Monitor/Page_Server.qml
+    qml/page/Monitor/Page_Status.qml
+    qml/page/Monitor/Page_Test.qml
+    qml/page/Monitor/Page_User.qml
 
 # plot
 
@@ -78,8 +85,8 @@ set(QML_SINGLETONS
 
 set(RESOURCES_FILES
     res/logo.png
-    res/CasterMonitor_zh_CN.qm
-    res/CasterMonitor_en_US.qm
+    CasterMonitor_zh_CN.qm
+    CasterMonitor_en_US.qm
     res/bg_home_header.webp
 
     res/image/StandardUICommand.png
@@ -98,6 +105,11 @@ set(SOURCE_FILES
     src/Log.h src/Log.cpp
     src/CircularReveal.h src/CircularReveal.cpp
     src/PerformanceMonitor.h src/PerformanceMonitor.cpp
+    src/Monitor/ClientDataController.h src/Monitor/ClientDataController.cpp
+    src/Monitor/ServerDataController.h src/Monitor/ServerDataController.cpp
+    src/Monitor/EventDataController.h src/Monitor/EventDataController.cpp
+    src/Monitor/RelayDataController.h src/Monitor/RelayDataController.cpp
+    src/Monitor/UserDataController.h src/Monitor/UserDataController.cpp
     )
 
 set_source_files_properties(${QML_SINGLETONS} PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -194,10 +206,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/GNSS
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/RTK
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/INS
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Gravity
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Monitor
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

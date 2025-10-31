@@ -59,14 +59,9 @@ QtObject {
     property string displayScreen: "/screen/init"  //主视窗显示内容
 
     //初始化页面显示内容
-    property string displayInitScreen:"/page/start"             // 初始页面显示的页面
+    property string displayInitScreen:"/init/page/home"             // 初始页面显示的页面
+    property string displayMainScreen:"/monitor/page/status"                //Main视窗主页面显示内容（这个主要是记录状态，通过切换主页的页面都要通过open_page信号
 
-    property string displayMainScreen:"/monitor/page/resource"                //Main视窗主页面显示内容（这个主要是记录状态，通过切换主页的页面都要通过open_page信号
-    property string displayMainScreenEx:"/sidepage/log"            //扩展视图显示内容
-
-
-    //顶部菜单栏
-    property int navbarCurrentIndex:2   //主页面当前停留的菜单编号（从0开始），这边变量主要是为了保证当点击到文件页面后又返回的时候，能够切换回上一次选中的页面
 
     //打开对话框（发送信号，在Screen_Root中监听这个信号，并打开相应的Dialog
     signal open_dialog(string path,var args)
@@ -76,11 +71,9 @@ QtObject {
 
 
     //主页页面可视控制
-
-    property bool visable_footer:true  //底部状态栏可视控制（最底部那一排）
     //主要布局控制（左、中、右各两格）
     property bool visable_right_side:false //右侧可视（右状态栏）
-    property bool visable_mid_side:true //中间可视（主页面+底部状态栏）
+
 
 
 

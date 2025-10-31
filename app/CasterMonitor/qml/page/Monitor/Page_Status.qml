@@ -76,7 +76,7 @@ Frame{
         router: page_router
         items: originalItems
         footerItems: originalFooterItems
-        displayMode: NavigationViewType.Top
+        displayMode: NavigationViewType.Compact
 
         sideBarShadow: false
         goBackButton.visible: false
@@ -91,16 +91,6 @@ Frame{
                     page_router.go(item.key,{info:item.title})
                 }
             }
-        Component.onCompleted: {
-            page_router.go(Monitor.displayResourcePage)
-        }
-
-        Connections{
-            target:Monitor
-            function onDisplayResourcePageChanged(){
-                page_router.go(Monitor.displayResourcePage)
-            }
-        }
 
     }
 }

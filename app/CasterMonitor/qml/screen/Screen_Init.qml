@@ -9,9 +9,12 @@ import "../extra"
 
 Item{
 
+    property string title
+    property PageContext context
+
     property list<QtObject> originalItems : [
         PaneItem{
-            key: "/init/home"
+            key: "/init/page/home"
             title: qsTr("主页")
             icon.name: FluentIcons.graph_Home
             icon.color:  Theme.res.textFillColorPrimary
@@ -19,7 +22,7 @@ Item{
         PaneItem{
             icon.name: FluentIcons.graph_Settings
             icon.color:  Theme.res.textFillColorPrimary
-            key: "/init/setting"
+            key: "/init/page/setting"
             title: qsTr("设置")
         }
 
@@ -28,16 +31,16 @@ Item{
         PaneItem{
             icon.name: FluentIcons.graph_Info
             icon.color:  Theme.res.textFillColorPrimary
-            key: "/init/about"
+            key: "/init/page/about"
             title: qsTr("软件信息")
         }
     ]
     PageRouter{
         id: page_router
         routes: {
-            "/init/home":{url: R.resolvedUrl("qml/page/Page_Home.qml"),singleton:true},
-            "/init/setting":{url: R.resolvedUrl("qml/page/Page_Setting.qml"),singleton:true},
-            "/init/about":{url: R.resolvedUrl("qml/page/Page_About.qml"),singleton:true}
+            "/init/page/home":{url: R.resolvedUrl("qml/page/Init/Page_Home.qml"),singleton:true},
+            "/init/page/setting":{url: R.resolvedUrl("qml/page/Init/Page_Setting.qml"),singleton:true},
+            "/init/page/about":{url: R.resolvedUrl("qml/page/Init/Page_About.qml"),singleton:true}
         }
     }
 
@@ -65,13 +68,20 @@ Item{
             }
 
         Component.onCompleted: {
-            page_router.go("/init/home",{title:"Satrt"})
+            page_router.go(Global.displayInitScreen,{title:"Satrt"})
+        }
+
+        Connections{
+            target:Global
+            function onDisplayInitScreenChanged(){
+                page_router.go(Global.displayInitScreen)
+            }
         }
 
         Component{
             id: comp_logo
             Image{
-                width: Global.windowIcon ? 20 : 0
+                width: Global.windowIcon ? 25 : 0
                 height: width
                 source: Global.windowIcon ? Global.windowIcon : ""
             }
