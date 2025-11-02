@@ -1,0 +1,240 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import FluentUI.Controls
+import FluentUI.impl
+import CasterMonitor
+
+ContentPage {
+
+
+
+    property var colors : [Colors.yellow,Colors.orange,Colors.red,Colors.magenta,Colors.purple,Colors.blue,Colors.teal,Colors.green]
+
+    property var randomAccentColor: function(){
+        return colors[Math.floor(Math.random() * 8)]
+    }
+
+
+
+
+
+    topPadding: 0
+    leftPadding: 0
+    rightPadding: 0
+    bottomPadding: 0
+    background: Image {
+        fillMode:Image.TileHorizontally
+        width: parent.width
+        height: parent.height*0.6
+        anchors.bottom: parent.bottom       // 对齐底部
+        verticalAlignment: Qt.AlignTop
+        sourceSize: Qt.size(parent.width,parent.heigh)
+        source: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp"
+        Rectangle{
+            anchors.fill: parent
+            gradient: Gradient{
+                GradientStop { position: 0.7; color: Theme.dark ? Qt.rgba(0,0,0,0) : Qt.rgba(1,1,1,0) }
+                GradientStop { position: 1.0; color: Theme.dark ? Qt.rgba(0,0,0,1) : Qt.rgba(1,1,1,1) }
+            }
+        }
+    }
+
+
+
+    Column{
+
+        anchors{
+            top: parent.top
+            left: parent.left
+            topMargin: 50
+            leftMargin: 40
+        }
+
+        spacing: 10
+
+        Item
+        {
+            width: 300
+            height: 130
+            Column{
+                spacing: 10
+                Image {
+                    height: 80
+                    width: 150
+                    source: Global.windowIcon
+                    fillMode: Image.PreserveAspectFit   // 保持比例
+                }
+                Label{
+                    text: "Caster Monitor"
+                    font: Typography.subtitle
+                    anchors{
+                        horizontalCenter: parent.horizontalCenter
+                    }
+                }
+            }
+        }
+
+
+        Frame
+        {
+            clip: true
+
+            width: 450
+            height: 250
+            BannerLayout {
+                     id: banner
+                     anchors.fill: parent
+                     orientation: Qt.Horizontal
+                     model: ListModel {
+                         ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
+                         ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
+                         ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
+                     }
+                     delegate: Item {
+                         width: banner.width
+                         height: banner.height
+                         Image {
+                             anchors.fill: parent
+                             source: picUrl
+                         }
+                     }
+                 }
+                 PageIndicator {
+                     anchors.bottom: banner.bottom
+                     anchors.horizontalCenter: banner.horizontalCenter
+                     count: banner.count
+                     currentIndex: banner.currentIndex
+                 }
+        }
+
+
+        Frame
+        {
+            width: 450
+            height: 180
+
+            ListModel{
+                id: tab_model
+                ListElement{
+                    title: "First"
+                    accentColor: function(){
+                        return colors[Math.floor(Math.random() * 8)]
+                    }
+                }
+                ListElement{
+                    title: "Second"
+                    accentColor: function(){
+                        return colors[Math.floor(Math.random() * 8)]
+                    }
+                }
+                ListElement{
+                    title: "Third"
+                    accentColor: function(){
+                        return colors[Math.floor(Math.random() * 8)]
+                    }
+                }
+            }
+
+            SegmentedControl {
+
+                width: parent.width
+
+                id: bar
+                clip: true
+                Repeater {
+                    model: tab_model
+                    SegmentedButton {
+                        id: btn_tab
+                        text: model.title
+                        width: 150
+                    }
+                }
+            }
+
+            Component{
+                id:comp_page
+                Frame{
+                    anchors.fill: parent
+                    Label{
+                        font: Typography.titleLarge
+                        anchors.centerIn: parent
+                        text: modelData.title
+                        color: modelData.accentColor().normal
+                    }
+                }
+            }
+
+            StackLayout {
+                currentIndex: bar.currentIndex
+                anchors{
+                    left: bar.left
+                    right: bar.right
+                    top: bar.bottom
+                    bottom: parent.bottom
+                    topMargin: 10
+                }
+                Repeater{
+                    model:tab_model
+                    AutoLoader{
+                        property var modelData: model
+                        sourceComponent: comp_page
+                    }
+                }
+            }
+
+        }
+
+
+
+
+    }
+
+
+    Column
+    {
+
+        anchors{
+            bottom: parent.bottom
+            left: parent.left
+            bottomMargin: 10
+            leftMargin: 40
+        }
+
+        Frame
+        {
+            width: 150
+            height: 90
+            Image {
+                anchors.fill: parent
+                source: Theme.dark ? Global.companyLogo_dark:Global.companyLogo_light
+                fillMode: Image.PreserveAspectFit   // 保持比例
+            }
+        }
+        Label{
+            text: "软件版本："+Global.windowName  +" "+ PROJECT_TAG_VERSION
+            font: Typography.bodyStrong
+            color: "grey"
+            anchors{
+                // horizontalCenter: parent.horizontalCenter
+            }
+        }
+        Label{
+            text: "设备ID :" + VALUE_DEVICE_ID
+            font: Typography.bodyStrong
+            color: "grey"
+            anchors{
+                // horizontalCenter: parent.horizontalCenter
+            }
+        }
+        Label{
+            text: "设备ID :" + VALUE_MACHINE_ID
+            font: Typography.bodyStrong
+            color: "grey"
+            anchors{
+                // horizontalCenter: parent.horizontalCenter
+            }
+        }
+    }
+
+}

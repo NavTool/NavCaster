@@ -54,12 +54,14 @@ QtObject {
 
     property var windowName: PROJECT_NAME
     property string windowIcon: "qrc:/qt/qml/CasterMonitor/res/logo.png"
+    property string companyLogo_light:"qrc:/qt/qml/CasterMonitor/res/SinoGNSS.png"
+    property string companyLogo_dark :"qrc:/qt/qml/CasterMonitor/res/SinoGNSS2.png"
 
     //显示的屏幕  /screen/xxxxx
     property string displayScreen: "/screen/init"  //主视窗显示内容
 
     //初始化页面显示内容
-    property string displayInitScreen:"/init/page/home"             // 初始页面显示的页面
+    property string displayInitScreen:"/init/page/start"             // 初始页面显示的页面
     property string displayMainScreen:"/monitor/page/status"                //Main视窗主页面显示内容（这个主要是记录状态，通过切换主页的页面都要通过open_page信号
 
 
@@ -72,7 +74,7 @@ QtObject {
 
     //主页页面可视控制
     //主要布局控制（左、中、右各两格）
-    property bool visable_right_side:false //右侧可视（右状态栏）
+    property bool visable_right_side:true //右侧可视（右状态栏）
 
 
 

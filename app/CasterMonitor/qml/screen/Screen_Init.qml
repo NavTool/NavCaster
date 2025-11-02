@@ -38,34 +38,19 @@ Item{
     PageRouter{
         id: page_router
         routes: {
+            "/init/page/start":{url: R.resolvedUrl("qml/page/Init/Page_Start.qml"),singleton:true},
             "/init/page/home":{url: R.resolvedUrl("qml/page/Init/Page_Home.qml"),singleton:true},
             "/init/page/setting":{url: R.resolvedUrl("qml/page/Init/Page_Setting.qml"),singleton:true},
             "/init/page/about":{url: R.resolvedUrl("qml/page/Init/Page_About.qml"),singleton:true}
         }
     }
 
-    NavigationView{
+
+    PageRouterView{
+        id: screen_panne
         anchors.fill: parent
-        logo: Global.windowIcon
-        title: Global.windowName +" v."+ PROJECT_SET_VERSION
         router: page_router
-        items: originalItems
-        footerItems: originalFooterItems
-        displayMode: NavigationViewType.Top
-        sideBarShadow: false
-        // sideItemHeight: 85
-        // sideBarWidth: 200
-        appBarHeight: 48
-        goBackButton.visible:false
-        logoDelegate: comp_logo
-
-
-        onTap:
-            (item)=>{
-                if(item.key){
-                    page_router.go(item.key,{info:item.title})
-                }
-            }
+        clip: true
 
         Component.onCompleted: {
             page_router.go(Global.displayInitScreen,{title:"Satrt"})
@@ -78,14 +63,8 @@ Item{
             }
         }
 
-        Component{
-            id: comp_logo
-            Image{
-                width: Global.windowIcon ? 25 : 0
-                height: width
-                source: Global.windowIcon ? Global.windowIcon : ""
-            }
-        }
-
     }
-}
+
+
+
+  }

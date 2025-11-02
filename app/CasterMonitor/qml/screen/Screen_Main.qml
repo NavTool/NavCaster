@@ -60,8 +60,8 @@ Item{
             title: "挂载点管理"
             icon.name: FluentIcons.graph_Devices
             icon.color:  Theme.res.textFillColorPrimary
-        }
-        ,PaneItem{
+        },
+        PaneItem{
             key: "/monitor/page/map"
             title: "地图"
             icon.name: FluentIcons.graph_TiltUp

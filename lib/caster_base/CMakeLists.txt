@@ -21,9 +21,13 @@ set(SOURCES
     include/base64.h      src/base64.cpp
     include/knt.h      src/knt.cpp
     include/rtcm_decode.h src/rtcm_decode.cpp
+    include/deviceID.h      src/deviceID.cpp
     )
     
 
 add_library(${PROJECT_NAME} STATIC ${SOURCES})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+if (WIN32)
+        target_link_libraries(${PROJECT_NAME} PRIVATE iphlpapi)
+endif()

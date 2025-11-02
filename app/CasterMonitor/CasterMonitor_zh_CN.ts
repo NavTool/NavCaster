@@ -375,8 +375,13 @@
 <context>
     <name>Page_Mpt</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt.qml" line="9"/>
-        <source>开发中(添加最近挂载点/第三方挂载点接入/TCP数据接入/挂载点别名)</source>
+        <location filename="qml/page/Monitor/Page_Mpt.qml" line="47"/>
+        <source>坐标(正式版需隐藏)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt.qml" line="53"/>
+        <source>选项</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -679,13 +684,31 @@
 <context>
     <name>Page_Status</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="47"/>
-        <source>坐标(正式版需隐藏)</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="24"/>
+        <source>运行时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="53"/>
-        <source>选项</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="36"/>
+        <source>基站/基站上限</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="48"/>
+        <source>移动站/移动站上限</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="61"/>
+        <source>CPU占用</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="75"/>
+        <source>CPU占用
+基站/移动站/连接数
+
+</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -981,68 +1004,68 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="334"/>
+        <location filename="qml/screen/Screen_Main.qml" line="329"/>
         <source>Custom Content</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="445"/>
+        <location filename="qml/screen/Screen_Main.qml" line="440"/>
         <source>未知状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="461"/>
+        <location filename="qml/screen/Screen_Main.qml" line="456"/>
         <source>已断开</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="465"/>
+        <location filename="qml/screen/Screen_Main.qml" line="460"/>
         <source>已连接</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="469"/>
+        <location filename="qml/screen/Screen_Main.qml" line="464"/>
         <source>已重置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="483"/>
+        <location filename="qml/screen/Screen_Main.qml" line="478"/>
         <source>连接状态：</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="393"/>
+        <location filename="qml/screen/Screen_Main.qml" line="388"/>
         <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="400"/>
+        <location filename="qml/screen/Screen_Main.qml" line="395"/>
         <source>About</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="408"/>
+        <location filename="qml/screen/Screen_Main.qml" line="403"/>
         <source>More</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="158"/>
-        <location filename="qml/screen/Screen_Main.qml" line="167"/>
+        <location filename="qml/screen/Screen_Main.qml" line="153"/>
+        <location filename="qml/screen/Screen_Main.qml" line="162"/>
         <source>连接节点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="171"/>
+        <location filename="qml/screen/Screen_Main.qml" line="166"/>
         <source>已成功连接至节点网络!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="174"/>
+        <location filename="qml/screen/Screen_Main.qml" line="169"/>
         <source>已从节点网络断开连接!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="184"/>
+        <location filename="qml/screen/Screen_Main.qml" line="179"/>
         <source>刷新</source>
         <translation type="unfinished"></translation>
     </message>

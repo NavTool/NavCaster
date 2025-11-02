@@ -3,6 +3,7 @@
 #include <qflags.h>
 #include <qqmlcontext.h>
 #include "Version.h"
+#include "deviceID.h"
 
 
 
@@ -41,6 +42,12 @@ inline void Register_qml_frame_define(QQmlContext *context)
     context->setContextProperty("SUPPORT_PROJECT_DOMAIN", SUPPORT_PROJECT_DOMAIN);
     context->setContextProperty("SUPPORT_FEEDBACK", SUPPORT_FEEDBACK);
     context->setContextProperty("SUPPORT_COPYRIGHT", SUPPORT_COPYRIGHT);
+
+
+     context->setContextProperty("VALUE_DEVICE_ID", QSysInfo::machineUniqueId());
+
+
+    context->setContextProperty("VALUE_MACHINE_ID",machineid::machineHash().c_str());
 
 
     // double PI = 3.1415926535897932;

@@ -47,6 +47,7 @@ set(QML_FILES
     qml/page/Init/Page_About.qml
     qml/page/Init/Page_Home.qml
     qml/page/Init/Page_Setting.qml
+    qml/page/Init/Page_Start.qml
 # Mointor页面
     qml/page/Monitor/Page_Client.qml
     qml/page/Monitor/Page_Event.qml
@@ -88,6 +89,9 @@ set(RESOURCES_FILES
     CasterMonitor_zh_CN.qm
     CasterMonitor_en_US.qm
     res/bg_home_header.webp
+
+    res/SinoGNSS2.png
+    res/SinoGNSS.png
 
     res/image/StandardUICommand.png
     res/image/AnimatedIcon.png
@@ -180,6 +184,7 @@ target_link_libraries(
     FluentUI
     FluentUIImpl
     FluentUIControls
+    knt
 )
 if (FLUENTUI_BUILD_STATIC_LIB)
     target_link_libraries(
