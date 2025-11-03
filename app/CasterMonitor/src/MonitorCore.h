@@ -378,6 +378,8 @@ class MonitorCore
 public:
     MonitorCore();
 
+    ~MonitorCore();
+
     // 返回单例实例
     static MonitorCore *getInstance();
 

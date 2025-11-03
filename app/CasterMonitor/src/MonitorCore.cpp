@@ -7,6 +7,16 @@
 MonitorCore::MonitorCore()
 {
 
+#ifdef WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        spdlog::info("WSAStartup failed! exit.");
+        // return 1;
+    }
+#endif
+
+
 
 
 #ifdef _WIN32
@@ -29,6 +39,14 @@ MonitorCore::MonitorCore()
 
 }
 
+MonitorCore::~MonitorCore()
+{
+    #ifdef WIN32
+        WSACleanup();
+    #endif
+
+}
+
 MonitorCore *MonitorCore::getInstance()
 {
     static MonitorCore *instance = new MonitorCore();
@@ -37,6 +55,8 @@ MonitorCore *MonitorCore::getInstance()
 
 int MonitorCore::start()
 {
+
+
     //  Init模块
 
     // 初始化用户模块
@@ -66,6 +86,7 @@ int MonitorCore::start()
 
 int MonitorCore::start_server_thread()
 {
+
     _worker= std::thread(&MonitorCore::event_base_thread, _base);
     _worker.detach();
 
@@ -76,6 +97,8 @@ int MonitorCore::start_server_thread()
 
 void *MonitorCore::event_base_thread(void *arg)
 {
+
+
     event_base *base = static_cast<event_base *>(arg);
     evthread_make_base_notifiable(base);
 
@@ -83,6 +106,9 @@ void *MonitorCore::event_base_thread(void *arg)
     event_base_dispatch(base);
 
     spdlog::warn("Server is stop!"); // 不应当主动发生
+
+
+
     return nullptr;
 }
 
@@ -100,7 +126,7 @@ int MonitorCore::periodic_task()
             continue;
         }
 
-        json info(str);
+        json info=json::parse(str);
 
         /*{
          * "ip":"127.0.0.1",
@@ -156,22 +182,8 @@ int MonitorCore::periodic_task()
             continue;
         }
 
-        json info(str);
+        json info=json::parse(str);
 
-        /*{
-         * "ip":"127.0.0.1",
-         * "mount_point":"SSRA03IGS0_SIRGAS2000",
-         * "online_seconds":119,
-         * "online_time":1762162232,
-         * "port":34976,
-         * "recv_speed":3668.0,
-         * "recv_total":60970,
-         * "send_speed":0.0,
-         * "send_total":0,
-         * "update_time":1762162352,
-         * "user_name":"none"
-         * }
-        */
         std::shared_ptr<client_info> item=std::make_shared<client_info>();
 
         item->UID(iter);
@@ -197,7 +209,7 @@ int MonitorCore::periodic_task()
 
         m_client_map.insert(std::pair(iter,item));
     }
-    spdlog::info("active base count: {}",base.size());
+    spdlog::info("active rover count: {}",rover.size());
 
 
 

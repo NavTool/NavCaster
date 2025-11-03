@@ -82,14 +82,14 @@ static void task_sleepms(uint32_t milliseconds)
 
 int main()
 {
-#ifdef WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-    {
-        spdlog::info("WSAStartup failed! exit.");
-        return 1;
-    }
-#endif
+// #ifdef WIN32
+//     WSADATA wsaData;
+//     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+//     {
+//         spdlog::info("WSAStartup failed! exit.");
+//         return 1;
+//     }
+// #endif
 
     std::string conf_path = CONF_PATH;
 
@@ -123,9 +123,9 @@ int main()
 
 
 
-#ifdef WIN32
-    WSACleanup();
-#endif
+// #ifdef WIN32
+//     WSACleanup();
+// #endif
 
 
     return 0;
