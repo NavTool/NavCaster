@@ -388,3 +388,23 @@ int CASTER::Update_Rover_Describe(const char *user_name, const char *connect_key
 {
     return 0;
 }
+
+std::set<std::string> CASTER::Get_Active_Rover_UID()
+{
+    return caster->get_active_rover_UID();
+}
+
+std::set<std::string> CASTER::Get_Active_Base_UID()
+{
+    return caster->get_active_base_UID();
+}
+
+std::string CASTER::Get_Base_Info(std::string UID)
+{
+    return caster->get_active_base_info(UID);
+}
+
+std::string CASTER::Get_Rover_Info(std::string UID)
+{
+    return caster->get_active_rover_info(UID);
+}

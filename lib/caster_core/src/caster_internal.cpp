@@ -40,6 +40,9 @@ caster_internal::caster_internal(json conf, event_base *base)
     _upload_base_stat = conf["Upload_Base_Stat"];
     _upload_rover_stat = conf["Upload_Rover_Stat"];
 
+    _download_base_stat = conf["Download_Base_Stat"];
+    _download_rover_stat = conf["Download_Rover_Stat"];
+
     _base_enable_mult = conf["Base_Enable_Mult"];
     _base_keep_early = conf["Base_Keep_Early"];
 
@@ -238,6 +241,36 @@ std::string caster_internal::get_source_list_text()
     return _source_list_text;
 }
 
+std::set<std::string> caster_internal::get_active_base_UID()
+{
+    return _active_baseUID_set;
+}
+
+std::set<std::string> caster_internal::get_active_rover_UID()
+{
+    return _active_roverUID_set;
+}
+
+std::string caster_internal::get_active_base_info(std::string UID)
+{
+    auto iter=_active_base_info_map.find(UID);
+    if(iter==_active_base_info_map.end())
+    {
+        return std::string();
+    }
+    return iter->second;
+}
+
+std::string caster_internal::get_active_rover_info(std::string UID)
+{
+    auto iter=_active_rover_info_map.find(UID);
+    if(iter==_active_rover_info_map.end())
+    {
+        return std::string();
+    }
+    return iter->second;
+}
+
 long long caster_internal::get_time_stamp()
 {
     std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
@@ -338,6 +371,20 @@ int caster_internal::download_active_item()
 {
     redisAsyncCommand(_pub_context, Redis_Update_Active_Base_Callback, this, "HGETALL MPT:LIST ");
     redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST ");
+    return 0;
+}
+
+int caster_internal::download_active_info()
+{
+    if(_download_base_stat)
+    {
+        redisAsyncCommand(_pub_context, Redis_Update_Base_Info_Callback, this, "HGETALL MPT:STAT ");
+    }
+    if(_download_rover_stat)
+    {
+        redisAsyncCommand(_pub_context, Redis_Update_Rover_Info_Callback, this, "HGETALL USR:STAT ");
+    }
+
     return 0;
 }
 
@@ -490,25 +537,25 @@ mount_info caster_internal::build_default_mount_info(std::string mount_point)
     //     "Not parsed or provided"};
 
     mount_info item = {
-        "STR",
-        mount_point,
-        "unknown",
-        "RTCM 3.3",
-        "1074(1),1084(1),1094(1),1124(1)",
-        "2",
-        "GPS+GLO+GAL+BDS",
-        "SNT",
-        "XXX",
-        "0.00",
-        "0.00",
-        "1",
-        "0",
-        "SNT",
-        "none",
-        "N",
-        "N",
-        "11520",
-        "none"};
+                       "STR",
+                       mount_point,
+                       "unknown",
+                       "RTCM 3.3",
+                       "1074(1),1084(1),1094(1),1124(1)",
+                       "2",
+                       "GPS+GLO+GAL+BDS",
+                       "SNT",
+                       "XXX",
+                       "0.00",
+                       "0.00",
+                       "1",
+                       "0",
+                       "SNT",
+                       "none",
+                       "N",
+                       "N",
+                       "11520",
+                       "none"};
 
     return item;
 }
@@ -534,6 +581,9 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
 
     // 获取所有在线挂载点、在线用户列表，删除没有按时续期的用户和挂载点
     svr->download_active_item();
+
+    // 获取所有在线挂载点、在线用户详细信息
+    svr->download_active_info();
 
     // 检测当前活跃的频道(如果本地维护的活跃频道已经不在redis的活跃记录中，那么要把对应的连接踢下线)
     svr->check_active_base_channel();
@@ -1459,6 +1509,82 @@ void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, v
         }
     }
     // spdlog::info("Sync active rover, current item:{} ", svr->_active_user_set.size());
+}
+
+void caster_internal::Redis_Update_Base_Info_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL MPT:STAT: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL MPT:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    // if (reply->elements == 0)
+    // {
+    //     spdlog::info("[{}:{}]: HGETALL MPT:STAT reply->elements: {}", __class__, __func__, reply->elements);
+    //     return;
+    // }
+
+    svr->_active_baseUID_set.clear();
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        svr->_active_baseUID_set.insert(field);
+        svr->_active_base_info_map.insert(std::pair<std::string, std::string>(field, value));
+    }
+}
+
+void caster_internal::Redis_Update_Rover_Info_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL USR:STAT: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL USR:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    // if (reply->elements == 0)
+    // {
+    //     spdlog::info("[{}:{}]: HGETALL USR:STAT reply->elements: {}", __class__, __func__, reply->elements);
+    //     return;
+    // }
+
+    svr->_active_roverUID_set.clear();
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        svr->_active_roverUID_set.insert(field);
+        svr->_active_rover_info_map.insert(std::pair<std::string, std::string>(field, value));
+    }
 }
 
 // 将十六进制字符串解析为十进制整数

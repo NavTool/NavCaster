@@ -170,6 +170,8 @@ private:
 
     bool _upload_base_stat = true;  // 上报基站数据流统计信息
     bool _upload_rover_stat = true; // 上报用户数据流统计信息
+    bool _download_base_stat = false;  // 下载基站数据流统计信息
+    bool _download_rover_stat = false; // 下载用户数据流统计信息
 
     bool _base_enable_mult = false; // 允许多个同名基站同时在线
     bool _base_keep_early = false;  // 不允许后续同名基站上线（_base_enable_mult=false的时候才生效）
@@ -192,8 +194,14 @@ private:
     std::unordered_map<std::string, str_status> _rover_status_map; // connect_key/str_status  //移动站的状态统计信息
 
     std::unordered_map<std::string, mount_info> _mount_map; // Mount_Point // 挂载点名为XXXX-F1A6(虚拟挂载点名-本地连接第三方时采用的端口转为4位16进制)
-    std::set<std::string> _active_mount_set;
-    std::set<std::string> _active_user_set;
+    std::set<std::string> _active_mount_set;   // 在线挂载点
+    std::set<std::string> _active_user_set;    // 在线用户名
+
+    std::set<std::string> _active_baseUID_set;   // 在线基站连接
+    std::set<std::string> _active_roverUID_set;  // 在线用户连接
+    std::unordered_map<std::string,std::string> _active_base_info_map;  // 在线基站连接信息
+    std::unordered_map<std::string,std::string> _active_rover_info_map;  // 在线用户连接信息
+
     std::string _source_list_text;
 
     std::string _updatetime_str;
@@ -252,6 +260,14 @@ public:
     // 获取挂载点列表正文
     std::string get_source_list_text();
 
+
+
+    std::set<std::string> get_active_base_UID();
+    std::set<std::string> get_active_rover_UID();
+    std::string get_active_base_info(std::string UID);
+    std::string get_active_rover_info(std::string UID);
+
+
 private:
     static long long get_time_stamp();
 
@@ -259,6 +275,8 @@ private:
 
     int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中（更新记录时间）
     int download_active_item(); // 将云端记录的在线挂载点更新到本地
+
+    int download_active_info(); // 将云端记录的基站和用户信息更新到本地（只有monitor才需要更新这个信息）
 
     int check_active_base_channel();  // 检测活跃基站频道（如果已经不存在，那么就踢出本地连接）
     int check_active_rover_channel(); // 检测活跃基站频道（如果已经不存在，那么就踢出本地连接）
@@ -285,6 +303,11 @@ private:
     // 更新有效挂载点、有效用户的回调
     static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata);
+
+    // 更新挂载点、用户的详细信息回调（Monitor）
+    static void Redis_Update_Base_Info_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Update_Rover_Info_Callback(redisAsyncContext *c, void *r, void *privdata);
+
 
     // 查询回调 (传入的privdata 类型 std::unordered_map<std::string, std::string> *
     static void Redis_Get_Hash_Field_Callback(redisAsyncContext *c, void *r, void *privdata);

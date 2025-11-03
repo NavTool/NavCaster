@@ -295,13 +295,13 @@ Frame {
                             title: qsTr("密码")
                             dataIndex: "station_name"
                             width: 200
-                            frozen: true
+                            // frozen: true
                         }
                         ListElement {
                             title: qsTr("账号类型（期限/永久/机构）")
                             dataIndex: "station_name"
                             width: 200
-                            frozen: true
+                            // frozen: true
                         }
                         ListElement{
                             title: qsTr("账号状态（启用/停用/过期）")

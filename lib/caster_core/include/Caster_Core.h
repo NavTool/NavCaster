@@ -1,6 +1,8 @@
 #pragma once
 #include <event2/event.h>
+#include <list>
 #include <string>
+#include <set>
 
 // #define CASTER_REPLY_ERR -1
 // #define CASTER_REPLY_OK 0
@@ -139,6 +141,22 @@ namespace CASTER
 
     // 设置虚拟基站的信息
     int Set_Grid_Source_Info(const char *mount_point, const char *connect_key, mount_info);
+
+
+    // Monitor相关函数
+
+    // 获取当前在线的基站的UID
+    std::set<std::string> Get_Active_Base_UID();
+    // 获取当前在线的用户的UID
+    std::set<std::string> Get_Active_Rover_UID();
+
+
+    // 根据TCP连接ID，获取状态信息(内部需要加锁）
+    std::string Get_Base_Info(std::string UID);    
+    std::string Get_Rover_Info(std::string UID);
+
+
+    // 检索函数
 
 
 

@@ -252,13 +252,13 @@ Frame {
                             title: qsTr("用户名")
                             dataIndex: "station_name"
                             width: 200
-                            frozen: true
+                            // frozen: true
                         }
                         ListElement {
                             title: qsTr("接入挂载点")
                             dataIndex: "station_name"
                             width: 200
-                            frozen: true
+                            // frozen: true
                         }
                         ListElement {
                             title: qsTr("使用挂载点")
