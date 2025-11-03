@@ -31,10 +31,8 @@ private:
     PROPERTY_AUTO(time_t, online_seconds); // 上线持续时间
 
     PROPERTY_AUTO(int64_t, send_total); // 总发送字节数
-    PROPERTY_AUTO(int64_t, send_count);
     PROPERTY_AUTO(double, send_speed); // 总发送速度
     PROPERTY_AUTO(int64_t, recv_total); // 总接收字节数
-    PROPERTY_AUTO(int64_t, recv_count);
     PROPERTY_AUTO(double, recv_speed); // 总接收速度
 
     PROPERTY_AUTO(double, llh_lat);
@@ -58,10 +56,8 @@ public:
         online_seconds(0);
 
         send_total(0);
-        send_count(0);
         send_speed(0.0);
         recv_total(0);
-        recv_count(0);
         recv_speed(0.0);
 
         llh_lat(0.0);
@@ -86,10 +82,8 @@ public:
         info["online_seconds"] = online_seconds();
 
         info["send_total"] = send_total();
-        info["send_count"] = send_count();
         info["send_speed"] = send_speed();
         info["recv_total"] = recv_total();
-        info["recv_count"] = recv_count();
         info["recv_speed"] = recv_speed();
 
         info["llh_lat"] = llh_lat();
@@ -115,10 +109,8 @@ public:
         online_seconds(info, "online_seconds");
 
         send_total(info, "send_total");
-        send_count(info, "send_count");
         send_speed(info, "send_speed");
         recv_total(info, "recv_total");
-        recv_count(info, "recv_count");
         recv_speed(info, "recv_speed");
 
         llh_lat(info, "llh_lat");
@@ -152,10 +144,8 @@ private:
     PROPERTY_AUTO(time_t, online_seconds); // 上线持续时间
 
     PROPERTY_AUTO(int64_t, send_total); // 总发送字节数
-    PROPERTY_AUTO(int64_t, send_count);
     PROPERTY_AUTO(double, send_speed); // 总发送速度
     PROPERTY_AUTO(int64_t, recv_total); // 总接收字节数
-    PROPERTY_AUTO(int64_t, recv_count);
     PROPERTY_AUTO(double, recv_speed); // 总接收速度
 
     PROPERTY_AUTO(double, llh_lat);
@@ -179,10 +169,8 @@ private:
         online_seconds(0);
 
         send_total(0);
-        send_count(0);
         send_speed(0.0);
         recv_total(0);
-        recv_count(0);
         recv_speed(0.0);
 
         llh_lat(0.0);
@@ -207,10 +195,8 @@ private:
         info["online_seconds"] = online_seconds();
 
         info["send_total"] = send_total();
-        info["send_count"] = send_count();
         info["send_speed"] = send_speed();
         info["recv_total"] = recv_total();
-        info["recv_count"] = recv_count();
         info["recv_speed"] = recv_speed();
 
         info["llh_lat"] = llh_lat();
@@ -236,10 +222,8 @@ private:
         online_seconds(info, "online_seconds");
 
         send_total(info, "send_total");
-        send_count(info, "send_count");
         send_speed(info, "send_speed");
         recv_total(info, "recv_total");
-        recv_count(info, "recv_count");
         recv_speed(info, "recv_speed");
 
         llh_lat(info, "llh_lat");
