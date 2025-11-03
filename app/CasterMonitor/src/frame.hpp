@@ -28,15 +28,17 @@ inline void Register_qml_frame_define(QQmlContext *context)
 #endif
 
     context->setContextProperty("PROJECT_NAME", PROJECT_NAME);
-    context->setContextProperty("PROJECT_GIT_BRANCH", PROJECT_GIT_BRANCH);
+    context->setContextProperty("PROJECT_SET_NAME", PROJECT_SET_NAME);
     context->setContextProperty("PROJECT_SET_VERSION", PROJECT_SET_VERSION);
+    context->setContextProperty("PROJECT_GIT_BRANCH", PROJECT_GIT_BRANCH);
     context->setContextProperty("PROJECT_GIT_VERSION", PROJECT_GIT_VERSION);
     context->setContextProperty("PROJECT_TAG_VERSION", PROJECT_TAG_VERSION);
     context->setContextProperty("PORJECT_UPDATE_TIME", PORJECT_UPDATE_TIME);
     context->setContextProperty("BUILD_SYSTEM", BUILD_SYSTEM);
     context->setContextProperty("BUILD_SYSTEM_PROCESSOR", BUILD_SYSTEM_PROCESSOR);
-    context->setContextProperty("BUILD_COMPILER_VERSION", BUILD_COMPILER_VERSION);
+    context->setContextProperty("BUILD_TYPE", BUILD_TYPE);
     context->setContextProperty("BUILD_DATE", BUILD_DATE);
+    context->setContextProperty("BUILD_COMPILER_VERSION", BUILD_COMPILER_VERSION);
     context->setContextProperty("SUPPORT_DEVELOPER", SUPPORT_DEVELOPER);
     context->setContextProperty("SUPPORT_OFFICIAL_DOMAIN", SUPPORT_OFFICIAL_DOMAIN);
     context->setContextProperty("SUPPORT_PROJECT_DOMAIN", SUPPORT_PROJECT_DOMAIN);
@@ -44,7 +46,7 @@ inline void Register_qml_frame_define(QQmlContext *context)
     context->setContextProperty("SUPPORT_COPYRIGHT", SUPPORT_COPYRIGHT);
 
 
-     context->setContextProperty("VALUE_DEVICE_ID", QSysInfo::machineUniqueId());
+    context->setContextProperty("VALUE_DEVICE_ID", QSysInfo::machineUniqueId());
 
 
     context->setContextProperty("VALUE_MACHINE_ID",machineid::machineHash().c_str());

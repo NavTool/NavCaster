@@ -226,6 +226,11 @@ int CASTER::Free()
     return 0;
 }
 
+std::string CASTER::Get_Status()
+{
+    return caster->get_status_str();
+}
+
 int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
     return caster->register_base_channel(mount_point, user_name, connect_key, cb, arg);

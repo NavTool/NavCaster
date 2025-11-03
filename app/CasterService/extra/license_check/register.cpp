@@ -1711,7 +1711,7 @@ bool CRegister::SerialRegester(std::string register_info, std::string license_co
             m_client_limit = 1000000;
             break;
         }
-        std::stoi(STA3, nullptr, 16);
+        // std::stoi(STA3, nullptr, 16);
 
         S_1 = TIME6.substr(0, 2); // 190525
         S_2 = TIME6.substr(2, 2);

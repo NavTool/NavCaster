@@ -41,7 +41,6 @@ ContentPage {
     }
 
 
-
     Column{
 
         anchors{
@@ -75,7 +74,6 @@ ContentPage {
             }
         }
 
-
         Frame
         {
             clip: true
@@ -83,31 +81,30 @@ ContentPage {
             width: 450
             height: 250
             BannerLayout {
-                     id: banner
-                     anchors.fill: parent
-                     orientation: Qt.Horizontal
-                     model: ListModel {
-                         ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
-                         ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
-                         ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
-                     }
-                     delegate: Item {
-                         width: banner.width
-                         height: banner.height
-                         Image {
-                             anchors.fill: parent
-                             source: picUrl
-                         }
-                     }
-                 }
-                 PageIndicator {
-                     anchors.bottom: banner.bottom
-                     anchors.horizontalCenter: banner.horizontalCenter
-                     count: banner.count
-                     currentIndex: banner.currentIndex
-                 }
+                id: banner
+                anchors.fill: parent
+                orientation: Qt.Horizontal
+                model: ListModel {
+                    ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
+                    ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
+                    ListElement { picUrl: "qrc:/qt/qml/CasterMonitor/res/bg_home_header.webp" }
+                }
+                delegate: Item {
+                    width: banner.width
+                    height: banner.height
+                    Image {
+                        anchors.fill: parent
+                        source: picUrl
+                    }
+                }
+            }
+            PageIndicator {
+                anchors.bottom: banner.bottom
+                anchors.horizontalCenter: banner.horizontalCenter
+                count: banner.count
+                currentIndex: banner.currentIndex
+            }
         }
-
 
         Frame
         {
@@ -190,51 +187,215 @@ ContentPage {
 
     }
 
-
-    Column
+    Row
     {
-
         anchors{
             bottom: parent.bottom
             left: parent.left
             bottomMargin: 10
-            leftMargin: 40
+            leftMargin: 20
         }
+        spacing: 0
 
-        Frame
+        Item
         {
             width: 150
-            height: 90
+            height: 50
             Image {
                 anchors.fill: parent
                 source: Theme.dark ? Global.companyLogo_dark:Global.companyLogo_light
                 fillMode: Image.PreserveAspectFit   // 保持比例
             }
         }
-        Label{
-            text: "软件版本："+Global.windowName  +" "+ PROJECT_TAG_VERSION
-            font: Typography.bodyStrong
-            color: "grey"
-            anchors{
-                // horizontalCenter: parent.horizontalCenter
+        Column
+        {
+            anchors.verticalCenter: parent.verticalCenter
+
+            Label{
+                text: PROJECT_SET_NAME + SUPPORT_COPYRIGHT
+                font: Typography.bodyStrong
+                color: "grey"
+                anchors{
+                    // horizontalCenter: parent.horizontalCenter
+                }
             }
-        }
-        Label{
-            text: "设备ID :" + VALUE_DEVICE_ID
-            font: Typography.bodyStrong
-            color: "grey"
-            anchors{
-                // horizontalCenter: parent.horizontalCenter
+            Label{
+                text: "软件版本："+Global.windowName  +" "+ PROJECT_TAG_VERSION + "      设备ID :" + VALUE_DEVICE_ID
+                font: Typography.bodyStrong
+                color: "grey"
+                anchors{
+                    // horizontalCenter: parent.horizontalCenter
+                }
             }
+
+
+
         }
-        Label{
-            text: "设备ID :" + VALUE_MACHINE_ID
-            font: Typography.bodyStrong
-            color: "grey"
-            anchors{
-                // horizontalCenter: parent.horizontalCenter
-            }
-        }
+
     }
+
+
+    Column
+    {
+        anchors{
+            top: parent.top
+            right: parent.right
+            topMargin: 100
+            rightMargin:20
+        }
+
+        spacing: 30
+
+        IconButton
+        {
+            icon.name: FluentIcons.graph_FavoriteList
+            icon.color:  Theme.res.textFillColorSecondary
+
+            // onClicked: {
+            //     Global.displayInitScreen="/page/test"
+            // }
+        }
+        IconButton
+        {
+            icon.name: FluentIcons.graph_HomeGroup
+            icon.color:  Theme.res.textFillColorSecondary
+        }
+        IconButton
+        {
+            icon.name: FluentIcons.graph_Share
+            icon.color:  Theme.res.textFillColorSecondary
+        }
+        IconButton
+        {
+            icon.name: FluentIcons.graph_Settings
+            icon.color:  Theme.res.textFillColorSecondary
+        }
+
+
+    }
+
+
+    Column{
+
+        anchors{
+            bottom: parent.bottom
+            right: parent.right
+            bottomMargin: 130
+            rightMargin: 150
+        }
+        spacing: 10
+
+        Acrylic{
+            width: 300
+            height: 160
+            tintOpacity: 0.2
+            blurRadius: 100
+
+            Column
+            {
+                topPadding: 10
+                spacing: 5
+                Row{
+                    spacing: 10
+                    Item{
+                        width: 50
+                        height: 35
+                        Label{
+                            text: qsTr("IP :")
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.right: parent.right
+                        }
+                    }
+
+                    TextBox{
+                        width: 220
+                        height: 35
+                    }
+                }
+                Row{
+                    spacing: 10
+                    Item{
+                        width: 50
+                        height: 35
+                        Label{
+                            text: qsTr("Port :")
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.right: parent.right
+                        }
+                    }
+
+                    TextBox{
+                        width: 220
+                        height: 35
+                    }
+                }
+                Row{
+                    spacing: 10
+                    Item{
+                        width: 50
+                        height: 35
+                        Label{
+                            text: qsTr("Auth:")
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.right: parent.right
+                        }
+                    }
+
+                    TextBox{
+                        width: 220
+                        height: 35
+                    }
+                }
+
+
+                Row{
+                    spacing: 40
+                    leftPadding: 60
+                    CheckBox{
+                        text: qsTr("保存密码")
+
+                    }
+
+                    CheckBox{
+                        text: qsTr("自动连接")
+
+                    }
+                }
+            }
+        }
+        Frame{
+            width: 300
+            height:60
+
+            Row{
+                IconButton
+                {
+                    width: 240
+                    height: 60
+
+                    text: qsTr("连接")
+                    font: Typography.title
+                }
+                IconButton
+                {
+                    width: 60
+                    height: 60
+                    icon.name: FluentIcons.graph_ChevronRightSmall
+                    icon.color:  Theme.res.textFillColorSecondary
+
+                    onClicked: {
+                        Global.displayInitScreen="/init/page/home"
+                    }
+                }
+            }
+
+
+        }
+
+
+
+    }
+
+
 
 }

@@ -147,17 +147,19 @@ add_executable(${PROJECT_NAME}
                 ${EXTRA_SOURCE}
                 ${VERSION_SOURCES})
 
+#生成的可执行文件名称和包含的文件
+
 #基于version.h.in 生成 version.h
 configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in version.h @ONLY)
 target_include_directories(${PROJECT_NAME}  PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 #基于工程目录下的配置文件 生成 执行目录下的配置文件
 #设置可执行程序生成路径
-set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${PROJECT_NAME}")
+# set_target_properties(${PROJECT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${PROJECT_NAME}")
 #设置配置文件模板生成路径
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Auth_Verify.yml.in ${CMAKE_SOURCE_DIR}/bin/${PROJECT_NAME}/conf/Auth_Verify.yml @ONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Caster_Core.yml.in ${CMAKE_SOURCE_DIR}/bin/${PROJECT_NAME}/conf/Caster_Core.yml @ONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Service_Setting.yml.in ${CMAKE_SOURCE_DIR}/bin/${PROJECT_NAME}/conf/Service_Setting.yml @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Auth_Verify.yml.in ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/conf/Auth_Verify.yml @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Caster_Core.yml.in ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/conf/Caster_Core.yml @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Service_Setting.yml.in ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/conf/Service_Setting.yml @ONLY)
 # configure_file(${CMAKE_SOURCE_DIR}/.cmake/redis.conf.in ${CMAKE_SOURCE_DIR}/bin/env/redis.conf @ONLY)
 
 
@@ -187,3 +189,14 @@ include_directories(${PROJECT_NAME} ${SPDLOG_INCLUDE_PATH})
 #yaml
 target_link_libraries(${PROJECT_NAME} yaml-cpp)
 
+
+
+set(REG_SOURCES
+   src/reg_check.cpp
+       extra/license_check/register.h
+    extra/license_check/register.cpp
+)
+add_executable(reg_check ${REG_SOURCES}  )
+include_directories(reg_check ${SPDLOG_INCLUDE_PATH})
+
+set_target_properties(reg_check PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${PROJECT_NAME}/tool")

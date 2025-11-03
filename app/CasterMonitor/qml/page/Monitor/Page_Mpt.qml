@@ -14,9 +14,21 @@ Frame{
 
     property list<QtObject> originalItems : [
         PaneItem{
+            key: "/gnss/page/resource/xxx"
+            title: "源列表管理"
+            icon.name: FluentIcons.graph_AllApps
+            icon.color:  Theme.res.textFillColorPrimary
+        },
+        PaneItem{
             key: "/gnss/page/resource/controlpoint"
             title: "Ntrip数据接入"
-            icon.name: FluentIcons.graph_POI
+            icon.name: FluentIcons.graph_ReturnToWindow
+            icon.color:  Theme.res.textFillColorPrimary
+        },
+        PaneItem{
+            key: "/gnss/page/resource/controlpoint"
+            title: "Ntrip数据推送"
+            icon.name: FluentIcons.graph_OpenInNewWindow
             icon.color:  Theme.res.textFillColorPrimary
         },
         PaneItem{
@@ -27,14 +39,20 @@ Frame{
         },
         PaneItem{
             key: "/gnss/page/resource/obsfile"
-            title: "Ntrip数据中继"
-            icon.name: FluentIcons.graph_Page
+            title: "Ntrip数据代理"
+            icon.name: FluentIcons.graph_Relationship
             icon.color:  Theme.res.textFillColorPrimary
         },
         PaneItem{
             key: "/gnss/page/resource/vector"
-            title: "挂载点代理"
-            icon.name: FluentIcons.graph_ResizeTouchLarger
+            title: "挂载点别名"
+            icon.name: FluentIcons.graph_PrivateCall
+            icon.color:  Theme.res.textFillColorPrimary
+        },
+        PaneItem{
+            key: "/gnss/page/resource/nearest"
+            title: "最近挂载点"
+            icon.name: FluentIcons.graph_InternetSharing
             icon.color:  Theme.res.textFillColorPrimary
         }
 

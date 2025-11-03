@@ -37,84 +37,84 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="37"/>
+        <location filename="qml/window/MainWindow.qml" line="49"/>
         <source>浅色模式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="37"/>
-        <location filename="qml/window/MainWindow.qml" line="62"/>
+        <location filename="qml/window/MainWindow.qml" line="49"/>
+        <location filename="qml/window/MainWindow.qml" line="74"/>
         <source>夜间模式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="55"/>
+        <location filename="qml/window/MainWindow.qml" line="67"/>
         <source>Sticky on Top cancelled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="55"/>
+        <location filename="qml/window/MainWindow.qml" line="67"/>
         <source>Sticky on Top</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="62"/>
+        <location filename="qml/window/MainWindow.qml" line="74"/>
         <source>点击这里，您可以切换到夜间模式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="63"/>
+        <location filename="qml/window/MainWindow.qml" line="75"/>
         <source>固定到顶部</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="63"/>
+        <location filename="qml/window/MainWindow.qml" line="75"/>
         <source>点击这里，您可以将窗口固定到最前端</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="90"/>
+        <location filename="qml/window/MainWindow.qml" line="102"/>
         <source>Exit</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="161"/>
+        <location filename="qml/window/MainWindow.qml" line="173"/>
         <source>退出</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="168"/>
+        <location filename="qml/window/MainWindow.qml" line="180"/>
         <source>是否要关闭程序?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="173"/>
+        <location filename="qml/window/MainWindow.qml" line="185"/>
         <source>取消</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="179"/>
+        <location filename="qml/window/MainWindow.qml" line="191"/>
         <source>最小化</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="182"/>
-        <location filename="qml/window/MainWindow.qml" line="203"/>
+        <location filename="qml/window/MainWindow.qml" line="194"/>
+        <location filename="qml/window/MainWindow.qml" line="215"/>
         <source>友情提示</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="182"/>
+        <location filename="qml/window/MainWindow.qml" line="194"/>
         <source>软件已最小化，可点击状态栏图标显示程序</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="188"/>
+        <location filename="qml/window/MainWindow.qml" line="200"/>
         <source>确定</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/window/MainWindow.qml" line="211"/>
+        <location filename="qml/window/MainWindow.qml" line="223"/>
         <source>程序已运行, 程序名：-&gt;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -662,22 +662,40 @@
     </message>
     <message>
         <location filename="qml/page/Init/Page_Setting.qml" line="223"/>
-        <source>主页风格</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Init/Page_Setting.qml" line="236"/>
-        <source>NavPost</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Init/Page_Setting.qml" line="246"/>
-        <source>717_CS</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Init/Page_Setting.qml" line="263"/>
         <source>Auout</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Page_Start</name>
+    <message>
+        <location filename="qml/page/Init/Page_Start.qml" line="304"/>
+        <source>IP :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Init/Page_Start.qml" line="321"/>
+        <source>Port :</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Init/Page_Start.qml" line="338"/>
+        <source>Auth:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Init/Page_Start.qml" line="355"/>
+        <source>保存密码</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Init/Page_Start.qml" line="360"/>
+        <source>自动连接</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Init/Page_Start.qml" line="376"/>
+        <source>连接</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -715,8 +733,83 @@
 <context>
     <name>Page_Test</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Test.qml" line="9"/>
-        <source>Info</source>
+        <location filename="qml/page/Page_Test.qml" line="9"/>
+        <source>Test</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="14"/>
+        <source>Init Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="24"/>
+        <source>切换到Start</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="37"/>
+        <source>切换到Home</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="50"/>
+        <source>切换到Setting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="62"/>
+        <source>切换到About</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="74"/>
+        <source>Moniton Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="88"/>
+        <source>切换到Statue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="101"/>
+        <source>切换到Server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="114"/>
+        <source>切换到Client</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="127"/>
+        <source>切换到User</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="140"/>
+        <source>切换到MPT</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="154"/>
+        <source>切换到Map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="167"/>
+        <source>切换到Event</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="180"/>
+        <source>切换到Option</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Page_Test.qml" line="193"/>
+        <source>切换到Exit</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -990,82 +1083,77 @@
     <name>Screen_Main</name>
     <message>
         <location filename="qml/screen/Screen_Main.qml" line="83"/>
-        <source>测试(正式版需隐藏)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/screen/Screen_Main.qml" line="89"/>
         <source>选项</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="95"/>
+        <location filename="qml/screen/Screen_Main.qml" line="89"/>
         <source>退出</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="329"/>
+        <location filename="qml/screen/Screen_Main.qml" line="322"/>
         <source>Custom Content</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="440"/>
+        <location filename="qml/screen/Screen_Main.qml" line="433"/>
         <source>未知状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="456"/>
+        <location filename="qml/screen/Screen_Main.qml" line="449"/>
         <source>已断开</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="460"/>
+        <location filename="qml/screen/Screen_Main.qml" line="453"/>
         <source>已连接</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="464"/>
+        <location filename="qml/screen/Screen_Main.qml" line="457"/>
         <source>已重置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="478"/>
+        <location filename="qml/screen/Screen_Main.qml" line="471"/>
         <source>连接状态：</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="388"/>
+        <location filename="qml/screen/Screen_Main.qml" line="381"/>
         <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="395"/>
+        <location filename="qml/screen/Screen_Main.qml" line="388"/>
         <source>About</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="403"/>
+        <location filename="qml/screen/Screen_Main.qml" line="396"/>
         <source>More</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="153"/>
-        <location filename="qml/screen/Screen_Main.qml" line="162"/>
+        <location filename="qml/screen/Screen_Main.qml" line="146"/>
+        <location filename="qml/screen/Screen_Main.qml" line="155"/>
         <source>连接节点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="166"/>
+        <location filename="qml/screen/Screen_Main.qml" line="159"/>
         <source>已成功连接至节点网络!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="169"/>
+        <location filename="qml/screen/Screen_Main.qml" line="162"/>
         <source>已从节点网络断开连接!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Main.qml" line="179"/>
+        <location filename="qml/screen/Screen_Main.qml" line="172"/>
         <source>刷新</source>
         <translation type="unfinished"></translation>
     </message>

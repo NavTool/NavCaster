@@ -47,11 +47,14 @@ Common_Setting:
 
 #输出运行状态
 Log_Setting:
-  Output_STD: true             #输出状态信息(将信息输出到控制台)
-  Output_File: true            #将信息输出到文件(仅输出Info及以上级别)
-  Output_File_Daily: false     #文件按天分割(两个选项选一个即可,都开会都生成)
-  Output_File_Hourly: true     #文件按小时分割(两个输出选项选一个即可,都开会都生成)
-  File_Save_Path: logs/Info_log.log    #日志输出路径
+  Output_STD: true                    #输出状态信息(将信息输出到控制台)
+  Output_File: true                   #将信息输出到文件(关闭后下面三个文件输出形式都会关闭)(仅输出Info及以上级别)
+  Output_File_Daily: false            #文件按天分割   (三个选项选一个即可,都开会都生成)
+  Output_File_Hourly: false           #文件按小时分割 (三个输出选项选一个即可,都开会都生成)
+  Output_File_Rotate: true            #文件循环存储   (三个输出选项选一个即可,都开会都生成)
+  File_Rotating_Size: 10              #循环存储大小限制（单位:MB)
+  File_Rotating_Quata: 100            #循环存储文件数
+  File_Save_Path: logs/Info_log.log   #日志输出路径
 
 #开发者模式
 Debug_Mode:

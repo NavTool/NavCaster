@@ -2,8 +2,11 @@
 # 适用版本：@PROJECT_VERSION@
 
 Caster_Setting:
-  Update_Intv: 1          #内部数据更新频率
-  Unactive_Time: 5        #非活动连接判断间隔
+  Update_Intv: 10          #内部数据更新频率,向redis更新和从redis拉取在线节点状态的时间间隔
+  Unactive_Time: 30        #非活动连接判断间隔,这个会影响节点被踢下线的时间间隔,最长时间可达Unactive_Time + Update_Intv
+  Key_Expire_Time: 60      #内部键值续期时间，设置键值的默认超时/续期时间
+  Upload_Base_Stat: true    #上报基站数据流统计信息
+  Upload_Rover_Stat: true   #上报用户数据流统计信息
 
 Base_Setting:
   Enable_Mult: false      #允许多连接采用同一挂载点      
@@ -12,7 +15,11 @@ Base_Setting:
 Rover_Setting:
   Enable_Mult: true       #允许多连接采用同一挂载点      
   Keep_Early: false       #保持较早登录的连接(踢掉同名的新连接)(Enable_Mult为false才生效）
-  
+
+Notify_Setting:
+  Notify_Base_Inactive: true  #当基站不在线的时候，通知所有订阅该基站的连接
+  Notify_Rover_Inactive: true  #当用户不在线的时候，通知所有订阅该用户的连接
+
 Source_Setting:
   
 # Redis连接

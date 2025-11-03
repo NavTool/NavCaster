@@ -43,6 +43,7 @@ set(QML_FILES
     qml/extra/TabViewEx.qml
     qml/extra/TreeDataGridEx.qml
 # page
+    qml/page/Page_Test.qml
 # 初始页面
     qml/page/Init/Page_About.qml
     qml/page/Init/Page_Home.qml
@@ -57,7 +58,6 @@ set(QML_FILES
     qml/page/Monitor/Page_Option.qml
     qml/page/Monitor/Page_Server.qml
     qml/page/Monitor/Page_Status.qml
-    qml/page/Monitor/Page_Test.qml
     qml/page/Monitor/Page_User.qml
 
 # plot
@@ -98,6 +98,14 @@ set(RESOURCES_FILES
     res/image/AppBarToggleButton.png
     res/image/Checkbox.png
 
+    res/NavTool_ICON/icon.png
+    res/NavTool_ICON/icon-0.png
+    res/NavTool_ICON/icon-1.png
+    res/NavTool_ICON/icon-2.png
+    res/NavTool_ICON/icon-3.png
+    res/NavTool_ICON/icon-4.png
+    res/NavTool_ICON/icon-5.png
+    res/NavTool_ICON/icon-6.png
 )
 
 include_directories(${PROJECT_NAME} ${CMAKE_BINARY_DIR})
@@ -109,11 +117,15 @@ set(SOURCE_FILES
     src/Log.h src/Log.cpp
     src/CircularReveal.h src/CircularReveal.cpp
     src/PerformanceMonitor.h src/PerformanceMonitor.cpp
+    src/SettingsHelper.h src/SettingsHelper.cpp
     src/Monitor/ClientDataController.h src/Monitor/ClientDataController.cpp
     src/Monitor/ServerDataController.h src/Monitor/ServerDataController.cpp
     src/Monitor/EventDataController.h src/Monitor/EventDataController.cpp
     src/Monitor/RelayDataController.h src/Monitor/RelayDataController.cpp
     src/Monitor/UserDataController.h src/Monitor/UserDataController.cpp
+
+    src/CasterMonitor.h src/CasterMonitor.cpp
+    src/MonitorCore.h src/MonitorCore.cpp
     )
 
 set_source_files_properties(${QML_SINGLETONS} PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

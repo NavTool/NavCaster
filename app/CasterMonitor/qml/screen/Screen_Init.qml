@@ -41,7 +41,8 @@ Item{
             "/init/page/start":{url: R.resolvedUrl("qml/page/Init/Page_Start.qml"),singleton:true},
             "/init/page/home":{url: R.resolvedUrl("qml/page/Init/Page_Home.qml"),singleton:true},
             "/init/page/setting":{url: R.resolvedUrl("qml/page/Init/Page_Setting.qml"),singleton:true},
-            "/init/page/about":{url: R.resolvedUrl("qml/page/Init/Page_About.qml"),singleton:true}
+            "/init/page/about":{url: R.resolvedUrl("qml/page/Init/Page_About.qml"),singleton:true},
+            "/page/test":{url: R.resolvedUrl("qml/page/Page_Test.qml"),singleton:true}
         }
     }
 
@@ -67,4 +68,4 @@ Item{
 
 
 
-  }
+}

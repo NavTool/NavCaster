@@ -97,14 +97,14 @@ void ntrip_compat_listener::AcceptCallback(evconnlistener *listener, evutil_sock
 
     bufferevent *bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
 
-    svr->_connect_map->insert(std::pair(Connect_Key, bev));
+    svr->_connect_map->insert(std::pair<std::string,bufferevent*>(Connect_Key, bev));
 
     if (svr->_connect_timeout > 0)
     {
         auto timer = new timeval;
         timer->tv_sec = svr->_connect_timeout;
         timer->tv_usec = 0;
-        svr->_timer_map.insert(std::pair(Connect_Key, timer));
+        svr->_timer_map.insert(std::pair<std::string,timeval*>(Connect_Key, timer));
         bufferevent_set_timeouts(bev, timer, NULL);
     }
 
@@ -480,6 +480,7 @@ json ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string
     while (1)
     {
         char *header = evbuffer_readln(evbuf, &headerlen, EVBUFFER_EOL_CRLF);
+        // header = evbuffer_readln(evbuf, &headerlen, EVBUFFER_EOL_CRLF);
         if (header == NULL)
         {
             break;

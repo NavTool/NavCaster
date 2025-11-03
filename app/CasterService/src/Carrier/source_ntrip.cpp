@@ -95,8 +95,8 @@ int source_ntrip::build_source_table()
     {
         evbuffer_add_printf(_evbuf, "HTTP/1.1 200 OK\r\n");
         evbuffer_add_printf(_evbuf, "Ntrip-Version: Ntrip/2.0\r\n");
-        // evbuffer_add_printf(_evbuf, "Ntrip-Flag: st_filter,st_auth,st_match,st_strict,rtsp\r\n");
-        evbuffer_add_printf(_evbuf, "Server: Koro_Caster/%s\r\n", PROJECT_TAG_VERSION);
+        evbuffer_add_printf(_evbuf, "Ntrip-Flags: \r\n");
+        evbuffer_add_printf(_evbuf, "Server: NTRIP CasterService_%s/2.0\r\n", PROJECT_TAG_VERSION);
         evbuffer_add_printf(_evbuf, "Date: %s\r\n", util_get_http_date().c_str());
         evbuffer_add_printf(_evbuf, "Connection: close\r\n");
         evbuffer_add_printf(_evbuf, "Content-Type: gnss/sourcetable\r\n");
@@ -108,7 +108,7 @@ int source_ntrip::build_source_table()
     else
     {
         evbuffer_add_printf(_evbuf, "SOURCETABLE 200 OK\r\n");
-        evbuffer_add_printf(_evbuf, "Server: Koro_Caster/%s\r\n", PROJECT_TAG_VERSION);
+        evbuffer_add_printf(_evbuf, "Server: NTRIP CasterService_%s/1.0\r\n", PROJECT_TAG_VERSION);
         evbuffer_add_printf(_evbuf, "Date: %s\r\n", util_get_http_date().c_str());
         evbuffer_add_printf(_evbuf, "Connection: close\r\n");
         evbuffer_add_printf(_evbuf, "Content-Type: text/plain\r\n");

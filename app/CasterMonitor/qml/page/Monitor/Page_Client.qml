@@ -255,17 +255,18 @@ Frame {
                             frozen: true
                         }
                         ListElement {
-                            title: qsTr("挂载点")
-                            dataIndex: "station_name"
-                            width: 200
-                            frozen: true
-                        }
-                        ListElement {
                             title: qsTr("接入挂载点")
                             dataIndex: "station_name"
                             width: 200
                             frozen: true
                         }
+                        ListElement {
+                            title: qsTr("使用挂载点")
+                            dataIndex: "station_name"
+                            width: 200
+                            frozen: true
+                        }
+
                         ListElement {
                             title: qsTr("在线时长")
                             dataIndex: "station_name"

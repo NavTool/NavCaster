@@ -19,6 +19,7 @@
 #include <spdlog/sinks/stdout_sinks.h>
 #include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/hourly_file_sink.h>
+#include <spdlog/sinks/rotating_file_sink.h>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
@@ -87,7 +88,10 @@ json load_Caster_Conf(const char *conf_directory)
     conf["Log_Setting"]["Output_File"] = Log_Setting["Output_File"].as<bool>();
     conf["Log_Setting"]["Output_File_Daily"] = Log_Setting["Output_File_Daily"].as<bool>();
     conf["Log_Setting"]["Output_File_Hourly"] = Log_Setting["Output_File_Hourly"].as<bool>();
-    conf["Log_Setting"]["File_Path"] = Log_Setting["File_Save_Path"].as<std::string>();
+    conf["Log_Setting"]["Output_File_Rotate"] = Log_Setting["Output_File_Rotate"].as<bool>();
+    conf["Log_Setting"]["File_Rotating_Size"] = Log_Setting["File_Rotating_Size"].as<int>();
+    conf["Log_Setting"]["File_Rotating_Quata"] = Log_Setting["File_Rotating_Quata"].as<int>();
+    conf["Log_Setting"]["File_Save_Path"] = Log_Setting["File_Save_Path"].as<std::string>();
 
     auto Debug_Mode = Conf["Debug_Mode"];
     conf["Debug_Mode"]["Core_Dump"] = Debug_Mode["Core_Dump"].as<bool>();
@@ -105,6 +109,10 @@ json load_Core_Conf(const char *conf_directory)
     auto Caster_Setting = Conf["Caster_Setting"];
     conf["Update_Intv"] = Caster_Setting["Update_Intv"].as<int>();
     conf["Unactive_Time"] = Caster_Setting["Unactive_Time"].as<int>();
+    conf["Key_Expire_Time"] = Caster_Setting["Key_Expire_Time"].as<int>();
+    
+    conf["Upload_Base_Stat"] = Caster_Setting["Upload_Base_Stat"].as<bool>();
+    conf["Upload_Rover_Stat"] = Caster_Setting["Upload_Rover_Stat"].as<bool>();
 
     auto Base_Setting = Conf["Base_Setting"];
     conf["Base_Enable_Mult"] = Base_Setting["Enable_Mult"].as<bool>();
@@ -113,6 +121,10 @@ json load_Core_Conf(const char *conf_directory)
     auto Rover_Setting = Conf["Rover_Setting"];
     conf["Rover_Enable_Mult"] = Rover_Setting["Enable_Mult"].as<bool>();
     conf["Rover_Keep_Early"] = Rover_Setting["Keep_Early"].as<bool>();
+
+     auto Notify_Setting = Conf["Notify_Setting"];
+     conf["Notify_Base_Inactive"]=Notify_Setting["Notify_Base_Inactive"].as<bool>();
+     conf["Notify_Rover_Inactive"]=Notify_Setting["Notify_Rover_Inactive"].as<bool>();
 
     auto Redis_Setting = Conf["Reids_Connect_Setting"];
     conf["Redis_IP"] = Redis_Setting["IP"].as<std::string>();
@@ -212,10 +224,12 @@ int main(int argc, char **argv)
             if (!strcmp(argv[i], "-port")) // 监听端口
             {
                 listen_port = atoi(argv[i + 1]);
+                spdlog::info("set listen port: {}", listen_port);
             }
             else if (!strcmp(argv[i], "-conf")) // 配置文件路径
             {
                 conf_path = argv[i + 1];
+                spdlog::info("set conf path: {}", conf_path);
             }
         }
     }
@@ -233,7 +247,7 @@ int main(int argc, char **argv)
 
     if (listen_port > 0)
     {
-        cfg["Service_Setting"]["Ntrip_Listener"]["Port"] = listen_port;
+        cfg["Service_Setting"]["Ntrip_Listener"]["Listen_Port"] = listen_port;
     }
 
     // 日志输出选项
@@ -241,7 +255,10 @@ int main(int argc, char **argv)
     bool log_to_file = cfg["Service_Setting"]["Log_Setting"]["Output_File"];
     bool log_file_daily = cfg["Service_Setting"]["Log_Setting"]["Output_File_Daily"];
     bool log_file_hourly = cfg["Service_Setting"]["Log_Setting"]["Output_File_Hourly"];
-    std::string logpath = cfg["Service_Setting"]["Log_Setting"]["File_Path"];
+    bool log_file_rotate = cfg["Service_Setting"]["Log_Setting"]["Output_File_Rotate"];
+    int log_rotating_size = cfg["Service_Setting"]["Log_Setting"]["File_Rotating_Size"];
+    int log_rotating_quata = cfg["Service_Setting"]["Log_Setting"]["File_Rotating_Quata"];
+    std::string log_save_path = cfg["Service_Setting"]["Log_Setting"]["File_Save_Path"];
 
     // 开发者模式相关
     bool Core_Dump = cfg["Service_Setting"]["Debug_Mode"]["Core_Dump"];
@@ -268,12 +285,19 @@ int main(int argc, char **argv)
         if (log_file_daily)
         {
             spdlog::info("Write log to File Daily...");
-            sinks.push_back(std::make_shared<spdlog::sinks::daily_file_sink_st>(logpath, 0, 0));
+            sinks.push_back(std::make_shared<spdlog::sinks::daily_file_sink_st>(log_save_path, 0, 0));
         }
         if (log_file_hourly)
         {
             spdlog::info("Write log to File Hourly...");
-            sinks.push_back(std::make_shared<spdlog::sinks::hourly_file_sink_st>(logpath));
+            sinks.push_back(std::make_shared<spdlog::sinks::hourly_file_sink_st>(log_save_path));
+        }
+        if (log_file_rotate)
+        {
+            spdlog::info("Write log to File Rotate...");
+            size_t max_file_size = log_rotating_size * 1024 * 1024; // 单个日志文件大小：X MB
+            size_t max_files = log_rotating_quata;                  // 最多保留 X 个文件
+            sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_st>(log_save_path, max_file_size, max_files));
         }
     }
     // 把所有sink放入logger

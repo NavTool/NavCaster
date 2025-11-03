@@ -168,10 +168,10 @@ int relay_account_tb::load_group_conf(json group_conf)
         for (int j = 0; j < group_conf["Maping"].size(); j++)
         {
             json maping_mp = group_conf["Maping"].at(j);
-            mount_maping.insert(std::pair(maping_mp["Maping_Mount"], maping_mp));
+            mount_maping.insert(std::pair<std::string,json>(maping_mp["Maping_Mount"], maping_mp));
             _usr_relay_mpt.insert(maping_mp["Maping_Mount"]);
         }
-        _usr_relay_map.insert(std::pair(user_pwd, mount_maping));
+        _usr_relay_map.insert(std::pair<std::string,std::unordered_map<std::string, json>>(user_pwd, mount_maping));
     }
 
     spdlog::info("[relay_account_tb]: Load [{}] user relay account.", _usr_relay_map.size());
@@ -189,7 +189,7 @@ int relay_account_tb::load_sys_relay_conf(json sys_relay_conf)
     {
         json sys_relay_mp = sys_relay_conf.at(i);
         _usr_relay_mpt.insert(sys_relay_mp["Local_Mount"]);
-        _sys_relay_map.insert(std::pair(sys_relay_mp["Local_Mount"], sys_relay_mp));
+        _sys_relay_map.insert(std::pair<std::string,json>(sys_relay_mp["Local_Mount"], sys_relay_mp));
     }
 
     spdlog::info("[relay_account_tb]: Load [{}] sys relay task.", _sys_relay_map.size());

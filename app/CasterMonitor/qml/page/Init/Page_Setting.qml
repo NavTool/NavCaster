@@ -220,46 +220,6 @@ ScrollablePage{
     }
 
     GroupBox{
-        title: qsTr("主页风格")
-        Layout.fillWidth: true
-        Flow {
-            spacing: 10
-            anchors.fill: parent
-
-            ButtonGroup {
-                buttons: column.children
-            }
-            Column {
-                id: column
-                RadioButton {
-                    // checked: true
-                    text: qsTr("NavPost")
-
-                    onCheckedChanged: {
-                        if(checked)
-                        {
-                            Global.displayScreen= "/screen/main"
-                        }
-                    }
-                }
-                RadioButton {
-                    text: qsTr("717_CS")
-
-                    onCheckedChanged: {
-                        if(checked)
-                        {
-                            Global.displayScreen= "/screen/717"
-                        }
-                    }
-
-                }
-            }
-        }
-    }
-
-
-
-    GroupBox{
         title: qsTr("Auout")
         spacing: 6
         padding: 0

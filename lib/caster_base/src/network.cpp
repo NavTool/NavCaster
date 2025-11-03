@@ -1,4 +1,4 @@
-#include "knt/network.h"
+#include "network.h"
 
 #define BUF_SIZE 500
 

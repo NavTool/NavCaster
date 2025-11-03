@@ -298,13 +298,13 @@ Frame {
                             frozen: true
                         }
                         ListElement {
-                            title: qsTr("账户类型（期限/永久/机构）")
+                            title: qsTr("账号类型（期限/永久/机构）")
                             dataIndex: "station_name"
                             width: 200
                             frozen: true
                         }
                         ListElement{
-                            title: qsTr("账户状态（启用/停用/过期）")
+                            title: qsTr("账号状态（启用/停用/过期）")
                             dataIndex: "coord_UID"
                             width: 200
                         }

@@ -77,6 +77,10 @@ QtObject {
     property bool visable_right_side:true //右侧可视（右状态栏）
 
 
+    Component.onCompleted:
+    {
+        Theme.darkMode = FluentUI.Dark
+    }
 
 
 }

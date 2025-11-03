@@ -25,6 +25,18 @@ FramelessWindow {
         windowIcon: Item{}
         width:parent.width
         action: RowLayout{
+            IconButton
+            {
+                implicitWidth: 46
+                icon.name: FluentIcons.graph_FavoriteList
+                icon.color:  Theme.res.textFillColorSecondary
+                icon.width: 14
+                icon.height: 14
+                onClicked: {
+                    Global.displayScreen= "/screen/init"
+                    Global.displayInitScreen="/page/test"
+                }
+            }
             IconButton{
                 id: btn_dark
                 implicitWidth: 46

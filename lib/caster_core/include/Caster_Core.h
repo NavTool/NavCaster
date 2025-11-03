@@ -12,6 +12,7 @@
 // #define CASTER_REPLY_INTEGER 3
 // #define CASTER_REPLY_NIL 4
 
+
 enum class CasterReply
 {
     ERR = -1,
@@ -62,6 +63,8 @@ namespace CASTER
     // 基础函数
     int Init(const char *json_conf, event_base *base);
     int Free();
+
+    std::string Get_Status();
 
     // 服务用函数---------------------------------------------------------------------------------------------------------
 
@@ -136,6 +139,9 @@ namespace CASTER
 
     // 设置虚拟基站的信息
     int Set_Grid_Source_Info(const char *mount_point, const char *connect_key, mount_info);
+
+
+
 
 }
 

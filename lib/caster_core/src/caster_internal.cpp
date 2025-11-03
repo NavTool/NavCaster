@@ -1,8 +1,9 @@
 #include "caster_internal.h"
 #include <chrono>
 #include <list>
-
+// #include <format>
 #include <spdlog/spdlog.h>
+#include <sstream>
 
 #define __class__ "caster_internal"
 
@@ -34,12 +35,19 @@ caster_internal::caster_internal(json conf, event_base *base)
 {
     _update_intv = conf["Update_Intv"];
     _unactive_time = conf["Unactive_Time"];
+    _key_expire_time = conf["Key_Expire_Time"];
+
+    _upload_base_stat = conf["Upload_Base_Stat"];
+    _upload_rover_stat = conf["Upload_Rover_Stat"];
 
     _base_enable_mult = conf["Base_Enable_Mult"];
     _base_keep_early = conf["Base_Keep_Early"];
 
     _rover_enable_mult = conf["Rover_Enable_Mult"];
     _rover_keep_early = conf["Rover_Keep_Early"];
+
+    _notify_base_inactive = conf["Notify_Base_Inactive"];
+    _notify_rover_inactive = conf["Notify_Rover_Inactive"];
 
     _redis_IP = conf["Redis_IP"];
     _redis_port = conf["Redis_Port"];
@@ -76,6 +84,21 @@ int caster_internal::stop()
     return 0;
 }
 
+std::string caster_internal::get_status_str()
+{
+
+    std::string str = "Connection: " +
+                      std::to_string(_active_mount_set.size() + _active_user_set.size()) +
+                      ", Active Server: " +
+                      std::to_string(_active_mount_set.size()) +
+                      ", Active Client: " +
+                      std::to_string(_active_user_set.size());
+
+    return str;
+
+    // return std::format("Connection: {}, Active Server: {}, Active Client: {}", , _active_mount_set.size(), _active_user_set.size());
+}
+
 int caster_internal::sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
     try
@@ -91,7 +114,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
             // 还没有订阅频道，添加订阅
             redisAsyncCommand(_sub_context, Redis_SUB_Base_Callback, this, "SUBSCRIBE MPT:%s", channel);
             std::unordered_map<std::string, caster_cb_item> channel_subs;
-            _base_sub_map.insert(std::pair(channel, channel_subs));
+            _base_sub_map.insert(std::pair<std::string,std::unordered_map<std::string, caster_cb_item>>(channel, channel_subs));
 
             // 由于该频道是此节点的第一次订阅，因此发送一次激活函数
             send_status_base_channel(channel, "", CasterReply::ACTIVE, "First subscribe in one Caster Node");
@@ -100,7 +123,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
 
         // 更新订阅者列表
         redisAsyncCommand(_pub_context, NULL, NULL, "HSET MPT:SUB:%s %s %s", channel, connect_key, _updatetime_str.c_str());
-        redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:SUB:%s 10", channel);
+        redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:SUB:%s %d", channel, _key_expire_time);
 
         caster_cb_item cb_item;
         cb_item.connect_key = connect_key;
@@ -108,7 +131,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
         cb_item.user_name = user_name;
         cb_item.cb = cb;
         cb_item.arg = arg;
-        find->second.insert(std::pair(connect_key, cb_item));
+        find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
 
         catser_reply Reply;
         Reply.type = CasterReply::OK;
@@ -156,7 +179,7 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
             // 还没有订阅频道，添加订阅
             redisAsyncCommand(_sub_context, Redis_SUB_Rover_Callback, this, "SUBSCRIBE USR:%s", channel);
             std::unordered_map<std::string, caster_cb_item> channel_subs;
-            _rover_sub_map.insert(std::pair(channel, channel_subs));
+            _rover_sub_map.insert(std::pair<std::string,std::unordered_map<std::string, caster_cb_item>>(channel, channel_subs));
 
             // 由于该频道是此节点的第一次订阅，因此发送一次激活函数
             send_status_base_channel(channel, "", CasterReply::ACTIVE, "First subscribe in one Caster Node");
@@ -165,7 +188,7 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
 
         // 更新订阅者列表
         redisAsyncCommand(_pub_context, NULL, NULL, "HSET USR:SUB:%s %s %s", channel, connect_key, _updatetime_str.c_str());
-        redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:SUB:%s 10", channel);
+        redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:SUB:%s %d", channel, _key_expire_time);
 
         caster_cb_item cb_item;
         cb_item.connect_key = connect_key;
@@ -173,7 +196,7 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
         cb_item.user_name = user_name;
         cb_item.cb = cb;
         cb_item.arg = arg;
-        find->second.insert(std::pair(connect_key, cb_item));
+        find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
 
         catser_reply Reply;
         Reply.type = CasterReply::OK;
@@ -259,10 +282,10 @@ int caster_internal::clear_overdue_item()
 
 int caster_internal::upload_record_item()
 {
-    redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:LIST 10"); // 给MPT:LIST续期
-    redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:LIST 10");
-    redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:STAT 10");
-    redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:STAT 10");
+    // redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:LIST %d", _key_expire_time); // 给MPT:LIST续期
+    // redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:LIST %d", _key_expire_time);
+    // redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:STAT %d", _key_expire_time);
+    // redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:STAT %d", _key_expire_time);
 
     for (auto iter : _base_register_map)
     {
@@ -272,7 +295,7 @@ int caster_internal::upload_record_item()
         {
             // 更新基站注册连接
             redisAsyncCommand(_pub_context, NULL, NULL, "HSET MPT:REC:%s %s %s", items.second.channel.c_str(), items.second.connect_key.c_str(), _updatetime_str.c_str()); // 更新挂载点数据生产者的更新时间
-            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:REC:%s 10", items.second.channel.c_str());                                                             // 给这个挂载点续期
+            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:REC:%s %d", items.second.channel.c_str(), _key_expire_time);                                           // 给这个挂载点续期
         }
     }
 
@@ -282,7 +305,7 @@ int caster_internal::upload_record_item()
         {
             // 更新本地订阅基站频道的连接信息
             redisAsyncCommand(_pub_context, NULL, NULL, "HSET MPT:SUB:%s %s %s", items.second.channel.c_str(), items.second.connect_key.c_str(), _updatetime_str.c_str());
-            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:SUB:%s 10", items.second.channel.c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE MPT:SUB:%s %d", items.second.channel.c_str(), _key_expire_time);
         }
     }
 
@@ -294,7 +317,7 @@ int caster_internal::upload_record_item()
         {
             // 更新用户注册连接
             redisAsyncCommand(_pub_context, NULL, NULL, "HSET USR:REC:%s %s %s", items.second.user_name.c_str(), items.second.connect_key.c_str(), _updatetime_str.c_str());
-            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:REC:%s 10", items.second.user_name.c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:REC:%s %d", items.second.user_name.c_str(), _key_expire_time);
         }
     }
 
@@ -304,7 +327,7 @@ int caster_internal::upload_record_item()
         {
             // 更新本地订阅用户频道的连接信息
             redisAsyncCommand(_pub_context, NULL, NULL, "HSET USR:SUB:%s %s %s", items.second.channel.c_str(), items.second.connect_key.c_str(), _updatetime_str.c_str());
-            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:SUB:%s 10", items.second.channel.c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "EXPIRE USR:SUB:%s %d", items.second.channel.c_str(), _key_expire_time);
         }
     }
 
@@ -324,7 +347,7 @@ int caster_internal::check_active_base_channel()
     for (auto channel_subs = sub_map.begin(); channel_subs != sub_map.end(); channel_subs++)
     // for (auto channel_subs : _sub_cb_map)
     {
-        if (_active_mount_set.find(channel_subs->first) == _active_mount_set.end()) // 该订阅频道不在活跃频道中
+        if (_active_mount_set.find(channel_subs->first) == _active_mount_set.end() && _notify_base_inactive) // 该订阅频道不在活跃频道中
         {
             for (auto item = channel_subs->second.begin(); item != channel_subs->second.end(); item++) // 关闭所有订阅者
             {
@@ -353,7 +376,7 @@ int caster_internal::check_active_rover_channel()
     for (auto channel_subs = sub_map.begin(); channel_subs != sub_map.end(); channel_subs++)
     // for (auto channel_subs : _sub_cb_map) //不能用这个格式，推导的格式不正确？
     {
-        if (_active_user_set.find(channel_subs->first) == _active_user_set.end()) // 该订阅频道不在活跃频道中
+        if (_active_user_set.find(channel_subs->first) == _active_user_set.end() && _notify_rover_inactive) // 该订阅频道不在活跃频道中
         {
             for (auto item = channel_subs->second.begin(); item != channel_subs->second.end(); item++)
             {
@@ -469,22 +492,22 @@ mount_info caster_internal::build_default_mount_info(std::string mount_point)
     mount_info item = {
         "STR",
         mount_point,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "0.0",
-        "0.0",
+        "unknown",
+        "RTCM 3.3",
+        "1074(1),1084(1),1094(1),1124(1)",
+        "2",
+        "GPS+GLO+GAL+BDS",
+        "SNT",
+        "XXX",
+        "0.00",
+        "0.00",
+        "1",
         "0",
-        "0",
-        "",
-        "",
+        "SNT",
+        "none",
         "N",
         "N",
-        "0",
+        "11520",
         "none"};
 
     return item;
@@ -527,7 +550,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     {
         // 还没有该频道的注册记录
         std::unordered_map<std::string, caster_cb_item> channel_cbs;
-        _base_register_map.insert(std::pair(channel, channel_cbs));
+        _base_register_map.insert(std::pair<std::string,std::unordered_map<std::string, caster_cb_item>>(channel, channel_cbs));
     }
     find = _base_register_map.find(channel);
 
@@ -535,9 +558,12 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     {
         // 创建一条新的stream记录
         str_status str(channel, user_name, connect_key);
-        _base_status_map.insert(std::pair(connect_key, str));
+        _base_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
         // 向云端插入记录
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSET MPT:STAT %s %s", connect_key, str.get_status_str().c_str());
+        if (_upload_base_stat)
+        {
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET MPT:STAT %s %s", connect_key, str.get_status_str().c_str());
+        }
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -551,7 +577,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         {
             throw std::invalid_argument("Connect_Key is already in the register map");
         }
-        find->second.insert(std::pair(connect_key, cb_item));
+        find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
         _active_mount_set.insert(channel); // 同时添加到本地激活列表中去
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性
@@ -585,7 +611,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
     {
         // 还没有该频道的注册记录
         std::unordered_map<std::string, caster_cb_item> channel_cbs;
-        _rover_register_map.insert(std::pair(user_name, channel_cbs));
+        _rover_register_map.insert(std::pair<std::string,std::unordered_map<std::string, caster_cb_item>>(user_name, channel_cbs));
     }
     find = _rover_register_map.find(user_name);
 
@@ -593,9 +619,12 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
     {
         // 创建一条新的stream记录
         str_status str(channel, user_name, connect_key);
-        _rover_status_map.insert(std::pair(connect_key, str));
+        _rover_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
         // 向云端插入记录
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSET USR:STAT %s %s", connect_key, str.get_status_str().c_str());
+        if (_upload_rover_stat)
+        {
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET USR:STAT %s %s", connect_key, str.get_status_str().c_str());
+        }
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -609,7 +638,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
         {
             throw std::invalid_argument("Connect_Key is already in the register map");
         }
-        find->second.insert(std::pair(connect_key, cb_item));
+        find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性，即：查询到的结果已经包含当前记录，因此避免查询-插入-再查询的时候
         // 向云端插入记录
@@ -651,7 +680,7 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
     // 删除该条记录
     channel_registers->second.erase(item);
     // 删除Redis记录
-    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:REC:%s %s", user_name, connect_key);
+    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:REC:%s %s", channel, connect_key);
 
     // 删除status记录
     auto str = _base_status_map.find(connect_key);
@@ -662,7 +691,10 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
     }
     _base_status_map.erase(connect_key);
     // 向云端插入记录
-    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:STAT %s %s", connect_key, str->second.get_status_str().c_str());
+    if (_upload_base_stat)
+    {
+        redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:STAT %s ", connect_key);
+    }
 
     return 0;
 }
@@ -697,7 +729,10 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     }
     _rover_status_map.erase(connect_key);
     // 向云端插入记录
-    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:STAT %s %s", connect_key, str->second.get_status_str().c_str());
+    if (_upload_rover_stat)
+    {
+        redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:STAT %s", connect_key);
+    }
 
     return 0;
 }
@@ -722,7 +757,10 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
     if (str != _base_status_map.end())
     {
         str->second.add_recv(data_length);
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSET MPT:STAT %s %s", connect_key, str->second.get_status_str().c_str());
+        if (_upload_base_stat)
+        {
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET MPT:STAT %s %s", connect_key, str->second.get_status_str().c_str());
+        }
     }
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH MPT:%s %b", mount_point, data, data_length);
 }
@@ -747,7 +785,10 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
     if (str != _rover_status_map.end())
     {
         str->second.add_recv(data_length);
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSET USR:STAT %s %s", connect_key, str->second.get_status_str().c_str());
+        if (_upload_rover_stat)
+        {
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET USR:STAT %s %s", connect_key, str->second.get_status_str().c_str());
+        }
     }
 
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH USR:%s %b", user_name, data, data_length);
@@ -1077,7 +1118,10 @@ void caster_internal::Redis_SUB_Base_Callback(redisAsyncContext *c, void *r, voi
             if (str != svr->_rover_status_map.end())
             {
                 str->second.add_send(Reply.len);
-                redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET USR:STAT %s %s", cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
+                if (svr->_upload_rover_stat)
+                {
+                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET USR:STAT %s %s", cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
+                }
             }
         }
     }
@@ -1120,8 +1164,11 @@ void caster_internal::Redis_SUB_Rover_Callback(redisAsyncContext *c, void *r, vo
             auto str = svr->_base_status_map.find(cb_item.connect_key);
             if (str != svr->_base_status_map.end())
             {
-                str->second.add_recv(Reply.len);
-                redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET MPT:STAT %s %s", cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
+                str->second.add_send(Reply.len);
+                if (svr->_upload_base_stat)
+                {
+                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET MPT:STAT %s %s", cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
+                }
             }
         }
     }
@@ -1142,7 +1189,7 @@ void caster_internal::Redis_Get_Hash_Field_Callback(redisAsyncContext *c, void *
     {
         auto field = reply->element[i]->str;
         auto value = reply->element[i + 1]->str;
-        map->insert(std::pair(field, value));
+        map->insert(std::pair<std::string, std::string>(field, value));
     }
 }
 
@@ -1333,6 +1380,23 @@ void caster_internal::Redis_Update_Active_Base_Callback(redisAsyncContext *c, vo
         return;
     }
 
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL MPT:LIST: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL MPT:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    // if (reply->elements == 0)
+    // {
+    //     spdlog::info("[{}:{}]: HGETALL MPT:LIST reply->elements: {}", __class__, __func__, reply->elements);
+    //     return;
+    // }
+
     svr->_active_mount_set.clear();
 
     for (int i = 0; i < reply->elements; i += 2)
@@ -1347,9 +1411,12 @@ void caster_internal::Redis_Update_Active_Base_Callback(redisAsyncContext *c, vo
         else
         {
             // 无效的记录直接删除掉
+            spdlog::info("Delete overdue Base Record {}:{} , Should be: > {}", field, value, valid_time);
             redisAsyncCommand(svr->_pub_context, NULL, NULL, "HDEL MPT:LIST %s", field);
         }
     }
+
+    // spdlog::info("Sync active base, current item:{} ", svr->_active_mount_set.size());
 }
 
 void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -1359,6 +1426,17 @@ void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, v
 
     if (!reply)
     {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("HGETALL USR:LIST: reply->type == REDIS_REPLY_NIL");
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("HGETALL USR:LIST reply->type != REDIS_REPLY_ARRAY: {}", reply->type);
         return;
     }
 
@@ -1376,9 +1454,11 @@ void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, v
         else
         {
             // 无效的记录直接删除掉
+            spdlog::info("Delete overdue Rover Record {}:{} , Should be: > {}", field, value, valid_time);
             redisAsyncCommand(svr->_pub_context, NULL, NULL, "HDEL USR:LIST %s", field);
         }
     }
+    // spdlog::info("Sync active rover, current item:{} ", svr->_active_user_set.size());
 }
 
 // 将十六进制字符串解析为十进制整数

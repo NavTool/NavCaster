@@ -164,14 +164,21 @@ private:
     timeval _timeout_tv;
 
     // conf
+    int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
+    int _update_intv = 1;
+    int _key_expire_time = 60; // Hash键值默认续期时间
+
+    bool _upload_base_stat = true;  // 上报基站数据流统计信息
+    bool _upload_rover_stat = true; // 上报用户数据流统计信息
+
     bool _base_enable_mult = false; // 允许多个同名基站同时在线
     bool _base_keep_early = false;  // 不允许后续同名基站上线（_base_enable_mult=false的时候才生效）
 
     bool _rover_enable_mult = true; // 允许多个同名用户同时在线
     bool _rover_keep_early = false; // 不允许后续同名用户上线（_rover_enable_mult=false的时候才生效）
 
-    int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
-    int _update_intv = 1;
+    bool _notify_base_inactive = true;  // 当基站不在线的时候，通知所有订阅该基站的连接
+    bool _notify_rover_inactive = true; // 当用户不在线的时候，通知所有订阅该用户的连接
 
 private:
     // 本地记录  <挂载点|用户名>/<Connect_Key>/<回调参数>
@@ -213,6 +220,8 @@ public:
 
     int start();
     int stop();
+
+    std::string get_status_str();
 
     // 注册基站频道 MPT:XXXXXX
     int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);

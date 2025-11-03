@@ -239,7 +239,7 @@ Frame {
 
                     columnSourceModel: ListModel {
                         ListElement {
-                            title: qsTr("挂载点")
+                            title: qsTr("名义挂载点")
                             dataIndex: "station_name"
                             width: 200
                             frozen: true

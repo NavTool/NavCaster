@@ -77,12 +77,6 @@ Item{
     ]
     property list<QtObject> originalFooterItems : [
         PaneItem{
-            icon.name: FluentIcons.graph_FavoriteList
-            icon.color:  Theme.res.textFillColorPrimary
-            key: "/monitor/page/test"
-            title: qsTr("测试(正式版需隐藏)")
-        },
-        PaneItem{
             icon.name: FluentIcons.graph_Settings
             icon.color:  Theme.res.textFillColorPrimary
             key: "/monitor/page/option"
@@ -106,7 +100,6 @@ Item{
             "/monitor/page/option":{url: R.resolvedUrl("qml/page/Monitor/Page_Option.qml"),singleton:true},
             "/monitor/page/server":{url: R.resolvedUrl("qml/page/Monitor/Page_Server.qml"),singleton:true},
             "/monitor/page/status":{url: R.resolvedUrl("qml/page/Monitor/Page_Status.qml"),singleton:true},
-            "/monitor/page/test":{url: R.resolvedUrl("qml/page/Monitor/Page_Test.qml"),singleton:true},
             "/monitor/page/user":{url: R.resolvedUrl("qml/page/Monitor/Page_User.qml"),singleton:true},
         }
     }
