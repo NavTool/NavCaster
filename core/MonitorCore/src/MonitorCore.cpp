@@ -53,6 +53,42 @@ MonitorCore *MonitorCore::getInstance()
     return instance;
 }
 
+json MonitorCore::genConnectRedisTemp(std::string tempID)
+{
+    json item;
+    item["type"] = "ReadNav_Opt";
+
+
+    item["navfile_UID"] = "";
+    item["navfile_name"] = "";
+    item["navfile_path"] = "";
+
+
+    item["utc_stamp"]=0;  //数据采集的UTC时间，需要手动设置
+
+    // info["items"].push_back(item);
+
+    return item;
+}
+
+std::string MonitorCore::addConnectRedisTask(json info)
+{
+    std::string UID;
+
+
+    return UID;
+}
+
+json MonitorCore::genDisConnectRedisTemp(std::string tempID)
+{
+
+}
+
+std::string MonitorCore::addDisConnectRedisTask(json info)
+{
+
+}
+
 int MonitorCore::start()
 {
 
@@ -110,6 +146,34 @@ void *MonitorCore::event_base_thread(void *arg)
 
 
     return nullptr;
+}
+
+int MonitorCore::main_task()
+{
+    // 如果连接上了Redis  那就刷新数据
+
+
+    // 如果没连接上Redis，那就根据状态来决定要干什么
+
+        //如果没有连接任务，那就什么都不做
+
+        // 如果有连接任务，那就创建Redis连接，如果正在连接，那就等待，刷新状态信息
+
+    return 0;
+}
+
+int MonitorCore::user_task()
+{
+    // 用户可以执行的一些操作
+
+
+
+
+
+
+
+
+
 }
 
 

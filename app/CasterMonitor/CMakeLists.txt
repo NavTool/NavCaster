@@ -132,8 +132,6 @@ set(SOURCE_FILES
     src/Monitor/UserDataController.h src/Monitor/UserDataController.cpp
     src/Tool.h src/Tool.cpp
     src/CasterMonitor.h src/CasterMonitor.cpp
-    src/MonitorCore.h src/MonitorCore.cpp
-    src/util.h
     )
 
 set_source_files_properties(${QML_SINGLETONS} PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -204,12 +202,7 @@ target_link_libraries(
     FluentUI
     FluentUIImpl
     FluentUIControls
-    knt
-    castercore
-    authverify
-    event
-    event_core
-    event_extra
+    MonitorCore
 )
 if (FLUENTUI_BUILD_STATIC_LIB)
     target_link_libraries(
@@ -341,23 +334,3 @@ endif()
 endif()
 
 
-
-
-add_executable(test_MonitorCore test/test_MonitorCore.cpp
-                                src/MonitorCore.cpp)
-target_include_directories(test_MonitorCore PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Monitor
-)
-include_directories(test_MonitorCore  ${SPDLOG_INCLUDE_PATH})
-include_directories(test_MonitorCore  ${JSON_INCLUDE_PATH})
-target_link_libraries(
-    test_MonitorCore PRIVATE
-    knt
-    castercore
-    authverify
-    yaml-cpp
-    event
-    event_core
-    event_extra
-)
