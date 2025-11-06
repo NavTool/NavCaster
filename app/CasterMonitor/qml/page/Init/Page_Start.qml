@@ -7,17 +7,11 @@ import CasterMonitor
 
 ContentPage {
 
-
-
     property var colors : [Colors.yellow,Colors.orange,Colors.red,Colors.magenta,Colors.purple,Colors.blue,Colors.teal,Colors.green]
 
     property var randomAccentColor: function(){
         return colors[Math.floor(Math.random() * 8)]
     }
-
-
-
-
 
     topPadding: 0
     leftPadding: 0
@@ -179,12 +173,7 @@ ContentPage {
                     }
                 }
             }
-
         }
-
-
-
-
     }
 
     Row
@@ -227,11 +216,7 @@ ContentPage {
                     // horizontalCenter: parent.horizontalCenter
                 }
             }
-
-
-
         }
-
     }
 
 

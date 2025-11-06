@@ -25,7 +25,6 @@ Item{
             key: "/init/page/setting"
             title: qsTr("设置")
         }
-
     ]
     property list<QtObject> originalFooterItems : [
         PaneItem{
@@ -46,7 +45,6 @@ Item{
         }
     }
 
-
     PageRouterView{
         id: screen_panne
         anchors.fill: parent
@@ -63,9 +61,5 @@ Item{
                 page_router.go(Global.displayInitScreen)
             }
         }
-
     }
-
-
-
 }

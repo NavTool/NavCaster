@@ -48,7 +48,7 @@ QtObject {
     id: control
     property var starter
     property int displayMode: NavigationViewType.Auto
-    property int windowEffect: WindowEffectType.Normal  //WindowEffectType.Mica
+    property int windowEffect: WindowEffectType.MicaAlt  //WindowEffectType.Mica
 
     property bool debugMode:false
 
@@ -63,6 +63,7 @@ QtObject {
     //初始化页面显示内容
     property string displayInitScreen:"/init/page/start"             // 初始页面显示的页面
     property string displayMainScreen:"/monitor/page/status"                //Main视窗主页面显示内容（这个主要是记录状态，通过切换主页的页面都要通过open_page信号
+    property string displayMptPage:"/monitor/page/mpt/source"                //Main视窗主页面显示内容（这个主要是记录状态，通过切换主页的页面都要通过open_page信号
 
 
     //打开对话框（发送信号，在Screen_Root中监听这个信号，并打开相应的Dialog

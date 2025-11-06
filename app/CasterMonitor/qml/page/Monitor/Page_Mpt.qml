@@ -106,5 +106,16 @@ Frame{
                 }
             }
 
+
+        Component.onCompleted: {
+            page_router.go(Global.displayMptPage,{title:"Satrt"})
+        }
+
+        Connections{
+            target:Global
+            function onDisplayMptPageChanged(){
+                page_router.go(Global.displayMptPage)
+            }
+        }
     }
 }

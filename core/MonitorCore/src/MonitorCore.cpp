@@ -41,9 +41,9 @@ MonitorCore::MonitorCore()
 
 MonitorCore::~MonitorCore()
 {
-    #ifdef WIN32
-        WSACleanup();
-    #endif
+#ifdef WIN32
+    WSACleanup();
+#endif
 
 }
 
@@ -81,12 +81,17 @@ std::string MonitorCore::addConnectRedisTask(json info)
 
 json MonitorCore::genDisConnectRedisTemp(std::string tempID)
 {
+    json item;
 
+    return item;
 }
 
 std::string MonitorCore::addDisConnectRedisTask(json info)
 {
+    std::string UID;
 
+
+    return UID;
 }
 
 int MonitorCore::start()
@@ -155,9 +160,9 @@ int MonitorCore::main_task()
 
     // 如果没连接上Redis，那就根据状态来决定要干什么
 
-        //如果没有连接任务，那就什么都不做
+    //如果没有连接任务，那就什么都不做
 
-        // 如果有连接任务，那就创建Redis连接，如果正在连接，那就等待，刷新状态信息
+    // 如果有连接任务，那就创建Redis连接，如果正在连接，那就等待，刷新状态信息
 
     return 0;
 }
@@ -171,6 +176,8 @@ int MonitorCore::user_task()
 
 
 
+
+    return 0;
 
 
 

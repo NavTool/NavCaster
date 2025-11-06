@@ -67,8 +67,6 @@ json load_Auth_Conf(const char *conf_directory)
     return conf;
 }
 
-
-
 static void task_sleepms(uint32_t milliseconds)
 {
 #if defined(_WIN32) || defined(_WIN64)
@@ -77,8 +75,6 @@ static void task_sleepms(uint32_t milliseconds)
     ::usleep(static_cast<useconds_t>(milliseconds) * 1000);  // Linux 的 usleep 单位是微秒
 #endif
 }
-
-
 
 int main()
 {
