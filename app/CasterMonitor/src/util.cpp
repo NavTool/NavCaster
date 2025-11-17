@@ -1,4 +1,4 @@
-#include "Tool.h"
+#include "util.h"
 
 
 
@@ -78,6 +78,34 @@ nlohmann::json QStringToJson(const QString &str)
     return nlohmann::json(str.toStdString()); // 直接将 QString 转换为 JSON 字符串
 }
 
+
+QString JsonToQString(const nlohmann::json &json)
+{
+    return QString::fromStdString(json.get<std::string>()); // 提取 JSON 字符串并转换为 QString
+}
+
+QVariantMap JsonToQVariantMap(const nlohmann::json &jsonObj)
+{
+    QVariantMap map;
+    for (auto it = jsonObj.begin(); it != jsonObj.end(); ++it)
+    {
+        map.insert(QString::fromStdString(it.key()), JsonToQVariant(it.value()));
+    }
+    return map;
+}
+
+
+QList<QVariant> JsonToQVariantList(const nlohmann::json &jsonArray)
+{
+    QList<QVariant> list;
+    for (const auto &item : jsonArray)
+    {
+        list.append(JsonToQVariant(item));
+    }
+    return list;
+}
+
+
 QVariant JsonToQVariant(const nlohmann::json &jsonValue)
 {
     if (jsonValue.is_object())
@@ -108,29 +136,3 @@ QVariant JsonToQVariant(const nlohmann::json &jsonValue)
     }
     return QVariant(); // 默认返回空 QVariant
 }
-
-QVariantMap JsonToQVariantMap(const nlohmann::json &jsonObj)
-{
-    QVariantMap map;
-    for (auto it = jsonObj.begin(); it != jsonObj.end(); ++it)
-    {
-        map.insert(QString::fromStdString(it.key()), JsonToQVariant(it.value()));
-    }
-    return map;
-}
-
-QList<QVariant> JsonToQVariantList(const nlohmann::json &jsonArray)
-{
-    QList<QVariant> list;
-    for (const auto &item : jsonArray)
-    {
-        list.append(JsonToQVariant(item));
-    }
-    return list;
-}
-
-QString JsonToQString(const nlohmann::json &json)
-{
-    return QString::fromStdString(json.get<std::string>()); // 提取 JSON 字符串并转换为 QString
-}
-

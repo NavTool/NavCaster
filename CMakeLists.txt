@@ -261,7 +261,6 @@ message("------------------------------------------------------------------")
 
 
 add_subdirectory(app)
-add_subdirectory(core)
 add_subdirectory(lib)
 
 #基于version.h.in 生成 version.h

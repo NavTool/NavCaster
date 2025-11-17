@@ -170,7 +170,7 @@ message(STATUS "BINARY_DIR : ${CMAKE_SOURCE_DIR}/bin")
 # target_link_libraries(${PROJECT_NAME} openssl)
 
 #Koro_NavTool
-target_link_libraries(${PROJECT_NAME} knt)
+target_link_libraries(${PROJECT_NAME} casterbase)
 #caster_core
 target_link_libraries(${PROJECT_NAME} castercore)
 #auth_verify

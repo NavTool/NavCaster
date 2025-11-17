@@ -4,7 +4,6 @@
 #include <QtQml/qqml.h>
 #include <QRandomGenerator>
 #include "stdafx.h"
-#include "NavCore.h"
 
 class GnssResourceController : public QObject
 {

@@ -115,24 +115,37 @@ set(RESOURCES_FILES
     res/NavTool_ICON/icon-6.png
 )
 
-include_directories(${PROJECT_NAME} ${CMAKE_BINARY_DIR})
 set(SOURCE_FILES
-    src/main.cpp
     src/stdafx.h
     src/frame.hpp
-    src/AppInfo.h src/AppInfo.cpp
-    src/Log.h src/Log.cpp
-    src/CircularReveal.h src/CircularReveal.cpp
-    src/PerformanceMonitor.h src/PerformanceMonitor.cpp
-    src/SettingsHelper.h src/SettingsHelper.cpp
-    src/Monitor/ClientDataController.h src/Monitor/ClientDataController.cpp
-    src/Monitor/ServerDataController.h src/Monitor/ServerDataController.cpp
-    src/Monitor/EventDataController.h src/Monitor/EventDataController.cpp
-    src/Monitor/RelayDataController.h src/Monitor/RelayDataController.cpp
-    src/Monitor/UserDataController.h src/Monitor/UserDataController.cpp
-    src/Tool.h src/Tool.cpp
+    src/util.h  src/util.cpp
     src/CasterMonitor.h src/CasterMonitor.cpp
+
+    src/component/AppInfo.h src/component/AppInfo.cpp
+    src/component/CircularReveal.h src/component/CircularReveal.cpp
+    src/component/DataGridModelEx.h src/component/DataGridModelEx.cpp
+    src/component/Log.h src/component/Log.cpp
+    src/component/PerformanceMonitor.h src/component/PerformanceMonitor.cpp
+    src/component/SettingsHelper.h src/component/SettingsHelper.cpp
+
+    src/context/auth_user.h
+    src/context/ntrip_client.h
+    src/context/ntrip_server.h
+
+    src/controller/CasterResourceController.h src/controller/CasterResourceController.cpp
+    src/controller/ClientDataController.h src/controller/ClientDataController.cpp
+    src/controller/EventDataController.h src/controller/EventDataController.cpp
+    src/controller/RelayDataController.h src/controller/RelayDataController.cpp
+    src/controller/ServerDataController.h src/controller/ServerDataController.cpp
+    src/controller/UserDataController.h src/controller/UserDataController.cpp
+
+    src/core/EventWorker.h src/core/EventWorker.cpp
+    src/core/EventOperationBase.h 
+
+    src/excute/connectRedis.h
+    src/excute/disconnectRedis.h
     )
+set(MAIN_FILES src/main.cpp)
 
 set_source_files_properties(${QML_SINGLETONS} PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
@@ -144,7 +157,7 @@ if (WIN32)
     # set(APP_ICON_RESOURCE_WINDOWS ${CMAKE_CURRENT_BINARY_DIR}/win_app.rc)
     # qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${APP_ICON_RESOURCE_WINDOWS})
     set(APP_ICON_RESOURCE_WINDOWS ${CMAKE_CURRENT_SOURCE_DIR}/deploy/windows/info.rc)
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${APP_ICON_RESOURCE_WINDOWS})
+    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES} ${APP_ICON_RESOURCE_WINDOWS})
 elseif(APPLE)
     set(MACOSX_BUNDLE_GUI_IDENTIFIER ${PROJECT_DOMAIN})
     set(MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION})
@@ -157,15 +170,15 @@ elseif(APPLE)
     set(MACOSX_BUNDLE_ICON_FILE favicon)
     configure_file(${CMAKE_SOURCE_DIR}/.cmake/MacOSXBundleInfo.plist.in ${CMAKE_CURRENT_BINARY_DIR}/Info.plist)
     set_source_files_properties(${APP_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${APP_ICON})
+    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES} ${APP_ICON})
 elseif(UNIX)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux_control.in ${CMAKE_SOURCE_DIR}/package/DEBIAN/control)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux_postinst.in ${CMAKE_SOURCE_DIR}/package/DEBIAN/postinst)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux_postrm.in ${CMAKE_SOURCE_DIR}/package/DEBIAN/postrm)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux.desktop.in ${CMAKE_SOURCE_DIR}/package/opt/${PROJECT_NAME}/${PROJECT_NAME}.desktop)
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES} )
 else()
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES})
+    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES})
 endif()
 
 set(QT_QML_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/imports/)
@@ -202,7 +215,13 @@ target_link_libraries(
     FluentUI
     FluentUIImpl
     FluentUIControls
-    MonitorCore
+    event
+    event_core
+    event_extra
+    hiredis
+    casterbase
+    castercore
+    authverify
 )
 if (FLUENTUI_BUILD_STATIC_LIB)
     target_link_libraries(
@@ -229,7 +248,12 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/Monitor
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/component
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/context
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/controller
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/excute
+    ${CMAKE_BINARY_DIR}
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -334,3 +358,38 @@ endif()
 endif()
 
 
+
+add_executable(test_Monitor test/test_Monitor.cpp ${SOURCE_FILES})
+target_link_libraries(
+    test_Monitor PRIVATE
+    Qt6::Quick
+    FluentUI
+    FluentUIImpl
+    FluentUIControls
+    event
+    event_core
+    event_extra
+    hiredis
+    casterbase
+    castercore
+    authverify
+)
+target_include_directories(test_Monitor PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/component
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/context
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/controller
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/excute
+    ${CMAKE_BINARY_DIR}
+    )
+target_compile_definitions(test_Monitor PRIVATE
+    QT_MESSAGELOGCONTEXT
+    PROJECT_NAME="${PROJECT_NAME}"
+    PROJECT_COMPANY="${PROJECT_COMPANY}"
+    PROJECT_DOMAIN="${PROJECT_DOMAIN}"
+    PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION}"
+    PROJECT_VERSION="${PROJECT_VERSION}"
+    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    PROJECT_HOTLOAD_ENABLED="${HOTLOAD_ENABLED}"
+)

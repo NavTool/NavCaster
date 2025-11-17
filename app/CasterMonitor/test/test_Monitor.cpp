@@ -1,5 +1,5 @@
-#include "MonitorCore.h"
-
+#include "CasterMonitor.h"
+#include "event2/thread.h"
 #if defined(__GNUC__)
 // GCC 编译器相关的代码
 #elif defined(_MSC_VER)
@@ -12,8 +12,15 @@
 // 其他编译器的代码
 #endif
 
+#include "src/util.h"
 #include "yaml-cpp/yaml.h"
 #include <spdlog/spdlog.h>
+#include <QGuiApplication>
+#include <QProcess>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickWindow>
+#include <QtQml/qqmlextensionplugin.h>
 
 #define CONF_PATH "conf/"
 
@@ -76,53 +83,50 @@ static void task_sleepms(uint32_t milliseconds)
 #endif
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-// #ifdef WIN32
-//     WSADATA wsaData;
-//     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
-//     {
-//         spdlog::info("WSAStartup failed! exit.");
-//         return 1;
-//     }
-// #endif
+#ifdef WIN32
+    evthread_use_windows_threads();
+#else
+    evthread_use_pthreads();
+#endif
+    // #ifdef WIN32
+    //     WSADATA wsaData;
+    //     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    //     {
+    //         spdlog::info("WSAStartup failed! exit.");
+    //         return 1;
+    //     }
+    // #endif
 
-    std::string conf_path = CONF_PATH;
-
-    json cfg;
-
-    cfg["Core_Setting"] = load_Core_Conf(conf_path.c_str());
-    cfg["Auth_Setting"] = load_Auth_Conf(conf_path.c_str());
-
-
-
-    MonitorCore a;
-
-    a._auth_verify_setting=cfg["Auth_Setting"];
-    a._caster_core_setting=cfg["Core_Setting"];
-
-    a.start();
+    QGuiApplication app(argc, argv);
 
 
 
-    while(1)
-    {
+    QVariantMap redis_info;
+
+    redis_info["ip"]="127.0.0.1";
+    redis_info["port"]=16379;
+    redis_info["auth"]="koro_redis";
+
+
+    CasterMonitor::getInstance()->init_Caster_Connect(redis_info);
+
+
+
+    QObject::connect(CasterMonitor::getInstance(),
+                     &CasterMonitor::connectCasterSuccess,
+                     CasterMonitor::getInstance(),
+                     [=](){ CasterMonitor::getInstance()->close_Caster_Connect(); });
+
+
+    return app.exec();
 
 
 
 
+    // #ifdef WIN32
+    //     WSACleanup();
+    // #endif
 
-        task_sleepms(1000);
-    }
-
-
-
-
-
-// #ifdef WIN32
-//     WSACleanup();
-// #endif
-
-
-    return 0;
 }

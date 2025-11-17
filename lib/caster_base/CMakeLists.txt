@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(knt LANGUAGES CXX)
+project(casterbase LANGUAGES CXX)
 
 #版本14以下可能会导致abseil不支持
 set(CMAKE_CXX_STANDARD 20)

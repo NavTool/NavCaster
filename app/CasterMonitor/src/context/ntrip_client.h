@@ -1,26 +1,18 @@
 #pragma once
 #include "util.h"
-#include "nlohmann/json.hpp"
-using json = nlohmann::json;
 
+class client_info{
 
-
-class server_info
-{
 private:
     PROPERTY_AUTO(std::string,UID);        // TCP连接唯一标识
     PROPERTY_AUTO(std::string,login_mpt);  // 接入的挂载点
-    PROPERTY_AUTO(std::string,alias_mpt);  // 对外服务的挂载点
+    PROPERTY_AUTO(std::string,inter_mpt);// 内部提供数据的挂载点（真正使用的挂载点）
 
-    PROPERTY_AUTO(int, type);             /* 挂载点类型
+    PROPERTY_AUTO(int, type);              /* 接入类型
                              *  0：未知
-                             *  1：普通挂载点
-                             *  2：最近挂载点
-                             *  3：Relay挂载点（Ntrip Client）
-                             *  4：Relay挂载点（TCP Client）
-                             *  5：Relay挂载点（TCP Server）
-                             *  6：Proxy挂载点（Ntrip Client）
-                             *  7：Alias挂载点（挂载点添加一个别名，可通过这个别名来获取数据）
+                             *  1：普通接入模式
+                             *  2：最近基站模式
+                             *  3：Proxy模式
                              */
 
     PROPERTY_AUTO(std::string,account);
@@ -40,12 +32,12 @@ private:
 
     PROPERTY_AUTO(time_t, update_time); // 信息更新时刻（执行所有函数的时候，都会更新一下这个函数）
 
-public:
-    server_info()
+ public:
+    client_info()
     {
         UID("");
         login_mpt("");
-        alias_mpt("");
+        inter_mpt("");
 
         type(0);
         account("");
@@ -71,7 +63,7 @@ public:
         json info;
         info["UID"] = UID();
         info["login_mpt"] = login_mpt();
-        info["alias_mpt"] = alias_mpt();
+        info["inter_mpt"] = inter_mpt();
 
         info["type"] = type();
         info["account"] = account();
@@ -98,7 +90,7 @@ public:
 
         UID(info, "UID");
         login_mpt(info, "login_mpt");
-        alias_mpt(info, "alias_mpt");
+        inter_mpt(info, "inter_mpt");
 
         type(info, "type");
         account(info, "account");
@@ -120,4 +112,5 @@ public:
 
         return 0;
     }
+
 };

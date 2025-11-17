@@ -4,32 +4,32 @@
 <context>
     <name>GnssResourceController</name>
     <message>
-        <location filename="src/Monitor/CasterResourceController.cpp" line="870"/>
+        <location filename="src/controller/CasterResourceController.cpp" line="870"/>
         <source>static</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="src/Monitor/CasterResourceController.cpp" line="875"/>
+        <location filename="src/controller/CasterResourceController.cpp" line="875"/>
         <source>天线座底部</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="src/Monitor/CasterResourceController.cpp" line="898"/>
+        <location filename="src/controller/CasterResourceController.cpp" line="898"/>
         <source>静态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="src/Monitor/CasterResourceController.cpp" line="903"/>
+        <location filename="src/controller/CasterResourceController.cpp" line="903"/>
         <source>固定解</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="src/Monitor/CasterResourceController.cpp" line="908"/>
+        <location filename="src/controller/CasterResourceController.cpp" line="908"/>
         <source>合格</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="src/Monitor/CasterResourceController.cpp" line="925"/>
+        <location filename="src/controller/CasterResourceController.cpp" line="925"/>
         <source>是</source>
         <translation type="unfinished"></translation>
     </message>
@@ -721,32 +721,32 @@
 <context>
     <name>Page_Start</name>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="304"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="289"/>
         <source>IP :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="321"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="306"/>
         <source>Port :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="338"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="323"/>
         <source>Auth:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="355"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="340"/>
         <source>保存密码</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="360"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="345"/>
         <source>自动连接</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="376"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="361"/>
         <source>连接</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1128,7 +1128,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/screen/Screen_Init.qml" line="35"/>
+        <location filename="qml/screen/Screen_Init.qml" line="34"/>
         <source>软件信息</source>
         <translation type="unfinished"></translation>
     </message>

@@ -88,3 +88,5 @@ public:                                                                         
                                                                                                    \
 private:                                                                                           \
     TYPE m_##M;
+
+

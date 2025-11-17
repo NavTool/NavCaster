@@ -2,8 +2,14 @@
 #include <string>
 #include <iostream>
 #include <type_traits>
+#include <QObject>
+#include <QtQml/qqml.h>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
+
+
+
+
 
 enum class StationType
 {
@@ -68,6 +74,8 @@ enum class SolveConfig
     SPP_MODE=2001
 
 };
+
+
 
 
 // 判断类型对应的 is_* 函数
@@ -479,8 +487,15 @@ int set##MPara(std::string uid, json para)                              \
 
 
 
+ nlohmann::json variantToJson(const QVariant &value);
+ nlohmann::json variantMapToJson(const QVariantMap &map);
+ nlohmann::json variantListToJson(const QList<QVariantMap> &list);
+ nlohmann::json QStringToJson(const QString &str);
 
-
+QVariant JsonToQVariant(const nlohmann::json &jsonValue);
+QVariantMap JsonToQVariantMap(const nlohmann::json &jsonObj);
+QList<QVariant> JsonToQVariantList(const nlohmann::json &jsonArray);
+QString JsonToQString(const nlohmann::json &json);
 
 
 
