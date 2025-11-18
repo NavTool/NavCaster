@@ -1,12 +1,12 @@
 #pragma once
 #include "util.h"
 
-class client_info{
+class ntrip_client{
 
 private:
     PROPERTY_AUTO(std::string,UID);        // TCP连接唯一标识
     PROPERTY_AUTO(std::string,login_mpt);  // 接入的挂载点
-    PROPERTY_AUTO(std::string,inter_mpt);// 内部提供数据的挂载点（真正使用的挂载点）
+    PROPERTY_AUTO(std::string,inter_mpt);  // 内部提供数据的挂载点（真正使用的挂载点）
 
     PROPERTY_AUTO(int, type);              /* 接入类型
                              *  0：未知
@@ -29,11 +29,12 @@ private:
     PROPERTY_AUTO(double, llh_lat);
     PROPERTY_AUTO(double, llh_lon);
     PROPERTY_AUTO(double, llh_h);
+    PROPERTY_AUTO(time_t, position_update_time); // 信息更新时刻
 
     PROPERTY_AUTO(time_t, update_time); // 信息更新时刻（执行所有函数的时候，都会更新一下这个函数）
 
  public:
-    client_info()
+    ntrip_client()
     {
         UID("");
         login_mpt("");
@@ -54,6 +55,7 @@ private:
         llh_lat(0.0);
         llh_lon(0.0);
         llh_h(0.0);
+        position_update_time(0);
 
         update_time(0);
     }
@@ -80,6 +82,7 @@ private:
         info["llh_lat"] = llh_lat();
         info["llh_lon"] = llh_lon();
         info["llh_h"] = llh_h();
+        info["position_update_time"] = position_update_time();
 
         info["update_time"] = update_time();
         return info;
@@ -107,6 +110,7 @@ private:
         llh_lat(info, "llh_lat");
         llh_lon(info, "llh_lon");
         llh_h(info, "llh_h");
+        position_update_time(info, "position_update_time");
 
         update_time(info, "update_time");
 

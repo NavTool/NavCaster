@@ -269,3 +269,43 @@ int util_get_use_memory()
     return usage.ru_maxrss; // KB
 #endif
 }
+
+void util_ecef2pos(double ecef_x, double ecef_y, double ecef_z, double &lat, double &lon, double &alt)
+{
+    // WGS-84椭球参数
+    const double a = 6378137.0;         // 长半轴
+    const double f = 1 / 298.257223563; // 扁率
+    const double b = a * (1 - f);       // 短半轴
+    const double e2 = 2 * f - f * f;    // 第一偏心率平方
+    const double M_PI = 3.14159265358979323846;
+
+    double p = sqrt(ecef_x * ecef_x + ecef_y * ecef_y);
+    double theta = atan2(ecef_z * a, p * b);
+    lon = atan2(ecef_y, ecef_x);
+    lat = atan2(ecef_z + (e2 * b) * pow(sin(theta), 3),
+                p - (e2 * a) * pow(cos(theta), 3));
+    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+    alt = p / cos(lat) - N;
+
+    // 转换为度
+    lat = lat * 180.0 / M_PI;
+    lon = lon * 180.0 / M_PI;
+}
+
+void util_pos2ecef(double lat, double lon, double alt, double &ecef_x, double &ecef_y, double &ecef_z)
+{
+    // WGS-84椭球参数
+    const double a = 6378137.0;         // 长半轴
+    const double f = 1 / 298.257223563; // 扁率
+    const double e2 = 2 * f - f * f;    // 第一偏心率平方
+    const double M_PI = 3.14159265358979323846;
+
+    // 转换为弧度
+    lat = lat * M_PI / 180.0;
+    lon = lon * M_PI / 180.0;
+
+    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+    ecef_x = (N + alt) * cos(lat) * cos(lon);
+    ecef_y = (N + alt) * cos(lat) * sin(lon);
+    ecef_z = (N * (1 - e2) + alt) * sin(lat);
+}

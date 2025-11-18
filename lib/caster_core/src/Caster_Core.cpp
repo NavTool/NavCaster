@@ -389,6 +389,11 @@ int CASTER::Update_Rover_Describe(const char *user_name, const char *connect_key
     return 0;
 }
 
+int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
+{
+    return caster->set_base_coord_info(mount_point,connect_key,ecef_x,ecef_y,ecef_z,update_time);
+}
+
 std::set<std::string> CASTER::Get_Active_Rover_UID()
 {
     return caster->get_active_rover_UID();

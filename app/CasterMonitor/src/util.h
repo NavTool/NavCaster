@@ -491,6 +491,7 @@ int set##MPara(std::string uid, json para)                              \
  nlohmann::json variantMapToJson(const QVariantMap &map);
  nlohmann::json variantListToJson(const QList<QVariantMap> &list);
  nlohmann::json QStringToJson(const QString &str);
+ nlohmann::json StringToJson(const std::string &str);
 
 QVariant JsonToQVariant(const nlohmann::json &jsonValue);
 QVariantMap JsonToQVariantMap(const nlohmann::json &jsonObj);

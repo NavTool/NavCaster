@@ -108,6 +108,8 @@ namespace CASTER
     int Update_Base_Describe(const char *mount_point, const char *connect_key, const char *describe);
     // 信息上报函数()   用户名，用户的connect_key,用户描述（上线时刻，上线时长，接收数据统计、发送数据统计、发送数据速度，接收数据速度）
     int Update_Rover_Describe(const char *user_name, const char *connect_key, const char *describe);
+    // 设置基站坐标信息
+    int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
 
     // 管理用函数---------------------------------------------------------------------------------------------------------
 

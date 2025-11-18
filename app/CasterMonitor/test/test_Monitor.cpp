@@ -1,4 +1,5 @@
 #include "CasterMonitor.h"
+#include "ServerDataController.h"
 #include "event2/thread.h"
 #if defined(__GNUC__)
 // GCC 编译器相关的代码
@@ -113,11 +114,21 @@ int main(int argc, char *argv[])
     CasterMonitor::getInstance()->init_Caster_Connect(redis_info);
 
 
+    ServerDataController* server = new ServerDataController();
 
-    QObject::connect(CasterMonitor::getInstance(),
-                     &CasterMonitor::connectCasterSuccess,
-                     CasterMonitor::getInstance(),
-                     [=](){ CasterMonitor::getInstance()->close_Caster_Connect(); });
+
+    QObject::connect(
+        CasterMonitor::getInstance(),
+        &CasterMonitor::connectCasterSuccess,
+        server,
+        &ServerDataController::loadData
+        );
+
+
+    // QObject::connect(CasterMonitor::getInstance(),
+    //                  &CasterMonitor::connectCasterSuccess,
+    //                  CasterMonitor::getInstance(),
+    //                  [=](){ CasterMonitor::getInstance()->close_Caster_Connect(); });
 
 
     return app.exec();

@@ -55,7 +55,7 @@ public:
         redisLibeventAttach(_redis_context, base);
         redisAsyncSetConnectCallback(_redis_context, Redis_Connect_Cb);
         redisAsyncSetDisconnectCallback(_redis_context, Redis_Disconnect_Cb);
-        redisAsyncCommand(_redis_context, NULL, NULL, "AUTH %s", m_auth.toStdString().c_str());
+        redisAsyncCommand(_redis_context, Redis_Auth_Cb, this, "AUTH %s", m_auth.toStdString().c_str());
     }
 
 public:
@@ -63,27 +63,108 @@ public:
     Q_SIGNAL void connectRedisSuccess();    // 连接成功
     Q_SIGNAL void updateRedisCtx(redisAsyncContext *ctx);
     Q_SIGNAL void connectRedisFailed();     // 连接失败
+    Q_SIGNAL void authRedisReply(std::string);
 
 public:
     // redis回调
     static void Redis_Connect_Cb(const redisAsyncContext *c, int status)
     {
-        auto ctx = static_cast<EventConnectRedis*>(c->data);
+        auto svr = static_cast<EventConnectRedis*>(c->data);
 
-        if (!ctx) return;
+        if (status == REDIS_OK)
+        {
+            svr->_is_connected = true;
 
-        ctx->updateRedisCtx(ctx->_redis_context);   // 发信号传值
-        ctx->connectRedisSuccess();                 // 发连接成功信号
+            svr->updateRedisCtx(svr->_redis_context);   // 发信号传值
+            svr->connectRedisSuccess();                 // 发连接成功信号
+        }
+        else
+        {
+            svr->_is_connected = false;
+            svr->_context_errstr = c->err;
+
+            svr->connectRedisFailed();                  // 发送连接失败信号
+        }
     };
     static void Redis_Disconnect_Cb(const redisAsyncContext *c, int status)
     {
-        auto ctx = static_cast<EventConnectRedis*>(c->data);
+        auto svr = static_cast<EventConnectRedis*>(c->data);
 
-        ctx->connectRedisFailed();   // 显式用对象发射信号
     };
 
+    static void Redis_Auth_Cb(redisAsyncContext *c, void *r, void *privdata)
+    {
+        // 解析数据
+        auto reply = static_cast<redisReply *>(r);
+        auto svr = static_cast<EventConnectRedis *>(privdata);
+
+
+        if (!reply)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_STRING)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_ARRAY)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_INTEGER)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_NIL)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_STATUS)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_ERROR)
+        {
+            svr->authRedisReply(reply->str);
+            return;
+        }
+        if (reply->type == REDIS_REPLY_DOUBLE)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_BOOL)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_MAP)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_SET)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_ATTR)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_PUSH)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_BIGNUM)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_VERB)
+        {
+            return;
+        }
+    }
+
+
 public:
-    bool _isconnected = false;
+    bool _is_connected = false;
     int _reconnect_count = 0; // 重连计数  连接成功后归零   重连失败后，等待时间0、2、4、8、10（max）
     std::string _context_errstr;
     redisAsyncContext *_redis_context = nullptr;

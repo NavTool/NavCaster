@@ -20,7 +20,8 @@ include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/knt)
 set(SOURCES
     include/base64.h      src/base64.cpp
     include/knt.h      src/knt.cpp
-    include/rtcm_decode.h src/rtcm_decode.cpp
+    include/decode_rtcm.h src/decode_rtcm.cpp
+    include/decode_nmea.h src/decode_nmea.cpp
     include/deviceID.h      src/deviceID.cpp
     )
     

@@ -255,8 +255,6 @@ ContentPage {
             icon.name: FluentIcons.graph_Settings
             icon.color:  Theme.res.textFillColorSecondary
         }
-
-
     }
 
 
@@ -360,6 +358,24 @@ ContentPage {
 
                     text: qsTr("连接")
                     font: Typography.title
+
+                    onClicked:
+                    {
+
+                        //设置IP 端口 和密码
+
+                        //调用接口
+
+                        var info= {};
+
+                        info.ip  = "127.0.0.1"
+                        info.port= 16379
+                        info.auth= ""
+
+                        CasterMonitor.init_Caster_Connect(info)
+
+                    }
+
                 }
                 IconButton
                 {

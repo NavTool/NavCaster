@@ -9,6 +9,9 @@ import CasterMonitor
 QtObject {
     id: control
 
+        property var focusServer   //焦点站点
+
+
 
 
 

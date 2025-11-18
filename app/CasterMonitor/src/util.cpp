@@ -75,7 +75,12 @@ nlohmann::json variantListToJson(const QList<QVariantMap> &list)
 
 nlohmann::json QStringToJson(const QString &str)
 {
-    return nlohmann::json(str.toStdString()); // 直接将 QString 转换为 JSON 字符串
+    return nlohmann::json::parse(str.toStdString()); // 直接将 QString 转换为 JSON 字符串
+}
+
+nlohmann::json StringToJson(const std::string &str)
+{
+    return nlohmann::json::parse(str); // 直接将 QString 转换为 JSON 字符串
 }
 
 
@@ -136,3 +141,4 @@ QVariant JsonToQVariant(const nlohmann::json &jsonValue)
     }
     return QVariant(); // 默认返回空 QVariant
 }
+

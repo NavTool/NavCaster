@@ -223,6 +223,14 @@ int server_ntrip::publish_data_from_chunk()
         evbuffer_remove(_recv_evbuf, data, _chunked_size);
         CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, _chunked_size);
 
+        _str_decoder.Decode(data, _chunked_size);
+        if (_str_decoder._has_position)
+        {
+            CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
+                                        _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
+                                         _str_decoder._position_update_time);
+        }
+
         _chunked_size = 0;
         delete[] data;
     }
@@ -250,6 +258,13 @@ int server_ntrip::publish_data_from_evbuf()
 
     evbuffer_remove(_recv_evbuf, data, length);
     CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, length);
+    _str_decoder.Decode(data, length);
+    if (_str_decoder._has_position)
+    {
+        CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
+                                    _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
+                                     _str_decoder._position_update_time);
+    }
 
     delete[] data;
     return 0;

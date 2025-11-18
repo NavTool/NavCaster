@@ -1,7 +1,7 @@
 #pragma once
 #include "ntrip_global.h"
 #include "process_queue.h"
-
+#include "decode_rtcm.h"
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
 
@@ -43,6 +43,8 @@ private:
     timeval _timeout_tv;
     bool _timeout_ev_flag=false; //是否将timeout_ev注册到event_base的标记
 
+    decode_rtcm _str_decoder;
+
 public:
     server_ntrip(json req, bufferevent *bev);
     ~server_ntrip();
@@ -70,10 +72,5 @@ private:
 
 
 private:
-
-    int decode_rtcm1005();
-    int replace_rtcm1005();
-
-
 
 };

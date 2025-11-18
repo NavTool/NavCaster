@@ -18,44 +18,50 @@ CasterMonitor *CasterMonitor::create(QQmlEngine *, QJSEngine *) {
 
 bool CasterMonitor::init_Caster_Connect(QVariantMap connect_info)
 {
-    // 创建一个任务
-    auto op= std::make_shared<EventConnectRedis>();
+    if(_caster_con->_is_connected)
+    {
+        noticeError("Caster Network is already in a connected state!");
+        return false;
+    }
 
     // 设置参数
-    op->ip(connect_info["ip"].toString());
-    op->port(connect_info["port"].toInt());
-    op->auth(connect_info["auth"].toString());
+    _caster_con->ip(connect_info["ip"].toString());
+    _caster_con->port(connect_info["port"].toInt());
+    _caster_con->auth(connect_info["auth"].toString());
 
     // 添加到任务队列
-    auto id= _caster_mgr->postTask(op);
+    auto id= _caster_mgr->postTask(_caster_con);
 
     if(id==0)
     {
         return false;
     }
 
-    // 添加事件保存到上下文
-    _event_map.insert(std::pair(id,op));
-    // 连接op的信号到CasterMonitor的槽函数    
-    connect(op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateCasterRedisCtx); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisSuccess,this,[this](){emit connectCasterSuccess();}); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisFailed,this,[this](){emit connectCasterFailed();}); //,Qt::QueuedConnection);
+    // // 添加事件保存到上下文
+    // _event_map.insert(std::pair(id,op));
+    // 连接op的信号到CasterMonitor的槽函数
+    connect(_caster_con.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateCasterRedisCtx,Qt::UniqueConnection); //,Qt::QueuedConnection);
+    connect(_caster_con.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectCasterSuccess,Qt::UniqueConnection); //,Qt::QueuedConnection);
+    connect(_caster_con.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectCasterFailed,Qt::UniqueConnection); //,Qt::QueuedConnection);
 
     return true;
 }
 
 bool CasterMonitor::init_Auth_Connect(QVariantMap connect_info)
 {
-    // 创建一个任务
-    auto op= std::make_shared<EventConnectRedis>();
+    if(_auth_con->_is_connected)
+    {
+        noticeError("Auth Network is already in a connected state!");
+        return false;
+    }
 
     // 设置参数
-    op->ip();
-    op->port();
-    op->auth();
+    _auth_con->ip(connect_info["ip"].toString());
+    _auth_con->port(connect_info["port"].toInt());
+    _auth_con->auth(connect_info["auth"].toString());
 
     // 添加到任务队列
-    auto id= _auth_mgr->postTask(op);
+    auto id= _auth_mgr->postTask(_auth_con);
 
     if(id == 0)
     {
@@ -63,11 +69,11 @@ bool CasterMonitor::init_Auth_Connect(QVariantMap connect_info)
     }
 
     // 添加事件保存到上下文
-    _event_map.insert(std::pair(id,op));
+    // _event_map.insert(std::pair(id,op));
     // 连接op的信号到CasterMonitor的槽函数
-    connect(op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateAuthRedisCtx); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisSuccess,this,[this](){emit connectAuthSuccess();}); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisFailed,this,[this](){emit connectAuthFailed();}); //,Qt::QueuedConnection);
+    connect(_auth_con.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateAuthRedisCtx,Qt::UniqueConnection); //,Qt::QueuedConnection);
+    connect(_auth_con.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectAuthSuccess,Qt::UniqueConnection); //,Qt::QueuedConnection);
+    connect(_auth_con.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectAuthFailed,Qt::UniqueConnection); //,Qt::QueuedConnection);
 
     return true;
 }
@@ -149,10 +155,39 @@ bool CasterMonitor::excute_auth_redis(std::shared_ptr<RedisOperationBase> op)
     return true;
 }
 
+void CasterMonitor::onConnectCasterSuccess()
+{
+    emit connectCasterSuccess();
+}
+
+void CasterMonitor::onConnectCasterFailed()
+{
+    emit connectCasterFailed();
+}
+
+void CasterMonitor::onConnectAuthSuccess()
+{
+    emit connectAuthSuccess();
+}
+
+void CasterMonitor::onConnectAuthFailed()
+{
+    emit connectAuthFailed();
+}
+
 void CasterMonitor::onUpdateCasterRedisCtx(redisAsyncContext *ctx)
 {
     // 更新
     _caster_mgr->setRedisCtx(ctx);
+
+    // 启动定时刷新数据
+
+    // 刷新在线基站列表
+    // 刷新基站订阅列表
+
+
+
+
 }
 
 void CasterMonitor::onUpdateAuthRedisCtx(redisAsyncContext *ctx)

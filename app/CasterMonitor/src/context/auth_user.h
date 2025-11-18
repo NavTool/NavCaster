@@ -2,7 +2,7 @@
 #include "util.h"
 
 
-class user_info{
+class auth_user{
 
 private:
     PROPERTY_AUTO(std::string, UID);      // 账户名  如果勾选了Ntrip1.0的基站，那么UID会是密码，其他情况下，UID是用户名
@@ -52,7 +52,7 @@ private:
 
 
 public:
-    user_info()
+    auth_user()
     {
         UID("");
         account("");

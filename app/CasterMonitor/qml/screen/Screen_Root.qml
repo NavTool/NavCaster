@@ -267,7 +267,50 @@ Item{
     }
 
 
+    Connections
+    {
+        target: CasterMonitor
 
+        function onNoticeSuccess(msg)
+        {
+            tip_top.showSuccess(msg)
+        }
+        function onNoticeInfo(msg)
+        {
+            tip_top.showInfo(msg)
+        }
+        function onNoticeWarning(msg)
+        {
+            tip_top.showWarning(msg)
+        }
+        function onNoticeError(msg)
+        {
+            tip_top.showError(msg)
+        }
+
+        function onConnectCasterSuccess()
+        {
+            tip_top.showSuccess("onConnectCasterSuccess")
+        }
+
+        function onConnectCasterFailed()
+        {
+            tip_top.showSuccess("onConnectCasterFailed")
+        }
+
+        function onReconnectCaster()
+        {
+
+        }
+
+        function onDisconnectCaster()
+        {
+
+        }
+
+
+
+    }
 
 
 

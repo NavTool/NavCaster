@@ -7,16 +7,13 @@
 
 ServerDataController::ServerDataController(QObject *parent) : QObject{parent}
 {
+    //连接信号和槽
+    connect(_redis_op.get(),&EventUpdateServerData::updateDataFinished,this,&ServerDataController::updateData);
 }
 
 void ServerDataController::loadData()
 {
     CasterMonitor::getInstance()->excute_caster_redis(_redis_op);
-
-    //连接信号和槽
-    connect(_redis_op.get(),&EventUpdateServerData::updateDataFinished,this,&ServerDataController::updateData);
-
-
 }
 
 void ServerDataController::updateData()
@@ -57,9 +54,9 @@ void ServerDataController::updateData()
             }
 
             //所有元素置为0
-            for(auto &task : m_data)
+            for(auto &item : m_data)
             {
-                task["update_flag"] =0;
+                item["update_flag"] =0;
             }
             Q_EMIT loadDataSuccess();
         });
@@ -68,7 +65,7 @@ void ServerDataController::updateData()
 void EventUpdateServerData::execute(redisAsyncContext *ctx) {
     // Q_UNUSED(base);
 
-    redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL MPT:LIST ");
+    redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL MPT:STAT ");
 
     // 执行任务逻辑
 }
@@ -79,7 +76,7 @@ void EventUpdateServerData::Redis_Update_Data_Callback(redisAsyncContext *c, voi
     auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<EventUpdateServerData *>(privdata);
 
-    auto data=svr->m_data;
+    auto&data = svr->m_data;
 
     data.clear();
 
@@ -102,7 +99,7 @@ void EventUpdateServerData::Redis_Update_Data_Callback(redisAsyncContext *c, voi
         std::string field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
 
-        QVariantMap item= JsonToQVariantMap(value);
+        QVariantMap item= JsonToQVariantMap(StringToJson(value));
 
         data.append(item);
     }

@@ -24,3 +24,27 @@ std::string util_get_http_date();
 std::time_t util_get_now_second();
 
 int util_get_use_memory();
+
+
+
+
+void util_ecef2pos(double ecef_x, double ecef_y, double ecef_z,double &lat, double &lon, double &alt);
+
+void util_pos2ecef(double lat, double lon, double alt, double &ecef_x, double &ecef_y, double &ecef_z);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

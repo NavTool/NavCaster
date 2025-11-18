@@ -4,7 +4,7 @@
 
 
 
-class server_info
+class ntrip_server
 {
 private:
     PROPERTY_AUTO(std::string,UID);        // TCP连接唯一标识
@@ -36,11 +36,12 @@ private:
     PROPERTY_AUTO(double, llh_lat);
     PROPERTY_AUTO(double, llh_lon);
     PROPERTY_AUTO(double, llh_h);
+    PROPERTY_AUTO(time_t, position_update_time); // 信息更新时刻
 
     PROPERTY_AUTO(time_t, update_time); // 信息更新时刻（执行所有函数的时候，都会更新一下这个函数）
 
 public:
-    server_info()
+    ntrip_server()
     {
         UID("");
         login_mpt("");
@@ -61,6 +62,7 @@ public:
         llh_lat(0.0);
         llh_lon(0.0);
         llh_h(0.0);
+        position_update_time(0);
 
         update_time(0);
     }
@@ -87,6 +89,7 @@ public:
         info["llh_lat"] = llh_lat();
         info["llh_lon"] = llh_lon();
         info["llh_h"] = llh_h();
+        info["position_update_time"] = position_update_time();
 
         info["update_time"] = update_time();
         return info;
@@ -114,6 +117,7 @@ public:
         llh_lat(info, "llh_lat");
         llh_lon(info, "llh_lon");
         llh_h(info, "llh_h");
+        position_update_time(info, "position_update_time");
 
         update_time(info, "update_time");
 
