@@ -97,14 +97,14 @@ void ntrip_compat_listener::AcceptCallback(evconnlistener *listener, evutil_sock
 
     bufferevent *bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
 
-    svr->_connect_map->insert(std::pair<std::string,bufferevent*>(Connect_Key, bev));
+    svr->_connect_map->insert(std::pair<std::string, bufferevent *>(Connect_Key, bev));
 
     if (svr->_connect_timeout > 0)
     {
         auto timer = new timeval;
         timer->tv_sec = svr->_connect_timeout;
         timer->tv_usec = 0;
-        svr->_timer_map.insert(std::pair<std::string,timeval*>(Connect_Key, timer));
+        svr->_timer_map.insert(std::pair<std::string, timeval *>(Connect_Key, timer));
         bufferevent_set_timeouts(bev, timer, NULL);
     }
 
@@ -335,7 +335,7 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
     {
         if (!_enable_source_login)
         {
-            spdlog::info("[{}:{}]: Accept Source Request, but enable_source_login is false, reject request",__class__, __func__); // 接收到了源列表获取请求，但不进行处理
+            spdlog::info("[{}:{}]: Accept Source Request, but enable_source_login is false, reject request", __class__, __func__); // 接收到了源列表获取请求，但不进行处理
             erase_and_free_bev(bev, connect_key);
             return 1;
         }
@@ -345,7 +345,7 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
     {
         if (!_enable_client_login)
         {
-            spdlog::info("[{}:{}]: Accept Client Request, but enable_client_login is false, reject request",__class__, __func__); // 接收到了源列表获取请求，但不进行处理
+            spdlog::info("[{}:{}]: Accept Client Request, but enable_client_login is false, reject request", __class__, __func__); // 接收到了源列表获取请求，但不进行处理
             erase_and_free_bev(bev, connect_key);
             return 1;
         }
@@ -354,7 +354,7 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
 
     std::string userID = req["user_baseID"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(), Auth_Verify_Cb, ctx);
+    AUTH::Verify(userID.c_str(), userID.c_str(),Auth_Verify_Cb, ctx, AuthType::CLIENT);
     return 0;
 }
 
@@ -362,7 +362,7 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
 {
     if (!_enable_server_login)
     {
-        spdlog::info("[{}:{}]: Accept Server Request, but enable_server_login is false, reject request",__class__, __func__); // 接收到了基站登录请求，但不进行处理
+        spdlog::info("[{}:{}]: Accept Server Request, but enable_server_login is false, reject request", __class__, __func__); // 接收到了基站登录请求，但不进行处理
         erase_and_free_bev(bev, connect_key);
         return 1;
     }
@@ -374,7 +374,7 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
 
     std::string userID = req["user_baseID"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(), Auth_Verify_Cb, ctx);
+    AUTH::Verify(userID.c_str(),userID.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
 
@@ -382,7 +382,7 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
 {
     if (!_enable_server_login)
     {
-        spdlog::info("[{}:{}]: Accept Server Request, but enable_server_login is false, reject request",__class__, __func__); // 接收到了基站登录请求，但不进行处理
+        spdlog::info("[{}:{}]: Accept Server Request, but enable_server_login is false, reject request", __class__, __func__); // 接收到了基站登录请求，但不进行处理
         erase_and_free_bev(bev, connect_key);
         return 1;
     }
@@ -401,7 +401,7 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
 
     std::string userID = req["user_baseID"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(), Auth_Verify_Cb, ctx);
+    AUTH::Verify(userID.c_str(),userID.c_str(), Auth_Verify_Cb, ctx,AuthType::SERVER);
     return 0;
 }
 

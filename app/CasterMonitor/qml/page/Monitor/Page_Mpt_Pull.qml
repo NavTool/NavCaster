@@ -6,7 +6,7 @@ import FluentUI.impl
 import CasterMonitor
 ScrollablePage{
 
-    title: qsTr("Ntrip数据接入")
+    title: qsTr("数据接入")
 
 
 

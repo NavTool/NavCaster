@@ -309,3 +309,19 @@ void util_pos2ecef(double lat, double lon, double alt, double &ecef_x, double &e
     ecef_y = (N + alt) * cos(lat) * sin(lon);
     ecef_z = (N * (1 - e2) + alt) * sin(lat);
 }
+
+long long util_get_time_stamp()
+{
+    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+    // 转换为时间类型
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    // 获取秒数
+    std::chrono::seconds seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+    long long seconds_count = seconds.count();
+    return seconds_count;
+}
+
+std::string util_get_time_stamp_str()
+{
+    return std::to_string(util_get_time_stamp());
+}

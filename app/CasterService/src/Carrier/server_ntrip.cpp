@@ -44,7 +44,7 @@ int server_ntrip::start()
 {
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this);
+    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this,AuthType::SERVER);
 
     return 0;
 }
@@ -68,7 +68,7 @@ int server_ntrip::stop()
 
     CASTER::Withdraw_Base_Record(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str());
 
-    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str());
+    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(),AuthType::SERVER);
 
     spdlog::info("[{}]: mount [{}] is offline, addr:[{}:{}]", __class__, _mount_point, _ip, _port);
 

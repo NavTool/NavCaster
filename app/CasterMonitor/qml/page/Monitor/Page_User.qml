@@ -129,13 +129,19 @@ Frame {
                             title: qsTr("显示")
                             MenuItem{
                                 // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("显示过期账户")
+                                text:qsTr("显示过期账号")
                                 onTriggered:{
                                 }
                             }
                             MenuItem{
                                 // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("显示正常账户")
+                                text:qsTr("显示正常账号")
+                                onTriggered:{
+                                }
+                            }
+                            MenuItem{
+                                // icon.name:  FluentIcons.graph_Info
+                                text:qsTr("显示匿名账号")
                                 onTriggered:{
                                 }
                             }
@@ -304,7 +310,7 @@ Frame {
                             // frozen: true
                         }
                         ListElement{
-                            title: qsTr("账号状态（启用/停用/过期）")
+                            title: qsTr("账号状态（启用/停用/启用(已过期)/停用(已过期)）")
                             dataIndex: "coord_UID"
                             width: 200
                         }

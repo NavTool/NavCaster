@@ -60,7 +60,7 @@ set(QML_FILES
     qml/page/Monitor/Page_Mpt_Pull.qml
     qml/page/Monitor/Page_Mpt_Push.qml
     qml/page/Monitor/Page_Mpt_Source.qml
-    qml/page/Monitor/Page_Mpt_TCP.qml
+    qml/page/Monitor/Page_Mpt_Access.qml
     qml/page/Monitor/Page_Mpt.qml
     qml/page/Monitor/Page_Option.qml
     qml/page/Monitor/Page_Server.qml

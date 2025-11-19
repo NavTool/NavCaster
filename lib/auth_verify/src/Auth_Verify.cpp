@@ -3,40 +3,33 @@
 
 #include "auth_verify_internal.h"
 
-redis_auth_internal *auth_svr = nullptr;
-
 int AUTH::Init(const char *json_conf, event_base *base)
 {
+    json conf = json::parse(json_conf);
+
+    auth_internal::getInstance()->init(conf, base);
+    auth_internal::getInstance()->start();
+
     return 0;
 }
 
 int AUTH::Free()
 {
+    auth_internal::getInstance()->stop();
     return 0;
 }
 
-int AUTH::Clear()
+int AUTH::Verify(const char *user_name, const char *user_pwd, VerifyCallback cb, void *arg, AuthType type)
 {
-    return 0;
+    return auth_internal::getInstance()->verify(user_name, user_pwd,cb, arg, type);
 }
 
-int AUTH::Verify(const char *userID, VerifyCallback cb, void *arg, Auth_type type)
+int AUTH::Add_Login_Record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type)
 {
-    AuthReply reply;
-    reply.type = AUTH_REPLY_OK;
-    cb(nullptr, arg, &reply);
-    return 0;
+    return auth_internal::getInstance()->add_login_record(user_name, connect_key, cb, arg, type);
 }
 
-int AUTH::Add_Login_Record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, Auth_type type)
-{
-    AuthReply reply;
-    reply.type = AUTH_REPLY_OK;
-    cb(nullptr, arg, &reply);
-    return 0;
-}
-
-int AUTH::Add_Logout_Record(const char *user_name, const char *connect_key, Auth_type type)
+int AUTH::Add_Logout_Record(const char *user_name, const char *connect_key, AuthType type)
 {
     return 0;
 }

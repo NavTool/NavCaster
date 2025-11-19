@@ -6,8 +6,6 @@
 
 // redis_msg_internal *caster_svr = nullptr;
 
-caster_internal *caster = nullptr;
-
 // int CASTER::Init(const char *json_conf, event_base *base)
 // {
 //     json conf = json::parse(json_conf);
@@ -211,54 +209,50 @@ int CASTER::Init(const char *json_conf, event_base *base)
 {
     json conf = json::parse(json_conf);
 
-    if (caster == nullptr)
-    {
-        caster = new caster_internal(conf, base);
-        caster->start();
-    }
+    caster_internal::getInstance()->init(conf, base);
+    caster_internal::getInstance()->start();
     return 0;
 }
 
 int CASTER::Free()
 {
-    caster->stop();
-    delete caster;
+    caster_internal::getInstance()->stop();
     return 0;
 }
 
 std::string CASTER::Get_Status()
 {
-    return caster->get_status_str();
+    return caster_internal::getInstance()->get_status_str();
 }
 
 int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
-    return caster->register_base_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->register_base_channel(mount_point, user_name, connect_key, cb, arg);
 }
 
 int CASTER::Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key)
 {
-    return caster->withdraw_base_channel(mount_point, user_name, connect_key);
+    return caster_internal::getInstance()->withdraw_base_channel(mount_point, user_name, connect_key);
 }
 
 int CASTER::Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
 {
-    return caster->pub_base_channel(mount_point, connect_key, data, data_length);
+    return caster_internal::getInstance()->pub_base_channel(mount_point, connect_key, data, data_length);
 }
 
 int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
-    return caster->sub_base_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, connect_key, cb, arg);
 }
 
 int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key)
 {
-    return caster->unsub_base_channel(mount_point, connect_key);
+    return caster_internal::getInstance()->unsub_base_channel(mount_point, connect_key);
 }
 
 int CASTER::Stop_One_Base(const char *mount_point, const char *connect_key, const char *reason)
 {
-    return caster->send_status_base_channel(mount_point, connect_key, CasterReply::ERR, reason);
+    return caster_internal::getInstance()->send_status_base_channel(mount_point, connect_key, CasterReply::ERR, reason);
 }
 
 // int CASTER::Check_Base_Online(const char *mount_point, CasterCallback cb, void *arg)
@@ -273,27 +267,27 @@ int CASTER::Stop_One_Base(const char *mount_point, const char *connect_key, cons
 
 int CASTER::Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
-    return caster->register_rover_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->register_rover_channel(mount_point, user_name, connect_key, cb, arg);
 }
 
 int CASTER::Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key)
 {
-    return caster->withdraw_rover_channel(mount_point, user_name, connect_key);
+    return caster_internal::getInstance()->withdraw_rover_channel(mount_point, user_name, connect_key);
 }
 
 int CASTER::Pub_Rover_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
 {
-    return caster->pub_rover_channel(mount_point, connect_key, data, data_length);
+    return caster_internal::getInstance()->pub_rover_channel(mount_point, connect_key, data, data_length);
 }
 
 int CASTER::Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
-    return caster->sub_rover_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_rover_channel(mount_point, user_name, connect_key, cb, arg);
 }
 
 int CASTER::Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key)
 {
-    return caster->unsub_rover_channel(user_name, connect_key);
+    return caster_internal::getInstance()->unsub_rover_channel(user_name, connect_key);
 }
 
 int CASTER::Get_Sub_Rover_Count(const char *mount_point, const char *connect_key, CasterCallback cb, void *arg)
@@ -308,7 +302,7 @@ int CASTER::Get_Sub_Base_Count(const char *mount_point, const char *connect_key,
 
 int CASTER::Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason)
 {
-    return caster->send_status_rover_channel(user_name, connect_key, CasterReply::ERR, reason);
+    return caster_internal::getInstance()->send_status_rover_channel(user_name, connect_key, CasterReply::ERR, reason);
 }
 
 int CASTER::Sub_Base_Raw_Data(double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
@@ -376,7 +370,7 @@ int CASTER::Set_Grid_Source_Info(const char *mount_point, const char *connect_ke
 
 std::string CASTER::Get_Source_Table_Text()
 {
-    return caster->get_source_list_text();
+    return caster_internal::getInstance()->get_source_list_text();
 }
 
 int CASTER::Update_Base_Describe(const char *mount_point, const char *connect_key, const char *describe)
@@ -391,25 +385,25 @@ int CASTER::Update_Rover_Describe(const char *user_name, const char *connect_key
 
 int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
 {
-    return caster->set_base_coord_info(mount_point,connect_key,ecef_x,ecef_y,ecef_z,update_time);
+    return caster_internal::getInstance()->set_base_coord_info(mount_point,connect_key,ecef_x,ecef_y,ecef_z,update_time);
 }
 
 std::set<std::string> CASTER::Get_Active_Rover_UID()
 {
-    return caster->get_active_rover_UID();
+    return caster_internal::getInstance()->get_active_rover_UID();
 }
 
 std::set<std::string> CASTER::Get_Active_Base_UID()
 {
-    return caster->get_active_base_UID();
+    return caster_internal::getInstance()->get_active_base_UID();
 }
 
 std::string CASTER::Get_Base_Info(std::string UID)
 {
-    return caster->get_active_base_info(UID);
+    return caster_internal::getInstance()->get_active_base_info(UID);
 }
 
 std::string CASTER::Get_Rover_Info(std::string UID)
 {
-    return caster->get_active_rover_info(UID);
+    return caster_internal::getInstance()->get_active_rover_info(UID);
 }

@@ -32,7 +32,21 @@
 
 */
 
-caster_internal::caster_internal(json conf, event_base *base)
+caster_internal::caster_internal()
+{
+}
+
+caster_internal::~caster_internal()
+{
+}
+
+caster_internal *caster_internal::getInstance()
+{
+    static caster_internal *instance = new caster_internal();
+    return instance;
+}
+
+int caster_internal::init(json conf, event_base *base)
 {
     _update_intv = conf["Update_Intv"];
     _unactive_time = conf["Unactive_Time"];
@@ -58,12 +72,9 @@ caster_internal::caster_internal(json conf, event_base *base)
     _redis_Requirepass = conf["Redis_Requirepass"];
 
     _base = base;
-    _updatetime_int = get_time_stamp();
-    _updatetime_str = std::to_string(_updatetime_int).c_str();
-}
-
-caster_internal::~caster_internal()
-{
+    _updatetime_int = util_get_time_stamp();
+    _updatetime_str = util_get_time_stamp_str().c_str();
+    return 0;
 }
 
 int caster_internal::start()
@@ -126,7 +137,11 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
         find = _base_sub_map.find(channel);
 
         // 更新订阅者列表
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SUB:%s EX %s FIELDS 1 %s %s", channel, std::to_string(_key_expire_time).c_str(), connect_key, std::to_string(get_time_stamp()).c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SUB:%s EX %s FIELDS 1 %s %s",
+                          channel,
+                          std::to_string(_key_expire_time).c_str(),
+                          connect_key,
+                          util_get_time_stamp_str().c_str());
 
         caster_cb_item cb_item;
         cb_item.connect_key = connect_key;
@@ -197,7 +212,11 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
         find = _rover_sub_map.find(channel);
 
         // 更新订阅者列表
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:SUB:%s EX %s FIELDS 1 %s %s", channel, _key_expire_time, connect_key, std::to_string(get_time_stamp()));
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:SUB:%s EX %s FIELDS 1 %s %s",
+                          channel,
+                          _key_expire_time,
+                          connect_key,
+                          util_get_time_stamp_str().c_str());
 
         caster_cb_item cb_item;
         cb_item.connect_key = connect_key;
@@ -294,17 +313,6 @@ std::string caster_internal::get_active_rover_info(std::string UID)
         return std::string();
     }
     return iter->second;
-}
-
-long long caster_internal::get_time_stamp()
-{
-    std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-    // 转换为时间类型
-    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-    // 获取秒数
-    std::chrono::seconds seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-    long long seconds_count = seconds.count();
-    return seconds_count;
 }
 
 int caster_internal::clear_overdue_item()
@@ -592,8 +600,8 @@ mount_info caster_internal::build_default_mount_info(std::string mount_point)
 void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
     auto svr = static_cast<caster_internal *>(arg);
-    svr->_updatetime_int = get_time_stamp();
-    svr->_updatetime_str = std::to_string(get_time_stamp());
+    svr->_updatetime_int = util_get_time_stamp();
+    svr->_updatetime_str = util_get_time_stamp_str();
 
     // 判断ping时间是否已经超过过期时间
     // 如果过期，认为连接已出现未知状况，连接状态置为0，触发重连机制
@@ -666,7 +674,11 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         // 反正记录只能由注册者自己删除（或者说注册该连接的Caster维护）
 
         // 向云端插入记录
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:REC:%s EX %s FIELDS 1 %s %s", channel,  std::to_string(_key_expire_time).c_str(), connect_key, std::to_string(get_time_stamp()).c_str()); // 更新挂载点数据生产者的更新时间
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:REC:%s EX %s FIELDS 1 %s %s",
+                          channel,
+                          std::to_string(_key_expire_time).c_str(),
+                          connect_key,
+                          util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
 
         // 向云端查询记录，等待下一步处理
 
@@ -722,7 +734,11 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性，即：查询到的结果已经包含当前记录，因此避免查询-插入-再查询的时候
         // 向云端插入记录
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:REC:%s EX %s FIELDS 1 %s %s", user_name, std::to_string(_key_expire_time).c_str(), connect_key, std::to_string(get_time_stamp()).c_str()); // 更新挂载点数据生产者的更新时间
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:REC:%s EX %s FIELDS 1 %s %s",
+                          user_name,
+                          std::to_string(_key_expire_time).c_str(),
+                          connect_key,
+                          util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
 
         // 向云端查询记录，等待下一步处理
         auto ctx = new std::pair<caster_internal *, caster_cb_item>(this, cb_item);
@@ -1238,7 +1254,7 @@ void caster_internal::Redis_SUB_Rover_Callback(redisAsyncContext *c, void *r, vo
                 str->second.add_send(Reply.len);
                 if (svr->_upload_base_stat)
                 {
-                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(),  cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
+                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
                 }
             }
         }
@@ -1477,7 +1493,6 @@ void caster_internal::Redis_Update_Active_Base_Callback(redisAsyncContext *c, vo
         auto valid_time = svr->_updatetime_int - svr->_unactive_time;
 
         svr->_active_mount_set.insert(field);
-
     }
 
     // spdlog::info("Sync active base, current item:{} ", svr->_active_mount_set.size());
@@ -1513,7 +1528,6 @@ void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, v
         auto valid_time = svr->_updatetime_int - svr->_unactive_time;
 
         svr->_active_user_set.insert(field);
-
     }
     // spdlog::info("Sync active rover, current item:{} ", svr->_active_user_set.size());
 }

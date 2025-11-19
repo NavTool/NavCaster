@@ -21,25 +21,19 @@ Frame{
         },
         PaneItem{
             key: "/monitor/page/mpt/pull"
-            title: "Ntrip数据接入"
+            title: "数据接入"
             icon.name: FluentIcons.graph_ReturnToWindow
             icon.color:  Theme.res.textFillColorPrimary
         },
         PaneItem{
             key: "/monitor/page/mpt/push"
-            title: "Ntrip数据推送"
+            title: "数据推送"
             icon.name: FluentIcons.graph_OpenInNewWindow
             icon.color:  Theme.res.textFillColorPrimary
         },
         PaneItem{
-            key: "/monitor/page/mpt/tcp"
-            title: "TCP数据接入"
-            icon.name: FluentIcons.graph_MapPin
-            icon.color:  Theme.res.textFillColorPrimary
-        },
-        PaneItem{
             key: "/monitor/page/mpt/proxy"
-            title: "Ntrip数据中继"
+            title: "数据中继"
             icon.name: FluentIcons.graph_Relationship
             icon.color:  Theme.res.textFillColorPrimary
         },
@@ -53,6 +47,12 @@ Frame{
             key: "/monitor/page/mpt/nearest"
             title: "最近挂载点"
             icon.name: FluentIcons.graph_InternetSharing
+            icon.color:  Theme.res.textFillColorPrimary
+        },
+        PaneItem{
+            key: "/monitor/page/mpt/access"
+            title: "访问管理"
+            icon.name: FluentIcons.graph_SetlockScreen
             icon.color:  Theme.res.textFillColorPrimary
         }
 
@@ -74,13 +74,13 @@ Frame{
     PageRouter{
         id: page_router
         routes: {
+            "/monitor/page/mpt/access":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_Access.qml"),singleton:true},
             "/monitor/page/mpt/alias":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_Alias.qml"),singleton:true},
             "/monitor/page/mpt/nearest":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_Nearest.qml"),singleton:true},
             "/monitor/page/mpt/proxy":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_Proxy.qml"),singleton:true},
             "/monitor/page/mpt/pull":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_Pull.qml"),singleton:true},
             "/monitor/page/mpt/push":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_Push.qml"),singleton:true},
             "/monitor/page/mpt/source":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_Source.qml"),singleton:true},
-            "/monitor/page/mpt/tcp":{url: R.resolvedUrl("qml/page/Monitor/Page_Mpt_TCP.qml"),singleton:true},
           }
     }
     NavigationView{

@@ -23,6 +23,10 @@ std::string util_get_space_time();
 std::string util_get_http_date();
 std::time_t util_get_now_second();
 
+long long util_get_time_stamp();
+
+std::string util_get_time_stamp_str();
+
 int util_get_use_memory();
 
 

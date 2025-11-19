@@ -45,7 +45,7 @@ int client_ntrip::start()
 {
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this);
+    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this,AuthType::CLIENT);
 
     return 0;
 }
@@ -79,7 +79,7 @@ int client_ntrip::stop()
     CASTER::Withdraw_Rover_Record(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str());
     CASTER::Unsub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str());
 
-    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str());
+    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(),AuthType::CLIENT);
 
     spdlog::info("[{}]: user [{}] is logout, using mount [{}], addr:[{}:{}]", __class__, _user_name, _mount_point, _ip, _port);
 
