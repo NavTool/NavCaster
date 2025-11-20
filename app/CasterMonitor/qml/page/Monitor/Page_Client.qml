@@ -14,20 +14,24 @@ Frame {
     property string title
     property PageContext context
 
+    property var focusItem
+
     Component.onCompleted: {
         clientData.loadData("")
+
+        data_refresh_timer.start()
     }
 
     ClientDataController {
         id: clientData
         onLoadDataStart: {
-            panel_loading.visible = true
+            // panel_loading.visible = true
         }
         onLoadDataSuccess: {
             dataModel.sourceData = data
-            panel_loading.visible = false
-            console.log("dataModel.count: " + Util.safeStringify(
-                            dataModel.count))
+            // panel_loading.visible = false
+            // console.log("dataModel.count: " + Util.safeStringify(
+            //                 dataModel.count))
         }
     }
 
@@ -38,9 +42,9 @@ Frame {
     Timer {
         id: data_refresh_timer
         repeat: true
-        interval: 500
+        interval: 1000
         onTriggered: {
-            GnssResourceController.updateStationData()
+            clientData.loadData()
         }
     }
 
@@ -76,6 +80,7 @@ Frame {
                     MenuBar {
                         id:menu_bar
 
+
                         Menu {
                             width: 140
                             title: qsTr("显示")
@@ -102,7 +107,7 @@ Frame {
                                 Action { text: qsTr("按照机构") }
                                 Action { text: qsTr("按照账号状态") }
                             }
-                                                        MenuSeparator { }
+                            MenuSeparator { }
                             Menu{
                                 width: 140
                                 title: qsTr("条件筛选")
@@ -194,17 +199,17 @@ Frame {
                     id: dataGrid
                     anchors.fill: parent
 
-                    Pane {
-                        id: panel_loading
-                        anchors.fill: dataGrid
-                        ProgressRing {
-                            anchors.centerIn: parent
-                            indeterminate: true
-                        }
-                        background: Rectangle {
-                            color: Theme.res.solidBackgroundFillColorBase
-                        }
-                    }
+                    // Pane {
+                    //     id: panel_loading
+                    //     anchors.fill: dataGrid
+                    //     ProgressRing {
+                    //         anchors.centerIn: parent
+                    //         indeterminate: true
+                    //     }
+                    //     background: Rectangle {
+                    //         color: Theme.res.solidBackgroundFillColorBase
+                    //     }
+                    // }
 
                     defaultHeight: 30
                     defaultminimumHeight: 25
@@ -213,8 +218,12 @@ Frame {
 
                     sourceModel: dataModel
                     onRowClicked: model => {// console.debug(model.station_name)
+                                      // root.focusItem=model
+                                      console.log(Util.safeStringify(model))
+
                                   }
                     onRowRightClicked: model => {// console.debug(model.station_name)
+                                           operate_item_menu.open_with_ctx(model)
                                        }
 
                     Menu {
@@ -237,74 +246,72 @@ Frame {
                     }
 
                     columnSourceModel: ListModel {
-
                         ListElement {
                             title: qsTr("账号ID")
-                            dataIndex: "station_name"
+                            dataIndex: "account"
                             width: 200
                         }
                         ListElement {
                             title: qsTr("账号机构")
-                            dataIndex: "station_name"
+                            dataIndex: "account"
                             width: 200
-                        }
-                        ListElement {
-                            title: qsTr("用户名")
-                            dataIndex: "station_name"
-                            width: 200
-                            // frozen: true
                         }
                         ListElement {
                             title: qsTr("接入挂载点")
-                            dataIndex: "station_name"
+                            dataIndex: "login_mpt"
                             width: 200
-                            // frozen: true
+                            frozen: false
                         }
                         ListElement {
-                            title: qsTr("使用挂载点")
-                            dataIndex: "station_name"
+                            title: qsTr("实际挂载点")
+                            dataIndex: "alias_mpt"
                             width: 200
-                            frozen: true
+                            frozen: false
                         }
-
                         ListElement {
                             title: qsTr("在线时长")
-                            dataIndex: "station_name"
+                            dataIndex: "online_seconds"
                             width: 200
-                            frozen: true
+                            rowDelegate:function(){return comp_time_label}
+                            frozen: false
                         }
                         ListElement{
                             title: qsTr("纬度")
-                            dataIndex: "coord_UID"
+                            dataIndex: "ecef_x"
                             width: 150
+                            frozen: false
                         }
 
                         ListElement{
                             title: qsTr("经度")
-                            dataIndex: "coord_UID"
+                            dataIndex: "ecef_y"
                             width: 150
+                            frozen: false
                         }
 
                         ListElement{
                             title: qsTr("椭球高")
-                            dataIndex: "coord_UID"
+                            dataIndex: "ecef_z"
                             width: 100
+                            frozen: false
                         }
                         ListElement{
                             title: qsTr("IP")
-                            dataIndex: "coord_UID"
+                            dataIndex: "ip"
                             width: 120
+                            frozen: false
                         }
                         ListElement{
                             title: qsTr("端口")
-                            dataIndex: "coord_UID"
+                            dataIndex: "port"
                             width: 120
                         }
 
                         ListElement{
                             title: qsTr("数据更新时间")
-                            dataIndex: "coord_UID"
-                            width: 120
+                            dataIndex: "update_time"
+                            rowDelegate:function(){return comp_date_label}
+                            width: 200
                         }
                     }
                 }
@@ -365,43 +372,43 @@ Frame {
                 Column{
                     ComItem{
                         property_key:qsTr("用户名")
-                        property_value: (GNSS_API.getStation(GNSS.focusObsFile.station_UID)).station_name
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("挂载点")
-                        property_value:GNSS.focusObsFile.file_path
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("在线时长")
-                        property_value:GNSS.focusObsFile.file_name
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("经度")
-                        property_value:GNSS.focusObsFile.first_time
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("纬度")
-                        property_value:GNSS.focusObsFile.obs_intv
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("高程")
-                        property_value: Display.format_stationtype(GNSS_API.getStation(GNSS.focusObsFile.station_UID).station_type)
+                        property_value: root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("IP")
-                        property_value:(GNSS_API.getNavFile(GNSS.focusObsFile.navfile_UID)).file_name
+                        property_value:root.focusItem.ip
                     }
                     ComItem{
                         property_key:qsTr("端口")
-                        property_value:GNSS.focusObsFile.measurement_ant_height.toFixed(4)
+                        property_value:root.focusItem.port
                     }
                     ComItem{
                         property_key:qsTr("累计接收数据")
-                        property_value:GNSS.focusObsFile.ant_type
+                        property_value:root.focusItem.recv_total
                     }
                     ComItem{
                         property_key:qsTr("累计发送数据")
-                        property_value:GNSS_API.getCoord((GNSS_API.getStation(GNSS.focusObsFile.station_UID)).coord_UID).llh_lat
+                        property_value:root.focusItem.send_total
                     }
                 }
             }
@@ -457,5 +464,74 @@ Frame {
             }
         }
     }
+
+    component DataItem:Item{
+        property string itemtext;
+        Label{
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            anchors{
+                verticalCenter: parent.verticalCenter
+                // horizontalCenter: parent.horizontalCenter
+                left: parent.left
+                leftMargin: 10
+                right: parent.right
+                rightMargin: 10
+            }
+            elide: Label.ElideRight
+            text: itemtext
+        }
+    }
+
+
+    Component{
+        id: comp_date_label
+        Item{
+            Label{
+                anchors.centerIn: parent
+                text: getLocalTime(display) // 传入 UTC 秒数
+                function getLocalTime(utcSeconds) {
+                    if (utcSeconds === 0) {
+                        return "-"
+                    }
+
+                    var localDate = new Date(utcSeconds); // 注意：如果 utcSeconds 是秒，应该乘以 1000
+                    if (utcSeconds < 1e12) {
+                        // 如果是秒，需要乘以 1000
+                        localDate = new Date(utcSeconds * 1000);
+                    }
+
+                    let ms = String(localDate.getMilliseconds()).padStart(3, "0");
+
+                    return localDate.getFullYear() + "-" +
+                            String(localDate.getMonth() + 1).padStart(2, "0") + "-" +
+                            String(localDate.getDate()).padStart(2, "0") + " " +
+                            String(localDate.getHours()).padStart(2, "0") + ":" +
+                            String(localDate.getMinutes()).padStart(2, "0") + ":" +
+                            String(localDate.getSeconds()).padStart(2, "0") + "." +
+                            ms;
+                }
+            }
+        }
+    }
+
+
+    Component{
+        id: comp_time_label
+        DataItem{
+            itemtext: formatTime(display) // 传入 UTC 秒数
+            function formatTime(seconds) {
+                var h = Math.floor(seconds / 3600);
+                var m = Math.floor((seconds % 3600) / 60);
+                var s = seconds % 60;
+
+                return String(h).padStart(2, "0") + ":" +
+                        String(m).padStart(2, "0") + ":" +
+                        String(s).padStart(2, "0");
+            }
+        }
+    }
+
+
 
 }

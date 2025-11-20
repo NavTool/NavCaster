@@ -78,15 +78,15 @@ namespace CASTER
     int Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅基站数据
     int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    // 最近点基站模式
+    int Sub_Base_Raw_Data(double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅基站数据
     int Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key);
-    // 获取订阅基站的用户信息
-    int Get_Sub_Base_Count(const char *mount_point, const char *connect_key, CasterCallback cb, void *arg);
+    // 设置基站坐标信息
+    int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
+    // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
+    int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
-    // // 检查基站是否在线（回复在线数量）
-    // int Check_Base_Online(const char *mount_point, CasterCallback cb, void *arg);
-    // // 获取指定基站在线记录
-    // int Get_Base_Record(const char *mount_point, CasterCallback cb, void *arg);
 
     // 将移动站注册到Caster中（Client上线的时候主动调用）
     int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
@@ -98,18 +98,12 @@ namespace CASTER
     int Sub_Rover_Raw_Data(const char *mount_point,const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅移动站数据
     int Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key);
-    // 获取订阅移动站的用户信息
-    int Get_Sub_Rover_Count(const char *mount_point, const char *connect_key, CasterCallback cb, void *arg);
+    // 设置用户坐标信息
+    int Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
+
 
     // 获取文本形式的源列表
     std::string Get_Source_Table_Text();
-
-    // 信息上报函数()   挂载点名，挂载点的connect_key,挂载点描述（上线时刻，上线时长，接收数据统计、发送数据统计、发送数据速度，接收数据速度）
-    int Update_Base_Describe(const char *mount_point, const char *connect_key, const char *describe);
-    // 信息上报函数()   用户名，用户的connect_key,用户描述（上线时刻，上线时长，接收数据统计、发送数据统计、发送数据速度，接收数据速度）
-    int Update_Rover_Describe(const char *user_name, const char *connect_key, const char *describe);
-    // 设置基站坐标信息
-    int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
 
     // 管理用函数---------------------------------------------------------------------------------------------------------
 
@@ -118,11 +112,7 @@ namespace CASTER
     // 主动停止指定的移动站
     int Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason);
 
-    // 最近点基站模式------------------------------------------------------------------------------------------------------
-    int Sub_Base_Raw_Data(double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
 
-    // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
-    int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
     // 更新用户位置信息，将用户的信息上报到Caster_Core
 
@@ -143,23 +133,6 @@ namespace CASTER
 
     // 设置虚拟基站的信息
     int Set_Grid_Source_Info(const char *mount_point, const char *connect_key, mount_info);
-
-
-    // Monitor相关函数
-
-    // 获取当前在线的基站的UID
-    std::set<std::string> Get_Active_Base_UID();
-    // 获取当前在线的用户的UID
-    std::set<std::string> Get_Active_Rover_UID();
-
-
-    // 根据TCP连接ID，获取状态信息(内部需要加锁）
-    std::string Get_Base_Info(std::string UID);    
-    std::string Get_Rover_Info(std::string UID);
-
-
-    // 检索函数
-
 
 
 

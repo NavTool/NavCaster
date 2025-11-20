@@ -419,7 +419,6 @@ void auth_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *p
     auth_internal::getInstance()->_register_limit_map.insert(std::pair<std::string, auth_limit>(ctx->user_name, limit));
     // 解析查询到的信息,存储到本地
 
-
     // 如果不存在，那么就不允许登录
     AuthReply Reply;
     Reply.type = AUTH_REPLY_OK; // AUTH_REPLY_ERR;
@@ -431,9 +430,7 @@ void auth_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *p
 void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     auto reply = static_cast<redisReply *>(r);
-    auto arg = static_cast<std::pair<auth_internal *, auth_cb_item> *>(privdata);
-    auto svr = arg->first;
-    auto cb_item = arg->second;
+    auto ctx = static_cast<auth_ctx *>(privdata);
 
     bool _check = false; // 检验记录中是否包含本条记录
 
@@ -444,7 +441,7 @@ void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void
         auto field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
 
-        if (strcmp(field, cb_item.connect_key.c_str()) == 0)
+        if (strcmp(field, ctx->connect_key.c_str()) == 0)
         {
             _check = true;
         }
@@ -488,12 +485,11 @@ void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void
     //     svr->send_status_base_channel(cb_item.channel.c_str(), cb_item.connect_key.c_str(), CasterReply::ERR, e.what());
     // }
 
-    delete arg;
+    AuthReply Reply;
+    Reply.type = AUTH_REPLY_OK;
+    ctx->cb(nullptr, ctx->arg, &Reply);
 
-    // AuthReply reply;
-    // reply.type = AUTH_REPLY_OK;
-    // cb(nullptr, arg, &reply);
-    // return 0;
+    delete ctx;
 }
 
 void auth_internal::Redis_Add_Logout_Callback(redisAsyncContext *c, void *r, void *privdata)

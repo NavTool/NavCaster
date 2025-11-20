@@ -290,16 +290,6 @@ int CASTER::Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key)
     return caster_internal::getInstance()->unsub_rover_channel(user_name, connect_key);
 }
 
-int CASTER::Get_Sub_Rover_Count(const char *mount_point, const char *connect_key, CasterCallback cb, void *arg)
-{
-    return 0;
-}
-
-int CASTER::Get_Sub_Base_Count(const char *mount_point, const char *connect_key, CasterCallback cb, void *arg)
-{
-    return 0;
-}
-
 int CASTER::Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason)
 {
     return caster_internal::getInstance()->send_status_rover_channel(user_name, connect_key, CasterReply::ERR, reason);
@@ -373,37 +363,14 @@ std::string CASTER::Get_Source_Table_Text()
     return caster_internal::getInstance()->get_source_list_text();
 }
 
-int CASTER::Update_Base_Describe(const char *mount_point, const char *connect_key, const char *describe)
-{
-    return 0;
-}
-
-int CASTER::Update_Rover_Describe(const char *user_name, const char *connect_key, const char *describe)
-{
-    return 0;
-}
 
 int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
 {
     return caster_internal::getInstance()->set_base_coord_info(mount_point,connect_key,ecef_x,ecef_y,ecef_z,update_time);
 }
 
-std::set<std::string> CASTER::Get_Active_Rover_UID()
+int CASTER::Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
 {
-    return caster_internal::getInstance()->get_active_rover_UID();
+    return 0;
 }
 
-std::set<std::string> CASTER::Get_Active_Base_UID()
-{
-    return caster_internal::getInstance()->get_active_base_UID();
-}
-
-std::string CASTER::Get_Base_Info(std::string UID)
-{
-    return caster_internal::getInstance()->get_active_base_info(UID);
-}
-
-std::string CASTER::Get_Rover_Info(std::string UID)
-{
-    return caster_internal::getInstance()->get_active_rover_info(UID);
-}

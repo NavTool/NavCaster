@@ -55,42 +55,41 @@ using json = nlohmann::json;
 
     MPT:REC:KORO5       类型HASH,  挂载点名-[基站的ConnectKey-添加记录的时间]     记录单个挂载点的详细信息(发布者列表, 一般来说发布者只允许有一个)
     MPT:SUB:KORO5       类型Hash,  挂载点名-[用户的ConnectKey-添加记录的时间]     记录单个挂载点的订阅情况(订阅者列表, 订阅者数量没有限制)
-    MPT:LIST:COMMON     类型Hash,          [挂载点名-数据流的挂载点信息]          记录当前在线挂载点的情况, (如果程序不挂掉, 挂载点的维护用不到UTCtime, UTCtime就是为了验证在线的有效性, 并且这个Hash可以一次性查询所有在线挂载点)  
+    MPT:LIST:COMMON     类型Hash,          [挂载点名-数据流的挂载点信息]          记录当前在线挂载点的情况, (如果程序不挂掉, 挂载点的维护用不到UTCtime, UTCtime就是为了验证在线的有效性, 并且这个Hash可以一次性查询所有在线挂载点)
     MPT:LIST:ALIAS      类型Hash,          [挂载点名-数据流的挂载点信息]          别名挂载点,挂载点信息与原始挂载点一致
     MPT:LIST:RELAY      类型Hash,          [挂载点名-数据流的挂载点信息]          转发的挂载点,
     MPT:LIST:NEAREST    类型Hash,          [挂载点名-数据流的挂载点信息]          最近挂载点,挂载点信息为手动设置
-    MPT:LIST:PROXY      类型Hash,          [挂载点名-数据流的挂载点信息]            
+    MPT:LIST:PROXY      类型Hash,          [挂载点名-数据流的挂载点信息]
     MPT:GEO             类型GEO,           [挂载点名-经度-纬度]                  解析出来的单个挂载点的位置信息
     MPT:STAT            类型HASH,          [基站的ConnectKey-数据流详细信息]      设置对应挂载点的RTCM数据组装规则, Client注册到Catser中的时候, Caster会查询规则, 同时把规则返回给Client, 这样Client就可以知道要如何组装数据了
 
 
     USR:REC:KORO5       类型HASH,  用户名 -[用户的ConnectKey-添加记录的时间]    记录单个用户的在线情况(对于用户来说, 可以允许多个用户在线)
     USR:SUB:KORO5       类型Hash,  用户名 -[基站的ConnectKey-添加记录的时间]    记录单个用户的订阅情况(订阅者列表, 订阅者数量没有限制)
-    USR:LIST:COMMON     类型Hash,          [用户名-账户详细信息(由client主动设置的信息)]              
+    USR:LIST:COMMON     类型Hash,          [用户名-账户详细信息(由client主动设置的信息)]
     USR:LIST:RELAY      类型Hash,          [用户名-转发的配置信息？]
     USR:LIST:NEAREST    类型Hash,
-    USR:LIST:PROXT      类型Hash,      
-    USR:GEO             类型GEO,           [用户名-经度-纬度]           
-    USR:STAT            类型HASH,          [用户的ConnectKey-数据流详细信息]      
-    
+    USR:LIST:PROXT      类型Hash,
+    USR:GEO             类型GEO,           [用户名-经度-纬度]
+    USR:STAT            类型HASH,          [用户的ConnectKey-数据流详细信息]
+
     CASTER:NODE         类型HASH,           [节点别名-节点状态信息]              记录集群中每个节点的实时状态信息
-    CASTER:MASTER       类型HASH                                              由主节点完成数据的更新, 从节点不需要更新
+    CASTER:MASTER       类型HASH                                               由主节点完成数据的更新, 从节点不需要更新
     CASTER:SLAVE        类型HASH                                                从节点
-    CASTER:OPTION       类型HASH                                                集群的配置信息
+    CASTER:GLOBAL       类型HASH                                                集群的配置信息
+    CASTER:OPTION       类型HASH             [节点ID-节点配置]                   各个节点的配置
 
-    RELAY:LIST          记录数据转发的方式  目标IP:端口  账户 密码   本地挂载点
-
-    PROXY:LIST
-
+    STR:RELAY:LIST:        记录数据转发的方式  目标IP:端口  账户 密码   本地挂载点    (所有任务都会同步推送到集群的每个节点上)
+    STR:PROXY:LIST
 
 
     全局通用的配置,影响集群中的所有Caster (主节点负责更新,从节点仅拉取更新)
         挂载点列表
-            
+
 
     影响单个节点的配置
         登录权限管理(配置是否处理基站请求,用户请求,源列表请求)     管理每个节点能够接入的请求
-        
+
         源列表配置（播发普通挂载点/Alias挂载点/Nearest挂载点/Proxy挂载点/Pull挂载点）  （Alias/Nearest/Proxy）都是虚拟挂载点
 
 
@@ -142,7 +141,7 @@ using json = nlohmann::json;
 /*
     基站类型：
         1.  对于Common的基站                login_mpt设置为实际的挂载点名称(SHJD01)                alias_mpt也设置为实际的挂载点名称(SHJD01)
-        2.  对于NEAREAT挂载点(这个只是存在与配置文件中的挂载点列表中, 并不是真实存在的挂载点) 
+        2.  对于NEAREAT挂载点(这个只是存在与配置文件中的挂载点列表中, 并不是真实存在的挂载点)
         3.  对于Pull挂载点(Ntrip Client)    login_mpt设置为本Caster对外服务的挂载点名称(IGS_SP3)    alias_mpt设置为接入第三方的挂载点名称(SSRA03IGS0_SIRGAS2000)
         4.  对于Pull挂载点(TCP Client)      login_mpt设置为本Caster对外服务的挂载点名称(CH01)       alias_mpt设置为接入第三方的备注名(CH01_TCPC)
         5.  对于Pull挂载点(TCP Server)      login_mpt设置为本Caster对外服务的挂载点名称(SN01)       alias_mpt设置为本地TCP端口的备注名(SN01_10009)
@@ -164,7 +163,7 @@ private:
     std::string _UID;       // TCP连接唯一标识
     std::string _login_mpt; // 用户接入的挂载点 | 基站接入使用的挂载点 | 接入的第三方挂载点名称
     std::string _alias_mpt; // 挂载点对外服务的名称
-    int _type;               /* 挂载点类型
+    int _type;              /* 挂载点类型
                              *  0：未知
                              *  1：普通挂载点
                              *  2：最近挂载点
@@ -207,7 +206,7 @@ private:
     size_t _recv_count = 0; // 用于统计最近接收速度(而不是整体接收速度)(每隔5秒更新一次速度))
 
 public:
-    str_status(std::string login_mpt,std::string alias_mpt ,int type, std::string user_name, std::string connect_key);
+    str_status(std::string login_mpt, std::string alias_mpt, int type, std::string user_name, std::string connect_key);
     ~str_status();
 
     int add_recv(int size);
@@ -220,6 +219,20 @@ public:
     int update_speed();
 
     std::string get_status_str();
+};
+
+class relay_item
+{
+public:
+    std::string ip;
+    int port;
+};
+
+class node_status
+{
+public:
+    std::string ip;
+    int port;
 };
 
 class caster_cb_item
@@ -247,7 +260,7 @@ private:
     // conf
     int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
     int _update_intv = 1;
-    int _key_expire_time = 3600; // Hash键值默认续期时间
+    int _key_expire_time = 30; // Hash键值默认续期时间
 
     bool _upload_base_stat = true;     // 上报基站数据流统计信息
     bool _upload_rover_stat = true;    // 上报用户数据流统计信息
@@ -264,34 +277,33 @@ private:
     bool _notify_rover_inactive = true; // 当用户不在线的时候, 通知所有订阅该用户的连接
 
 private:
-    // 本地记录  <挂载点|用户名>/<Connect_Key>/<回调参数>
+    // 本地记录  这些数据只需要本地维护和上传，无需下载
+
     // 频道名(挂载点, 用户名)：[具体连接key:连接回调]
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _base_sub_map;       // channel/connect_key/cb_arg
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _rover_sub_map;      // channel/connect_key/cb_arg
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _base_register_map;  // channel/connect_key/cb_arg
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _rover_register_map; // channel/connect_key/cb_arg
 
-    std::unordered_map<std::string, str_status> _base_status_map;  // connect_key/str_status  //基站的状态统计信息
-    std::unordered_map<std::string, str_status> _rover_status_map; // connect_key/str_status  //移动站的状态统计信息
+    std::unordered_map<std::string, str_status> _base_status_map;  // connect_key/str_status  //基站的状态统计信息       MPT:STAT
+    std::unordered_map<std::string, str_status> _rover_status_map; // connect_key/str_status  //移动站的状态统计信息     USR:STAT
+    std::unordered_map<std::string, mount_info> _mount_map;        // Mount_Point // 挂载点名为XXXX-F1A6(虚拟挂载点名-本地连接第三方时采用的端口转为4位16进制)
 
-    std::unordered_map<std::string, mount_info> _mount_map; // Mount_Point // 挂载点名为XXXX-F1A6(虚拟挂载点名-本地连接第三方时采用的端口转为4位16进制)
-    std::set<std::string> _active_mount_set;                // 在线挂载点
-    std::set<std::string> _active_user_set;                 // 在线用户名
+    // 集群数据 这些数据需要定期从云端拉取，以减少云端同步的请求压力
+    std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON  
+    std::unordered_map<std::string, std::string> _alias_mount_map;   // 别名挂载点                                     MPT:LIST:ALIAS
+    std::unordered_map<std::string, std::string> _nearest_mount_map; // 最近挂载点  挂载点信息                          MPT:LIST:NEAREST
+    std::unordered_map<std::string, std::string> _active_user_map;   // 在线用户名  用户基本信息                        USR:LIST:COMMON
 
-    std::set<std::string> _active_baseUID_set;                           // 在线基站连接
-    std::set<std::string> _active_roverUID_set;                          // 在线用户连接
-    std::unordered_map<std::string, std::string> _active_base_info_map;  // 在线基站连接信息
-    std::unordered_map<std::string, std::string> _active_rover_info_map; // 在线用户连接信息
+    // ALIAS映射关系(如果实体基站不在线，检索一下映射基站，然后从映射的表里找一个当前在线的基站播发数据，如果离线了，那么就再次从这个映射表里找，找到就上线，找不到就下线)
+    std::unordered_map<std::string, std::set<std::string>> _alias_mapping_map; // 映射关系表             MPT:ALIAS
 
     std::string _source_list_text;
+    std::string _alias_list_text;
+    std::string _nearest_list_text;
 
     std::string _updatetime_str;
     long long _updatetime_int;
-
-    std::set<std::string> _sync_real_set;                                                                // 多节点同步在线的实体站
-    std::set<std::string> _sync_grid_set;                                                                // 多节点同步在线格网点
-    std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _grid_sub_map;      // channel/connect_key/cb_arg   本地格网点订阅
-    std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _grid_register_map; // channel/connect_key/cb_arg   本地格网点注册
 
 public:
     bool _is_pub_connected = false;
@@ -307,7 +319,6 @@ public:
     caster_internal();
     ~caster_internal();
 
-
     // 返回单例实例
     static caster_internal *getInstance();
 
@@ -322,52 +333,91 @@ public:
     int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 注销频道
     int withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key);
-    // 向注册的基站频道发送状态消息
-    int send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
     // 向频道发布数据
     int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
     int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_base_channel(const char *channel, const char *connect_key);
+    // 设置基站坐标信息
+    int set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
+    // 设置基站挂载点信息
+    int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
+    // 向注册的基站频道发送状态消息
+    int send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
 
     // 注册移动站频道 USR:XXXXXX
     int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 注销频道
     int withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key);
-    // 向注册的移动站频道发送状态消息
-    int send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
     // 向频道发布数据
     int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
     int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_rover_channel(const char *channel, const char *connect_key);
+    // 向注册的移动站频道发送状态消息
+    int send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
 
     // 获取挂载点列表正文
     std::string get_source_list_text();
 
-    int set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
+private:
+    // 主节点任务
+    // 获取整个集群的信息
+    // CASTER:MASTER
+    // CASTER:NODE
 
-    std::set<std::string> get_active_base_UID();
-    std::set<std::string> get_active_rover_UID();
-    std::string get_active_base_info(std::string UID);
-    std::string get_active_rover_info(std::string UID);
+    // 全量获取当前的转发任务
+    // STR:RELAY:LIST   // 任务列表   和参数信息  （共同生成一个哈希值，作为Key值）
+    // 获取各个任务的执行状态
+    // STR:RELAY:STAT   // 任务执行情况 和参数信息  （任务Key，状态）
+    // 根据当前已有节点数量，将任务分配到各个节点
+    // 考虑各个节点的负载数量
+    // 向指定的频道发送广播（执行任务，关闭任务）（修改任务=关闭任务+新建任务）
+    // 执行任务：LIST中有但是STAT中还没有，关闭任务：STAT中有但是LIST中没有
+
+    // 从节点任务
+    // 尝试抢占主节点，抢占完成后，接管，触发主节点任务
+    // 设置节点 NX，获取节点，判断自己是不是主节点，如果是主节点，给主节点续期，执行主节点任务
+
+    // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
+
+    // 上报任务执行状态
+    // 上报自己的状态
+
+    std::string _node_ID = "NODE1";
+
+    std::unordered_map<std::string, node_status> _cluster_node_map;
+    std::unordered_map<std::string, relay_item> _relay_task_map; // 数据转发任务
+    std::unordered_map<std::string, relay_item> _relay_stat_map; // 数据转发任务的状态
+
+    int upload_node_status();      // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
+    int try_set_master_node();     // 尝试设置为主节点
+    int sync_cluster_state();      // 主节点同步全局信息到本地
+    int relay_task_distribution(); // 主节点执行：Relay任务分发
+    int relay_task_response();     // 从节点执行：Relay任务响应
+    int update_alias_source();      // 根据当前在线的挂载点一级别名任务，更新Alias挂载点列表   维护MPT:LIST:ALIAS
+
+    // 节点频道的回调
+    static void Redis_SetMaster_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, void *privdata);
+
+    static void Redis_SyncClusterNode_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_SyncTaskList_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_SyncTaskStat_Callback(redisAsyncContext *c, void *r, void *privdata);
 
 private:
-
     int clear_overdue_item(); // 清理为空的注册记录
 
     int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
     int download_active_item(); // 将云端记录的在线挂载点更新到本地
 
-    int download_active_info(); // 将云端记录的基站和用户信息更新到本地(只有monitor才需要更新这个信息)
-
     int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
     int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
 
-    int build_source_list();
-
+    // 挂载点信息生成的函数
     std::string convert_mount_info_to_string(mount_info item);
     mount_info build_default_mount_info(std::string mount_point);
 
@@ -386,12 +436,10 @@ private:
     static void Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // 更新有效挂载点、有效用户的回调
-    static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata);
-
-    // 更新挂载点、用户的详细信息回调(Monitor)
-    static void Redis_Update_Base_Info_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_Update_Rover_Info_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);   // 拉取MPT:LIST:COMMON
+    static void Redis_Update_Alias_Base_Callback(redisAsyncContext *c, void *r, void *privdata);    // 拉取MPT:LIST:ALIAS
+    static void Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取MPT:LIST:NEAREST
+    static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取USR:LIST
 
     // 查询回调 (传入的privdata 类型 std::unordered_map<std::string, std::string> *
     static void Redis_Get_Hash_Field_Callback(redisAsyncContext *c, void *r, void *privdata);

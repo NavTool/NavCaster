@@ -14,25 +14,24 @@ Frame {
     property string title
     property PageContext context
 
-
     property var focusItem
 
     Component.onCompleted: {
         serverData.loadData("")
 
-        // data_refresh_timer.start()
+        data_refresh_timer.start()
     }
 
     ServerDataController {
         id: serverData
         onLoadDataStart: {
-            panel_loading.visible = true
+            // panel_loading.visible = true
         }
         onLoadDataSuccess: {
             dataModel.sourceData = data
-            panel_loading.visible = false
-            console.log("dataModel.count: " + Util.safeStringify(
-                            dataModel.count))
+            // panel_loading.visible = false
+            // console.log("dataModel.count: " + Util.safeStringify(
+            //                 dataModel.count))
         }
     }
 
@@ -43,7 +42,7 @@ Frame {
     Timer {
         id: data_refresh_timer
         repeat: true
-        interval: 500
+        interval: 1000
         onTriggered: {
             serverData.loadData()
         }
@@ -219,7 +218,7 @@ Frame {
 
                     sourceModel: dataModel
                     onRowClicked: model => {// console.debug(model.station_name)
-                                      root.focusItem=model
+                                      // root.focusItem=model
                                       console.log(Util.safeStringify(model))
 
                                   }
@@ -248,45 +247,49 @@ Frame {
 
                     columnSourceModel: ListModel {
                         ListElement {
-                            title: qsTr("名义挂载点")
-                            dataIndex: "mount_point"
+                            title: qsTr("接入挂载点")
+                            dataIndex: "login_mpt"
                             width: 200
-                            // frozen: true
+                            frozen: false
                         }
                         ListElement {
-                            title: qsTr("接入挂载点")
-                            dataIndex: "mount_point"
+                            title: qsTr("实际挂载点")
+                            dataIndex: "alias_mpt"
                             width: 200
-                            // frozen: true
+                            frozen: false
                         }
                         ListElement {
                             title: qsTr("在线时长")
                             dataIndex: "online_seconds"
                             width: 200
                             rowDelegate:function(){return comp_time_label}
-                            // frozen: true
+                            frozen: false
                         }
                         ListElement{
                             title: qsTr("纬度")
-                            dataIndex: "mount_point"
+                            dataIndex: "ecef_x"
                             width: 150
+                            frozen: false
                         }
 
                         ListElement{
                             title: qsTr("经度")
-                            dataIndex: "mount_point"
+                            dataIndex: "ecef_y"
                             width: 150
+                            frozen: false
                         }
 
                         ListElement{
                             title: qsTr("椭球高")
-                            dataIndex: "mount_point"
+                            dataIndex: "ecef_z"
                             width: 100
+                            frozen: false
                         }
                         ListElement{
                             title: qsTr("IP")
                             dataIndex: "ip"
                             width: 120
+                            frozen: false
                         }
                         ListElement{
                             title: qsTr("端口")
@@ -295,12 +298,12 @@ Frame {
                         }
                         ListElement {
                             title: qsTr("账号ID")
-                            dataIndex: "user_name"
+                            dataIndex: "account"
                             width: 200
                         }
                         ListElement {
                             title: qsTr("账号机构")
-                            dataIndex: "user_name"
+                            dataIndex: "account"
                             width: 200
                         }
                         ListElement{
@@ -368,27 +371,27 @@ Frame {
                 Column{
                     ComItem{
                         property_key:qsTr("用户名")
-                        property_value:root.focusItem.user_name
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("挂载点")
-                        property_value:root.focusItem.user_name
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("在线时长")
-                        property_value:root.focusItem.user_name
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("经度")
-                        property_value:root.focusItem.user_name
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("纬度")
-                        property_value:root.focusItem.user_name
+                        property_value:root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("高程")
-                        property_value: root.focusItem.user_name
+                        property_value: root.focusItem.account
                     }
                     ComItem{
                         property_key:qsTr("IP")

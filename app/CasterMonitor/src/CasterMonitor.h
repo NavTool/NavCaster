@@ -5,10 +5,12 @@
 
 #include "EventOperationBase.h"
 #include "EventWorker.h"
-#include "auth_user.h"
 #include "connectRedis.h"
-#include "ntrip_client.h"
-#include "ntrip_server.h"
+
+#include "context/auth_user.h"
+#include "context/caster_node.h"
+#include "context/ntrip_client.h"
+#include "context/ntrip_server.h"
 #include "stdafx.h"
 #include "spdlog/spdlog.h"
 
@@ -101,6 +103,8 @@ private:
     std::unordered_map<std::string,std::string> _active_ntrip_clientUID_set;   // Connect_Key - 用户名 USR:SRV
 
     // Caster资源
+    std::unordered_map<std::string, std::shared_ptr<caster_node>> m_caster_node_map;
+
     std::unordered_map<std::string, std::shared_ptr<ntrip_server>> m_ntrip_server_map;    // Connect_Key，对象，站点的基本信息
     std::unordered_map<std::string, std::shared_ptr<ntrip_client>> m_ntrip_client_map;    // Connect_Key，对象，站点的基本信息
 

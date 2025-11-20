@@ -129,6 +129,7 @@ set(SOURCE_FILES
     src/component/SettingsHelper.h src/component/SettingsHelper.cpp
 
     src/context/auth_user.h
+    src/context/caster_node.h
     src/context/ntrip_client.h
     src/context/ntrip_server.h
 
