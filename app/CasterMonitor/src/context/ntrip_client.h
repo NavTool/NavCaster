@@ -1,4 +1,5 @@
 #pragma once
+#include "knt.h"
 #include "util.h"
 
 class ntrip_client{
@@ -6,7 +7,7 @@ class ntrip_client{
 private:
     PROPERTY_AUTO(std::string,UID);        // TCP连接唯一标识
     PROPERTY_AUTO(std::string,login_mpt);  // 接入的挂载点
-    PROPERTY_AUTO(std::string,inter_mpt);  // 内部提供数据的挂载点（真正使用的挂载点）
+    PROPERTY_AUTO(std::string,alias_mpt);  // 内部提供数据的挂载点（真正使用的挂载点）
 
     PROPERTY_AUTO(int, type);              /* 接入类型
                              *  0：未知
@@ -26,19 +27,22 @@ private:
     PROPERTY_AUTO(int64_t, recv_total); // 总接收字节数
     PROPERTY_AUTO(double, recv_speed); // 总接收速度
 
-    PROPERTY_AUTO(double, llh_lat);
-    PROPERTY_AUTO(double, llh_lon);
-    PROPERTY_AUTO(double, llh_h);
+    PROPERTY_AUTO(double, ecef_x);
+    PROPERTY_AUTO(double, ecef_y);
+    PROPERTY_AUTO(double, ecef_z);
     PROPERTY_AUTO(time_t, position_update_time); // 信息更新时刻
 
     PROPERTY_AUTO(time_t, update_time); // 信息更新时刻（执行所有函数的时候，都会更新一下这个函数）
 
- public:
+
+    PROPERTY_AUTO(bool,update_flag);
+
+public:
     ntrip_client()
     {
         UID("");
         login_mpt("");
-        inter_mpt("");
+        alias_mpt("");
 
         type(0);
         account("");
@@ -52,12 +56,14 @@ private:
         recv_total(0);
         recv_speed(0.0);
 
-        llh_lat(0.0);
-        llh_lon(0.0);
-        llh_h(0.0);
+        ecef_x(0.0);
+        ecef_y(0.0);
+        ecef_z(0.0);
         position_update_time(0);
 
         update_time(0);
+
+        update_flag(false);
     }
 
     json info()
@@ -65,7 +71,7 @@ private:
         json info;
         info["UID"] = UID();
         info["login_mpt"] = login_mpt();
-        info["inter_mpt"] = inter_mpt();
+        info["alias_mpt"] = alias_mpt();
 
         info["type"] = type();
         info["account"] = account();
@@ -79,12 +85,25 @@ private:
         info["recv_total"] = recv_total();
         info["recv_speed"] = recv_speed();
 
-        info["llh_lat"] = llh_lat();
-        info["llh_lon"] = llh_lon();
-        info["llh_h"] = llh_h();
+        info["ecef_x"] = ecef_x();
+        info["ecef_y"] = ecef_y();
+        info["ecef_z"] = ecef_z();
         info["position_update_time"] = position_update_time();
 
         info["update_time"] = update_time();
+
+        info["update_flag"] = update_flag();
+
+        double lat = 0.0, lon = 0.0, alt = 0.0;
+        if(position_update_time()!=0) // 证明更新了坐标
+        {
+            util_ecef2pos(m_ecef_x, m_ecef_y, m_ecef_z, lat, lon, alt);
+        }
+
+        info["llh_lat"]=lat;
+        info["llh_lon"]= lon;
+        info["llh_height"]= alt;
+
         return info;
     }
 
@@ -93,7 +112,7 @@ private:
 
         UID(info, "UID");
         login_mpt(info, "login_mpt");
-        inter_mpt(info, "inter_mpt");
+        alias_mpt(info, "alias_mpt");
 
         type(info, "type");
         account(info, "account");
@@ -107,9 +126,9 @@ private:
         recv_total(info, "recv_total");
         recv_speed(info, "recv_speed");
 
-        llh_lat(info, "llh_lat");
-        llh_lon(info, "llh_lon");
-        llh_h(info, "llh_h");
+        ecef_x(info, "ecef_x");
+        ecef_y(info, "ecef_y");
+        ecef_z(info, "ecef_z");
         position_update_time(info, "position_update_time");
 
         update_time(info, "update_time");

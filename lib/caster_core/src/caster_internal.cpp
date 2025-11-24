@@ -681,7 +681,7 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
     svr->_updatetime_int = util_get_time_stamp();
     svr->_updatetime_str = util_get_time_stamp_str();
 
-    svr->upload_node_status();  // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
+    svr->upload_node_status(); // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
 
     svr->try_set_master_node(); // 尝试设置为主节点
 
@@ -1567,7 +1567,7 @@ void caster_internal::Redis_Update_Active_Base_Callback(redisAsyncContext *c, vo
 
 void caster_internal::Redis_Update_Alias_Base_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
-        auto reply = static_cast<redisReply *>(r);
+    auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<caster_internal *>(privdata);
 
     if (!reply)
@@ -1600,7 +1600,7 @@ void caster_internal::Redis_Update_Alias_Base_Callback(redisAsyncContext *c, voi
 
 void caster_internal::Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
-        auto reply = static_cast<redisReply *>(r);
+    auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<caster_internal *>(privdata);
 
     if (!reply)
@@ -1619,7 +1619,6 @@ void caster_internal::Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, v
         return;
     }
 
-
     svr->_nearest_mount_map.clear();
     svr->_nearest_list_text.clear();
 
@@ -1631,7 +1630,6 @@ void caster_internal::Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, v
         svr->_nearest_list_text += value;
     }
 }
-
 
 void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
@@ -1723,11 +1721,9 @@ str_status::str_status(std::string login_mpt, std::string alias_mpt, int type, s
     decodeKey(connect_key, server_ip, server_port, _ip, _port);
 
     _send_total = 0; // 总发送字节数
-    _send_count = 0;
     _send_speed = 0; // 总发送速度
 
     _recv_total = 0; // 总接收字节数
-    _recv_count = 0;
     _recv_speed = 0; // 总接收速度
 
     // 转换为 time_t 类型，表示从1970-01-01 00:00:00 UTC开始的秒数
@@ -1743,16 +1739,10 @@ str_status::~str_status()
 int str_status::add_recv(int size)
 {
     _recv_total += size;
-    _update_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    auto sec = _update_time - _online_time;
-    if (sec - _online_seconds < 5)
-    {
-        _recv_count += size;
-    }
-    else
-    {
-        update_speed();
-    }
+    _update_time = nowSec();
+    _recvHistory.push_back({_update_time, _recv_total});
+    cleanOld(_recvHistory, _update_time);
+    _recv_speed = calcAvgSpeed(_recvHistory);
 
     return 0;
 }
@@ -1760,16 +1750,10 @@ int str_status::add_recv(int size)
 int str_status::add_send(int size)
 {
     _send_total += size;
-    _update_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    auto sec = _update_time - _online_time;
-    if (sec - _online_seconds < 5)
-    {
-        _send_count += size;
-    }
-    else
-    {
-        update_speed();
-    }
+    _update_time = nowSec();
+    _sendHistory.push_back({_update_time, _send_total});
+    cleanOld(_sendHistory, _update_time);
+    _send_speed = calcAvgSpeed(_sendHistory);
     return 0;
 }
 
@@ -1785,21 +1769,6 @@ int str_status::set_coord_info(double ecef_x, double ecef_y, double ecef_z, long
     _ecef_y = ecef_y;
     _ecef_z = ecef_z;
     _position_update_time = update_time;
-    return 0;
-}
-
-int str_status::update_speed()
-{
-    _update_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    auto sec = _update_time - _online_time;
-
-    _recv_speed = _recv_count / (sec - _online_seconds);
-    _send_speed = _send_count / (sec - _online_seconds);
-
-    _send_count = 0;
-    _send_count = 0;
-    _online_seconds = sec;
-
     return 0;
 }
 
@@ -1830,4 +1799,31 @@ std::string str_status::get_status_str()
     info["update_time"] = _update_time;
 
     return info.dump();
+}
+
+int64_t str_status::nowSec() const
+{
+    using namespace std::chrono;
+    return duration_cast<seconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+void str_status::cleanOld(std::deque<Sample> &history, int64_t now)
+{
+    while (!history.empty() && now - history.front().time > _windowSize)
+    {
+        history.pop_front();
+    }
+}
+
+double str_status::calcAvgSpeed(const std::deque<Sample> &history) const
+{
+    if (history.size() < 2)
+        return 0.0;
+    const Sample &first = history.front();
+    const Sample &last = history.back();
+    int64_t deltaTime = last.time - first.time;
+    if (deltaTime <= 0)
+        return 0.0;
+    int64_t deltaBytes = last.bytes - first.bytes;
+    return static_cast<double>(deltaBytes) / deltaTime;
 }

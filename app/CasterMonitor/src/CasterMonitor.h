@@ -7,7 +7,7 @@
 #include "EventWorker.h"
 #include "connectRedis.h"
 
-#include "context/auth_user.h"
+#include "context/user_account.h"
 #include "context/caster_node.h"
 #include "context/ntrip_client.h"
 #include "context/ntrip_server.h"
@@ -26,20 +26,48 @@ private:
 
 public:
     SINGLETON(CasterMonitor)
-
     static CasterMonitor *create(QQmlEngine *, QJSEngine *);
+
+
 
 public:
 
-    Q_INVOKABLE bool init_Caster_Connect(QVariantMap connect_info);
-    Q_INVOKABLE bool init_Auth_Connect(QVariantMap connect_info);
-    Q_INVOKABLE bool close_Caster_Connect();
-    Q_INVOKABLE bool close_Auth_Connect();
+    Q_INVOKABLE QVariantMap getNtripServerInfo(QString UID);
+    Q_INVOKABLE QVariantMap getNtripClientInfo(QString UID);
+    Q_INVOKABLE QVariantMap getUserAccountInfo(QString UID);
 
-    Q_INVOKABLE bool excute_caster_event(std::shared_ptr<EventOperationBase> op);
-    Q_INVOKABLE bool excute_caster_redis(std::shared_ptr<RedisOperationBase> op);
-    Q_INVOKABLE bool excute_auth_event(std::shared_ptr<EventOperationBase> op);
-    Q_INVOKABLE bool excute_auth_redis(std::shared_ptr<RedisOperationBase> op);
+
+
+
+public:
+
+    // 执行指令->创建指令对象（生成任务ID,返回给命令创建者），存储到map中
+    // 执行任务，将传递到任务队列->任务队列执行->更新context上下文->通知任务执行完成（成功/失败）->清理指令对象（或者不清理,下次继续执行）
+    // 任务创建者拿到命令ID，监听命令ID，根据反馈执行对应的操作
+
+    // 创建任务
+    Q_INVOKABLE QVariantMap genConnectCasterTemp();
+    Q_INVOKABLE QString addConnectCasterOperate(QVariantMap connect_info);
+
+
+    Q_INVOKABLE QVariantMap genConnectAuthTemp();
+    Q_INVOKABLE QString addConnectAuthOperate(QVariantMap connect_info);
+
+
+    Q_INVOKABLE QString addDisconnectCasterOperate();
+    Q_INVOKABLE QString addDisconnectAuthOperate();
+
+
+    Q_INVOKABLE QString addRefreshServerOperate();
+    Q_INVOKABLE QString addRefreshClientOperate();
+    Q_INVOKABLE QString addRefreshAccountOperate();
+
+    // 执行任务
+    Q_INVOKABLE QString excuteOperate(QString op_uid);   // 执行指令
+    // 取消执行
+    Q_INVOKABLE QString cancelOperate(QString op_uid);   // 取消指令
+    // 清理任务
+    Q_INVOKABLE QString deleteOperate(QString op_uid);   // 删除指令
 
 public:
     //通用执行操作通知(这些
@@ -58,6 +86,9 @@ public:
     Q_SIGNAL void reconnectAuth();          // 重连
     Q_SIGNAL void disconnectAuth();         // 断开连接
 
+    // 操作执行结果信号
+    Q_SIGNAL void operateFinished(QString OP_UID,bool success,QVariantMap info);
+
 private slots:
     void onConnectCasterSuccess();    // 用于处理连接完成
     void onConnectCasterFailed();    // 用于处理连接完成
@@ -67,19 +98,30 @@ private slots:
     void onConnectAuthFailed();    // 用于处理连接完成
     void onUpdateAuthRedisCtx(redisAsyncContext *ctx);      // 用于处理连接完成
 
+    void onUpdataServerMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdataClientMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdateAccountMap(QString OP_UID,bool success,QVariantMap info);
+
+    //任务操作发送的信号通过这个转发
+    void onOperateFinished(QString OP_UID,bool success,QVariantMap info);
+
+    void onTimeout();    // 定时任务执行函数
+
 public:
 
     std::shared_ptr<spdlog::logger> _logger; // 模块日志器
 
     std::shared_ptr<EventWorker> _caster_mgr = std::make_shared<EventWorker>();    // CasterCore事件管理
     std::shared_ptr<EventWorker> _auth_mgr   = std::make_shared<EventWorker>();    // AuthVerify事件管理
-    std::map<uint64_t,std::shared_ptr<EventOperationBase>>  _event_map;
-    std::map<uint64_t,std::shared_ptr<RedisOperationBase>>  _redis_map;
+    std::map<QString,std::shared_ptr<EventOperationBase>>  _caster_event_map;
+    std::map<QString,std::shared_ptr<RedisOperationBase>>  _caster_redis_map;
+    std::map<QString,std::shared_ptr<EventOperationBase>>  _auth_event_map;
+    std::map<QString,std::shared_ptr<RedisOperationBase>>  _auth_redis_map;
 
-    std::shared_ptr<EventConnectRedis> _caster_con = std::make_shared<EventConnectRedis>();  // caster_连接指令
-    std::shared_ptr<EventConnectRedis> _auth_con   = std::make_shared<EventConnectRedis>();  // auth_连接指令
+    bool _caster_connected=false;
+    bool _auth_connected=false;
 
-private:
+public:
 
     // 更新在线的基线列表（基本信息）   只刷新基本信息，更加详细的信息采用op的方式直接查询
 
@@ -97,19 +139,28 @@ private:
 
 
     // 这两个是定期刷新的内容，其他内容都是以这个内容为基础进行刷新
-    std::set<std::string> _active_ntrip_server_set;   // 在线挂载点  MPT:LIST
-    std::set<std::string> _active_ntrip_client_set;   // 在线用户    USR:LIST
-    std::unordered_map<std::string,std::string> _active_ntrip_serverUID_set;   // Connect_Key - 挂载点 MPT:SRV
-    std::unordered_map<std::string,std::string> _active_ntrip_clientUID_set;   // Connect_Key - 用户名 USR:SRV
+    std::set<QString> _active_ntrip_server_set;   // 在线挂载点  MPT:STAT
+    std::set<QString> _active_ntrip_client_set;   // 在线用户    USR:STAT
+    std::unordered_map<QString,QString> _active_ntrip_serverUID_set;   // Connect_Key - 挂载点 MPT:SRV
+    std::unordered_map<QString,QString> _active_ntrip_clientUID_set;   // Connect_Key - 用户名 USR:SRV
 
     // Caster资源
-    std::unordered_map<std::string, std::shared_ptr<caster_node>> m_caster_node_map;
+    std::unordered_map<QString, std::shared_ptr<caster_node>> m_caster_node_map;
 
-    std::unordered_map<std::string, std::shared_ptr<ntrip_server>> m_ntrip_server_map;    // Connect_Key，对象，站点的基本信息
-    std::unordered_map<std::string, std::shared_ptr<ntrip_client>> m_ntrip_client_map;    // Connect_Key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<ntrip_server>> m_ntrip_server_map;    // Connect_Key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<ntrip_client>> m_ntrip_client_map;    // Connect_Key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<user_account>> m_user_account_map;          // key，对象，站点的基本信息
 
-    std::unordered_map<std::string, std::shared_ptr<auth_user>> m_auth_user_map;    // key，对象，站点的基本信息
+public:
 
+    QTimer *m_timer;
+
+
+public:
+    QString generate_UniqueKey(int key_length = 8);
+private:
+    std::string generate_random_key(int length);
+    std::set<std::string> _generated_key; // 已经生成过的唯一key值
 
 };
 

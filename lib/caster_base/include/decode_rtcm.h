@@ -21,7 +21,7 @@ public:
 
 private:
     size_t _msg_min_length=3; //不同的派生类在创建的时候根据报文类型来定义最短长度
-    size_t _msg_max_recycle=10000; // 最多回收的字节数，如果超过了这个字节数，那么就直接清空，避免一直堆积
+    size_t _msg_max_recycle=1000000; // 最多回收的字节数，如果超过了这个字节数，那么就直接清空，避免一直堆积
 
 
     std::vector<uint8_t> _data; // 未解析/新添加数据缓冲区

@@ -10,7 +10,8 @@
  */
 class EventOperationBase : public QObject {
     Q_OBJECT
-    Q_PROPERTY_AUTO(uint64_t, id)
+    Q_PROPERTY_AUTO(QString, id)
+    Q_PROPERTY_AUTO(int, type)
 public:
     explicit EventOperationBase(QObject* parent = nullptr) : QObject(parent) {}
     virtual ~EventOperationBase() {}
@@ -23,7 +24,7 @@ public:
 
 signals:
     // 2️操作完成通知 Qt 主线程
-    void operationFinished(EventOperationBase* op, QVariant result);
+    void operateFinished(QString OP_UID,bool success,QVariantMap info);
 };
 
 
@@ -33,7 +34,7 @@ signals:
  */
 class RedisOperationBase : public QObject {
     Q_OBJECT
-    Q_PROPERTY_AUTO(uint64_t, id)
+    Q_PROPERTY_AUTO(QString, id)
 public:
     explicit RedisOperationBase(QObject* parent = nullptr) : QObject(parent) {}
     virtual ~RedisOperationBase() {}
@@ -46,5 +47,5 @@ public:
 
 signals:
     // 3️操作完成通知 Qt 主线程
-    void operationFinished(RedisOperationBase* op, QVariant result);
+    void operateFinished(QString OP_UID,bool success,QVariantMap info);
 };

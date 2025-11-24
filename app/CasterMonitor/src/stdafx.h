@@ -72,6 +72,25 @@ public:                                                                         
 private:                                                                                           \
     TYPE m_##M;
 
+
+#define Q_PROPERTY_AUTO_PROTECTED(TYPE, M)                                                                   \
+Q_PROPERTY(TYPE M MEMBER m_##M NOTIFY M##Changed)                                              \
+    public:                                                                                            \
+    Q_SIGNAL void M##Changed();                                                                    \
+    void M(const TYPE &in_##M) {                                                                   \
+        if (in_##M == m_##M)                                                                       \
+        return;                                                                                \
+        m_##M = in_##M;                                                                            \
+        Q_EMIT M##Changed();                                                                       \
+}                                                                                              \
+    TYPE M() const {                                                                               \
+        return m_##M;                                                                              \
+}                                                                                              \
+                                                                                                   \
+protected:                                                                                           \
+    TYPE m_##M;
+
+
 #define Q_PROPERTY_READONLY_AUTO(TYPE, M)                                                          \
     Q_PROPERTY(TYPE M READ M NOTIFY M##Changed FINAL)                                              \
 public:                                                                                            \

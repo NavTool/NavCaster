@@ -53,27 +53,26 @@ void EventWorker::stop()
     // }
 }
 
-
-
-// ---------------------- 提交任务 ------------------------
-uint64_t EventWorker::postTask(std::shared_ptr<EventOperationBase> op)
+QString EventWorker::postTask(std::shared_ptr<EventOperationBase> op)
 {
-    op->id(postTask([op](event_base* base){if (base) op->execute(base);}));
-    return op->id();
+    return  postTask(op->id(),
+                    [op](event_base* base)
+                    {
+                        if (base) op->execute(base);
+                    }
+                    );
 }
 
-uint64_t EventWorker::postTask(const std::function<void(event_base*)>& fn)
+QString EventWorker::postTask(QString id, const std::function<void (event_base *)> &fn)
 {
-    uint64_t id = m_idGen++;
-    {
-        std::lock_guard<std::mutex> lock(m_taskMutex);
-        m_taskQueue.push({id, fn});
-    }
+    std::lock_guard<std::mutex> lock(m_taskMutex);
+    m_taskQueue.push({id, fn});
     wakeup();
     return id;
 }
 
-void EventWorker::cancelTask(uint64_t id)
+
+void EventWorker::cancelTask(QString id)
 {
     std::lock_guard<std::mutex> lock(m_taskMutex);
     std::queue<TaskEntry> tmp;
@@ -85,32 +84,29 @@ void EventWorker::cancelTask(uint64_t id)
     std::swap(m_taskQueue, tmp);
 }
 
-uint64_t EventWorker::postRedisTask(std::shared_ptr<RedisOperationBase> op)
+QString EventWorker::postRedisTask(std::shared_ptr<RedisOperationBase> op)
 {
-    if(m_redisCtx==nullptr)
-    {
-        return 0;
-    }
-    op->id(postRedisTask([op](redisAsyncContext* ctx){if (ctx) op->execute(ctx);}));
-    return op->id();
+    return  postRedisTask(op->id(),
+                         [op](redisAsyncContext* ctx)
+                         {
+                             if (ctx) op->execute(ctx);
+                         }
+                         );
 }
 
-uint64_t EventWorker::postRedisTask(const std::function<void(redisAsyncContext*)>& fn)
+QString EventWorker::postRedisTask(QString id, const std::function<void (redisAsyncContext *)> &fn)
 {
     if(m_redisCtx==nullptr)
     {
-        return 0;
+        return QString();
     }
-    uint64_t id = m_idGen++;
-    {
-        std::lock_guard<std::mutex> lock(m_redisTaskMutex);
-        m_redisTaskQueue.push({id, fn});
-    }
+    std::lock_guard<std::mutex> lock(m_redisTaskMutex);
+    m_redisTaskQueue.push({id, fn});
     wakeup();
     return id;
 }
 
-void EventWorker::cancelRedisTask(uint64_t id)
+void EventWorker::cancelRedisTask(QString id)
 {
     std::lock_guard<std::mutex> lock(m_redisTaskMutex);
     std::queue<RedisTaskEntry> tmp;
@@ -122,13 +118,12 @@ void EventWorker::cancelRedisTask(uint64_t id)
     std::swap(m_redisTaskQueue, tmp);
 }
 
+
+
 // ---------------------- 定时器 ------------------------
-
-uint64_t EventWorker::addTimer(int intervalMs, std::function<void()> fn, bool repeat)
+QString EventWorker::addTimer(QString id, int intervalMs, std::function<void ()> fn, bool repeat)
 {
-    uint64_t id = m_idGen++;
-
-    postTask([this, id, intervalMs, fn, repeat](event_base* base){
+    postTask(id,[this, id, intervalMs, fn, repeat](event_base* base){
         timeval tv{ intervalMs/1000, (intervalMs%1000)*1000 };
         TimerEntry* entry = new TimerEntry{ id, nullptr, fn };
 
@@ -146,7 +141,7 @@ uint64_t EventWorker::addTimer(int intervalMs, std::function<void()> fn, bool re
     return id;
 }
 
-void EventWorker::cancelTimer(uint64_t id)
+void EventWorker::cancelTimer(QString id)
 {
     std::lock_guard<std::mutex> lock(m_timerMutex);
     auto it = m_timers.find(id);

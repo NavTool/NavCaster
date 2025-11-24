@@ -9,30 +9,100 @@ import "../../extra"
 Frame {
     id: root
 
-    anchors.fill: parent
-
     property string title
     property PageContext context
 
-    property var focusItem
+    // 布局属性
+    anchors.fill: parent
+    property int item_name_width:body_extra.width*0.35
+    property int item_value_width:body_extra.width*0.65
+    property int item_height:30
+
+
+    //数据属性
+    // 页面保存的上下文
+    property string focusItemUID: ""   // 当前选定的数据记录的UID
+    property var focusItem          // 选定记录的详细数据
+    property var refreshDataOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
 
     Component.onCompleted: {
-        serverData.loadData("")
 
+        // focusItem= CasterMonitor.getNtripServerInfo("")  //初始化，填充空白数据
+
+        //创建刷新数据操作
+        refreshDataOpUid = CasterMonitor.addRefreshServerOperate()
+        console.log("refreshDataOpUid: ", refreshDataOpUid)
+
+        // 执行这个指令
+        CasterMonitor.excuteOperate(refreshDataOpUid)
+
+        // 启动定时器，定期刷新数据
         data_refresh_timer.start()
     }
 
+    Connections {
+        target: CasterMonitor
+
+        function onOperateFinished(taskID, success, info) {
+            if (taskID !== refreshDataOpUid) {
+                return  //非当前指令,跳过
+            }
+            // 执行数据刷新操作
+            controllerData.loadData()
+        }
+    }
+
     ServerDataController {
-        id: serverData
+        id: controllerData
         onLoadDataStart: {
             // panel_loading.visible = true
         }
         onLoadDataSuccess: {
-            dataModel.sourceData = data
-            // panel_loading.visible = false
-            // console.log("dataModel.count: " + Util.safeStringify(
-            //                 dataModel.count))
+
+            //保存上下文
+            var oldY = dataGrid.view.contentY
+
+            // 更新数据源
+            // dataModel.sourceData = data
+
+            const oldCount = dataModel.count;
+            const newCount = data.length;
+
+            // 1. 先删除多余的项
+            if (oldCount > newCount) {
+                for (var i = oldCount - 1; i >= newCount; --i)
+                    dataModel.remove(i);
+            }
+
+            // 2. 更新已有数据
+            for (var row = 0; row < Math.min(oldCount, newCount); ++row)
+                dataModel.set(row, data[row]);
+
+            // 3. 添加新项
+            for (var i = oldCount; i < newCount; ++i)
+                dataModel.append(data[i]);
+
+            // 恢复上下文
+            dataGrid.view.contentY = oldY
+            for (var i = 0; i < dataModel.count; ++i) {
+                if (dataModel.get(i).UID === focusItemUID) {
+                    dataGrid.view.currentIndex = i
+                    dataGrid.selectionModel.select(dataModel.index(i, 0),
+                                                   ItemSelectionModel.Select)
+                    break
+                }
+            }
+
+            //刷新选定条目的数据
+            focusItem=CasterMonitor.getNtripServerInfo(focusItemUID);
         }
+    }
+
+    onFocusItemUIDChanged: {
+        console.log("onFocusItemUIDChanged: " + focusItemUID)
+
+        focusItem=CasterMonitor.getNtripServerInfo(focusItemUID);
+
     }
 
     DataGridModel {
@@ -44,7 +114,7 @@ Frame {
         repeat: true
         interval: 1000
         onTriggered: {
-            serverData.loadData()
+            CasterMonitor.excuteOperate(refreshDataOpUid)
         }
     }
 
@@ -70,64 +140,73 @@ Frame {
                 height: 40
 
                 Row {
-                    anchors{
+                    anchors {
                         verticalCenter: parent.verticalCenter
                         left: parent.left
                         leftMargin: 5
-
                     }
                     spacing: 5
                     MenuBar {
-                        id:menu_bar
-
+                        id: menu_bar
 
                         Menu {
                             width: 140
                             title: qsTr("显示")
-                            MenuItem{
+                            MenuItem {
                                 // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("显示过期账户")
-                                onTriggered:{
+                                text: qsTr("显示过期账户")
+                                onTriggered: {
+
                                 }
                             }
-                            MenuItem{
+                            MenuItem {
                                 // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("显示正常账户")
-                                onTriggered:{
+                                text: qsTr("显示正常账户")
+                                onTriggered: {
+
                                 }
                             }
                         }
                         Menu {
                             width: 140
                             title: qsTr("筛选")
-                            Menu{
+                            Menu {
                                 width: 140
                                 title: qsTr("条件筛选")
-                                Action { text: qsTr("按照账号ID") }
-                                Action { text: qsTr("按照机构") }
-                                Action { text: qsTr("按照账号状态") }
+                                Action {
+                                    text: qsTr("按照账号ID")
+                                }
+                                Action {
+                                    text: qsTr("按照机构")
+                                }
+                                Action {
+                                    text: qsTr("按照账号状态")
+                                }
                             }
-                            MenuSeparator { }
-                            Menu{
+                            MenuSeparator {}
+                            Menu {
                                 width: 140
                                 title: qsTr("条件筛选")
-                                Action { text: qsTr("按照账号ID") }
-                                Action { text: qsTr("按照机构") }
-                                Action { text: qsTr("按照账号状态") }
+                                Action {
+                                    text: qsTr("按照账号ID")
+                                }
+                                Action {
+                                    text: qsTr("按照机构")
+                                }
+                                Action {
+                                    text: qsTr("按照账号状态")
+                                }
                             }
                         }
                     }
-
                 }
-
 
                 Row {
 
-                    anchors{
+                    anchors {
                         verticalCenter: parent.verticalCenter
                         right: parent.right
                         rightMargin: 10
-
                     }
                     spacing: 5
 
@@ -174,8 +253,7 @@ Frame {
                         }
                     }
 
-
-                    Button{
+                    Button {
                         width: 70
                         text: qsTr("检索")
                         anchors.verticalCenter: parent.verticalCenter
@@ -210,20 +288,21 @@ Frame {
                     //         color: Theme.res.solidBackgroundFillColorBase
                     //     }
                     // }
-
                     defaultHeight: 30
                     defaultminimumHeight: 25
                     defaultmaximumHeight: 240
                     horizonalHeaderHeight: 30
 
                     sourceModel: dataModel
-                    onRowClicked: model => {// console.debug(model.station_name)
-                                      // root.focusItem=model
+                    onRowClicked: model => {
+                                      // console.debug(model.station_name)
+                                      root.focusItemUID = model.UID
                                       console.log(Util.safeStringify(model))
-
                                   }
-                    onRowRightClicked: model => {// console.debug(model.station_name)
-                                           operate_item_menu.open_with_ctx(model)
+                    onRowRightClicked: model => {
+                                           // console.debug(model.station_name)
+                                           operate_item_menu.open_with_ctx(
+                                               model)
                                        }
 
                     Menu {
@@ -240,7 +319,8 @@ Frame {
                         MenuItem {
                             text: qsTr("站点详情")
                             onTriggered: {
-                                console.log(Util.safeStringify(operate_item_menu.ctx))
+                                console.log(Util.safeStringify(
+                                                operate_item_menu.ctx))
                             }
                         }
                     }
@@ -249,49 +329,74 @@ Frame {
                         ListElement {
                             title: qsTr("接入挂载点")
                             dataIndex: "login_mpt"
-                            width: 200
+                            width: 100
                             frozen: false
                         }
                         ListElement {
                             title: qsTr("实际挂载点")
                             dataIndex: "alias_mpt"
-                            width: 200
+                            width: 100
                             frozen: false
                         }
                         ListElement {
                             title: qsTr("在线时长")
-                            dataIndex: "online_seconds"
-                            width: 200
-                            rowDelegate:function(){return comp_time_label}
+                            dataIndex: "online_time"
+                            width: 100
+                            rowDelegate: function () {
+                                return comp_time_label
+                            }
                             frozen: false
                         }
-                        ListElement{
+                        ListElement {
+                            title: qsTr("累计接收")
+                            dataIndex: "recv_total"
+                            rowDelegate: function () {
+                                return comp_str_count
+                            }
+                            width: 150
+                            frozen: false
+                        }
+                        ListElement {
+                            title: qsTr("接收速度")
+                            dataIndex: "recv_speed"
+                            rowDelegate: function () {
+                                return comp_str_speed
+                            }
+                            width: 150
+                            frozen: false
+                        }
+
+
+                        ListElement {
                             title: qsTr("纬度")
-                            dataIndex: "ecef_x"
-                            width: 150
+                            dataIndex: "llh_lat"
+                            rowDelegate: function(){return comp_lat2dms}
+                            width: 180
                             frozen: false
                         }
 
-                        ListElement{
+                        ListElement {
                             title: qsTr("经度")
-                            dataIndex: "ecef_y"
-                            width: 150
+                            dataIndex: "llh_lon"
+                            rowDelegate: function(){return comp_lon2dms}
+                            width: 180
                             frozen: false
                         }
 
-                        ListElement{
+                        ListElement {
                             title: qsTr("椭球高")
-                            dataIndex: "ecef_z"
+                            dataIndex: "llh_height"
+                            rowDelegate: function(){return comp_fix4}
                             width: 100
                             frozen: false
                         }
-                        ListElement{
+                        ListElement {
                             title: qsTr("IP")
                             dataIndex: "ip"
                             width: 120
                             frozen: false
                         }
-                        ListElement{
+                        ListElement {
                             title: qsTr("端口")
                             dataIndex: "port"
                             width: 120
@@ -306,10 +411,12 @@ Frame {
                             dataIndex: "account"
                             width: 200
                         }
-                        ListElement{
+                        ListElement {
                             title: qsTr("数据更新时间")
                             dataIndex: "update_time"
-                            rowDelegate:function(){return comp_date_label}
+                            rowDelegate: function () {
+                                return comp_date_label
+                            }
                             width: 200
                         }
                     }
@@ -353,123 +460,474 @@ Frame {
 
 
 
-            Frame{
-                id: page_extra
 
+
+            GroupBox{
+                id:function_box
                 anchors.fill: parent
+                padding: 5
+                Item{
+                    width: parent.width
+                    height: 30
+                    Label{
+                        anchors{
+                            left: parent.left
+                            leftMargin: 10
+                            verticalCenter: parent.verticalCenter
+                        }
+                        text:qsTr("挂载点信息")
 
-                width: 300
+                        font:Qt.font({pixelSize : 15, weight: Font.Bold})
+                    }
+
+                    IconButton{
+                        anchors{
+                            right: parent.right
+                            // rightMargin: 10
+                            verticalCenter: parent.verticalCenter
+                        }
+                        icon.source: FluentIcons.graph_MiniExpand2Mirrored
+                        icon.width: 15
+                        icon.height: 15
+                    }
+                }
 
 
-                // Text{
-                //     text: "显示文件具体信息"
-                //     font: Typography.Subtitle
-                //     anchors.centerIn: parent
-                // }
+                Flickable{
+                    anchors.fill: parent
+                    anchors.topMargin: 35
+                    contentHeight: columnItem.height
+                    // contentHeight: rowItem.height
+                    interactive: contentHeight > height
+                    clip: true
+                    Column{
+                        id:columnItem
+                        width: body_extra.width
+
+                        ExpanderEx{
+                            width: parent.width
+                            expanderHeight:35
+
+                            expanded:true
+                            header: Label{
+                                text: qsTr("基本信息")
+                                font.weight: Font.Bold
+                                verticalAlignment: Qt.AlignVCenter
+                            }
+                            content: com_station
+                        }
+                        ExpanderEx{
+                            width: parent.width
+                            expanderHeight:35
+
+                            expanded:true
+                            header: Label{
+                                text: qsTr("数据详情")
+                                font.weight: Font.Bold
+                                verticalAlignment: Qt.AlignVCenter
+                            }
+                            content: com_data
+                        }
+                        ExpanderEx{
+                            width: parent.width
+                            expanderHeight:35
+
+                            expanded:true
+                            header: Label{
+                                text: qsTr("设备信息")
+                                font.weight: Font.Bold
+                                verticalAlignment: Qt.AlignVCenter
+                            }
+                            content: com_device
+                        }
+                        ExpanderEx{
+                            width: parent.width
+                            expanderHeight:35
+
+                            expanded:false
+                            header: Label{
+                                text: qsTr("连接信息")
+                                font.weight: Font.Bold
+                                verticalAlignment: Qt.AlignVCenter
+                            }
+                            content: com_connect
+                        }
+                        ExpanderEx{
+                            width: parent.width
+                            expanderHeight:35
+
+                            expanded:true
+                            header: Label{
+                                text: qsTr("数据来源")
+                                font.weight: Font.Bold
+                                verticalAlignment: Qt.AlignVCenter
+                            }
+                            content: com_account
+                        }
+                        // ExpanderEx{
+                        //     width: parent.width
+                        //     expanderHeight:30
+
+                        //     expanded:true
+                        //     header: Label{
+                        //         text: "Rinex输出的天线配置"
+                        //         verticalAlignment: Qt.AlignVCenter
+                        //     }
+                        //     content: com_rinex
+                        // }
+                    }
+                }
 
 
-                Column{
-                    ComItem{
-                        property_key:qsTr("用户名")
-                        property_value:root.focusItem.account
+
+
+                Item{
+                    anchors.fill: parent
+                    anchors.topMargin: 30
+
+
+                    // Column {
+                    //     ComItem {
+                    //         property_key: qsTr("用户名")
+                    //         property_value: focusItemUID===""?"":focusItem.account
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("接入挂载点")
+                    //         property_value: focusItemUID===""?"":focusItem.login_mpt
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("在线时长")
+                    //         property_value: focusItemUID===""?"":focusItem.online_time
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("经度")
+                    //         property_value: focusItemUID===""?"":""
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("纬度")
+                    //         property_value: focusItemUID===""?"":""
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("高程")
+                    //         property_value: focusItemUID===""?"":""
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("IP")
+                    //         property_value: focusItemUID===""?"":focusItem.ip
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("端口")
+                    //         property_value: focusItemUID===""?"":focusItem.port
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("累计接收数据")
+                    //         property_value: focusItemUID===""?"":focusItem.recv_total
+                    //     }
+                    //     ComItem {
+                    //         property_key: qsTr("累计发送数据")
+                    //         property_value: focusItemUID===""?"":focusItem.send_total
+                    //     }
+                    // }
+
+                }
+            }
+        }
+    }
+
+
+    Component{
+        id:com_station
+        Item{
+            height: column.implicitHeight
+            Column{
+                id:column
+                spacing: 3
+                anchors.fill: parent
+                ComItem{
+                    item_name:qsTr("挂载点名称")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : focusItemUID===""?"":focusItem.login_mpt
                     }
-                    ComItem{
-                        property_key:qsTr("挂载点")
-                        property_value:root.focusItem.account
+                }
+                ComItem{
+                    item_name:qsTr("站点经度")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : focusItemUID===""?"":focusItem.ecef_x
                     }
-                    ComItem{
-                        property_key:qsTr("在线时长")
-                        property_value:root.focusItem.account
+                }
+                ComItem{
+                    item_name:qsTr("站点纬度")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : focusItemUID===""?"":focusItem.ecef_y
                     }
-                    ComItem{
-                        property_key:qsTr("经度")
-                        property_value:root.focusItem.account
-                    }
-                    ComItem{
-                        property_key:qsTr("纬度")
-                        property_value:root.focusItem.account
-                    }
-                    ComItem{
-                        property_key:qsTr("高程")
-                        property_value: root.focusItem.account
-                    }
-                    ComItem{
-                        property_key:qsTr("IP")
-                        property_value:root.focusItem.ip
-                    }
-                    ComItem{
-                        property_key:qsTr("端口")
-                        property_value:root.focusItem.port
-                    }
-                    ComItem{
-                        property_key:qsTr("累计接收数据")
-                        property_value:root.focusItem.recv_total
-                    }
-                    ComItem{
-                        property_key:qsTr("累计发送数据")
-                        property_value:root.focusItem.send_total
+                }
+                ComItem{
+                    item_name:qsTr("站点高程")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : focusItemUID===""?"":focusItem.ecef_z
                     }
                 }
             }
-
-
-
-
-
         }
     }
 
-    component ComItem:Frame {
-        id:info_item
+    Component{
+        id:com_data
+        Item{
+            height: column.implicitHeight
+            Column{
+                id:column
+                spacing: 3
+                anchors.fill: parent
+                ComItem{
+                    item_name:qsTr("数据格式")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : qsTr("RTCM 3.3")
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("数据流")
+                    // height:multlinebox.Height
+                    delegate:TextField{
+                        id:multlinebox
+                        placeholderText: "1006(10),1013(10),1019(68),1020(56),1033(12),1042(56),1044(56),1045(56)1046(56),1077(1),1087(1),1097(2),1117(1),1127(1),1230(10)"
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                        ToolTip.text: placeholderText
+                    }
 
-        property string property_key:""
-        property string property_value:""
+                }
+                ComItem{
+                    item_name:qsTr("信号类型")
+                    delegate:TextField{
+                        placeholderText: "GPS(L1/L2)\n BDS(B1I/B2I/B3I/B1C/B2a/B2b)"
+                        ToolTip.visible: hovered
+                        ToolTip.delay: 500
+                        ToolTip.text: placeholderText
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("信号计数")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":focusItem.online_time
+                    }
+                }
 
-        width: page_extra.width
-        height: 40
-        Label{
-            id:info_key
-            text: property_key
-            font:Typography.bodyStrong
-            elide:Text.ElideRight
-            anchors{
-                left: parent.left
-                leftMargin: 20
-                verticalCenter: parent.verticalCenter
-            }
-            width: page_extra.width*0.3
-        }
-
-        Rectangle {
-            id:info_seg
-            implicitWidth: 1
-            implicitHeight: parent.height
-            color: Theme.dark ? Qt.rgba(60/255,60/255,60/255,1) : Qt.rgba(210/255,210/255,210/255,1)
-
-            anchors{
-                left: info_key.right
-            }
-        }
-
-        Label{
-            text: property_value
-            elide:Text.ElideRight
-            font: Typography.bodyStrong
-            anchors{
-                left: info_seg.right
-                leftMargin: 20
-                right: parent.right
-                verticalCenter: parent.verticalCenter
             }
         }
     }
 
-    component DataItem:Item{
-        property string itemtext;
-        Label{
+
+    Component{
+        id:com_connect
+
+        Item{
+            height: column.implicitHeight
+            Column{
+                id:column
+                spacing: 3
+                anchors.fill: parent
+                ComItem{
+                    item_name:qsTr("上线时刻")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":focusItem.online_time
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("在线时长")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":focusItem.online_time
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("累计接收")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接收速度")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("累计发送")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("发送速度")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                    }
+                }
+
+
+                ComItem{
+                    item_name:qsTr("接入IP")
+                    delegate:TextField{
+                        text: focusItemUID===""?"":focusItem.ip
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接入端口")
+                    delegate:TextField{
+                        text: focusItemUID===""?"":focusItem.port
+                    }
+                }
+            }
+        }
+    }
+
+
+    Component{
+        id:com_account
+        Item{
+            height: column.implicitHeight
+            Column{
+                id:column
+                topPadding: 5
+                spacing: 3
+                anchors.fill: parent
+                ComItem{
+                    item_name:qsTr("数据供应商")
+                    delegate:TextField{
+                        text: focusItemUID===""?"":"ComNav Tech"
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("登录账号")
+                    delegate:TextField{
+                        text: focusItemUID===""?"":focusItem.account
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接入IP")
+                    delegate:TextField{
+                        text: focusItemUID===""?"":focusItem.ip
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接入端口")
+                    delegate:TextField{
+                        text: focusItemUID===""?"":focusItem.port
+                    }
+                }
+            }
+        }
+    }
+
+    Component{
+        id:com_device
+
+        Item{
+            height: column.implicitHeight
+            Column{
+                id:column
+                spacing: 3
+                anchors.fill: parent
+                ComItem{
+                    item_name:qsTr("接收机类型")
+                    delegate:TextField{
+                        placeholderText: GNSS.focusObsFile.receiver_type
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接收机版本号")
+                    delegate:TextField{
+                        placeholderText: GNSS.focusObsFile.receiver_version
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接收机/SN")
+                    delegate:TextField{
+                        placeholderText: GNSS.focusObsFile.receiver_sn
+                    }
+                }
+            }
+        }
+    }
+
+
+    Component{
+        id:com_rinex
+        Item{
+            height: 120
+            Column{
+                spacing: 3
+                anchors.fill: parent
+                ComItem{
+                    item_name:qsTr("测量方式")
+                    delegate:TextField{
+                        placeholderText: GNSS.focusObsFile.rinex_measurement_method
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("天线高")
+                    delegate:TextField{
+                        placeholderText: GNSS.focusObsFile.rinex_ant_height
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("厂商")
+                    delegate:TextField{
+                        placeholderText: GNSS.focusObsFile.rinex_manufacturer
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("天线类型")
+                    delegate:TextField{
+                        placeholderText: GNSS.focusObsFile.rinex_ant_type
+                    }
+                }
+            }
+        }
+    }
+
+
+    component ComItem:Item{
+        property string item_name;
+        property Component delegate
+
+        width: item_name_width
+        height:item_height
+        // anchors.verticalCenter: parent.verticalCenter
+        Row{
+            spacing: 0
+            Item{
+                width: item_name_width
+                height:item_height
+                IconButton{
+                    anchors.fill: parent
+                    text: item_name
+                }
+            }
+            Frame{
+                width: item_value_width
+                height:item_height
+                AutoLoader{
+                    anchors{
+                        fill:parent
+                    }
+                    sourceComponent: delegate
+                }
+            }
+        }
+    }
+
+    component DataItem: Item {
+        property string itemtext
+        Label {
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
-            anchors{
+            anchors {
                 verticalCenter: parent.verticalCenter
                 // horizontalCenter: parent.horizontalCenter
                 left: parent.left
@@ -482,11 +940,10 @@ Frame {
         }
     }
 
-
-    Component{
+    Component {
         id: comp_date_label
-        Item{
-            Label{
+        Item {
+            Label {
                 anchors.centerIn: parent
                 text: getLocalTime(display) // 传入 UTC 秒数
                 function getLocalTime(utcSeconds) {
@@ -494,43 +951,191 @@ Frame {
                         return "-"
                     }
 
-                    var localDate = new Date(utcSeconds); // 注意：如果 utcSeconds 是秒，应该乘以 1000
+                    var localDate = new Date(utcSeconds)
+                    // 注意：如果 utcSeconds 是秒，应该乘以 1000
                     if (utcSeconds < 1e12) {
                         // 如果是秒，需要乘以 1000
-                        localDate = new Date(utcSeconds * 1000);
+                        localDate = new Date(utcSeconds * 1000)
                     }
 
-                    let ms = String(localDate.getMilliseconds()).padStart(3, "0");
+                    let ms = String(localDate.getMilliseconds()).padStart(3,
+                                                                          "0")
 
-                    return localDate.getFullYear() + "-" +
-                            String(localDate.getMonth() + 1).padStart(2, "0") + "-" +
-                            String(localDate.getDate()).padStart(2, "0") + " " +
-                            String(localDate.getHours()).padStart(2, "0") + ":" +
-                            String(localDate.getMinutes()).padStart(2, "0") + ":" +
-                            String(localDate.getSeconds()).padStart(2, "0") + "." +
-                            ms;
+                    return localDate.getFullYear(
+                                ) + "-" + String(localDate.getMonth(
+                                                     ) + 1).padStart(2, "0")
+                            + "-" + String(localDate.getDate()).padStart(
+                                2, "0") + " " + String(
+                                localDate.getHours()).padStart(2, "0")
+                            + ":" + String(localDate.getMinutes()).padStart(
+                                2, "0") + ":" + String(
+                                localDate.getSeconds()).padStart(2, "0") + "." + ms
                 }
+            }
+        }
+    }
+
+    Component {
+        id: comp_time_label
+        DataItem {
+            itemtext: formatTime(display) // 传入 UTC 秒数
+            function formatTime(onlineUtcSeconds) {
+                // 当前时间的 UTC 秒数
+                var nowUtc = Math.floor(Date.now() / 1000)
+
+                // 在线秒数
+                var seconds = nowUtc - onlineUtcSeconds
+                if (seconds < 0)
+                    seconds = 0 // 防止上线时间晚于当前时间
+
+                // 格式化 hh:mm:ss
+                var h = Math.floor(seconds / 3600)
+                var m = Math.floor((seconds % 3600) / 60)
+                var s = seconds % 60
+
+                return String(h).padStart(2, "0") + ":" + String(m).padStart(
+                            2, "0") + ":" + String(s).padStart(2, "0")
+            }
+        }
+    }
+
+    Component {
+        id: comp_str_count
+        DataItem {
+            itemtext: formatBytes(display)
+            function formatBytes(bytes) {
+                if (bytes === 0)
+                    return "0 B"
+                var k = 1024
+                var sizes = ["Byte", "KB", "MB", "GB", "TB"]
+                var i = Math.floor(Math.log(bytes) / Math.log(k))
+                var value = bytes / Math.pow(k, i)
+                return value.toFixed(3) + " " + sizes[i]
+            }
+        }
+    }
+
+    Component {
+        id: comp_str_speed
+        DataItem {
+            itemtext: formatBytes(display) + "/s"
+            function formatBytes(bytes) {
+                if (bytes === 0)
+                    return "0 B"
+                var k = 1024
+                var sizes = ["Byte", "KB", "MB", "GB", "TB"]
+                var i = Math.floor(Math.log(bytes) / Math.log(k))
+                var value = bytes / Math.pow(k, i)
+                return value.toFixed(2) + " " + sizes[i]
             }
         }
     }
 
 
     Component{
-        id: comp_time_label
-        DataItem{
-            itemtext: formatTime(display) // 传入 UTC 秒数
-            function formatTime(seconds) {
-                var h = Math.floor(seconds / 3600);
-                var m = Math.floor((seconds % 3600) / 60);
-                var s = seconds % 60;
+        id:comp_lat2dms
+        Item{
+            Label{
+                text: toDMS(display)
+                elide: Label.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors{
+                    verticalCenter: parent.verticalCenter
+                    left: parent.left
+                    leftMargin: 10
+                    right: parent.right
+                    rightMargin: 10
+                }
 
-                return String(h).padStart(2, "0") + ":" +
-                        String(m).padStart(2, "0") + ":" +
-                        String(s).padStart(2, "0");
+                function toDMS(degrees) {
+                    // 判断正负，决定南北纬
+                      let isPositive = degrees >= 0;
+                      let direction = isPositive ? "N" : "S";
+
+                      // 1. 先取绝对值，再取整
+                      let absVal = Math.abs(degrees);
+                      let d = Math.floor(absVal);
+
+                      // 2. 分
+                      let remainder = (absVal - d) * 60;
+                      let m = Math.floor(remainder);
+
+                      // 3. 秒
+                      let sTotal = (remainder - m) * 60;
+                      let sInteger = Math.floor(sTotal);
+                      let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
+
+                      // 格式化
+                      let sIntegerStr = sInteger.toString().padStart(2, '0');
+                      let degreeStr = d.toString().padStart(3, ' ');
+
+                      return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
+                }
             }
         }
     }
 
+    Component{
+        id:comp_lon2dms
+        Item{
+            Label{
+                text: toDMS(display)
+                elide: Label.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors{
+                    verticalCenter: parent.verticalCenter
+                    left: parent.left
+                    leftMargin: 10
+                    right: parent.right
+                    rightMargin: 10
+                }
+
+                function toDMS(degrees) {
+                    let isPositive = degrees >= 0;
+                    let direction = isPositive ? "E" : "W";
+
+                    // 1. 先取绝对值，再取度
+                    let absVal = Math.abs(degrees);
+                    let d = Math.floor(absVal);
+
+                    // 2. 分
+                    let remainder = (absVal - d) * 60;
+                    let m = Math.floor(remainder);
+
+                    // 3. 秒
+                    let sTotal = (remainder - m) * 60;
+                    let sInteger = Math.floor(sTotal);
+                    let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
+
+                    let sIntegerStr = sInteger.toString().padStart(2, '0');
+                    let degreeStr = d.toString().padStart(3, ' ');
+
+                    return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
+                }
+            }
+        }
+    }
+
+    Component{
+        id:comp_fix4
+        Item{
+            Label{
+                text: String(display.toFixed(4))
+                elide: Label.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors{
+                    verticalCenter: parent.verticalCenter
+                    left: parent.left
+                    leftMargin: 10
+                    right: parent.right
+                    rightMargin: 10
+                }
+            }
+        }
+    }
 
 
 }

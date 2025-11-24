@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <set>
-
+#include <deque>
 #include <hiredis.h>
 #include <async.h>
 #include <adapters/libevent.h>
@@ -199,11 +199,9 @@ private:
     double _ecef_z = 0.0;
     long long _position_update_time = 0; // 坐标更新时间戳 如果和信息更新时刻相隔太远, 就认为坐标无效
 
-    std::time_t _update_time = 0.0;
-    ; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
+    std::time_t _update_time = 0.0; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
 
-    size_t _send_count = 0; // 用于统计最近发送速度(而不是整体发送速度)(每隔5秒更新一次速度))
-    size_t _recv_count = 0; // 用于统计最近接收速度(而不是整体接收速度)(每隔5秒更新一次速度))
+
 
 public:
     str_status(std::string login_mpt, std::string alias_mpt, int type, std::string user_name, std::string connect_key);
@@ -219,6 +217,27 @@ public:
     int update_speed();
 
     std::string get_status_str();
+
+private:
+    struct Sample {
+        int64_t time;  // 秒级时间戳
+        size_t bytes;
+    };
+
+    std::deque<Sample> _recvHistory;
+    std::deque<Sample> _sendHistory;
+
+    int _windowSize=60; // 窗口秒数
+
+// 获取当前秒级时间戳
+    int64_t nowSec() const;
+
+    // 清理超出窗口的样本
+    void cleanOld(std::deque<Sample> &history, int64_t now);
+
+    // 计算平均速度
+    double calcAvgSpeed(const std::deque<Sample> &history) const;
+
 };
 
 class relay_item

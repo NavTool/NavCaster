@@ -28,18 +28,18 @@ public:
     void stop();
 
     // 普通事件任务
-    uint64_t postTask(std::shared_ptr<EventOperationBase> op);
-    uint64_t postTask(const std::function<void(event_base*)>& fn);
-    void cancelTask(uint64_t id);
+    QString postTask(std::shared_ptr<EventOperationBase> op);
+    QString postTask(QString id,const std::function<void(event_base*)>& fn);
+    void cancelTask(QString id);
 
     // Redis 异步任务
-    uint64_t postRedisTask(std::shared_ptr<RedisOperationBase> op);
-    uint64_t postRedisTask(const std::function<void(redisAsyncContext*)>& fn);
-    void cancelRedisTask(uint64_t id);
+    QString postRedisTask(std::shared_ptr<RedisOperationBase> op);
+    QString postRedisTask(QString id,const std::function<void(redisAsyncContext*)>& fn);
+    void cancelRedisTask(QString id);
 
     // 定时任务
-    uint64_t addTimer(int intervalMs, std::function<void()> fn, bool repeat);
-    void cancelTimer(uint64_t id);
+    QString addTimer(QString id,int intervalMs, std::function<void()> fn, bool repeat);
+    void cancelTimer(QString id);
 
     event_base* base() const { return m_base; }
     redisAsyncContext* redisCtx() const { return m_redisCtx; }
@@ -47,15 +47,15 @@ public:
 
 private:
     struct TaskEntry {
-        uint64_t id;
+        QString id;
         std::function<void(event_base*)> fn;
     };
     struct RedisTaskEntry {
-        uint64_t id;
+        QString id;
         std::function<void(redisAsyncContext*)> fn;
     };
     struct TimerEntry {
-        uint64_t id;
+        QString id;
         event* ev;
         std::function<void()> fn;
     };
@@ -81,10 +81,9 @@ private:
     std::queue<RedisTaskEntry> m_redisTaskQueue;
     std::mutex m_redisTaskMutex;
 
-    std::unordered_map<uint64_t, TimerEntry*> m_timers;
+    std::unordered_map<QString, TimerEntry*> m_timers;
     std::mutex m_timerMutex;
 
-    std::atomic<uint64_t> m_idGen{1};
 
     // Redis
     redisAsyncContext* m_redisCtx = nullptr;

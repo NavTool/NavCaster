@@ -372,8 +372,8 @@ ContentPage {
                         info.port= 16379
                         info.auth= ""
 
-                        CasterMonitor.init_Caster_Connect(info)
-
+                        var task_uid= CasterMonitor.addConnectCasterOperate(info)
+                        CasterMonitor.excuteOperate(task_uid)
                     }
 
                 }

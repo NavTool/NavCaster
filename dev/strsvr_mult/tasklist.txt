@@ -1,0 +1,14 @@
+task1 -in ntrip://A31C03445admin:123456@base.sinognss.com:8888/A31C03445 -out ntrips://admin:SN123456@127.0.0.1:4202/SXCZ07F -out ntrips://admin:SN123456@127.0.0.1:4202/SXCZ07F1
+task1 -in ntrip://A31C06156admin:123456@base.sinognss.com:8888/A31C06156 -out ntrips://admin:SN123456@127.0.0.1:4202/HNLY04E -out ntrips://admin:SN123456@127.0.0.1:4202/HNLY04E2
+END OF LINE
+    " -in  stream[#format] input  stream path and format",
+    " -out stream[#format] output stream path and format",
+    "",
+    "  stream path",
+    "    serial       : serial://port[:brate[:bsize[:parity[:stopb[:fctr]]]]]",
+    "    tcp server   : tcpsvr://:port",
+    "    tcp client   : tcpcli://addr[:port]",
+    "    ntrip client : ntrip://[user[:passwd]@]addr[:port][/mntpnt]",
+    "    ntrip server : ntrips://[:passwd@]addr[:port]/mntpnt[:str] (only out)",
+    "    ntrip caster : ntripc://[user:passwd@][:port]/mntpnt[:srctbl] (only out)",
+    "    file         : [file://]path[::T][::+start][::xseppd][::S=swap]",

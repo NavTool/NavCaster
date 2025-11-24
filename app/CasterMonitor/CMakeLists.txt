@@ -128,7 +128,7 @@ set(SOURCE_FILES
     src/component/PerformanceMonitor.h src/component/PerformanceMonitor.cpp
     src/component/SettingsHelper.h src/component/SettingsHelper.cpp
 
-    src/context/auth_user.h
+    src/context/user_account.h
     src/context/caster_node.h
     src/context/ntrip_client.h
     src/context/ntrip_server.h
@@ -143,8 +143,12 @@ set(SOURCE_FILES
     src/core/EventWorker.h src/core/EventWorker.cpp
     src/core/EventOperationBase.h 
 
+    src/excute/addAccount.h
     src/excute/connectRedis.h
     src/excute/disconnectRedis.h
+    src/excute/updateAccount.h
+    src/excute/updateClient.h
+    src/excute/updateServer.h
     )
 set(MAIN_FILES src/main.cpp)
 

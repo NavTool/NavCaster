@@ -2,7 +2,7 @@
 #include "util.h"
 
 
-class auth_user{
+class user_account{
 
 private:
     PROPERTY_AUTO(std::string, UID);      // 账户名  如果勾选了Ntrip1.0的基站，那么UID会是密码，其他情况下，UID是用户名
@@ -50,9 +50,10 @@ private:
 
     PROPERTY_AUTO(time_t, modifiedDate);    // 记录更新时间
 
+    PROPERTY_AUTO(bool,update_flag);
 
 public:
-    auth_user()
+    user_account()
     {
         UID("");
         account("");
@@ -75,7 +76,7 @@ public:
         remark("");
 
         modifiedDate(0);
-
+       update_flag(false);
     }
 
     json info()
@@ -103,6 +104,8 @@ public:
 
         info["modifiedDate"] = modifiedDate();
 
+
+        info["update_flag"] = update_flag();
         return info;
     }
 

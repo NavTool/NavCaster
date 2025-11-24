@@ -1,6 +1,7 @@
 #include "CasterMonitor.h"
 #include "ServerDataController.h"
 #include "event2/thread.h"
+#include <qtimer.h>
 #if defined(__GNUC__)
 // GCC 编译器相关的代码
 #elif defined(_MSC_VER)
@@ -103,32 +104,27 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
 
-
     QVariantMap redis_info;
 
     redis_info["ip"]="127.0.0.1";
     redis_info["port"]=16379;
     redis_info["auth"]="koro_redis";
 
-
-    CasterMonitor::getInstance()->init_Caster_Connect(redis_info);
-
-
-    ServerDataController* server = new ServerDataController();
+    QString op_uid=CasterMonitor::getInstance()->addConnectCasterOperate(redis_info);
 
 
-    QObject::connect(
-        CasterMonitor::getInstance(),
-        &CasterMonitor::connectCasterSuccess,
-        server,
-        &ServerDataController::loadData
-        );
+    CasterMonitor::getInstance()->excuteOperate(op_uid);
 
 
-    // QObject::connect(CasterMonitor::getInstance(),
-    //                  &CasterMonitor::connectCasterSuccess,
-    //                  CasterMonitor::getInstance(),
-    //                  [=](){ CasterMonitor::getInstance()->close_Caster_Connect(); });
+
+
+    QObject::connect(CasterMonitor::getInstance(),
+                     &CasterMonitor::connectCasterSuccess,
+                     CasterMonitor::getInstance(),
+                     [=](){
+                         QString   op_uid=  CasterMonitor::getInstance()->addRefreshServerOperate();
+                         CasterMonitor::getInstance()->excuteOperate(op_uid); }
+                     );
 
 
     return app.exec();
