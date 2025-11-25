@@ -37,7 +37,8 @@ void util_ecef2pos(double ecef_x, double ecef_y, double ecef_z,double &lat, doub
 void util_pos2ecef(double lat, double lon, double alt, double &ecef_x, double &ecef_y, double &ecef_z);
 
 
-
+double util_dist3d(double x1, double y1, double z1,
+                   double x2, double y2, double z2);
 
 
 

@@ -50,8 +50,8 @@ Item{
             icon.color:  Theme.res.textFillColorPrimary
         },
         PaneItem{
-            key: "/monitor/page/user"
-            title: "用户管理"
+            key: "/monitor/page/account"
+            title: "账号管理"
             icon.name: FluentIcons.graph_People
             icon.color:  Theme.res.textFillColorPrimary
         },
@@ -92,6 +92,7 @@ Item{
     PageRouter{
         id: page_router
         routes: {
+            "/monitor/page/account":{url: R.resolvedUrl("qml/page/Monitor/Page_Account.qml"),singleton:true},
             "/monitor/page/client":{url: R.resolvedUrl("qml/page/Monitor/Page_Client.qml"),singleton:true},
             "/monitor/page/event":{url: R.resolvedUrl("qml/page/Monitor/Page_Event.qml"),singleton:true},
             "/monitor/page/exit":{url: R.resolvedUrl("qml/page/Monitor/Page_Exit.qml"),singleton:true},
@@ -100,7 +101,6 @@ Item{
             "/monitor/page/option":{url: R.resolvedUrl("qml/page/Monitor/Page_Option.qml"),singleton:true},
             "/monitor/page/server":{url: R.resolvedUrl("qml/page/Monitor/Page_Server.qml"),singleton:true},
             "/monitor/page/status":{url: R.resolvedUrl("qml/page/Monitor/Page_Status.qml"),singleton:true},
-            "/monitor/page/user":{url: R.resolvedUrl("qml/page/Monitor/Page_User.qml"),singleton:true},
         }
     }
 

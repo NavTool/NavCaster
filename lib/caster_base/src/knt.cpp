@@ -270,44 +270,62 @@ int util_get_use_memory()
 #endif
 }
 
-void util_ecef2pos(double ecef_x, double ecef_y, double ecef_z, double &lat, double &lon, double &alt)
+void util_ecef2pos(double x, double y, double z,
+                   double &lat, double &lon, double &alt)
 {
-    // WGS-84椭球参数
-    const double a = 6378137.0;         // 长半轴
-    const double f = 1 / 298.257223563; // 扁率
-    const double b = a * (1 - f);       // 短半轴
-    const double e2 = 2 * f - f * f;    // 第一偏心率平方
-    const double M_PI = 3.14159265358979323846;
+    const double a = 6378137.0;
+    const double f = 1.0 / 298.257223563;
+    const double e2 = f * (2 - f);
 
-    double p = sqrt(ecef_x * ecef_x + ecef_y * ecef_y);
-    double theta = atan2(ecef_z * a, p * b);
-    lon = atan2(ecef_y, ecef_x);
-    lat = atan2(ecef_z + (e2 * b) * pow(sin(theta), 3),
-                p - (e2 * a) * pow(cos(theta), 3));
-    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+    lon = atan2(y, x);
+
+    double p = sqrt(x * x + y * y);
+    double theta = atan2(z, p * (1 - f));
+    double sinT = sin(theta), cosT = cos(theta);
+
+    // 初始纬度
+    lat = atan2(z + e2 * (1 - f) * a * sinT * sinT * sinT,
+                p - e2 * a * cosT * cosT * cosT);
+
+    double lat_prev;
+    double sinLat, N;
+
+    // Newton 迭代（2~3次）
+    do
+    {
+        lat_prev = lat;
+        sinLat = sin(lat);
+        N = a / sqrt(1 - e2 * sinLat * sinLat);
+        lat = atan2(z + e2 * N * sinLat, p);
+    } while (fabs(lat - lat_prev) > 1e-14);
+
     alt = p / cos(lat) - N;
 
     // 转换为度
-    lat = lat * 180.0 / M_PI;
-    lon = lon * 180.0 / M_PI;
+    const double PI = 3.14159265358979323846;
+    lat *= 180.0 / PI;
+    lon *= 180.0 / PI;
 }
 
-void util_pos2ecef(double lat, double lon, double alt, double &ecef_x, double &ecef_y, double &ecef_z)
+void util_pos2ecef(double lat, double lon, double alt,
+                   double &x, double &y, double &z)
 {
-    // WGS-84椭球参数
-    const double a = 6378137.0;         // 长半轴
-    const double f = 1 / 298.257223563; // 扁率
-    const double e2 = 2 * f - f * f;    // 第一偏心率平方
-    const double M_PI = 3.14159265358979323846;
+    const double a = 6378137.0;
+    const double f = 1.0 / 298.257223563;
+    const double e2 = f * (2 - f);
+    const double PI = 3.14159265358979323846;
 
-    // 转换为弧度
-    lat = lat * M_PI / 180.0;
-    lon = lon * M_PI / 180.0;
+    lat *= PI / 180.0;
+    lon *= PI / 180.0;
 
-    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
-    ecef_x = (N + alt) * cos(lat) * cos(lon);
-    ecef_y = (N + alt) * cos(lat) * sin(lon);
-    ecef_z = (N * (1 - e2) + alt) * sin(lat);
+    double sinLat = sin(lat), cosLat = cos(lat);
+    double sinLon = sin(lon), cosLon = cos(lon);
+
+    double N = a / sqrt(1 - e2 * sinLat * sinLat);
+
+    x = (N + alt) * cosLat * cosLon;
+    y = (N + alt) * cosLat * sinLon;
+    z = (N * (1 - e2) + alt) * sinLat;
 }
 
 long long util_get_time_stamp()
@@ -324,4 +342,13 @@ long long util_get_time_stamp()
 std::string util_get_time_stamp_str()
 {
     return std::to_string(util_get_time_stamp());
+}
+
+double util_dist3d(double x1, double y1, double z1, double x2, double y2, double z2)
+{
+    double dx = x1 - x2;
+    double dy = y1 - y2;
+    double dz = z1 - z2;
+
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
 }

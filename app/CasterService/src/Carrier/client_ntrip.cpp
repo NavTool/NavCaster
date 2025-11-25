@@ -45,7 +45,7 @@ int client_ntrip::start()
 {
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this,AuthType::CLIENT);
+    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this, AuthType::CLIENT);
 
     return 0;
 }
@@ -79,7 +79,7 @@ int client_ntrip::stop()
     CASTER::Withdraw_Rover_Record(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str());
     CASTER::Unsub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str());
 
-    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(),AuthType::CLIENT);
+    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), AuthType::CLIENT);
 
     spdlog::info("[{}]: user [{}] is logout, using mount [{}], addr:[{}:{}]", __class__, _user_name, _mount_point, _ip, _port);
 
@@ -167,6 +167,16 @@ int client_ntrip::publish_recv_raw_data()
     evbuffer_remove(_recv_evbuf, data, length);
 
     CASTER::Pub_Rover_Raw_Data(_user_name.c_str(), _connect_key.c_str(), data, length);
+
+    _str_decoder.Decode(data, length);
+    if (_str_decoder._has_position)
+    {
+        CASTER::Set_Rover_Coord_Info(_user_name.c_str(), _connect_key.c_str(),
+                                     _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
+                                     _str_decoder._position_update_time,
+                                     _str_decoder._quality,
+                                     _str_decoder._sat_num, _str_decoder._diff);
+    }
 
     delete[] data;
     return 0;

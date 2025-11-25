@@ -13,7 +13,10 @@ private:
                              *  0：未知
                              *  1：普通接入模式
                              *  2：最近基站模式
-                             *  3：Proxy模式
+                             *  3：Push数据(Ntrip Server)
+                             *  4：Push数据(TCP Client)
+                             *  5：Push数据(TCP Server)
+                             *  6：Proxy模式
                              */
 
     PROPERTY_AUTO(std::string,account);
@@ -30,10 +33,13 @@ private:
     PROPERTY_AUTO(double, ecef_x);
     PROPERTY_AUTO(double, ecef_y);
     PROPERTY_AUTO(double, ecef_z);
+    PROPERTY_AUTO(int, quality);
+    PROPERTY_AUTO(int, sat_num);
+    PROPERTY_AUTO(double, diff);
+    PROPERTY_AUTO(double, distance);
     PROPERTY_AUTO(time_t, position_update_time); // 信息更新时刻
 
     PROPERTY_AUTO(time_t, update_time); // 信息更新时刻（执行所有函数的时候，都会更新一下这个函数）
-
 
     PROPERTY_AUTO(bool,update_flag);
 
@@ -59,6 +65,10 @@ public:
         ecef_x(0.0);
         ecef_y(0.0);
         ecef_z(0.0);
+        quality(0);
+        sat_num(0);
+        diff(0.0);
+        distance(0.0);
         position_update_time(0);
 
         update_time(0);
@@ -88,6 +98,10 @@ public:
         info["ecef_x"] = ecef_x();
         info["ecef_y"] = ecef_y();
         info["ecef_z"] = ecef_z();
+        info["quality"] = quality();
+        info["sat_num"] = sat_num();
+        info["diff"] = diff();
+        info["distance"] = distance();
         info["position_update_time"] = position_update_time();
 
         info["update_time"] = update_time();
@@ -129,6 +143,9 @@ public:
         ecef_x(info, "ecef_x");
         ecef_y(info, "ecef_y");
         ecef_z(info, "ecef_z");
+        quality(info, "quality");
+        sat_num(info, "sat_num");
+        diff(info, "diff");
         position_update_time(info, "position_update_time");
 
         update_time(info, "update_time");

@@ -33,6 +33,7 @@ public:
 public:
 
     Q_INVOKABLE QVariantMap getNtripServerInfo(QString UID);
+    Q_INVOKABLE QVariantMap getNtripServerInfoByMpt(QString Mpt);
     Q_INVOKABLE QVariantMap getNtripClientInfo(QString UID);
     Q_INVOKABLE QVariantMap getUserAccountInfo(QString UID);
 
@@ -107,6 +108,12 @@ private slots:
 
     void onTimeout();    // 定时任务执行函数
 
+private:
+
+    std::shared_ptr<ntrip_server>  get_ntrip_server_by_mpt(QString Mpt);
+
+
+
 public:
 
     std::shared_ptr<spdlog::logger> _logger; // 模块日志器
@@ -139,10 +146,10 @@ public:
 
 
     // 这两个是定期刷新的内容，其他内容都是以这个内容为基础进行刷新
-    std::set<QString> _active_ntrip_server_set;   // 在线挂载点  MPT:STAT
-    std::set<QString> _active_ntrip_client_set;   // 在线用户    USR:STAT
-    std::unordered_map<QString,QString> _active_ntrip_serverUID_set;   // Connect_Key - 挂载点 MPT:SRV
-    std::unordered_map<QString,QString> _active_ntrip_clientUID_set;   // Connect_Key - 用户名 USR:SRV
+    // std::set<QString> _active_ntrip_server_set;   // 在线挂载点  MPT:STAT
+    // std::set<QString> _active_ntrip_client_set;   // 在线用户    USR:STAT
+    std::unordered_map<QString,QString> _ntrip_serverUID_map;   // Connect_Key - 挂载点 MPT:SRV  // 根据挂载点查找到Connect_Key
+    // std::unordered_map<QString,QString> _ntrip_clientUID_map;   // Connect_Key - 用户名 USR:SRV  // 根据用户名查找到Connect_Key
 
     // Caster资源
     std::unordered_map<QString, std::shared_ptr<caster_node>> m_caster_node_map;

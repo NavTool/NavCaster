@@ -124,12 +124,12 @@ ScrollablePage{
                 width: 180
                 height: 100
 
-                text: qsTr("切换到User")
+                text: qsTr("切换到Account")
 
                 onClicked:
                 {
                     Global.displayScreen= "/screen/main"
-                    Global.displayMainScreen= "/monitor/page/user"
+                    Global.displayMainScreen= "/monitor/page/account"
                 }
             }
 

@@ -331,36 +331,56 @@ Frame {
                             title: qsTr("账号ID")
                             dataIndex: "account"
                             width: 150
+                            rowDelegate: function () {
+                                return comp_mid_label
+                            }
                         }
 
                         ListElement {
                             title: qsTr("账号机构")
                             dataIndex: "account"
                             width: 150
+                            rowDelegate: function () {
+                                return comp_mid_label
+                            }
                         }
-                       ListElement {
-                            title: qsTr("定位状态")
-                            dataIndex: "ecef_x"
-                            width: 80
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("差分延迟")
-                            dataIndex: "ecef_x"
-                            width: 80
-                            frozen: false
-                        }
+
 
                         ListElement {
                             title: qsTr("接入挂载点")
                             dataIndex: "login_mpt"
                             width: 150
+                            rowDelegate: function () {
+                                return comp_mid_label
+                            }
                             frozen: false
                         }
                         ListElement {
                             title: qsTr("使用挂载点")
                             dataIndex: "alias_mpt"
                             width: 150
+                            rowDelegate: function () {
+                                return comp_mid_label
+                            }
+                            frozen: false
+                        }
+
+                        ListElement {
+                            title: qsTr("定位状态")
+                            dataIndex: "quality"
+                            width: 80
+                            rowDelegate: function () {
+                                return comp_quality_label
+                            }
+                            frozen: false
+                        }
+                        ListElement {
+                            title: qsTr("差分延迟")
+                            dataIndex: "diff"
+                            width: 80
+                            rowDelegate: function () {
+                                return comp_diff_label
+                            }
                             frozen: false
                         }
 
@@ -374,40 +394,25 @@ Frame {
                             frozen: false
                         }
                         ListElement {
-                            title: qsTr("累计发送")
-                            dataIndex: "send_total"
-                            rowDelegate: function () {
-                                return comp_str_count
-                            }
-                            width: 150
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("发送速度")
-                            dataIndex: "send_speed"
-                            rowDelegate: function () {
-                                return comp_str_speed
-                            }
-                            width: 150
-                            frozen: false
-                        }
-                        ListElement {
                             title: qsTr("纬度")
-                            dataIndex: "ecef_x"
-                            width: 150
+                            dataIndex: "llh_lat"
+                            rowDelegate: function(){return comp_lat2dms}
+                            width: 180
                             frozen: false
                         }
 
                         ListElement {
                             title: qsTr("经度")
-                            dataIndex: "ecef_y"
-                            width: 150
+                            dataIndex: "llh_lon"
+                            rowDelegate: function(){return comp_lon2dms}
+                            width: 180
                             frozen: false
                         }
 
                         ListElement {
                             title: qsTr("椭球高")
-                            dataIndex: "ecef_z"
+                            dataIndex: "llh_height"
+                            rowDelegate: function(){return comp_fix4}
                             width: 100
                             frozen: false
                         }
@@ -485,7 +490,7 @@ Frame {
                             leftMargin: 10
                             verticalCenter: parent.verticalCenter
                         }
-                        text:qsTr("接入用户信息")
+                        text:qsTr("用户信息")
 
                         font:Qt.font({pixelSize : 15, weight: Font.Bold})
                     }
@@ -518,9 +523,9 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:true
+                            expanded:focusItemUID!==""
                             header: Label{
-                                text: qsTr("接入信息")
+                                text: qsTr("基本信息")
                                 font.weight: Font.Bold
                                 verticalAlignment: Qt.AlignVCenter
                             }
@@ -530,7 +535,7 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:true
+                            expanded:focusItemUID!==""
                             header: Label{
                                 text: qsTr("定位状态")
                                 font.weight: Font.Bold
@@ -554,7 +559,7 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:true
+                            expanded:focusItemUID!==""
                             header: Label{
                                 text: qsTr("账号信息")
                                 font.weight: Font.Bold
@@ -562,17 +567,6 @@ Frame {
                             }
                             content: com_account
                         }
-                        // ExpanderEx{
-                        //     width: parent.width
-                        //     expanderHeight:30
-
-                        //     expanded:true
-                        //     header: Label{
-                        //         text: "Rinex输出的天线配置"
-                        //         verticalAlignment: Qt.AlignVCenter
-                        //     }
-                        //     content: com_rinex
-                        // }
                     }
                 }
             }
@@ -588,6 +582,32 @@ Frame {
                 id:column
                 spacing: 3
                 anchors.fill: parent
+
+                ComItem{
+                    item_name:qsTr("用户名")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : focusItemUID===""?"":focusItem.account
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接入类型")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : focusItemUID===""?"":format_model.get(focusItem.type).text
+
+                        ListModel {
+                            id: format_model
+                            ListElement {text: qsTr("未知类型"); }
+                            ListElement {text: qsTr("用户接入 (Ntrip Client)") ; }
+                            ListElement {text: qsTr("用户接入 (最近挂载点模式)"); }
+                            ListElement {text: qsTr("数据转发 (Ntrip Server)"); }
+                            ListElement {text: qsTr("数据转发 (TCP Client)"); }
+                            ListElement {text: qsTr("数据转发 (TCP Server)"); }
+                            ListElement {text: qsTr("代理模式 (Ntrip Client)"); }
+                        }
+                    }
+                }
                 ComItem{
                     item_name:qsTr("接入挂载点")
                     delegate:TextField{
@@ -599,28 +619,7 @@ Frame {
                     item_name:qsTr("使用挂载点")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.online_time
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("站点经度")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_x
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("站点纬度")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_y
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("站点高程")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_y
+                        placeholderText : focusItemUID===""?"":focusItem.alias_mpt
                     }
                 }
             }
@@ -639,49 +638,51 @@ Frame {
                     item_name:qsTr("定位状态")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_z
+                        placeholderText : focusItemUID===""?"":formatQuality(focusItem.quality)
+
+
                     }
                 }
                 ComItem{
                     item_name:qsTr("用户经度")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_x
+                        placeholderText : focusItemUID===""?"":lontoDMS(focusItem.llh_lon)
                     }
                 }
                 ComItem{
                     item_name:qsTr("用户纬度")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_y
+                        placeholderText : focusItemUID===""?"":lattoDMS(focusItem.llh_lat)
                     }
                 }
                 ComItem{
                     item_name:qsTr("用户高程")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_y
+                        placeholderText : focusItemUID===""?"":(focusItem.llh_height.toFixed(4) + " m")
                     }
                 }
                 ComItem{
                     item_name:qsTr("基线长度")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_z
+                        placeholderText : focusItemUID===""?"":formatDistance(focusItem.distance)
                     }
                 }
                 ComItem{
                     item_name:qsTr("使用卫星数")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_z
+                        placeholderText : focusItemUID===""?"":focusItem.sat_num
                     }
                 }
                 ComItem{
                     item_name:qsTr("差分延迟")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_z
+                        placeholderText : focusItemUID===""?"":focusItem.diff.toFixed(1) + " s"
                     }
                 }
             }
@@ -697,44 +698,43 @@ Frame {
                 id:column
                 spacing: 3
                 anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("上线时刻")
-                    delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.online_time
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("在线时长")
-                    delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.online_time
-                    }
-                }
+
                 ComItem{
                     item_name:qsTr("累计接收")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.recv_total)
                     }
                 }
                 ComItem{
                     item_name:qsTr("接收速度")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.recv_speed
+                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.recv_speed)+"/s")
                     }
                 }
                 ComItem{
                     item_name:qsTr("累计发送")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.send_total
+                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.send_total)
                     }
                 }
                 ComItem{
                     item_name:qsTr("发送速度")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.send_speed
+                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.send_speed)+"/s")
                     }
                 }
-
-
+                ComItem{
+                    item_name:qsTr("在线时长")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":formatTime(focusItem.online_time)
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("上线时刻")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":getLocalTime(focusItem.online_time)
+                    }
+                }
                 ComItem{
                     item_name:qsTr("接入IP")
                     delegate:TextField{
@@ -750,6 +750,7 @@ Frame {
             }
         }
     }
+
 
     Component{
         id:com_account
@@ -768,58 +769,27 @@ Frame {
                     }
                 }
                 ComItem{
-                    item_name:qsTr("账号机构")
+                    item_name:qsTr("账号类型")
                     delegate:TextField{
-                        text: focusItemUID===""?"":"ComNav Tech"
+                        text: focusItemUID===""?"":"期限账号/永久账号/机构账号"
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("归属用户/机构")
+                    delegate:TextField{
+                        text: focusItemUID===""?"":"测试"
                     }
                 }
                 ComItem{
                     item_name:qsTr("剩余有效期")
                     delegate:TextField{
-                        text: focusItemUID===""?"":"ComNav Tech"
+                        text: focusItemUID===""?"":qsTr("永久账号")
                     }
                 }
                 ComItem{
                     item_name:qsTr("账号失效日期")
                     delegate:TextField{
-                        text: focusItemUID===""?"":"ComNav Tech"
-                    }
-                }
-            }
-        }
-    }
-
-
-
-    Component{
-        id:com_rinex
-        Item{
-            height: 120
-            Column{
-                spacing: 3
-                anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("测量方式")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_measurement_method
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("天线高")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_ant_height
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("厂商")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_manufacturer
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("天线类型")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_ant_type
+                        text: focusItemUID===""?"":qsTr("永不失效")
                     }
                 }
             }
@@ -875,62 +845,42 @@ Frame {
         }
     }
 
+    Component{
+        id: comp_mid_label
+        DataItem{
+            itemtext: display
+        }
+    }
+
     Component {
         id: comp_date_label
         Item {
             Label {
                 anchors.centerIn: parent
                 text: getLocalTime(display) // 传入 UTC 秒数
-                function getLocalTime(utcSeconds) {
-                    if (utcSeconds === 0) {
-                        return "-"
-                    }
-
-                    var localDate = new Date(utcSeconds)
-                    // 注意：如果 utcSeconds 是秒，应该乘以 1000
-                    if (utcSeconds < 1e12) {
-                        // 如果是秒，需要乘以 1000
-                        localDate = new Date(utcSeconds * 1000)
-                    }
-
-                    let ms = String(localDate.getMilliseconds()).padStart(3,
-                                                                          "0")
-
-                    return localDate.getFullYear(
-                                ) + "-" + String(localDate.getMonth(
-                                                     ) + 1).padStart(2, "0")
-                            + "-" + String(localDate.getDate()).padStart(
-                                2, "0") + " " + String(
-                                localDate.getHours()).padStart(2, "0")
-                            + ":" + String(localDate.getMinutes()).padStart(
-                                2, "0") + ":" + String(
-                                localDate.getSeconds()).padStart(2, "0") + "." + ms
-                }
             }
         }
     }
 
     Component {
+        id: comp_quality_label
+        DataItem {
+            itemtext: formatQuality(display) // 传入 UTC 秒数
+        }
+    }
+
+    Component {
+        id: comp_diff_label
+        DataItem {
+            itemtext: display.toFixed(1) + " s"
+        }
+    }
+
+
+    Component {
         id: comp_time_label
         DataItem {
             itemtext: formatTime(display) // 传入 UTC 秒数
-            function formatTime(onlineUtcSeconds) {
-                // 当前时间的 UTC 秒数
-                var nowUtc = Math.floor(Date.now() / 1000)
-
-                // 在线秒数
-                var seconds = nowUtc - onlineUtcSeconds
-                if (seconds < 0)
-                    seconds = 0 // 防止上线时间晚于当前时间
-
-                // 格式化 hh:mm:ss
-                var h = Math.floor(seconds / 3600)
-                var m = Math.floor((seconds % 3600) / 60)
-                var s = seconds % 60
-
-                return String(h).padStart(2, "0") + ":" + String(m).padStart(
-                            2, "0") + ":" + String(s).padStart(2, "0")
-            }
         }
     }
 
@@ -938,15 +888,6 @@ Frame {
         id: comp_str_count
         DataItem {
             itemtext: formatBytes(display)
-            function formatBytes(bytes) {
-                if (bytes === 0)
-                    return "0 B"
-                var k = 1024
-                var sizes = ["Byte", "KB", "MB", "GB", "TB"]
-                var i = Math.floor(Math.log(bytes) / Math.log(k))
-                var value = bytes / Math.pow(k, i)
-                return value.toFixed(3) + " " + sizes[i]
-            }
         }
     }
 
@@ -954,15 +895,260 @@ Frame {
         id: comp_str_speed
         DataItem {
             itemtext: formatBytes(display) + "/s"
-            function formatBytes(bytes) {
-                if (bytes === 0)
-                    return "0 B"
-                var k = 1024
-                var sizes = ["Byte", "KB", "MB", "GB", "TB"]
-                var i = Math.floor(Math.log(bytes) / Math.log(k))
-                var value = bytes / Math.pow(k, i)
-                return value.toFixed(2) + " " + sizes[i]
+        }
+    }
+
+    Component{
+        id:comp_lat2dms
+        Item{
+            Label{
+                text: lattoDMS(display)
+                elide: Label.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors{
+                    verticalCenter: parent.verticalCenter
+                    left: parent.left
+                    leftMargin: 10
+                    right: parent.right
+                    rightMargin: 10
+                }
             }
         }
     }
+
+    Component{
+        id:comp_lon2dms
+        Item{
+            Label{
+                text: lontoDMS(display)
+                elide: Label.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors{
+                    verticalCenter: parent.verticalCenter
+                    left: parent.left
+                    leftMargin: 10
+                    right: parent.right
+                    rightMargin: 10
+                }
+            }
+        }
+    }
+
+    Component{
+        id:comp_fix4
+        Item{
+            Label{
+                text: String(display.toFixed(4))
+                elide: Label.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors{
+                    verticalCenter: parent.verticalCenter
+                    left: parent.left
+                    leftMargin: 10
+                    right: parent.right
+                    rightMargin: 10
+                }
+            }
+        }
+    }
+
+
+    function getLocalTime(utcSeconds) {
+        if (utcSeconds === 0) {
+            return "-"
+        }
+
+        var localDate = new Date(utcSeconds)
+        // 注意：如果 utcSeconds 是秒，应该乘以 1000
+        if (utcSeconds < 1e12) {
+            // 如果是秒，需要乘以 1000
+            localDate = new Date(utcSeconds * 1000)
+        }
+
+        let ms = String(localDate.getMilliseconds()).padStart(3,
+                                                              "0")
+
+        return localDate.getFullYear(
+                    ) + "-" + String(localDate.getMonth(
+                                         ) + 1).padStart(2, "0")
+                + "-" + String(localDate.getDate()).padStart(
+                    2, "0") + " " + String(
+                    localDate.getHours()).padStart(2, "0")
+                + ":" + String(localDate.getMinutes()).padStart(
+                    2, "0") + ":" + String(
+                    localDate.getSeconds()).padStart(2, "0") + "." + ms
+    }
+
+    function formatTime(onlineUtcSeconds) {
+        // 当前时间（UTC 秒）
+        var nowUtc = Math.floor(Date.now() / 1000)
+
+        // 已在线秒数
+        var seconds = nowUtc - onlineUtcSeconds
+        if (seconds < 0)
+            seconds = 0
+
+        var day = Math.floor(seconds / 86400)        // 1 天 = 86400s
+        var h = Math.floor((seconds % 86400) / 3600)
+        var m = Math.floor((seconds % 3600) / 60)
+        var s = seconds % 60
+
+        var timeStr = String(h).padStart(2, "0")
+                + ":" + String(m).padStart(2, "0")
+                + ":" + String(s).padStart(2, "0")
+
+        if (day > 0)
+            return day + "d " + timeStr
+        else
+            return timeStr
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0)
+            return "0 B"
+        var k = 1024
+        var sizes = ["Byte", "KB", "MB", "GB", "TB"]
+        var i = Math.floor(Math.log(bytes) / Math.log(k))
+        var value = bytes / Math.pow(k, i)
+        return value.toFixed(3) + " " + sizes[i]
+    }
+
+    function lontoDMS(degrees) {
+        let isPositive = degrees >= 0;
+        let direction = isPositive ? "E" : "W";
+
+        // 1. 先取绝对值，再取度
+        let absVal = Math.abs(degrees);
+        let d = Math.floor(absVal);
+
+        // 2. 分
+        let remainder = (absVal - d) * 60;
+        let m = Math.floor(remainder);
+
+        // 3. 秒
+        let sTotal = (remainder - m) * 60;
+        let sInteger = Math.floor(sTotal);
+        let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
+
+        let sIntegerStr = sInteger.toString().padStart(2, '0');
+        let degreeStr = d.toString().padStart(3, ' ');
+
+        return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
+    }
+
+
+    function lattoDMS(degrees) {
+        // 判断正负，决定南北纬
+        let isPositive = degrees >= 0;
+        let direction = isPositive ? "N" : "S";
+
+        // 1. 先取绝对值，再取整
+        let absVal = Math.abs(degrees);
+        let d = Math.floor(absVal);
+
+        // 2. 分
+        let remainder = (absVal - d) * 60;
+        let m = Math.floor(remainder);
+
+        // 3. 秒
+        let sTotal = (remainder - m) * 60;
+        let sInteger = Math.floor(sTotal);
+        let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
+
+        // 格式化
+        let sIntegerStr = sInteger.toString().padStart(2, '0');
+        let degreeStr = d.toString().padStart(3, ' ');
+
+        return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
+    }
+
+    function formatDistance(distance) {
+        // distance 可能是 number 或 string（可能带逗号）
+        // 我们的规则：
+        //  <1000(m) : 保留 1 位小数，单位 "m"
+        // >=1000     : 转为 km，保留 2 位小数，单位 "km"
+        //
+        // 实现思路：
+        // 1. 规范化输入（去掉已有逗号，转 Number）
+        // 2. 根据大小决定小数位并用 toFixed() 得到字符串（避免科学计数法）
+        // 3. 对整数部分按位插入逗号（从右往左每三位插入一个）
+        // 4. 恢复小数部分和符号，返回最终字符串
+
+        // 1) 规范化输入
+        var s = String(distance)
+        s = s.replace(/,/g, "")             // 去掉已有逗号
+        var d = Number(s)
+        if (!isFinite(d)) return ""         // 非数直接返回空字符串
+
+        var negative = d < 0
+        if (negative) d = -d
+
+        // 2) 决定单位与小数位
+        var unit = " m"
+        var fracDigits = 1
+        if (d >= 1000) {
+            d = d / 1000.0
+            unit = " km"
+            fracDigits = 3
+        }
+
+        // 使用 toFixed 生成固定小数位的字符串（避免科学计数）
+        // 注意：toFixed 在 JS 中对大数也能生成非科学计数法字符串
+        var fixedStr = d.toFixed(fracDigits)  // 例如 "12025.01" 或 "987.6"
+
+        // 3) 分离整数与小数部分
+        var parts = fixedStr.split(".")
+        var intPart = parts[0]
+        var fracPart = (parts.length > 1) ? parts[1] : ""
+
+        // 4) 从右到左每三位插入逗号
+        var resInt = ""
+        var count = 0
+        for (var i = intPart.length - 1; i >= 0; --i) {
+            resInt = intPart.charAt(i) + resInt
+            count++
+            if (count % 3 === 0 && i > 0) {
+                resInt = "," + resInt
+            }
+        }
+
+        // 5) 组合结果，保留小数部分（如果 fracDigits>0）
+        var result = (negative ? "-" : "") + resInt
+        if (fracDigits > 0) {
+            result += "." + fracPart
+        }
+        result += unit
+
+        return result
+    }
+
+    function formatQuality(type)
+    {
+        switch (type) {
+        case 0:
+            return qsTr("未定位")
+        case 1:
+            return qsTr("单点定位")
+        case 2:
+            return qsTr("差分定位")
+        case 3:
+            return qsTr("PPS fix")
+        case 4:
+            return qsTr("固定解")
+        case 5:
+            return qsTr("浮点解")
+        case 6:
+            return qsTr("估计模式")
+        case 7:
+            return qsTr("手工输入")
+        case 8:
+            return qsTr("仿真模式")
+        default:
+            return qsTr("未知状态")
+        }
+    }
+
 }

@@ -32,6 +32,8 @@ set(QML_FILES
 # component
 
 # dialog
+    qml/dialog/Monitor/Dialog_Account_AddAccount.qml
+
 
 # extra
 # 扩展样式组件    
@@ -50,6 +52,7 @@ set(QML_FILES
     qml/page/Init/Page_Setting.qml
     qml/page/Init/Page_Start.qml
 # Mointor页面
+    qml/page/Monitor/Page_Account.qml
     qml/page/Monitor/Page_Client.qml
     qml/page/Monitor/Page_Event.qml
     qml/page/Monitor/Page_Exit.qml
@@ -65,7 +68,7 @@ set(QML_FILES
     qml/page/Monitor/Page_Option.qml
     qml/page/Monitor/Page_Server.qml
     qml/page/Monitor/Page_Status.qml
-    qml/page/Monitor/Page_User.qml
+
 
 # plot
 
@@ -138,7 +141,7 @@ set(SOURCE_FILES
     src/controller/EventDataController.h src/controller/EventDataController.cpp
     src/controller/RelayDataController.h src/controller/RelayDataController.cpp
     src/controller/ServerDataController.h src/controller/ServerDataController.cpp
-    src/controller/UserDataController.h src/controller/UserDataController.cpp
+    src/controller/AccountDataController.h src/controller/AccountDataController.cpp
 
     src/core/EventWorker.h src/core/EventWorker.cpp
     src/core/EventOperationBase.h 

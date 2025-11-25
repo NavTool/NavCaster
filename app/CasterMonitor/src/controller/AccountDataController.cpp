@@ -1,13 +1,13 @@
-#include "UserDataController.h"
+#include "AccountDataController.h"
 
 
 #include <QThreadPool>
 
-UserDataController::UserDataController(QObject *parent) : QObject{parent}
+AccountDataController::AccountDataController(QObject *parent) : QObject{parent}
 {
 }
 
-void UserDataController::loadData(const QString UID)
+void AccountDataController::loadData(const QString UID)
 {
     //创建一个线程执行数据读取操作
     QThreadPool::globalInstance()->start(

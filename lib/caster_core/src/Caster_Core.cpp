@@ -363,14 +363,12 @@ std::string CASTER::Get_Source_Table_Text()
     return caster_internal::getInstance()->get_source_list_text();
 }
 
-
 int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
 {
-    return caster_internal::getInstance()->set_base_coord_info(mount_point,connect_key,ecef_x,ecef_y,ecef_z,update_time);
+    return caster_internal::getInstance()->set_base_coord_info(mount_point, connect_key, ecef_x, ecef_y, ecef_z, update_time);
 }
 
-int CASTER::Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
+int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff)
 {
-    return 0;
+    return caster_internal::getInstance()->set_rover_coord_info(user_name, connect_key, ecef_x, ecef_y, ecef_z, update_time, Q, sat, diff);
 }
-

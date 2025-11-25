@@ -30,6 +30,18 @@ QVariantMap CasterMonitor::getNtripServerInfo(QString UID)
     return JsonToQVariantMap(iter->second->info());
 }
 
+QVariantMap CasterMonitor::getNtripServerInfoByMpt(QString Mpt)
+{
+    auto map_item= _ntrip_serverUID_map.find(Mpt);
+    if(map_item==_ntrip_serverUID_map.end())
+    {
+        ntrip_server obj;
+        return JsonToQVariantMap(obj.info());
+    }
+
+    return getNtripServerInfo(map_item->second);
+}
+
 QVariantMap CasterMonitor::getNtripClientInfo(QString UID)
 {
     auto iter= m_ntrip_client_map.find(UID);
@@ -355,6 +367,19 @@ void CasterMonitor::onUpdataServerMap(QString OP_UID, bool success, QVariantMap 
         }
         item->second->setInfo(info);
         item->second->update_flag(true); //设置数据更新标识
+
+        // 更新挂载点-Connect_key映射表
+        QString  alias_mpt=item->second->alias_mpt().c_str();
+        auto map_item =  _ntrip_serverUID_map.find(alias_mpt);
+        if(map_item == _ntrip_serverUID_map.end())
+        {
+            _ntrip_serverUID_map.insert(std::pair(alias_mpt,key));
+        }
+        else
+        {
+            map_item->second=key;
+        }
+
     }
 
     //删除所有本次没有更新的元素
@@ -393,6 +418,16 @@ void CasterMonitor::onUpdataClientMap(QString OP_UID, bool success, QVariantMap 
             item =  m_ntrip_client_map.find(key);
         }
         item->second->setInfo(info);
+
+
+        auto server_item= get_ntrip_server_by_mpt(QString(item->second->alias_mpt().c_str()));
+
+        if(server_item->position_update_time()!=0 && item->second->position_update_time()!=0)
+        {
+            item->second->distance(util_dist3d(server_item->ecef_x(),server_item->ecef_y(),server_item->ecef_z(),
+                                               item->second->ecef_x(),item->second->ecef_y(),item->second->ecef_z()));
+        }
+
         item->second->update_flag(true); //设置数据更新标识
     }
 
@@ -455,6 +490,23 @@ void CasterMonitor::onOperateFinished(QString OP_UID, bool success, QVariantMap 
 void CasterMonitor::onTimeout()
 {
 
+}
+
+std::shared_ptr<ntrip_server> CasterMonitor::get_ntrip_server_by_mpt(QString Mpt)
+{
+    auto map_item= _ntrip_serverUID_map.find(Mpt);
+    if(map_item==_ntrip_serverUID_map.end())
+    {
+        return std::make_shared<ntrip_server>();
+    }
+
+    auto item= m_ntrip_server_map.find(map_item->second);
+    if(item==m_ntrip_server_map.end())
+    {
+        return std::make_shared<ntrip_server>();
+    }
+
+    return item->second;
 }
 
 QString CasterMonitor::generate_UniqueKey(int key_length)

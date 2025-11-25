@@ -5,7 +5,7 @@
 #pragma once
 #include "ntrip_global.h"
 #include "process_queue.h"
-
+#include "decode_nmea.h"
 #include <event2/event.h>
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
@@ -38,6 +38,8 @@ private:
 
     evbuffer *_send_evbuf;
     evbuffer *_recv_evbuf;
+
+    decode_nmea _str_decoder;
 
 public:
     client_ntrip(json req, bufferevent *bev);

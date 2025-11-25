@@ -18,7 +18,7 @@ Frame {
         userData.loadData("")
     }
 
-    UserDataController {
+    AccountDataController {
         id: userData
         onLoadDataStart: {
             panel_loading.visible = true
@@ -82,14 +82,10 @@ Frame {
                             title: qsTr("账号注册")
                             MenuItem{
                                 // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("期限账号注册")
+                                text:qsTr("账号注册")
                                 onTriggered:{
-                                }
-                            }
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("永久账号注册")
-                                onTriggered:{
+
+                                    Global.open_dialog("/monitor/dialog/account/add_account","")
                                 }
                             }
 
@@ -97,7 +93,7 @@ Frame {
 
                             MenuItem{
                                 // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("机构账号注册")
+                                text:qsTr("批量注册")
                                 onTriggered:{
                                 }
                             }
@@ -298,13 +294,13 @@ Frame {
                             frozen: true
                         }
                         ListElement {
-                            title: qsTr("密码")
+                            title: qsTr("密码(默认隐藏)")
                             dataIndex: "station_name"
                             width: 200
                             // frozen: true
                         }
                         ListElement {
-                            title: qsTr("账号类型（期限/永久/机构）")
+                            title: qsTr("账号类型（期限/永久/时限）")
                             dataIndex: "station_name"
                             width: 200
                             // frozen: true
@@ -315,7 +311,12 @@ Frame {
                             width: 200
                         }
                         ListElement{
-                            title: qsTr("接入类型(基站/移动站)")
+                            title: qsTr("支持连接数")
+                            dataIndex: "coord_UID"
+                            width: 200
+                        }
+                        ListElement{
+                            title: qsTr("接入类型(权限)")
                             dataIndex: "coord_UID"
                             width: 180
                         }

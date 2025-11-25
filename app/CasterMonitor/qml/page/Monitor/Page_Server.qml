@@ -329,13 +329,19 @@ Frame {
                         ListElement {
                             title: qsTr("接入挂载点")
                             dataIndex: "login_mpt"
-                            width: 100
+                            width: 120
+                            rowDelegate: function () {
+                                return comp_mid_label
+                            }
                             frozen: false
                         }
                         ListElement {
                             title: qsTr("实际挂载点")
                             dataIndex: "alias_mpt"
-                            width: 100
+                            width: 120
+                            rowDelegate: function () {
+                                return comp_mid_label
+                            }
                             frozen: false
                         }
                         ListElement {
@@ -347,25 +353,13 @@ Frame {
                             }
                             frozen: false
                         }
-                        ListElement {
-                            title: qsTr("累计接收")
-                            dataIndex: "recv_total"
-                            rowDelegate: function () {
-                                return comp_str_count
-                            }
-                            width: 150
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("接收速度")
-                            dataIndex: "recv_speed"
-                            rowDelegate: function () {
-                                return comp_str_speed
-                            }
-                            width: 150
-                            frozen: false
-                        }
 
+                        ListElement {
+                            title: qsTr("连接用户数量")
+                            dataIndex: ""
+                            width: 120
+                            frozen: false
+                        }
 
                         ListElement {
                             title: qsTr("纬度")
@@ -391,26 +385,25 @@ Frame {
                             frozen: false
                         }
                         ListElement {
-                            title: qsTr("IP")
-                            dataIndex: "ip"
-                            width: 120
+                            title: qsTr("接收速度")
+                            dataIndex: "recv_speed"
+                            rowDelegate: function () {
+                                return comp_str_speed
+                            }
+                            width: 150
                             frozen: false
                         }
                         ListElement {
-                            title: qsTr("端口")
-                            dataIndex: "port"
-                            width: 120
+                            title: qsTr("累计接收")
+                            dataIndex: "recv_total"
+                            rowDelegate: function () {
+                                return comp_str_count
+                            }
+                            width: 150
+                            frozen: false
                         }
-                        ListElement {
-                            title: qsTr("账号ID")
-                            dataIndex: "account"
-                            width: 200
-                        }
-                        ListElement {
-                            title: qsTr("账号机构")
-                            dataIndex: "account"
-                            width: 200
-                        }
+
+
                         ListElement {
                             title: qsTr("数据更新时间")
                             dataIndex: "update_time"
@@ -508,7 +501,7 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:true
+                            expanded:focusItemUID!==""
                             header: Label{
                                 text: qsTr("基本信息")
                                 font.weight: Font.Bold
@@ -520,7 +513,7 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:true
+                            expanded:false
                             header: Label{
                                 text: qsTr("数据详情")
                                 font.weight: Font.Bold
@@ -532,7 +525,7 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:true
+                            expanded:false
                             header: Label{
                                 text: qsTr("设备信息")
                                 font.weight: Font.Bold
@@ -544,7 +537,7 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:false
+                            expanded:focusItemUID!==""
                             header: Label{
                                 text: qsTr("连接信息")
                                 font.weight: Font.Bold
@@ -556,7 +549,7 @@ Frame {
                             width: parent.width
                             expanderHeight:35
 
-                            expanded:true
+                            expanded:focusItemUID!==""
                             header: Label{
                                 text: qsTr("数据来源")
                                 font.weight: Font.Bold
@@ -576,59 +569,6 @@ Frame {
                         //     content: com_rinex
                         // }
                     }
-                }
-
-
-
-
-                Item{
-                    anchors.fill: parent
-                    anchors.topMargin: 30
-
-
-                    // Column {
-                    //     ComItem {
-                    //         property_key: qsTr("用户名")
-                    //         property_value: focusItemUID===""?"":focusItem.account
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("接入挂载点")
-                    //         property_value: focusItemUID===""?"":focusItem.login_mpt
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("在线时长")
-                    //         property_value: focusItemUID===""?"":focusItem.online_time
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("经度")
-                    //         property_value: focusItemUID===""?"":""
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("纬度")
-                    //         property_value: focusItemUID===""?"":""
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("高程")
-                    //         property_value: focusItemUID===""?"":""
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("IP")
-                    //         property_value: focusItemUID===""?"":focusItem.ip
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("端口")
-                    //         property_value: focusItemUID===""?"":focusItem.port
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("累计接收数据")
-                    //         property_value: focusItemUID===""?"":focusItem.recv_total
-                    //     }
-                    //     ComItem {
-                    //         property_key: qsTr("累计发送数据")
-                    //         property_value: focusItemUID===""?"":focusItem.send_total
-                    //     }
-                    // }
-
                 }
             }
         }
@@ -651,24 +591,45 @@ Frame {
                     }
                 }
                 ComItem{
+                    item_name:qsTr("接入类型")
+                    delegate:TextField{
+                        // placeholderText:GNSS.focusObsFile.station_name
+                        placeholderText : focusItemUID===""?"":format_model.get(focusItem.type).text
+
+                        ListModel {
+                            id: format_model
+                            ListElement {text: qsTr("未知类型"); }
+                            ListElement {text: qsTr("基站接入 (Ntrip Server)") ; }
+                            ListElement {text: qsTr("系统生成 (最近挂载点模式)"); }
+                            ListElement {text: qsTr("数据转发 (Ntrip Client)"); }
+                            ListElement {text: qsTr("数据转发 (TCP Client)"); }
+                            ListElement {text: qsTr("数据转发 (TCP Server)"); }
+                            ListElement {text: qsTr("代理模式 (Ntrip Client)"); }
+                            ListElement {text: qsTr("系统生成 (挂载点中转模式"); }
+                        }
+
+
+                    }
+                }
+                ComItem{
                     item_name:qsTr("站点经度")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_x
+                        placeholderText : focusItemUID===""?"":lontoDMS(focusItem.llh_lon)
                     }
                 }
                 ComItem{
                     item_name:qsTr("站点纬度")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_y
+                        placeholderText : focusItemUID===""?"":lontoDMS(focusItem.llh_lat)
                     }
                 }
                 ComItem{
                     item_name:qsTr("站点高程")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.ecef_z
+                        placeholderText : focusItemUID===""?"":(focusItem.llh_height.toFixed(4) + " m")
                     }
                 }
             }
@@ -722,6 +683,38 @@ Frame {
         }
     }
 
+    Component{
+        id:com_device
+
+        Item{
+            height: column.implicitHeight
+            Column{
+                id:column
+                spacing: 3
+                anchors.fill: parent
+                ComItem{
+                    item_name:qsTr("接收机类型")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":""
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接收机版本号")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":""
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("接收机/SN")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":""
+                    }
+                }
+            }
+        }
+    }
+
+
 
     Component{
         id:com_connect
@@ -732,44 +725,43 @@ Frame {
                 id:column
                 spacing: 3
                 anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("上线时刻")
-                    delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.online_time
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("在线时长")
-                    delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.online_time
-                    }
-                }
+
                 ComItem{
                     item_name:qsTr("累计接收")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.recv_total)
                     }
                 }
                 ComItem{
                     item_name:qsTr("接收速度")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.recv_speed)+"/s")
                     }
                 }
                 ComItem{
                     item_name:qsTr("累计发送")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.send_total)
                     }
                 }
                 ComItem{
                     item_name:qsTr("发送速度")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":focusItem.recv_total
+                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.send_speed)+"/s")
                     }
                 }
-
-
+                ComItem{
+                    item_name:qsTr("在线时长")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":formatTime(focusItem.online_time)
+                    }
+                }
+                ComItem{
+                    item_name:qsTr("上线时刻")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":getLocalTime(focusItem.online_time)
+                    }
+                }
                 ComItem{
                     item_name:qsTr("接入IP")
                     delegate:TextField{
@@ -785,7 +777,6 @@ Frame {
             }
         }
     }
-
 
     Component{
         id:com_account
@@ -808,88 +799,23 @@ Frame {
                         text: focusItemUID===""?"":focusItem.account
                     }
                 }
+
                 ComItem{
-                    item_name:qsTr("接入IP")
+                    item_name:qsTr("剩余有效期")
                     delegate:TextField{
-                        text: focusItemUID===""?"":focusItem.ip
+                        text: focusItemUID===""?"":qsTr("永久账号")
                     }
                 }
                 ComItem{
-                    item_name:qsTr("接入端口")
+                    item_name:qsTr("账号失效日期")
                     delegate:TextField{
-                        text: focusItemUID===""?"":focusItem.port
+                        text: focusItemUID===""?"":qsTr("永不失效")
                     }
                 }
             }
         }
     }
 
-    Component{
-        id:com_device
-
-        Item{
-            height: column.implicitHeight
-            Column{
-                id:column
-                spacing: 3
-                anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("接收机类型")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.receiver_type
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("接收机版本号")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.receiver_version
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("接收机/SN")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.receiver_sn
-                    }
-                }
-            }
-        }
-    }
-
-
-    Component{
-        id:com_rinex
-        Item{
-            height: 120
-            Column{
-                spacing: 3
-                anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("测量方式")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_measurement_method
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("天线高")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_ant_height
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("厂商")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_manufacturer
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("天线类型")
-                    delegate:TextField{
-                        placeholderText: GNSS.focusObsFile.rinex_ant_type
-                    }
-                }
-            }
-        }
-    }
 
 
     component ComItem:Item{
@@ -946,31 +872,6 @@ Frame {
             Label {
                 anchors.centerIn: parent
                 text: getLocalTime(display) // 传入 UTC 秒数
-                function getLocalTime(utcSeconds) {
-                    if (utcSeconds === 0) {
-                        return "-"
-                    }
-
-                    var localDate = new Date(utcSeconds)
-                    // 注意：如果 utcSeconds 是秒，应该乘以 1000
-                    if (utcSeconds < 1e12) {
-                        // 如果是秒，需要乘以 1000
-                        localDate = new Date(utcSeconds * 1000)
-                    }
-
-                    let ms = String(localDate.getMilliseconds()).padStart(3,
-                                                                          "0")
-
-                    return localDate.getFullYear(
-                                ) + "-" + String(localDate.getMonth(
-                                                     ) + 1).padStart(2, "0")
-                            + "-" + String(localDate.getDate()).padStart(
-                                2, "0") + " " + String(
-                                localDate.getHours()).padStart(2, "0")
-                            + ":" + String(localDate.getMinutes()).padStart(
-                                2, "0") + ":" + String(
-                                localDate.getSeconds()).padStart(2, "0") + "." + ms
-                }
             }
         }
     }
@@ -979,23 +880,7 @@ Frame {
         id: comp_time_label
         DataItem {
             itemtext: formatTime(display) // 传入 UTC 秒数
-            function formatTime(onlineUtcSeconds) {
-                // 当前时间的 UTC 秒数
-                var nowUtc = Math.floor(Date.now() / 1000)
 
-                // 在线秒数
-                var seconds = nowUtc - onlineUtcSeconds
-                if (seconds < 0)
-                    seconds = 0 // 防止上线时间晚于当前时间
-
-                // 格式化 hh:mm:ss
-                var h = Math.floor(seconds / 3600)
-                var m = Math.floor((seconds % 3600) / 60)
-                var s = seconds % 60
-
-                return String(h).padStart(2, "0") + ":" + String(m).padStart(
-                            2, "0") + ":" + String(s).padStart(2, "0")
-            }
         }
     }
 
@@ -1003,15 +888,7 @@ Frame {
         id: comp_str_count
         DataItem {
             itemtext: formatBytes(display)
-            function formatBytes(bytes) {
-                if (bytes === 0)
-                    return "0 B"
-                var k = 1024
-                var sizes = ["Byte", "KB", "MB", "GB", "TB"]
-                var i = Math.floor(Math.log(bytes) / Math.log(k))
-                var value = bytes / Math.pow(k, i)
-                return value.toFixed(3) + " " + sizes[i]
-            }
+
         }
     }
 
@@ -1019,15 +896,6 @@ Frame {
         id: comp_str_speed
         DataItem {
             itemtext: formatBytes(display) + "/s"
-            function formatBytes(bytes) {
-                if (bytes === 0)
-                    return "0 B"
-                var k = 1024
-                var sizes = ["Byte", "KB", "MB", "GB", "TB"]
-                var i = Math.floor(Math.log(bytes) / Math.log(k))
-                var value = bytes / Math.pow(k, i)
-                return value.toFixed(2) + " " + sizes[i]
-            }
         }
     }
 
@@ -1036,7 +904,7 @@ Frame {
         id:comp_lat2dms
         Item{
             Label{
-                text: toDMS(display)
+                text: lattoDMS(display)
                 elide: Label.ElideRight
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -1048,30 +916,6 @@ Frame {
                     rightMargin: 10
                 }
 
-                function toDMS(degrees) {
-                    // 判断正负，决定南北纬
-                      let isPositive = degrees >= 0;
-                      let direction = isPositive ? "N" : "S";
-
-                      // 1. 先取绝对值，再取整
-                      let absVal = Math.abs(degrees);
-                      let d = Math.floor(absVal);
-
-                      // 2. 分
-                      let remainder = (absVal - d) * 60;
-                      let m = Math.floor(remainder);
-
-                      // 3. 秒
-                      let sTotal = (remainder - m) * 60;
-                      let sInteger = Math.floor(sTotal);
-                      let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
-
-                      // 格式化
-                      let sIntegerStr = sInteger.toString().padStart(2, '0');
-                      let degreeStr = d.toString().padStart(3, ' ');
-
-                      return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
-                }
             }
         }
     }
@@ -1080,7 +924,7 @@ Frame {
         id:comp_lon2dms
         Item{
             Label{
-                text: toDMS(display)
+                text: lontoDMS(display)
                 elide: Label.ElideRight
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -1092,28 +936,6 @@ Frame {
                     rightMargin: 10
                 }
 
-                function toDMS(degrees) {
-                    let isPositive = degrees >= 0;
-                    let direction = isPositive ? "E" : "W";
-
-                    // 1. 先取绝对值，再取度
-                    let absVal = Math.abs(degrees);
-                    let d = Math.floor(absVal);
-
-                    // 2. 分
-                    let remainder = (absVal - d) * 60;
-                    let m = Math.floor(remainder);
-
-                    // 3. 秒
-                    let sTotal = (remainder - m) * 60;
-                    let sInteger = Math.floor(sTotal);
-                    let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
-
-                    let sIntegerStr = sInteger.toString().padStart(2, '0');
-                    let degreeStr = d.toString().padStart(3, ' ');
-
-                    return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
-                }
             }
         }
     }
@@ -1135,6 +957,141 @@ Frame {
                 }
             }
         }
+    }
+
+
+    Component{
+        id: comp_mid_label
+        DataItem{
+            itemtext: display
+        }
+    }
+
+
+    Component{
+        id: comp_type_label
+
+        DataItem{
+            itemtext: format_model.get(display).text//"xxxx"//display==  String(display)
+
+            ListModel {
+                id: format_model
+                ListElement {text: qsTr("未知类型"); }
+                ListElement {text: qsTr("实体站点") ; }
+                ListElement {text: qsTr("最近基站模式"); }
+                ListElement {text: qsTr("Ntrip Client接入"); }
+                ListElement {text: qsTr("转发挂载点(TCP Client)"); }
+                ListElement {text: qsTr("转发挂载点(Ntrip)"); }
+            }
+        }
+
+    }
+
+    function getLocalTime(utcSeconds) {
+        if (utcSeconds === 0) {
+            return "-"
+        }
+
+        var localDate = new Date(utcSeconds)
+        // 注意：如果 utcSeconds 是秒，应该乘以 1000
+        if (utcSeconds < 1e12) {
+            // 如果是秒，需要乘以 1000
+            localDate = new Date(utcSeconds * 1000)
+        }
+
+        let ms = String(localDate.getMilliseconds()).padStart(3,
+                                                              "0")
+
+        return localDate.getFullYear(
+                    ) + "-" + String(localDate.getMonth(
+                                         ) + 1).padStart(2, "0")
+                + "-" + String(localDate.getDate()).padStart(
+                    2, "0") + " " + String(
+                    localDate.getHours()).padStart(2, "0")
+                + ":" + String(localDate.getMinutes()).padStart(
+                    2, "0") + ":" + String(
+                    localDate.getSeconds()).padStart(2, "0") + "." + ms
+    }
+
+    function formatTime(onlineUtcSeconds) {
+        // 当前时间（UTC 秒）
+        var nowUtc = Math.floor(Date.now() / 1000)
+
+        // 已在线秒数
+        var seconds = nowUtc - onlineUtcSeconds
+        if (seconds < 0)
+            seconds = 0
+
+        var day = Math.floor(seconds / 86400)        // 1 天 = 86400s
+        var h = Math.floor((seconds % 86400) / 3600)
+        var m = Math.floor((seconds % 3600) / 60)
+        var s = seconds % 60
+
+        var timeStr = String(h).padStart(2, "0")
+                + ":" + String(m).padStart(2, "0")
+                + ":" + String(s).padStart(2, "0")
+
+        if (day > 0)
+            return day + "d " + timeStr
+        else
+            return timeStr
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0)
+            return "0 B"
+        var k = 1024
+        var sizes = ["Byte", "KB", "MB", "GB", "TB"]
+        var i = Math.floor(Math.log(bytes) / Math.log(k))
+        var value = bytes / Math.pow(k, i)
+        return value.toFixed(3) + " " + sizes[i]
+    }
+
+    function lontoDMS(degrees) {
+        let isPositive = degrees >= 0;
+        let direction = isPositive ? "E" : "W";
+
+        // 1. 先取绝对值，再取度
+        let absVal = Math.abs(degrees);
+        let d = Math.floor(absVal);
+
+        // 2. 分
+        let remainder = (absVal - d) * 60;
+        let m = Math.floor(remainder);
+
+        // 3. 秒
+        let sTotal = (remainder - m) * 60;
+        let sInteger = Math.floor(sTotal);
+        let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
+
+        let sIntegerStr = sInteger.toString().padStart(2, '0');
+        let degreeStr = d.toString().padStart(3, ' ');
+
+        return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
+    }
+    function lattoDMS(degrees) {
+        // 判断正负，决定南北纬
+        let isPositive = degrees >= 0;
+        let direction = isPositive ? "N" : "S";
+
+        // 1. 先取绝对值，再取整
+        let absVal = Math.abs(degrees);
+        let d = Math.floor(absVal);
+
+        // 2. 分
+        let remainder = (absVal - d) * 60;
+        let m = Math.floor(remainder);
+
+        // 3. 秒
+        let sTotal = (remainder - m) * 60;
+        let sInteger = Math.floor(sTotal);
+        let sDecimal = (sTotal - sInteger).toFixed(5).slice(1);
+
+        // 格式化
+        let sIntegerStr = sInteger.toString().padStart(2, '0');
+        let degreeStr = d.toString().padStart(3, ' ');
+
+        return `${degreeStr}° ${m.toString().padStart(2, '0')}' ${sIntegerStr}${sDecimal}" ${direction}`;
     }
 
 

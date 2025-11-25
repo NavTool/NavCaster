@@ -265,6 +265,25 @@ int caster_internal::unsub_rover_channel(const char *channel, const char *connec
     return 0;
 }
 
+int caster_internal::set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff)
+{
+    // 更新坐标到状态信息中
+    auto item = _rover_status_map.find(connect_key);
+    if (item == _rover_status_map.end())
+    {
+        return 1;
+    }
+    item->second.set_coord_info(ecef_x, ecef_y, ecef_z, update_time);
+    item->second.set_position_info(Q, sat, diff);
+    // 将ECEF坐标转换成经纬度
+    double lat = 0.0, lon = 0.0, alt = 0.0;
+    util_ecef2pos(ecef_x, ecef_y, ecef_z, lat, lon, alt);
+    // 更新坐标到GEO表中
+    redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD USR:GEO %f %f %s", lon, lat, connect_key); //
+
+    return 0;
+}
+
 std::string caster_internal::get_source_list_text()
 {
     return _source_list_text;
@@ -722,7 +741,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         // 向云端插入记录
         if (_upload_base_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str().c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str(0).c_str());
         }
 
         // 将cb注册回调记录到本地
@@ -787,7 +806,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
         // 向云端插入记录
         if (_upload_rover_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str().c_str()); // 更新挂载点数据生产者的更新时间
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str(1).c_str()); // 更新挂载点数据生产者的更新时间
         }
 
         // 将cb注册回调记录到本地
@@ -928,7 +947,7 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
         str->second.add_recv(data_length);
         if (_upload_base_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str().c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str(0).c_str());
         }
     }
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH MPT:%s %b", mount_point, data, data_length);
@@ -956,7 +975,7 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
         str->second.add_recv(data_length);
         if (_upload_rover_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str().c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str(1).c_str());
         }
     }
 
@@ -1272,7 +1291,7 @@ void caster_internal::Redis_SUB_Base_Callback(redisAsyncContext *c, void *r, voi
                 str->second.add_send(Reply.len);
                 if (svr->_upload_rover_stat)
                 {
-                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
+                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str(1).c_str());
                 }
             }
         }
@@ -1319,7 +1338,7 @@ void caster_internal::Redis_SUB_Rover_Callback(redisAsyncContext *c, void *r, vo
                 str->second.add_send(Reply.len);
                 if (svr->_upload_base_stat)
                 {
-                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str().c_str());
+                    redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str(0).c_str());
                 }
             }
         }
@@ -1772,7 +1791,15 @@ int str_status::set_coord_info(double ecef_x, double ecef_y, double ecef_z, long
     return 0;
 }
 
-std::string str_status::get_status_str()
+int str_status::set_position_info(int quality, int sat_num, double diff)
+{
+    _quality = quality;
+    _sat_num = sat_num;
+    _diff = diff;
+    return 0;
+}
+
+std::string str_status::get_status_str(int type)
 {
     json info;
 
@@ -1797,6 +1824,13 @@ std::string str_status::get_status_str()
     info["position_update_time"] = _position_update_time;
 
     info["update_time"] = _update_time;
+
+    if (type == 1)
+    {
+        info["quality"] = _quality;
+        info["sat_num"] = _sat_num;
+        info["diff"] = _diff;
+    }
 
     return info.dump();
 }

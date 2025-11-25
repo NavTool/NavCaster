@@ -201,7 +201,11 @@ private:
 
     std::time_t _update_time = 0.0; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
 
-
+private:
+    // 用户专有的数据
+    int _quality = 0;   // 定位状态
+    int _sat_num = 0;   // 卫星数
+    double _diff = 0.0; // 差分延迟
 
 public:
     str_status(std::string login_mpt, std::string alias_mpt, int type, std::string user_name, std::string connect_key);
@@ -213,23 +217,23 @@ public:
     int set_alias_mpt(std::string alias_mpt);
 
     int set_coord_info(double ecef_x, double ecef_y, double ecef_z, long long update_time);
+    int set_position_info(int quality, int sat_num, double diff);
 
-    int update_speed();
-
-    std::string get_status_str();
+    std::string get_status_str(int type); // 0 基站  1 移动站
 
 private:
-    struct Sample {
-        int64_t time;  // 秒级时间戳
+    struct Sample
+    {
+        int64_t time; // 秒级时间戳
         size_t bytes;
     };
 
     std::deque<Sample> _recvHistory;
     std::deque<Sample> _sendHistory;
 
-    int _windowSize=60; // 窗口秒数
+    int _windowSize = 60; // 窗口秒数
 
-// 获取当前秒级时间戳
+    // 获取当前秒级时间戳
     int64_t nowSec() const;
 
     // 清理超出窗口的样本
@@ -237,7 +241,6 @@ private:
 
     // 计算平均速度
     double calcAvgSpeed(const std::deque<Sample> &history) const;
-
 };
 
 class relay_item
@@ -309,7 +312,7 @@ private:
     std::unordered_map<std::string, mount_info> _mount_map;        // Mount_Point // 挂载点名为XXXX-F1A6(虚拟挂载点名-本地连接第三方时采用的端口转为4位16进制)
 
     // 集群数据 这些数据需要定期从云端拉取，以减少云端同步的请求压力
-    std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON  
+    std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON
     std::unordered_map<std::string, std::string> _alias_mount_map;   // 别名挂载点                                     MPT:LIST:ALIAS
     std::unordered_map<std::string, std::string> _nearest_mount_map; // 最近挂载点  挂载点信息                          MPT:LIST:NEAREST
     std::unordered_map<std::string, std::string> _active_user_map;   // 在线用户名  用户基本信息                        USR:LIST:COMMON
@@ -375,6 +378,8 @@ public:
     int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_rover_channel(const char *channel, const char *connect_key);
+    // 设置用户坐标信息
+    int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff);
     // 向注册的移动站频道发送状态消息
     int send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
 
@@ -416,7 +421,7 @@ private:
     int sync_cluster_state();      // 主节点同步全局信息到本地
     int relay_task_distribution(); // 主节点执行：Relay任务分发
     int relay_task_response();     // 从节点执行：Relay任务响应
-    int update_alias_source();      // 根据当前在线的挂载点一级别名任务，更新Alias挂载点列表   维护MPT:LIST:ALIAS
+    int update_alias_source();     // 根据当前在线的挂载点一级别名任务，更新Alias挂载点列表   维护MPT:LIST:ALIAS
 
     // 节点频道的回调
     static void Redis_SetMaster_Callback(redisAsyncContext *c, void *r, void *privdata);
@@ -455,10 +460,10 @@ private:
     static void Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // 更新有效挂载点、有效用户的回调
-    static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);   // 拉取MPT:LIST:COMMON
-    static void Redis_Update_Alias_Base_Callback(redisAsyncContext *c, void *r, void *privdata);    // 拉取MPT:LIST:ALIAS
-    static void Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取MPT:LIST:NEAREST
-    static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取USR:LIST
+    static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取MPT:LIST:COMMON
+    static void Redis_Update_Alias_Base_Callback(redisAsyncContext *c, void *r, void *privdata);   // 拉取MPT:LIST:ALIAS
+    static void Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取MPT:LIST:NEAREST
+    static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取USR:LIST
 
     // 查询回调 (传入的privdata 类型 std::unordered_map<std::string, std::string> *
     static void Redis_Get_Hash_Field_Callback(redisAsyncContext *c, void *r, void *privdata);
