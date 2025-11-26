@@ -32,6 +32,7 @@ public:
 
 public:
 
+    // 查询函数
     Q_INVOKABLE QVariantMap getNtripServerInfo(QString UID);
     Q_INVOKABLE QVariantMap getNtripServerInfoByMpt(QString Mpt);
     Q_INVOKABLE QVariantMap getNtripClientInfo(QString UID);
@@ -47,21 +48,33 @@ public:
     // 任务创建者拿到命令ID，监听命令ID，根据反馈执行对应的操作
 
     // 创建任务
+
+    //连接Caster
     Q_INVOKABLE QVariantMap genConnectCasterTemp();
     Q_INVOKABLE QString addConnectCasterOperate(QVariantMap connect_info);
+    Q_INVOKABLE QString addDisconnectCasterOperate();
 
-
+    //连接Auth
     Q_INVOKABLE QVariantMap genConnectAuthTemp();
     Q_INVOKABLE QString addConnectAuthOperate(QVariantMap connect_info);
-
-
-    Q_INVOKABLE QString addDisconnectCasterOperate();
     Q_INVOKABLE QString addDisconnectAuthOperate();
 
-
+    // 全量刷新数据
+    Q_INVOKABLE QString addRefreshNodeOperate();
     Q_INVOKABLE QString addRefreshServerOperate();
     Q_INVOKABLE QString addRefreshClientOperate();
     Q_INVOKABLE QString addRefreshAccountOperate();
+
+
+    // 账号管理
+    Q_INVOKABLE QVariantMap genAccountTemp();
+    Q_INVOKABLE QString addAddAccountOperate(QVariantMap connect_info);  // 添加账号（远程操作，添加完成后，本地也同步更新）
+    Q_INVOKABLE QString addSetAccountOperate(QVariantMap connect_info);  // 修改已有账号信息（远程操作，添加完成后，本地也同步更新）
+    Q_INVOKABLE QString addDelAccountOperate(QVariantMap connect_info);  // 添加账号（添加完成后，本地也同步更新）
+    Q_INVOKABLE QString addGetAccountOperate(QVariantMap connect_info);  // 查询账号（远程操作）
+
+
+
 
     // 执行任务
     Q_INVOKABLE QString excuteOperate(QString op_uid);   // 执行指令
@@ -99,6 +112,8 @@ private slots:
     void onConnectAuthFailed();    // 用于处理连接完成
     void onUpdateAuthRedisCtx(redisAsyncContext *ctx);      // 用于处理连接完成
 
+
+    void onUpdateNodeMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdataServerMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdataClientMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdateAccountMap(QString OP_UID,bool success,QVariantMap info);

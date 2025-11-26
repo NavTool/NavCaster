@@ -5,6 +5,7 @@
 #include "excute/updateServer.h"
 #include "excute/updateClient.h"
 #include "excute/updateAccount.h"
+#include "excute/updateNode.h"
 
 CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
 {
@@ -187,6 +188,23 @@ QString CasterMonitor::addDisconnectAuthOperate()
     return id;
 }
 
+QString CasterMonitor::addRefreshNodeOperate()
+{
+    auto UID = generate_UniqueKey();
+    // 创建对象
+    auto op = std::make_shared<EventUpdateNodeData>();
+
+    // 设置对象属性
+    op->id(UID);
+
+    // 连接信号和槽
+    connect(op.get(),&EventUpdateServerData::operateFinished,this,&CasterMonitor::onUpdateNodeMap);
+
+    // 添加到MAP中，等待任务执行
+    _caster_redis_map.insert(std::pair(UID,op));
+    return UID;
+}
+
 QString CasterMonitor::addRefreshServerOperate()
 {
     auto UID = generate_UniqueKey();
@@ -236,6 +254,36 @@ QString CasterMonitor::addRefreshAccountOperate()
     // 添加到MAP中，等待任务执行
     _caster_redis_map.insert(std::pair(UID,op));
     return UID;
+}
+
+QVariantMap CasterMonitor::genAccountTemp()
+{
+    QVariantMap item;
+    item["solution_UID"] = "";
+    item["output_path"] = "";
+    item["output_format"] = 0;
+
+    return item;
+}
+
+QString CasterMonitor::addAddAccountOperate(QVariantMap connect_info)
+{
+    return QString();
+}
+
+QString CasterMonitor::addSetAccountOperate(QVariantMap connect_info)
+{
+     return QString();
+}
+
+QString CasterMonitor::addDelAccountOperate(QVariantMap connect_info)
+{
+     return QString();
+}
+
+QString CasterMonitor::addGetAccountOperate(QVariantMap connect_info)
+{
+     return QString();
 }
 
 
@@ -341,6 +389,45 @@ void CasterMonitor::onUpdateCasterRedisCtx(redisAsyncContext *ctx)
 void CasterMonitor::onUpdateAuthRedisCtx(redisAsyncContext *ctx)
 {
     _auth_mgr->setRedisCtx(ctx);
+}
+
+void CasterMonitor::onUpdateNodeMap(QString OP_UID, bool success, QVariantMap info)
+{
+    // 所有数据更新标识标志为false
+    for(auto iter:m_caster_node_map)
+    {
+        iter.second->update_flag(false);
+    }
+    //将数据更新到本地的context中去
+
+    // 遍历所有 key-value
+    for (auto it = info.begin(); it != info.end(); ++it) {
+        QString key = it.key();
+        QString value = it.value().toString();
+        auto info = QStringToJson(value);
+
+        auto item =  m_caster_node_map.find(key);
+        if(item == m_caster_node_map.end())
+        {
+            auto obj= std::make_shared<caster_node>();
+            m_caster_node_map.insert(std::pair(key,obj));
+            item =  m_caster_node_map.find(key);
+        }
+        item->second->setInfo(info);
+        item->second->update_flag(true); //设置数据更新标识
+    }
+
+    // //删除所有本次没有更新的元素
+    // auto it = m_ntrip_server_map.begin();
+    // while (it != m_ntrip_server_map.end()) {
+    //     if (it->second->update_flag() == false) {
+    //         it = m_ntrip_server_map.erase(it);  // 删除元素，并更新迭代器
+    //     } else {
+    //         ++it;  // 仅在未删除时前进迭代器
+    //     }
+    // }
+
+    emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdataServerMap(QString OP_UID, bool success, QVariantMap info)

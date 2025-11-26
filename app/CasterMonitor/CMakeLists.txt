@@ -146,12 +146,13 @@ set(SOURCE_FILES
     src/core/EventWorker.h src/core/EventWorker.cpp
     src/core/EventOperationBase.h 
 
-    src/excute/addAccount.h
+    src/excute/AccountOperate.h
     src/excute/connectRedis.h
     src/excute/disconnectRedis.h
     src/excute/updateAccount.h
     src/excute/updateClient.h
     src/excute/updateServer.h
+    src/excute/updateNode.h
     )
 set(MAIN_FILES src/main.cpp)
 

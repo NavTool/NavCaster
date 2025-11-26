@@ -1,6 +1,7 @@
 #include "Caster_Core.h"
 
 #include "Caster_Core.h"
+#include "knt.h"
 #include <string>
 #include <unordered_map>
 #include <set>
@@ -327,6 +328,8 @@ private:
     std::string _updatetime_str;
     long long _updatetime_int;
 
+    long long _startup_time=0;
+
 public:
     bool _is_pub_connected = false;
     bool _is_sub_connected = false;
@@ -410,7 +413,7 @@ private:
     // 上报任务执行状态
     // 上报自己的状态
 
-    std::string _node_ID = "NODE1";
+    std::string _node_ID =  util_generate_random_key(6);
 
     std::unordered_map<std::string, node_status> _cluster_node_map;
     std::unordered_map<std::string, relay_item> _relay_task_map; // 数据转发任务

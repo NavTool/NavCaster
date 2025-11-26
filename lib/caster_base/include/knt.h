@@ -43,6 +43,7 @@ double util_dist3d(double x1, double y1, double z1,
 
 
 
+std::string util_generate_random_key(int length);
 
 
 

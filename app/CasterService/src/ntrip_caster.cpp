@@ -7,6 +7,7 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 #include <event2/http.h>
+#include "SysUsage.h"
 
 #include <malloc.h> //试图解决linux下（glibc）内存不自动释放问题
 // https://blog.csdn.net/kenanxiuji/article/details/48547285
@@ -150,22 +151,26 @@ int ntrip_caster::periodic_task()
     {
         spdlog::info("[Service Statistic]: Connection: {}, Online Server: {}, Online Client: {} , Use Memory: {} BYTE.", _connect_map.size(), _server_map.size(), _client_map.size(), util_get_use_memory());
         spdlog::info("[CasterCore Status]: {}", CASTER::Get_Status());
-    }
 
-    // 更新记录的状态信息
-    update_state_info();
+        // double cpu = SysUsage::getInstance()->getProcessCPU();
+        // size_t mem = SysUsage::getInstance()->getProcessMemory();
+
+        // spdlog::info("[SysUsage Status]: CPU: {:.2f}%, MEM: {:.2f} MB", cpu, mem / 1024.0 / 1024.0);
+
+        // 更新记录的状态信息
+        update_state_info();
 
 #ifdef WIN32
 
 #else
-    malloc_trim(0); // 尝试归还、释放内存
+        malloc_trim(0); // 尝试归还、释放内存
 #endif
 
-    // 检测是否激活
+        // 检测是否激活
 
-    return 0;
+        return 0;
+    }
 }
-
 int ntrip_caster::compontent_init()
 {
     // 初始化请求处理队列
@@ -273,7 +278,7 @@ int ntrip_caster::create_source_ntrip(json req)
     }
 
     auto *source = new source_ntrip(req, con->second);
-    _source_map.insert(std::pair<std::string,source_ntrip*>(connect_key, source));
+    _source_map.insert(std::pair<std::string, source_ntrip *>(connect_key, source));
     source->start();
 
     return 0;
@@ -316,7 +321,7 @@ int ntrip_caster::create_client_ntrip(json req)
     }
     req["Settings"] = _client_setting;
     client_ntrip *ntripc = new client_ntrip(req, con->second);
-    _client_map.insert(std::pair<std::string,client_ntrip*>(connect_key, ntripc));
+    _client_map.insert(std::pair<std::string, client_ntrip *>(connect_key, ntripc));
     ntripc->start();
 
     return 0;
@@ -369,7 +374,7 @@ int ntrip_caster::create_server_ntrip(json req)
     req["Settings"] = _server_setting;
     server_ntrip *ntrips = new server_ntrip(req, con->second);
     // 加入挂载点表中
-    _server_map.insert(std::pair<std::string,server_ntrip*>(connect_key, ntrips));
+    _server_map.insert(std::pair<std::string, server_ntrip *>(connect_key, ntrips));
 
     // 一切准备就绪，启动server
     ntrips->start();

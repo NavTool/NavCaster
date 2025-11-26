@@ -23,6 +23,7 @@ set(SOURCES
     include/decode_rtcm.h src/decode_rtcm.cpp
     include/decode_nmea.h src/decode_nmea.cpp
     include/deviceID.h      src/deviceID.cpp
+    include/SysUsage.h 
     )
     
 

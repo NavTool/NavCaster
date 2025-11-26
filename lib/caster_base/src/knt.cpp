@@ -352,3 +352,25 @@ double util_dist3d(double x1, double y1, double z1, double x2, double y2, double
 
     return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
+
+std::string util_generate_random_key(int length)
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 15); // 生成十六进制数
+
+    // // 获取时间戳和线程ID作为一部分
+    // auto time_now = std::chrono::steady_clock::now().time_since_epoch().count();
+    // auto thread_id = std::this_thread::get_id();
+
+    std::ostringstream oss;
+    // // 使用时间戳和线程ID增加唯一性
+    // oss << std::hex <<thread_id << "-" <<time_now;
+
+    // 随机生成附加的16进制字符，增加随机性
+    for (size_t i = oss.str().size(); i < length; ++i)
+    { // 保证生成指定长度的key
+        oss << std::hex << dis(gen);
+    }
+    return oss.str();
+}

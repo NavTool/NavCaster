@@ -5,6 +5,8 @@
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include "knt.h"
+#include "SysUsage.h"
+#include "version.h"
 
 #define __class__ "caster_internal"
 
@@ -79,6 +81,9 @@ int caster_internal::init(json conf, event_base *base)
 
 int caster_internal::start()
 {
+
+    _startup_time = util_get_now_second();
+
     pubAttemptReconnect();
     subAttemptReconnect();
 
@@ -316,21 +321,24 @@ int caster_internal::Set_Base_Source_Info(const char *mount_point, const char *c
 int caster_internal::upload_node_status()
 {
     // 将本节点的信息上传到Redis
-    std::string status = "xx";
+    json info;
 
-    // 连接数
-    // 基站数量
-    // 移动站数量
-    // Relay任务数量
-    // CPU
-    // 内存
-    // 运行时间
-    // .
+    info["UID"] = _node_ID.c_str();
+    info["set_version"] = PROJECT_SET_VERSION;
+    info["tag_version"] = PROJECT_TAG_VERSION;
+    info["connnect_count"] = _base_status_map.size() + _rover_status_map.size(); // 连接数
+    info["server_count"] = _base_status_map.size();                              // 基站数量
+    info["client_count"] = _rover_status_map.size();                             // 移动站数量
+    info["cpu_usage"] = SysUsage::getInstance()->getProcessCPU();                // CPU
+    info["mem_usage"] = SysUsage::getInstance()->getProcessMemory();             // 内存
+    info["online_time"] = _startup_time;
+
+    info["update_time"] = util_get_now_second();
 
     redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX CASTER:NODE EX %s FIELDS 1 %s %s",
                       std::to_string(_key_expire_time).c_str(),
-                      _node_ID.c_str(), // 节点名
-                      status.c_str());  // 节点状态信息
+                      _node_ID.c_str(),     // 节点名
+                      info.dump().c_str()); // 节点状态信息
 
     return 0;
 }

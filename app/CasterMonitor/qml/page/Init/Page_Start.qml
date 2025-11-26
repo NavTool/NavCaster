@@ -368,9 +368,9 @@ ContentPage {
 
                         var info= {};
 
-                        info.ip  = "127.0.0.1"
+                        info.ip  = "81.68.72.44"
                         info.port= 16379
-                        info.auth= ""
+                        info.auth= "koro_redis"
 
                         var task_uid= CasterMonitor.addConnectCasterOperate(info)
                         CasterMonitor.excuteOperate(task_uid)

@@ -55,39 +55,6 @@
     </message>
 </context>
 <context>
-    <name>GnssResourceController</name>
-    <message>
-        <location filename="src/controller/CasterResourceController.cpp" line="870"/>
-        <source>static</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="src/controller/CasterResourceController.cpp" line="875"/>
-        <source>天线座底部</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="src/controller/CasterResourceController.cpp" line="898"/>
-        <source>静态</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="src/controller/CasterResourceController.cpp" line="903"/>
-        <source>固定解</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="src/controller/CasterResourceController.cpp" line="908"/>
-        <source>合格</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="src/controller/CasterResourceController.cpp" line="925"/>
-        <source>是</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>MainWindow</name>
     <message>
         <location filename="qml/window/MainWindow.qml" line="49"/>
@@ -1437,31 +1404,54 @@
 <context>
     <name>Page_Status</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="24"/>
-        <source>运行时长</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="80"/>
+        <source>负载状态
+CPU/节点数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="36"/>
-        <source>基站/基站上限</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="92"/>
+        <source>在线基站/基站上限</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="48"/>
-        <source>移动站/移动站上限</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="104"/>
+        <source>在线移动站/移动站上限</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="61"/>
-        <source>CPU占用</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="118"/>
+        <source>集群状态
+运行中/未启动/离线</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="75"/>
-        <source>CPU占用
-基站/移动站/连接数
-
-</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="142"/>
+        <source>用户数
+  104/856</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="153"/>
+        <source>异常事件
+  13</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="164"/>
+        <source>数据接入
+  104/856</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="174"/>
+        <source>数据推送
+  104/856</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="186"/>
+        <source>节点状态</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
