@@ -328,7 +328,7 @@ private:
     std::string _updatetime_str;
     long long _updatetime_int;
 
-    long long _startup_time=0;
+    long long _startup_time = 0;
 
 public:
     bool _is_pub_connected = false;
@@ -339,6 +339,8 @@ public:
     std::string _sub_context_errstr;
     redisAsyncContext *_pub_context = nullptr;
     redisAsyncContext *_sub_context = nullptr;
+    int _sub_ping_fail_count = 0;
+    int _pub_ping_fail_count = 0;
 
 public:
     caster_internal();
@@ -413,11 +415,13 @@ private:
     // 上报任务执行状态
     // 上报自己的状态
 
-    std::string _node_ID =  util_generate_random_key(6);
+    std::string _node_ID = util_generate_random_key(6);
 
     std::unordered_map<std::string, node_status> _cluster_node_map;
     std::unordered_map<std::string, relay_item> _relay_task_map; // 数据转发任务
     std::unordered_map<std::string, relay_item> _relay_stat_map; // 数据转发任务的状态
+
+    int check_redis_connection();
 
     int upload_node_status();      // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
     int try_set_master_node();     // 尝试设置为主节点
@@ -474,6 +478,11 @@ private:
     static void Redis_Get_Set_Value_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // 异常处理机制：
+
+    static void Redis_Sub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Pub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
+
+
     // redis断开连接
     // 如果是pub发生连接断开
 

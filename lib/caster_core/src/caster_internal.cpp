@@ -318,6 +318,33 @@ int caster_internal::Set_Base_Source_Info(const char *mount_point, const char *c
     return 0;
 }
 
+int caster_internal::check_redis_connection()
+{
+    if (_sub_ping_fail_count > 2)
+    {
+        spdlog::error("[{}] Redis SUB connection lost, try to reconnect...", __class__);
+
+        _is_sub_connected = false;
+        subAttemptReconnect();
+        _sub_ping_fail_count = 0;
+    }
+
+    if (_pub_ping_fail_count > 2)
+    {
+        spdlog::error("[{}] Redis PUB connection lost, try to reconnect...", __class__);
+        _is_pub_connected = false;
+        pubAttemptReconnect();
+        _pub_ping_fail_count = 0;
+    }
+
+    _sub_ping_fail_count++;
+    _pub_ping_fail_count++;
+    redisAsyncCommand(_pub_context, Redis_Pub_Ping_Callback, this, "PING");
+    redisAsyncCommand(_sub_context, Redis_Sub_Ping_Callback, this, "PING");
+
+    return 0;
+}
+
 int caster_internal::upload_node_status()
 {
     // 将本节点的信息上传到Redis
@@ -716,6 +743,7 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
     // 如果过期，认为连接已出现未知状况，连接状态置为0，触发重连机制
 
     // 向redis ping，根据回调确认连接正常
+    svr->check_redis_connection();
 
     //  清除本地不再有实际连接注册的基站，这样就不会给这些已经不在线的基站在MPT:LIST:COMMON中续期
     svr->clear_overdue_item();
@@ -1388,6 +1416,22 @@ void caster_internal::Redis_Get_Set_Value_Callback(redisAsyncContext *c, void *r
         auto value = reply->element[i]->str; // 调试用
         set->insert(value);
     }
+}
+
+void caster_internal::Redis_Sub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    svr->_sub_ping_fail_count = 0;
+}
+
+void caster_internal::Redis_Pub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    svr->_pub_ping_fail_count = 0;
 }
 
 int caster_internal::subAttemptReconnect()
