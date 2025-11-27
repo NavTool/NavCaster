@@ -2,7 +2,7 @@
 #include <QQmlEngine>
 #include <qflags.h>
 #include <qqmlcontext.h>
-#include "Version.h"
+#include "version.h"
 #include "deviceID.h"
 
 

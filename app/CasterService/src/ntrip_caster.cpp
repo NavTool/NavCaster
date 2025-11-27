@@ -159,7 +159,7 @@ int ntrip_caster::periodic_task()
 
         // 更新记录的状态信息
         update_state_info();
-
+    }
 #ifdef WIN32
 
 #else
@@ -169,7 +169,6 @@ int ntrip_caster::periodic_task()
         // 检测是否激活
 
         return 0;
-    }
 }
 int ntrip_caster::compontent_init()
 {

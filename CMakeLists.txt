@@ -265,7 +265,7 @@ add_subdirectory(lib)
 add_subdirectory(dev)
 
 #基于version.h.in 生成 version.h
-configure_file(${CMAKE_SOURCE_DIR}/.cmake/Version.h.in ${CMAKE_BINARY_DIR}/Version.h @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
 
 
 

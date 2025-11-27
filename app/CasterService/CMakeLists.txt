@@ -149,9 +149,8 @@ add_executable(${PROJECT_NAME}
 
 #生成的可执行文件名称和包含的文件
 
-#基于version.h.in 生成 version.h
-configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in version.h @ONLY)
-target_include_directories(${PROJECT_NAME}  PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
+target_include_directories(${PROJECT_NAME}  PRIVATE ${CMAKE_BINARY_DIR})
 
 #基于工程目录下的配置文件 生成 执行目录下的配置文件
 #设置可执行程序生成路径

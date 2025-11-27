@@ -1,5 +1,5 @@
 #include "auth_verify_internal.h"
-
+#include <list>
 #include <spdlog/spdlog.h>
 #include "knt.h"
 

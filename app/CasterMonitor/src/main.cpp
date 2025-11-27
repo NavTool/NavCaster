@@ -7,7 +7,7 @@
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QtQml/qqmlextensionplugin.h>
-#include "Version.h"
+#include "version.h"
 #include "frame.hpp"
 
 

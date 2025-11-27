@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <cstdint>
 // 流式RTCM解析器 Service和Monitor共用的解析器
 //  对于Service来说，只需要解析基本的坐标信息即可
 //  对于Monitor来说，可以解析更多信息，比如有哪些报文，数据的频率，坐标、不同系统的卫星数、卫星频点情况

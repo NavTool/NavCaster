@@ -175,7 +175,6 @@ public:
 
 public:
 
-    QTimer *m_timer;
 
 
 public:

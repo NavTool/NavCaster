@@ -22,8 +22,9 @@ public:
 
     SysUsage()
     {
-        lastCPU = lastSysCPU = lastUserCPU = {0};
 #if defined(_WIN32)
+        lastCPU = lastSysCPU = lastUserCPU = {0};
+
         SYSTEM_INFO sysInfo;
         FILETIME ftime, fsys, fuser;
 

@@ -382,6 +382,7 @@ target_link_libraries(
     casterbase
     castercore
     authverify
+    event_pthreads_static
 )
 target_include_directories(test_Monitor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
