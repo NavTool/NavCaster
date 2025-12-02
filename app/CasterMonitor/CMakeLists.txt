@@ -33,7 +33,9 @@ set(QML_FILES
 
 # dialog
     qml/dialog/Monitor/Dialog_Account_AddAccount.qml
-
+    qml/dialog/Monitor/Dialog_Alias_AddAlias.qml
+    qml/dialog/Monitor/Dialog_Relay_AddPull.qml
+    qml/dialog/Monitor/Dialog_Relay_AddPush.qml
 
 # extra
 # 扩展样式组件    
@@ -135,13 +137,16 @@ set(SOURCE_FILES
     src/context/caster_node.h
     src/context/ntrip_client.h
     src/context/ntrip_server.h
+    src/context/relay_pull.h
+    src/context/relay_push.h
 
-    src/controller/CasterResourceController.h src/controller/CasterResourceController.cpp
-    src/controller/ClientDataController.h src/controller/ClientDataController.cpp
-    src/controller/EventDataController.h src/controller/EventDataController.cpp
-    src/controller/RelayDataController.h src/controller/RelayDataController.cpp
-    src/controller/ServerDataController.h src/controller/ServerDataController.cpp
-    src/controller/AccountDataController.h src/controller/AccountDataController.cpp
+    src/controller/CasterResourceController.h 
+    src/controller/ClientDataController.h 
+    src/controller/EventDataController.h 
+    src/controller/ServerDataController.h 
+    src/controller/AccountDataController.h 
+    src/controller/PullDataController.h 
+    src/controller/PushDataController.h 
 
     src/core/EventWorker.h src/core/EventWorker.cpp
     src/core/EventOperationBase.h 
@@ -149,6 +154,8 @@ set(SOURCE_FILES
     src/excute/AccountOperate.h
     src/excute/connectRedis.h
     src/excute/disconnectRedis.h
+    src/excute/pullOperate.h
+    src/excute/pushOperate.h
     src/excute/updateAccount.h
     src/excute/updateClient.h
     src/excute/updateServer.h

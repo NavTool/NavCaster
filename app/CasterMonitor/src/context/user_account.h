@@ -103,6 +103,9 @@ private:
     PROPERTY_AUTO(std::string, contact_person);      // 联系人
     PROPERTY_AUTO(std::string, contact_info);        // 联系方式
 
+    PROPERTY_AUTO(std::string, remarks);        // 备注
+
+
     PROPERTY_AUTO(time_t, time_modified);    // 记录更新时间
 
     PROPERTY_AUTO(bool,update_flag);
@@ -130,6 +133,8 @@ public:
         contact_name("");
         contact_person("");
         contact_info("");
+
+        remarks("");
 
         time_modified(0);
         update_flag(false);
@@ -159,6 +164,8 @@ public:
         info["contact_person"] = contact_person();
         info["contact_info"] = contact_info();
 
+        info["remarks"]= remarks();
+
         info["time_modified"] = time_modified();
 
         info["update_flag"] = update_flag();
@@ -187,6 +194,7 @@ public:
         contact_name(info, "contact_name");
         contact_person(info, "contact_person");
         contact_info(info, "contact_info");
+        remarks(info,"remarks");
 
         time_modified(info, "time_modified");
 

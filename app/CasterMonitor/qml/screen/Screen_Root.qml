@@ -62,7 +62,10 @@ Item{
     PageRouter{
         id: dialog_router
         routes: {
-            "/monitor/dialog/account/add_account": R.resolvedUrl("qml/dialog/Monitor/Dialog_Account_AddAccount.qml")
+            "/monitor/dialog/account/add_account": R.resolvedUrl("qml/dialog/Monitor/Dialog_Account_AddAccount.qml"),
+            "/monitor/dialog/alias/add_alias": R.resolvedUrl("qml/dialog/Monitor/Dialog_Alias_AddAlias.qml"),
+            "/monitor/dialog/relay/add_pull": R.resolvedUrl("qml/dialog/Monitor/Dialog_Relay_AddPull.qml"),
+            "/monitor/dialog/relay/add_push": R.resolvedUrl("qml/dialog/Monitor/Dialog_Relay_AddPush.qml")
         }
     }
 

@@ -49,7 +49,7 @@ using json = nlohmann::json;
     ACT:ACCOUNT                [账号名-账号信息]        所有注册账号的信息                        所有已经注册的账户信息（不过期）   注册账号的时候，如果是激活状态，那就向ACTIVE中写入一条记录，如果是非激活状态，那就删除掉
     ACT:UNNAMED                                                                                匿名账户
     ACT:REC:KORO5              账号名-[连接的ConnectKey-添加记录时间]  （每条的有有效期是固定的）
-
+    ACT:UND:KORO5              账号名-[连接的ConnectKey-添加记录时间]  匿名账户的登录记录（每条的有有效期是固定的）
 */
 
 struct auth_ctx

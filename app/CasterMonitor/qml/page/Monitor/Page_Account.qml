@@ -370,24 +370,16 @@ Frame {
                             }
                             frozen: false
                         }
-                        ListElement {
-                            title: qsTr("账号类型")
-                            dataIndex: "type"
-                            width: 100
-                            rowDelegate: function () {
-                                return comp_type_label
-                            }
-                            frozen: false
-                        }
+
+
 
                         ListElement {
-                            title: qsTr("账号状态")
-                            dataIndex: "UID"
-                            width: 120
+                            title: qsTr("用户名/机构名")
+                            dataIndex: "contact_name"
                             rowDelegate: function () {
-                                return comp_state_label
+                                return comp_mid_label
                             }
-                            frozen: false
+                            width: 200
                         }
 
                         ListElement {
@@ -401,7 +393,7 @@ Frame {
                         }
 
                         ListElement {
-                            title: qsTr("账号接入类型")
+                            title: qsTr("准入类型")
                             dataIndex: "access"
                             rowDelegate: function () {
                                 return comp_access_label
@@ -409,44 +401,45 @@ Frame {
                             width: 200
                             frozen: false
                         }
+                        ListElement {
+                            title: qsTr("账号类型")
+                            dataIndex: "type"
+                            width: 100
+                            rowDelegate: function () {
+                                return comp_type_label
+                            }
+                            frozen: false
+                        }
 
                         ListElement {
-                            title: qsTr("注册日期")
-                            dataIndex: "time_register"
+                            title: qsTr("启用状态")
+                            dataIndex: "state"
+                            width: 120
                             rowDelegate: function () {
-                                return comp_date_label
+                                return comp_state_label
                             }
-                            width: 180
                             frozen: false
                         }
                         ListElement {
-                            title: qsTr("激活日期")
+                            title: qsTr("激活状态")
                             dataIndex: "time_active"
+                            width: 120
                             rowDelegate: function () {
-                                return comp_date_label
+                                return comp_active_label
                             }
-                            width: 180
                             frozen: false
                         }
                         ListElement {
-                            title: qsTr("失效日期")
+                            title: qsTr("可用状态")
                             dataIndex: "time_expired"
+                            width: 120
                             rowDelegate: function () {
-                                return comp_date_label
+                                return comp_expired_label
                             }
-                            width: 180
                             frozen: false
                         }
 
 
-                        ListElement {
-                            title: qsTr("用户名/机构名")
-                            dataIndex: "contact_name"
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            width: 200
-                        }
                         ListElement {
                             title: qsTr("联系人")
                             dataIndex: "contact_person"
@@ -462,6 +455,17 @@ Frame {
                                 return comp_mid_label
                             }
                             width: 200
+                        }
+
+
+                        ListElement {
+                            title: qsTr("注册日期")
+                            dataIndex: "time_register"
+                            rowDelegate: function () {
+                                return comp_date_label
+                            }
+                            width: 180
+                            frozen: false
                         }
                         ListElement {
                             title: qsTr("记录修改日期")
@@ -900,6 +904,22 @@ Frame {
             itemtext: formatState(display) // 传入 UTC 秒数
         }
     }
+
+    Component{
+        id: comp_active_label
+
+        DataItem {
+            itemtext: formatActive(display) // 传入 UTC 秒数
+        }
+    }
+    Component{
+        id: comp_expired_label
+
+        DataItem {
+            itemtext: formatExpired(display) // 传入 UTC 秒数
+        }
+    }
+
     Component{
         id: comp_access_label
 
@@ -912,73 +932,67 @@ Frame {
     {
         switch (type) {
         case 0:
-            return qsTr("永久账号")
+            return qsTr("长期")
         case 1:
-            return qsTr("期限账号(失效日期)")
+            return qsTr("期限")
         case 2:
-            return qsTr("期限账号(激活天数)")
+            return qsTr("期限")
         case 3:
-            return qsTr("时限账号(在线时长)")
+            return qsTr("时限")
         default:
             return qsTr("未知")
         }
     }
 
 
-    function formatState(UID)
+    function formatState(state)
     {
-
-       var info=CasterMonitor.getUserAccountInfo(UID)
-
-        var data=new Date()
-        var utc = Math.floor(data.getTime() / 1000)
-
-        if(info.state===0)
+        if(state===0)
         {
-            //已经停用
-
-            if(info.type===0)
-            {
-                return qsTr("未启用")
-            }
-
-            if(info.time_expired>data)
-            {
-                return qsTr("未启用(已过期)")
-            }
-            else if(info.time_active===0)
-            {
-                return qsTr("未启用(未激活)")
-            }
-            else
-            {
-                return qsTr("未启用(已激活)")
-            }
-        }
-        else if(info.state===1)
-        {
-            // 已经启用
-            if(info.type===0)
-            {
-                return qsTr("已启用")
-            }
-
-            if(info.time_expired < data)
-            {
-                return qsTr("已启用(已过期)")
-            }
-            else if(info.time_active===0)
-            {
-                return qsTr("已启用(未激活)")
-            }
-            else
-            {
-                return qsTr("已启用(已激活)")
-            }
+            return qsTr("已停用")
         }
         else
         {
-            return qsTr("未知")
+            // 已经启用
+            return qsTr("已启用")
+        }
+    }
+
+    function formatActive(state)
+    {
+        if(state===0)
+        {
+            return qsTr("未激活")
+        }
+        else
+        {
+            // 已经启用
+            return qsTr("已激活")
+        }
+    }
+    function formatExpired(expireUtcSeconds)
+    {
+
+        if(expireUtcSeconds===0)
+        {
+            return "正常"
+        }
+
+        // 当前 UTC 秒
+        var nowUtc = Math.floor(Date.now() / 1000)
+        // 剩余秒数
+        var remaining = expireUtcSeconds - nowUtc
+
+        if (remaining <= 0) {
+            return "已过期"
+        } else if (remaining < 24 * 3600) {
+            return "不足1天"
+        } else if (remaining < 3 * 24 * 3600) {
+            return "不足3天"
+        } else if (remaining < 7 * 24 * 3600) {
+            return "不足7天"
+        } else {
+            return "正常"
         }
     }
 

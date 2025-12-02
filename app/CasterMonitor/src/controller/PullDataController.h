@@ -4,13 +4,13 @@
 #include <QThreadPool>
 #include "CasterMonitor.h"
 
-class EventDataController : public QObject
+class PullDataController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY_AUTO(QList<QVariantMap>, data)
     QML_ELEMENT
 public:
-    explicit EventDataController(QObject *parent = nullptr) : QObject{parent}
+    explicit PullDataController(QObject *parent = nullptr) : QObject{parent}
     {
     }
     Q_SIGNAL void loadDataStart();
