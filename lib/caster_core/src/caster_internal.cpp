@@ -1810,7 +1810,7 @@ str_status::~str_status()
 int str_status::add_recv(int size)
 {
     _recv_total += size;
-    _update_time = nowSec();
+    _update_time = util_get_now_second();
     _recvHistory.push_back({_update_time, _recv_total});
     cleanOld(_recvHistory, _update_time);
     _recv_speed = calcAvgSpeed(_recvHistory);
@@ -1821,7 +1821,7 @@ int str_status::add_recv(int size)
 int str_status::add_send(int size)
 {
     _send_total += size;
-    _update_time = nowSec();
+    _update_time = util_get_now_second();
     _sendHistory.push_back({_update_time, _send_total});
     cleanOld(_sendHistory, _update_time);
     _send_speed = calcAvgSpeed(_sendHistory);
@@ -1885,12 +1885,6 @@ std::string str_status::get_status_str(int type)
     }
 
     return info.dump();
-}
-
-int64_t str_status::nowSec() const
-{
-    using namespace std::chrono;
-    return duration_cast<seconds>(steady_clock::now().time_since_epoch()).count();
 }
 
 void str_status::cleanOld(std::deque<Sample> &history, int64_t now)
