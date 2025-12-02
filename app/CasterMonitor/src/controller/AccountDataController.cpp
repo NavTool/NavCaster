@@ -1,5 +1,5 @@
 #include "AccountDataController.h"
-
+#include "CasterMonitor.h"
 
 #include <QThreadPool>
 
@@ -7,30 +7,27 @@ AccountDataController::AccountDataController(QObject *parent) : QObject{parent}
 {
 }
 
-void AccountDataController::loadData(const QString UID)
+void AccountDataController::loadData()
 {
-    //创建一个线程执行数据读取操作
-    QThreadPool::globalInstance()->start(
-        [UID,this]()
+    Q_EMIT loadDataStart();
+
+    m_data.clear();
+
+    auto data_map=CasterMonitor::getInstance()->m_user_account_map;
+
+    for(auto iter:data_map)
+    {
+        auto info = iter.second->info();
+        QVariantMap data= JsonToQVariantMap(info);
+
+        if(data["update_flag"].toBool() == false)
         {
-            Q_EMIT loadDataStart();
+            // continue;
+        }
+        m_data.append(data);
+    }
 
-            m_data.clear();  //清除数据
-          
+    Q_EMIT loadDataSuccess();
 
-                for(int i=100;i<120;i++)
-                {
-
-
-                    QVariantMap data;//= JsonToQVariantMap(info);
-                   
-                    data["mpt"]=i;
-
-                    m_data.append(data);
-                }
-
-            
-            Q_EMIT loadDataSuccess();
-        });
 }
 

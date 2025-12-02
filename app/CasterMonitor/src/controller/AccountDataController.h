@@ -15,7 +15,7 @@ public:
     explicit AccountDataController(QObject *parent = nullptr);
     Q_SIGNAL void loadDataStart();
     Q_SIGNAL void loadDataSuccess();
-    Q_INVOKABLE void loadData(const QString UID);
+    Q_INVOKABLE void loadData();
 
 private:
 

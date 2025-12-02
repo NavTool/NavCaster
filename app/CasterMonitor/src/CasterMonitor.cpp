@@ -1,5 +1,6 @@
 #include <sstream>
 #include "CasterMonitor.h"
+#include "AccountOperate.h"
 #include "excute/connectRedis.h"
 #include "excute/disconnectRedis.h"
 #include "excute/updateServer.h"
@@ -258,30 +259,41 @@ QString CasterMonitor::addRefreshAccountOperate()
 
 QVariantMap CasterMonitor::genAccountTemp()
 {
-    QVariantMap item;
-    item["solution_UID"] = "";
-    item["output_path"] = "";
-    item["output_format"] = 0;
-
-    return item;
+    user_account item;
+    auto json_info= item.info();
+    // json_info.erase("update_flag");
+    return JsonToQVariantMap(json_info);
 }
 
-QString CasterMonitor::addAddAccountOperate(QVariantMap connect_info)
+QString CasterMonitor::addAddAccountOperate(QVariantMap account_info)
 {
-    return QString();
+    auto UID = generate_UniqueKey();
+    // 创建对象
+    auto op = std::make_shared<EventAddAccount>();
+
+    // 设置对象属性
+    op->id(UID);
+    op->account_info(account_info);
+
+    // 连接信号和槽
+    connect(op.get(),&EventAddAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
+
+    // 添加到MAP中，等待任务执行
+    _caster_redis_map.insert(std::pair(UID,op));
+    return UID;
 }
 
-QString CasterMonitor::addSetAccountOperate(QVariantMap connect_info)
+QString CasterMonitor::addSetAccountOperate(QVariantMap account_info)
 {
      return QString();
 }
 
-QString CasterMonitor::addDelAccountOperate(QVariantMap connect_info)
+QString CasterMonitor::addDelAccountOperate(QVariantMap account_info)
 {
      return QString();
 }
 
-QString CasterMonitor::addGetAccountOperate(QVariantMap connect_info)
+QString CasterMonitor::addGetAccountOperate(QVariantMap account_info)
 {
      return QString();
 }

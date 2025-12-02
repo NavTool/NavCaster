@@ -7,6 +7,14 @@ import CasterMonitor
 
 ContentPage {
 
+    id:root
+
+    property string login_ip: ""
+    property int login_port:0
+    property string login_auth:""
+
+
+
     property var colors : [Colors.yellow,Colors.orange,Colors.red,Colors.magenta,Colors.purple,Colors.blue,Colors.teal,Colors.green]
 
     property var randomAccentColor: function(){
@@ -293,6 +301,16 @@ ContentPage {
                     TextBox{
                         width: 220
                         height: 35
+
+
+                        onTextChanged:
+                        {
+                            root.login_ip=text
+                        }
+                        Component.onCompleted:
+                        {
+                            text="127.0.0.1"
+                        }
                     }
                 }
                 Row{
@@ -310,6 +328,17 @@ ContentPage {
                     TextBox{
                         width: 220
                         height: 35
+
+                        onTextChanged:
+                        {
+                            root.login_port=text
+                        }
+
+                        Component.onCompleted:
+                        {
+                            text=16379
+                        }
+
                     }
                 }
                 Row{
@@ -324,9 +353,16 @@ ContentPage {
                         }
                     }
 
-                    TextBox{
+                    PasswordBox{
                         width: 220
                         height: 35
+
+
+                        onTextChanged:
+                        {
+                            root.login_auth=text
+                        }
+
                     }
                 }
 
@@ -368,9 +404,9 @@ ContentPage {
 
                         var info= {};
 
-                        info.ip  = "81.68.72.44"
-                        info.port= 16379
-                        info.auth= "koro_redis"
+                        info.ip  = root.login_ip
+                        info.port= root.login_port
+                        info.auth=  root.login_auth
 
                         var task_uid= CasterMonitor.addConnectCasterOperate(info)
                         CasterMonitor.excuteOperate(task_uid)

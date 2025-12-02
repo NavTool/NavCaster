@@ -11,15 +11,62 @@ Item {
     property PageContext context
     property var argument
 
+    id: root
 
-    id:root
+    property string opUid:""
 
+    // property string uid: "" //对于Ntrip1.0 Server账号，UID是 密码，其他的UID都是用户名
 
-    property int account_type:0   // 0 永久  1：期限（天数）  2：期限（日期） 3：时限
+    property string account: ""
+    property string password
 
+    property int account_type      // 0 永久  1：期限（天数）  2：期限（日期） 3：时限
+    property int account_state
+
+    property int access: 0
+    property int access_limit: 0
+    property string access_group: ""
+
+    property int time_valid
+    property int time_limit
+    property int time_expired
+    // property int time_active
+    // property int time_register
+
+    property string contact_name
+    property string contact_person
+    property string contact_info
+
+    // property int time_modified
+
+    property var account_info
 
     Component.onCompleted: {
+
+        account_info = CasterMonitor.genAccountTemp()
+
+        console.log(Util.safeStringify(account_info))
+
         contentDialog.open()
+    }
+
+
+
+    Connections {
+        target: CasterMonitor
+
+        function onOperateFinished(taskID, success, info) {
+            if (taskID !== opUid) {
+                return  //非当前指令,跳过
+            }
+            // 执行数据刷新操作
+
+            if(success)
+            {
+                tip_top.showSuccess(qsTr("账号添加完成"))
+            }
+
+        }
     }
 
     Dialog {
@@ -31,7 +78,101 @@ Item {
         closePolicy: Popup.NoAutoClose //设置不自动关闭，如果设置了点击空白处这个对话框就会关闭
         modal: true
         title: qsTr("添加账号")
-        standardButtons: Dialog.Yes | Dialog.No
+        standardButtons:Dialog.Cancel  ////DialogButtonBox.NoButton//
+        footer:DialogButtonBox {
+            Button {
+                text: qsTr("添加")
+                highlighted:true
+                // DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+
+                onClicked: {
+
+                    var data=new Date()
+                    var utc = Math.floor(data.getTime() / 1000)
+
+                    // 填充用户信息
+
+                    account_info.UID            = root.access===4 ? root.password:root.account
+                    account_info.account        = root.access===4 ? root.password:root.account
+                    account_info.password       = root.password
+
+                    account_info.type           = root.account_type
+                    account_info.state          = root.account_state
+
+                    account_info.access         = root.access
+                    account_info.access_limit   = root.access_limit
+                    account_info.access_group   = root.access_group
+
+                    account_info.time_valid     = root.account_type  === 2 ? root.time_valid : 0
+                    account_info.time_limit     = root.account_type  === 3 ? root.time_limit : 0
+                    account_info.time_active    = root.account_state === 1 ? utc : 0
+                    account_info.time_expired   = root.time_expired
+                    account_info.time_register  = utc
+
+                    account_info.contact_name   = root.contact_name
+                    account_info.contact_person = root.contact_person
+                    account_info.contact_info   = root.contact_info
+
+                    account_info.time_modified  = utc
+
+                    console.log(Util.safeStringify(account_info))
+
+
+                    // 判断账号是否合法
+
+                    // //创建任务
+
+
+                    if(account_info.account==="")
+                    {
+                        confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("输入账号为空，请检查！"))
+                        return
+                    }
+                    if(account_info.password==="")
+                    {
+                        confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("输入密码为空，请检查！"))
+                        return
+                    }
+                    if(account_info.type!==0 && account_info.time_expired===0 )
+                    {
+                        confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("非永久账号需要输入账号过期/失效日期，请检查！"))
+                        return
+                    }
+                    if(account_info.type===2 && account_info.time_time_valid <= 0)
+                    {
+                        confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("期限账号输入有效天数异常，请检查！"))
+                        return
+                    }
+                    if(account_info.type===3 && account_info.time_limit <= 0)
+                    {
+                        confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("期限账号输入可用时长异常，请检查！"))
+                        return
+                    }
+
+
+                    if(Global.debugMode)
+                    {
+                        // console.log(Util.safeStringify(data))
+                        return
+                    }
+
+                    root.opUid=CasterMonitor.addAddAccountOperate(account_info);
+
+                    CasterMonitor.excuteOperate(root.opUid)
+
+
+                    // root.task_UID=  GNSS_API.createConvRinexTask(data)
+                    // var para= GNSS_API.getTaskPara(task_UID)
+                    // para.taskname=qsTr("Rinex转换")
+                    // console.log(Util.safeStringify(para))
+                    // GNSS_API.setTaskPara(task_UID,para)
+
+                    // convRinexDialog.startTask(task_UID)
+                }
+            }
+        }
+
+
 
         width: 600
         contentHeight: 500
@@ -44,7 +185,6 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 spacing: 10
-
 
                 Row {
                     Label {
@@ -62,6 +202,11 @@ Item {
 
                     TextBox {
                         width: 400
+
+                        onTextChanged:
+                        {
+                            root.contact_name=text
+                        }
                     }
                 }
 
@@ -74,6 +219,11 @@ Item {
 
                     TextBox {
                         width: 185
+
+                        onTextChanged:
+                        {
+                            root.contact_person=text
+                        }
                     }
                     Label {
                         text: qsTr("联系方式:")
@@ -82,6 +232,10 @@ Item {
 
                     TextBox {
                         width: 185
+                        onTextChanged:
+                        {
+                            root.contact_info=text
+                        }
                     }
                 }
 
@@ -99,7 +253,16 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     TextBox {
-                        width: 450
+                        width: 400
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        onTextChanged:
+                        {
+                            root.account=text;
+                        }
+                    }
+                    Button {
+                        text: "验证"
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -114,6 +277,11 @@ Item {
                         width: 400
                         placeholderText: "TextField"
                         anchors.verticalCenter: parent.verticalCenter
+
+                        onTextChanged:
+                        {
+                            root.password=text;
+                        }
                     }
                     Button {
                         text: "生成"
@@ -129,22 +297,39 @@ Item {
                     TextBox {
                         width: 100
                         anchors.verticalCenter: parent.verticalCenter
+
+                        onTextChanged:
+                        {
+                            root.access_limit=text
+                        }
+                        Component.onCompleted:
+                        {
+                            text=5
+                        }
                     }
 
                     Item {
                         height: 1
-                        width: 50
+                        width: 20
                     }
 
                     Label {
                         text: "接入类型:"
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    CheckBox {
-                        text: "基准站"
-                    }
-                    CheckBox {
-                        text: "移动站"
+                    ComboBox {
+                        width: 180
+                        model: ["Ntrip Server/Client","Ntrip1.0/2.0 Client", "Ntrip1.0 Server", "Ntrip2.0 Server"]
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        onCurrentIndexChanged: {
+
+                            root.access=currentIndex+1;
+                        }
+                        Component.onCompleted:
+                        {
+                            currentIndex=1
+                        }
                     }
                 }
 
@@ -154,7 +339,7 @@ Item {
                         text: qsTr("访问权限:")
                         anchors.verticalCenter: parent.verticalCenter
                     }
-                    MultiSelectComboBox{
+                    MultiSelectComboBox {
                         width: 420
                         anchors.verticalCenter: parent.verticalCenter
                         model: ["完全访问", "XX机构专用", "内部测试", "最近点模式", "代理模式"]
@@ -180,25 +365,60 @@ Item {
                     }
                     ComboBox {
                         width: 335
-                        model: ["永久账号", "期限账号(天数)", "期限账号(日期)", "时限账号"]
+                        model: ["永久账号", "期限账号(过期时间)", "期限账号(激活天数)", "时限账号(在线时长)"]
                         anchors.verticalCenter: parent.verticalCenter
 
-                        onCurrentIndexChanged:
-                        {
-                           root.account_type=currentIndex
+                        onCurrentIndexChanged: {
+                            root.account_type = currentIndex
                         }
 
+                        Component.onCompleted:
+                        {
+                            currentIndex=0
+                        }
                     }
                     CheckBox {
                         text: "立即激活"
                         anchors.verticalCenter: parent.verticalCenter
+
+
+                        onCheckedChanged:
+                        {
+                            root.account_state=checked?1:0
+                        }
+                        Component.onCompleted:
+                        {
+                            checked=true
+                        }
+
+
+                    }
+                }
+                Row {
+                    visible: root.account_type === 1
+
+                    spacing: 10
+                    Label {
+                        text: "过期时间:"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    CalendarPicker {
+                        showTime: true
+                        anchors.verticalCenter: parent.verticalCenter
+
+                        onCurrentChanged:
+                        {
+                            var utcSeconds = Math.floor(current.getTime() / 1000)
+                            root.time_expired= utcSeconds
+                            console.log(utcSeconds)
+                        }
                     }
                 }
 
                 Row {
                     spacing: 10
 
-                    visible: root.account_type===1
+                    visible: root.account_type === 2
 
                     Label {
                         text: qsTr("有效天数:")
@@ -206,7 +426,7 @@ Item {
                     }
                     ComboBox {
 
-                        width:150
+                        width: 150
 
                         model: ListModel {
                             id: model
@@ -236,11 +456,29 @@ Item {
                             }
                         }
                         editable: true
+
+
                         onAccepted: {
                             if (find(editText) === -1)
+                            {
                                 model.append({
                                                  "text": editText
                                              })
+
+                                root.time_valid=editText
+                            }
+
+                        }
+
+                        onEditTextChanged:
+                        {
+                            root.time_valid= editText
+                            console.log(editText)
+                        }
+
+                        Component.onCompleted:
+                        {
+                            currentIndex=4
                         }
                     }
                     Label {
@@ -258,24 +496,17 @@ Item {
                     CalendarPicker {
                         showTime: true
                         anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-                Row {
-                    visible: root.account_type===2
-
-                    spacing: 10
-                    Label {
-                        text: "过期时间:"
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    CalendarPicker {
-                        showTime: true
-                        anchors.verticalCenter: parent.verticalCenter
+                        onCurrentChanged:
+                        {
+                            var utcSeconds = Math.floor(current.getTime() / 1000)
+                            root.time_expired= utcSeconds
+                            console.log(utcSeconds)
+                        }
                     }
                 }
                 Row {
 
-                    visible: root.account_type===3
+                    visible: root.account_type === 3
 
                     spacing: 10
                     Label {
@@ -283,9 +514,18 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     NumberBox {
-                        width:150
+                        width: 150
                         value: 10
                         anchors.verticalCenter: parent.verticalCenter
+
+                        onValueChanged:
+                        {
+                            root.time_limit=value
+                        }
+                        Component.onCompleted:
+                        {
+                            root.time_limit=value
+                        }
                     }
                     Label {
                         text: "小时"
@@ -302,16 +542,49 @@ Item {
                     CalendarPicker {
                         showTime: true
                         anchors.verticalCenter: parent.verticalCenter
+                        onCurrentChanged:
+                        {
+                            var utcSeconds = Math.floor(current.getTime() / 1000)
+                            root.time_expired= utcSeconds
+                            console.log(utcSeconds)
+                        }
                     }
                 }
-
-
-
             }
         }
     }
-}
-// Item{
+
+
+    Dialog {
+        id: confirmationDialog
+        x: Math.ceil((parent.width - width) / 2)
+        y: Math.ceil((parent.height - height) / 2)
+        parent: Overlay.overlay
+        modal: true
+        title: qsTr("账户信息异常！")
+        standardButtons: Dialog.Ok
+
+        property string con_text
+
+        Column {
+            spacing: 20
+            anchors.fill: parent
+            Label {
+                // id:con_text
+                text: confirmationDialog.con_text
+            }
+        }
+
+
+        function open_with_msg(title,msg)
+        {
+            confirmationDialog.title=title
+            confirmationDialog.con_text=msg
+            open()
+        }
+    }
+
+}// Item{
 //     property string title
 //     property PageContext context
 //     property var argument

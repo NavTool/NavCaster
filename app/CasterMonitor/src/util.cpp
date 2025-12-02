@@ -86,7 +86,7 @@ nlohmann::json StringToJson(const std::string &str)
 
 QString JsonToQString(const nlohmann::json &json)
 {
-    return QString::fromStdString(json.get<std::string>()); // 提取 JSON 字符串并转换为 QString
+    return QString::fromStdString(json.dump()); // 提取 JSON 字符串并转换为 QString
 }
 
 QVariantMap JsonToQVariantMap(const nlohmann::json &jsonObj)
