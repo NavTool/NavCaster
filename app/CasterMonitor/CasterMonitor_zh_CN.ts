@@ -2111,43 +2111,36 @@
     <name>Page_Status</name>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="91"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="470"/>
         <source>负载</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="91"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="470"/>
         <source>运行流畅</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="92"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="471"/>
         <source>在线基站</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="92"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="471"/>
         <source>20000</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="93"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="472"/>
         <source>在线移动站</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="93"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="472"/>
         <source>85134</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="96"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="475"/>
         <source>下行</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2233,55 +2226,47 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="501"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="500"/>
         <source>节点ID: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="94"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="473"/>
         <source>4/4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="95"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="474"/>
         <source>内存占用</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="95"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="474"/>
         <source>556.32MB</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="96"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="475"/>
         <source>152.23Mbps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="97"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="476"/>
         <source>282.15Mbps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="97"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="476"/>
         <source>上行</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="98"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="477"/>
         <source>运行时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="98"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="477"/>
         <source>36d 15:21:14</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2292,8 +2277,7 @@
     </message>
     <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="94"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="449"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="473"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="446"/>
         <source>节点状态</source>
         <translation type="unfinished"></translation>
     </message>

@@ -364,8 +364,6 @@ ScrollablePage{
             }
         }
 
-
-
         Chart {
             id: chart
             anchors{
@@ -444,7 +442,6 @@ ScrollablePage{
         }
     }
 
-
     Label{
         text: qsTr("节点状态")
         font.pixelSize: 22         // 设置字体大小（像素）
@@ -461,22 +458,22 @@ ScrollablePage{
         Layout.rightMargin: 10
         cellHeight: 320
         cellWidth: 300
-        // model: dataModel
+        model: dataModel
 
-        model:    ListModel
-        {
-            //
+        // model:    ListModel
+        // {
+        //     //
 
-            ListElement{key:qsTr("负载") ; value:qsTr("运行流畅"); percent:15.3 }
-            ListElement{key:qsTr("在线基站") ; value:qsTr("20000"); percent:35.3 }
-            ListElement{key:qsTr("在线移动站") ; value:qsTr("85134"); percent:16.3 }
-            ListElement{key:qsTr("节点状态") ; value:qsTr("4/4"); percent:100 }
-            ListElement{key:qsTr("内存占用") ; value:qsTr("556.32MB"); percent:0 }
-            ListElement{key:qsTr("下行") ; value:qsTr("152.23Mbps"); percent:0 }
-            ListElement{key:qsTr("上行") ; value:qsTr("282.15Mbps"); percent:0 }
-            ListElement{key:qsTr("运行时长") ; value:qsTr("36d 15:21:14"); percent:0 }
+        //     ListElement{key:qsTr("负载") ; value:qsTr("运行流畅"); percent:15.3 }
+        //     ListElement{key:qsTr("在线基站") ; value:qsTr("20000"); percent:35.3 }
+        //     ListElement{key:qsTr("在线移动站") ; value:qsTr("85134"); percent:16.3 }
+        //     ListElement{key:qsTr("节点状态") ; value:qsTr("4/4"); percent:100 }
+        //     ListElement{key:qsTr("内存占用") ; value:qsTr("556.32MB"); percent:0 }
+        //     ListElement{key:qsTr("下行") ; value:qsTr("152.23Mbps"); percent:0 }
+        //     ListElement{key:qsTr("上行") ; value:qsTr("282.15Mbps"); percent:0 }
+        //     ListElement{key:qsTr("运行时长") ; value:qsTr("36d 15:21:14"); percent:0 }
 
-        }
+        // }
         interactive: false
         delegate: com_item
     }
@@ -485,7 +482,7 @@ ScrollablePage{
         id:com_item
         Frame{
             width: 280
-            height: 300
+            height: 360
 
             Frame
             {
@@ -496,12 +493,22 @@ ScrollablePage{
                     top: parent.top
                 }
 
-                Label{
+
+                IconButton
+                {
                     anchors.centerIn: parent
                     text: qsTr("节点ID: ")+ model.UID
                     font.pixelSize: 15         // 设置字体大小（像素）
                     font.bold: true            // 加粗
+
+
+                    onClicked:
+                    {
+                        console.log(Util.safeStringify(model))
+                    }
+
                 }
+
             }
 
 
@@ -525,25 +532,31 @@ ScrollablePage{
                     text: "节点版本: "+ model.tag_version
                 }
                 Label{
+                    text: "建立连接数: "+model.connnect_count+ " ( " +model.server_count + "基站 " + model.client_count +" 移动站)";
+                }
+                // Label{
+                //     text: "在线基准站: "+model.server_count
+                // }
+                // Label{
+                //     text: "在线移动站: "+model.client_count
+                // }
+                Label{
                     text: "CPU负载: "+ model.cpu_usage.toFixed(2) + "%"
                 }
                 Label{
                     text: "内存占用: "+formatBytes(model.mem_usage)
                 }
                 Label{
-                    text: "在线基准站: "+formatBytes(model.mem_usage)
+                    text: "处理延迟: "+formatDelay(model.queue_delay)
                 }
                 Label{
-                    text: "在线移动站: "+formatBytes(model.mem_usage)
+                    text: "输入流量: "+formatBytes(model.recv_total) + " ( "+ formatBytes(model.recv_speed) + "/s )"
                 }
                 Label{
-                    text: "上行带宽: "+formatBytes(model.mem_usage)
+                    text: "输出流量: "+formatBytes(model.send_total) + " ( "+ formatBytes(model.send_speed) + "/s )"
                 }
                 Label{
-                    text: "下行带宽: "+formatBytes(model.mem_usage)
-                }
-                Label{
-                    text: "运行时长: "+formatBytes(model.mem_usage)
+                    text: "运行时长: "+formatTime(model.online_time)
                 }
             }
 
@@ -578,7 +591,19 @@ ScrollablePage{
 
         }
     }
+    function formatDelay(us) {
+        if (us === 0)
+            return "0 us"
 
+        var k = 1000
+        var sizes = ["us", "ms", "s"]
+
+        var i = Math.floor(Math.log(us) / Math.log(k))
+        var value = us / Math.pow(k, i)
+
+        // 秒的话只保留 3 位毫秒更好，但保持统一写法
+        return value.toFixed(1) + " " + sizes[i]
+    }
 
     function formatBytes(bytes) {
         if (bytes === 0)
@@ -589,7 +614,29 @@ ScrollablePage{
         var value = bytes / Math.pow(k, i)
         return value.toFixed(3) + " " + sizes[i]
     }
+    function formatTime(onlineUtcSeconds) {
+        // 当前时间（UTC 秒）
+        var nowUtc = Math.floor(Date.now() / 1000)
 
+        // 已在线秒数
+        var seconds = nowUtc - onlineUtcSeconds
+        if (seconds < 0)
+            seconds = 0
+
+        var day = Math.floor(seconds / 86400)        // 1 天 = 86400s
+        var h = Math.floor((seconds % 86400) / 3600)
+        var m = Math.floor((seconds % 3600) / 60)
+        var s = seconds % 60
+
+        var timeStr = String(h).padStart(2, "0")
+                + ":" + String(m).padStart(2, "0")
+                + ":" + String(s).padStart(2, "0")
+
+        if (day > 0)
+            return day + "d " + timeStr
+        else
+            return timeStr
+    }
 
 
 }

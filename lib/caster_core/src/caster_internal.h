@@ -195,7 +195,7 @@ private:
     size_t _recv_total = 0;   // 总接收字节数
     double _recv_speed = 0.0; // 总接收速度
 
-    uint64_t _delay=0.0; // 数据延迟
+    uint64_t _delay = 0.0; // 数据延迟
 
     double _ecef_x = 0.0;
     double _ecef_y = 0.0;
@@ -389,7 +389,7 @@ public:
     int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff);
     // 设置用户延迟信息
     int set_rover_delay_info(const char *user_name, const char *connect_key, uint64_t delay);
-    
+
     // 向注册的移动站频道发送状态消息
     int send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
 
@@ -421,7 +421,7 @@ private:
     // 上报自己的状态
 
     std::string _node_ID = util_generate_random_key(6);
-    std::string _node_name="NODE-" + _node_ID;
+    std::string _node_name = "NODE-" + _node_ID;
 
     std::unordered_map<std::string, node_status> _cluster_node_map;
     std::unordered_map<std::string, relay_item> _relay_task_map; // 数据转发任务
@@ -487,7 +487,6 @@ private:
     static void Redis_Sub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Pub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
 
-
     // redis断开连接
     // 如果是pub发生连接断开
 
@@ -510,11 +509,12 @@ private:
 
     int subAttemptReconnect();
     int pubAttemptReconnect();
+
 private:
-    size_t _send_total = 0;   // 总发送字节数
-    double _send_speed = 0.0; // 总发送速度
-    size_t _recv_total = 0;   // 总接收字节数
-    double _recv_speed = 0.0; // 总接收速度
+    size_t _send_total = 0;         // 总发送字节数
+    double _send_speed = 0.0;       // 总发送速度
+    size_t _recv_total = 0;         // 总接收字节数
+    double _recv_speed = 0.0;       // 总接收速度
     std::time_t _update_time = 0.0; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
 
     struct Sample
@@ -536,5 +536,17 @@ private:
     int add_sum_recv(int size);
     int add_sum_send(int size);
 
+private:
+    // 测试延迟
 
+    event *_testdelay_ev;
+
+    std::chrono::high_resolution_clock::time_point _activate_time;  // 激活时间
+    std::chrono::high_resolution_clock::time_point _execute_time;   // 执行时间
+    int64_t _queue_delay = 0;  // 时间延迟
+
+
+    int test_queue_delay(); // 测试延迟信息更新
+
+    static void TestDelayCallback(evutil_socket_t fd, short events, void *arg);
 };

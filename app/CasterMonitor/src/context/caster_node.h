@@ -12,6 +12,7 @@ private:
 
     PROPERTY_AUTO(double,cpu_usage);   // CPU占用
     PROPERTY_AUTO(int,mem_usage);      // 内存占用
+    PROPERTY_AUTO(int,queue_delay);      // 队列平均执行延迟
     PROPERTY_AUTO(int64_t,send_total);      // 累计发送
     PROPERTY_AUTO(double,send_speed);      // 发送速度
     PROPERTY_AUTO(int64_t,recv_total);      // 累计接收
@@ -40,6 +41,7 @@ public:
 
         cpu_usage(0.0);
         mem_usage(0);
+        queue_delay(0);
         send_total(0);
         send_speed(0);
         recv_total(0);
@@ -66,6 +68,7 @@ public:
 
         info["cpu_usage"] = cpu_usage();
         info["mem_usage"] = mem_usage();
+        info["queue_delay"] = queue_delay();
         info["send_total"] = send_total();
         info["send_speed"] = send_speed();
         info["recv_total"] = recv_total();
@@ -95,6 +98,7 @@ public:
 
         cpu_usage(info, "cpu_usage");
         mem_usage(info, "mem_usage");
+        queue_delay(info, "queue_delay");
         send_total(info, "send_total");
         send_speed(info, "send_speed");
         recv_total(info, "recv_total");

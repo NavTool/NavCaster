@@ -92,6 +92,8 @@ int caster_internal::start()
     _timeout_ev = event_new(_base, -1, EV_PERSIST, TimeoutCallback, this);
     event_add(_timeout_ev, &_timeout_tv);
 
+    _testdelay_ev = event_new(_base, -1, EV_PERSIST, TestDelayCallback, this);
+
     return 0;
 }
 
@@ -379,6 +381,8 @@ int caster_internal::upload_node_status()
 
     info["cpu_usage"] = SysUsage::getInstance()->getProcessCPU();    // CPU
     info["mem_usage"] = SysUsage::getInstance()->getProcessMemory(); // 内存
+    info["queue_delay"] = _queue_delay;                             // 队列延迟，微秒级
+
     info["send_total"] = _send_total;
     info["send_speed"] = _send_speed;
     info["recv_total"] = _recv_total;
@@ -516,6 +520,19 @@ int caster_internal::clear_overdue_item()
             // redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:LIST %s", iter.first.c_str());
         }
     }
+
+    return 0;
+}
+
+int caster_internal::test_queue_delay()
+{
+
+    // 不需要考虑这个激活时间比较晚的情况，因为这个函数是在定时回调中执行激活的，下次再调用这个函数一定排在_testdelay_ev之后
+
+    // 记录激活时间
+    _activate_time = std::chrono::high_resolution_clock::now();
+    // 测试消息队列的延迟情况
+    event_active(_testdelay_ev, 0, 1);
 
     return 0;
 }
@@ -765,6 +782,8 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
     svr->_updatetime_int = util_get_time_stamp();
     svr->_updatetime_str = util_get_time_stamp_str();
 
+    svr->test_queue_delay();
+
     svr->upload_node_status(); // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
 
     svr->try_set_master_node(); // 尝试设置为主节点
@@ -785,6 +804,13 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
 
     // 获取所有在线挂载点、在线用户列表，删除没有按时续期的用户和挂载点
     svr->download_active_item();
+}
+
+void caster_internal::TestDelayCallback(evutil_socket_t fd, short events, void *arg)
+{
+    auto svr = static_cast<caster_internal *>(arg);
+    svr->_execute_time = std::chrono::high_resolution_clock::now();
+    svr->_queue_delay = std::chrono::duration_cast<std::chrono::microseconds>(svr->_execute_time - svr->_activate_time).count();
 }
 
 int caster_internal::register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
