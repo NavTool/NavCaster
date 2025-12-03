@@ -224,7 +224,7 @@ int server_ntrip::publish_data_from_chunk()
         data[_chunked_size + 2] = '\0';
 
         evbuffer_remove(_recv_evbuf, data, _chunked_size);
-        CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, _chunked_size);
+        CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, _chunked_size, util_get_tcp_delay(bufferevent_getfd(_bev)));
 
         _str_decoder.Decode(data, _chunked_size);
         if (_str_decoder._has_position)
@@ -254,13 +254,17 @@ int server_ntrip::publish_data_from_chunk()
 
 int server_ntrip::publish_data_from_evbuf()
 {
+
+  util_get_tcp_delay(bufferevent_getfd(_bev));
+
+
     size_t length = evbuffer_get_length(_recv_evbuf);
 
     char *data = new char[length + 1];
     data[length] = '\0';
 
     evbuffer_remove(_recv_evbuf, data, length);
-    CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, length);
+    CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, length, util_get_tcp_delay(bufferevent_getfd(_bev)));
     _str_decoder.Decode(data, length);
     if (_str_decoder._has_position)
     {

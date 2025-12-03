@@ -351,13 +351,22 @@ int caster_internal::upload_node_status()
     json info;
 
     info["UID"] = _node_ID.c_str();
+    info["node_name"] = _node_ID.c_str();
     info["set_version"] = PROJECT_SET_VERSION;
     info["tag_version"] = PROJECT_TAG_VERSION;
+
+    info["cpu_usage"] = SysUsage::getInstance()->getProcessCPU();    // CPU
+    info["mem_usage"] = SysUsage::getInstance()->getProcessMemory(); // 内存
+    info["send_total"] = _send_total;
+    info["send_speed"] = _send_speed;
+    info["recv_total"] = _recv_total;
+    info["recv_speed"] = _recv_speed;
+
     info["connnect_count"] = _base_status_map.size() + _rover_status_map.size(); // 连接数
     info["server_count"] = _base_status_map.size();                              // 基站数量
     info["client_count"] = _rover_status_map.size();                             // 移动站数量
-    info["cpu_usage"] = SysUsage::getInstance()->getProcessCPU();                // CPU
-    info["mem_usage"] = SysUsage::getInstance()->getProcessMemory();             // 内存
+
+
     info["online_time"] = _startup_time;
 
     info["update_time"] = util_get_now_second();
@@ -981,6 +990,7 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
     if (str != _base_status_map.end())
     {
         str->second.add_recv(data_length);
+        add_sum_recv(data_length);
         if (_upload_base_stat)
         {
             redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str(0).c_str());
@@ -1009,6 +1019,7 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
     if (str != _rover_status_map.end())
     {
         str->second.add_recv(data_length);
+        add_sum_recv(data_length);
         if (_upload_rover_stat)
         {
             redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str(1).c_str());
@@ -1325,6 +1336,7 @@ void caster_internal::Redis_SUB_Base_Callback(redisAsyncContext *c, void *r, voi
             if (str != svr->_rover_status_map.end())
             {
                 str->second.add_send(Reply.len);
+                svr->add_sum_send(Reply.len);
                 if (svr->_upload_rover_stat)
                 {
                     redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str(1).c_str());
@@ -1372,6 +1384,7 @@ void caster_internal::Redis_SUB_Rover_Callback(redisAsyncContext *c, void *r, vo
             if (str != svr->_base_status_map.end())
             {
                 str->second.add_send(Reply.len);
+                svr->add_sum_send(Reply.len);
                 if (svr->_upload_base_stat)
                 {
                     redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str(0).c_str());
@@ -1501,6 +1514,47 @@ int caster_internal::pubAttemptReconnect()
 
     redisAsyncCommand(_pub_context, NULL, NULL, "AUTH %s", _redis_Requirepass.c_str());
 
+    return 0;
+}
+
+void caster_internal::cleanOld(std::deque<Sample> &history, int64_t now)
+{
+    while (!history.empty() && now - history.front().time > _windowSize)
+    {
+        history.pop_front();
+    }
+}
+
+double caster_internal::calcAvgSpeed(const std::deque<Sample> &history) const
+{
+    if (history.size() < 2)
+        return 0.0;
+    const Sample &first = history.front();
+    const Sample &last = history.back();
+    int64_t deltaTime = last.time - first.time;
+    if (deltaTime <= 0)
+        return 0.0;
+    int64_t deltaBytes = last.bytes - first.bytes;
+    return static_cast<double>(deltaBytes) / deltaTime;
+}
+
+int caster_internal::add_sum_recv(int size)
+{
+    _recv_total += size;
+    _update_time = util_get_now_second();
+    _recvHistory.push_back({_update_time, _recv_total});
+    cleanOld(_recvHistory, _update_time);
+    _recv_speed = calcAvgSpeed(_recvHistory);
+    return 0;
+}
+
+int caster_internal::add_sum_send(int size)
+{
+    _send_total += size;
+    _update_time = util_get_now_second();
+    _sendHistory.push_back({_update_time, _send_total});
+    cleanOld(_sendHistory, _update_time);
+    _send_speed = calcAvgSpeed(_sendHistory);
     return 0;
 }
 
@@ -1814,7 +1868,6 @@ int str_status::add_recv(int size)
     _recvHistory.push_back({_update_time, _recv_total});
     cleanOld(_recvHistory, _update_time);
     _recv_speed = calcAvgSpeed(_recvHistory);
-
     return 0;
 }
 

@@ -234,9 +234,6 @@ private:
 
     int _windowSize = 60; // 窗口秒数
 
-    // 获取当前秒级时间戳
-    int64_t nowSec() const;
-
     // 清理超出窗口的样本
     void cleanOld(std::deque<Sample> &history, int64_t now);
 
@@ -416,10 +413,10 @@ private:
     // 上报自己的状态
 
     std::string _node_ID = util_generate_random_key(6);
+    std::string _node_name="NODE-" + _node_ID;
 
     std::unordered_map<std::string, node_status> _cluster_node_map;
     std::unordered_map<std::string, relay_item> _relay_task_map; // 数据转发任务
-    std::unordered_map<std::string, relay_item> _relay_stat_map; // 数据转发任务的状态
 
     int check_redis_connection();
 
@@ -505,4 +502,31 @@ private:
 
     int subAttemptReconnect();
     int pubAttemptReconnect();
+private:
+    size_t _send_total = 0;   // 总发送字节数
+    double _send_speed = 0.0; // 总发送速度
+    size_t _recv_total = 0;   // 总接收字节数
+    double _recv_speed = 0.0; // 总接收速度
+    std::time_t _update_time = 0.0; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
+
+    struct Sample
+    {
+        int64_t time; // 秒级时间戳
+        size_t bytes;
+    };
+
+    std::deque<Sample> _recvHistory;
+    std::deque<Sample> _sendHistory;
+
+    int _windowSize = 60; // 窗口秒数
+
+    // 清理超出窗口的样本
+    void cleanOld(std::deque<Sample> &history, int64_t now);
+
+    // 计算平均速度
+    double calcAvgSpeed(const std::deque<Sample> &history) const;
+    int add_sum_recv(int size);
+    int add_sum_send(int size);
+
+
 };

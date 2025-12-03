@@ -75,7 +75,7 @@ namespace CASTER
     // 将基站从Caster中注销（Server下线的时候主动调用）
     int Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布基站数据
-    int Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
+    int Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length,uint64_t delay=0);
     // 订阅基站数据
     int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 最近点基站模式

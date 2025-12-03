@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <chrono>
 
+
 // #include <unistd.h>
 #include <sstream>
 #ifdef WIN32
@@ -20,6 +21,20 @@
 #include <ifaddrs.h>
 #include <sys/resource.h>
 #endif
+
+
+#include <stdint.h>
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <mstcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#endif
+
+
 
 #include <random>
 
@@ -374,3 +389,46 @@ std::string util_generate_random_key(int length)
     }
     return oss.str();
 }
+
+int64_t util_get_tcp_delay(util_socket_t sockfd)
+{
+    #if defined(_WIN32)
+
+    // Windows 平台
+    TCP_INFO_v0 info;
+    DWORD bytes = sizeof(info);  // 必须是 sizeof(TCP_INFO_v0)
+
+
+    if (WSAIoctl(
+            sockfd,
+            SIO_TCP_INFO,
+            nullptr, 0,
+            &info, sizeof(info),
+            &bytes,
+            nullptr, nullptr) != 0)
+    {
+        int err = WSAGetLastError();
+        return 0;
+    }
+
+    // info.RttUs 已经是微秒
+    return static_cast<int64_t>(info.RttUs);
+
+#else
+
+    // Linux 平台
+    struct tcp_info info;
+    socklen_t len = sizeof(info);
+
+    if (getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, &len) != 0)
+    {
+        return -1;
+    }
+
+    // tcpi_rtt：微秒
+    return static_cast<int64_t>(info.tcpi_rtt);
+
+#endif
+}
+
+

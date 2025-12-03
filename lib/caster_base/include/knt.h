@@ -3,6 +3,12 @@
 #include <string>
 #include <chrono>
 
+#ifdef _WIN32
+#define util_socket_t intptr_t
+#else
+#define util_socket_t int
+#endif
+
 std::string util_random_string(int string_len);
 
 std::string util_cal_connect_key(const char *ServerIP, int serverPort, const char *ClientIP, int clientPort);
@@ -46,6 +52,11 @@ double util_dist3d(double x1, double y1, double z1,
 std::string util_generate_random_key(int length);
 
 
+
+
+
+// 返回 RTT（微秒），失败返回 -1
+int64_t util_get_tcp_delay(util_socket_t sockfd);
 
 
 

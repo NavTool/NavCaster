@@ -7,6 +7,13 @@
 class AccountDataController : public QObject
 {
     Q_OBJECT
+
+
+    Q_PROPERTY_AUTO(int,account_count)          // 账号计数
+    Q_PROPERTY_AUTO(int,expiring_count)         // 即将过期账号数
+    Q_PROPERTY_AUTO(int,expired_count)          // 过期账号计数
+
+
     Q_PROPERTY_AUTO(QList<QVariantMap>, data)
     QML_ELEMENT
 public:
