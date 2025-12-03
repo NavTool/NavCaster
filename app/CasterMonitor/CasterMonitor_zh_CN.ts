@@ -2116,7 +2116,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="85"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="126"/>
         <source>运行流畅</source>
         <translation type="unfinished"></translation>
@@ -2190,19 +2189,8 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="255"/>
-        <source>635</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="256"/>
         <source>即将过期</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="256"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="261"/>
-        <source>15</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2211,18 +2199,20 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="257"/>
-        <source>118</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="258"/>
         <source>数据接入</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="255"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="256"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="257"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="258"/>
-        <source>4</source>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="259"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="260"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="261"/>
+        <source>0</source>
+        <oldsource>4</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2231,18 +2221,8 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="259"/>
-        <source>10</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="qml/page/Monitor/Page_Status.qml" line="260"/>
         <source>策略组</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="260"/>
-        <source>3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

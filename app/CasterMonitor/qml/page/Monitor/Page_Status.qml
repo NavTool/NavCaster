@@ -82,7 +82,7 @@ ScrollablePage{
             }
 
             cluster_model.set(0,{key:qsTr("负载") ,
-                                  value:qsTr("运行流畅"),
+                                  value:formatUsage(CasterResourceController.cluster_cpu),
                                   percent:CasterResourceController.cluster_cpu })
 
             cluster_model.set(1,{key:qsTr("在线基站")  ,
@@ -252,13 +252,13 @@ ScrollablePage{
         model:    ListModel
         {
             //
-            ListElement{key:qsTr("已注册账号数") ; value:qsTr("635");}
-            ListElement{key:qsTr("即将过期") ; value:qsTr("15"); }
-            ListElement{key:qsTr("已过期账号") ; value:qsTr("118");}
-            ListElement{key:qsTr("数据接入") ; value:qsTr("4");  }
-            ListElement{key:qsTr("数据推送") ; value:qsTr("10");  }
-            ListElement{key:qsTr("策略组") ; value:qsTr("3");  }
-            ListElement{key:qsTr("异常事件") ; value:qsTr("15");  }
+            ListElement{key:qsTr("已注册账号数") ; value:qsTr("0");}
+            ListElement{key:qsTr("即将过期") ; value:qsTr("0"); }
+            ListElement{key:qsTr("已过期账号") ; value:qsTr("0");}
+            ListElement{key:qsTr("数据接入") ; value:qsTr("0");  }
+            ListElement{key:qsTr("数据推送") ; value:qsTr("0");  }
+            ListElement{key:qsTr("策略组") ; value:qsTr("0");  }
+            ListElement{key:qsTr("异常事件") ; value:qsTr("0");  }
 
         }
 
@@ -376,30 +376,39 @@ ScrollablePage{
 
                 Label{
                     text: "监听端口: "+formatBytes(model.mem_usage)
+                    font.bold: true            // 加粗
                 }
                 Label{
                     text: "节点版本: "+ model.tag_version
+                    font.bold: true            // 加粗
                 }
                 Label{
-                    text: "建立连接数: "+model.connnect_count+ " ( " +model.server_count + "基站 " + model.client_count +" 移动站)";
+                    text: "建立连接数: "+model.connnect_count+ " ( " +model.server_count + " 基站 " + model.client_count +" 移动站)";
+                    font.bold: true            // 加粗
                 }
                 Label{
                     text: "节点负载: "+ model.cpu_usage.toFixed(2) + "%"
+                    font.bold: true            // 加粗
                 }
                 Label{
                     text: "内存占用: "+formatBytes(model.mem_usage)
+                    font.bold: true            // 加粗
                 }
                 Label{
                     text: "处理延迟: "+formatDelay(model.queue_delay)
+                    font.bold: true            // 加粗
                 }
                 Label{
                     text: "输入流量: "+formatBytes(model.recv_total) + " ( "+ formatBytes(model.recv_speed) + "/s )"
+                    font.bold: true            // 加粗
                 }
                 Label{
                     text: "输出流量: "+formatBytes(model.send_total) + " ( "+ formatBytes(model.send_speed) + "/s )"
+                    font.bold: true            // 加粗
                 }
                 Label{
                     text: "运行时长: "+formatTime(model.online_time)
+                    font.bold: true            // 加粗
                 }
             }
 
@@ -495,7 +504,18 @@ ScrollablePage{
             return timeStr
     }
 
+    function formatUsage(percent) {
+        if (percent < 0) percent = 0;
+        if (percent > 100) percent = 100;
 
+        if (percent <= 10) return "空闲";
+        if (percent <= 30) return "轻量";
+        if (percent <= 50) return "正常";
+        if (percent <= 70) return "中等";
+        if (percent <= 85) return "较高";
+        if (percent <= 95) return "高负载";
+        return "接近饱和";
+    }
 
     // Item{
 
