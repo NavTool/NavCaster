@@ -33,6 +33,7 @@ private:
     PROPERTY_AUTO(double, send_speed); // 总发送速度
     PROPERTY_AUTO(int64_t, recv_total); // 总接收字节数
     PROPERTY_AUTO(double, recv_speed); // 总接收速度
+    PROPERTY_AUTO(int64_t, tcp_delay); // TCP延迟
 
     PROPERTY_AUTO(double, ecef_x);
     PROPERTY_AUTO(double, ecef_y);
@@ -61,6 +62,7 @@ public:
         send_speed(0.0);
         recv_total(0);
         recv_speed(0.0);
+        tcp_delay(0);
 
         ecef_x(0.0);
         ecef_y(0.0);
@@ -90,6 +92,7 @@ public:
         info["send_speed"] = send_speed();
         info["recv_total"] = recv_total();
         info["recv_speed"] = recv_speed();
+        info["tcp_delay"] = tcp_delay();
 
         info["ecef_x"] = ecef_x();
         info["ecef_y"] = ecef_y();
@@ -132,6 +135,7 @@ public:
         send_speed(info, "send_speed");
         recv_total(info, "recv_total");
         recv_speed(info, "recv_speed");
+        tcp_delay(info,"tcp_delay");
 
         ecef_x(info, "ecef_x");
         ecef_y(info, "ecef_y");

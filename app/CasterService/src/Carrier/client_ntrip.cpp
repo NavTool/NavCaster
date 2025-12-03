@@ -166,7 +166,7 @@ int client_ntrip::publish_recv_raw_data()
     data[length] = '\0';
     evbuffer_remove(_recv_evbuf, data, length);
 
-    CASTER::Pub_Rover_Raw_Data(_user_name.c_str(), _connect_key.c_str(), data, length);
+    CASTER::Pub_Rover_Raw_Data(_user_name.c_str(), _connect_key.c_str(), data, length, util_get_tcp_delay(bufferevent_getfd(_bev)));
 
     _str_decoder.Decode(data, length);
     if (_str_decoder._has_position)

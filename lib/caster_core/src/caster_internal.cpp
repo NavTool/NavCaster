@@ -366,7 +366,6 @@ int caster_internal::upload_node_status()
     info["server_count"] = _base_status_map.size();                              // 基站数量
     info["client_count"] = _rover_status_map.size();                             // 移动站数量
 
-
     info["online_time"] = _startup_time;
 
     info["update_time"] = util_get_now_second();
@@ -984,12 +983,12 @@ int caster_internal::send_status_base_channel(const char *channel, const char *c
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", msg.c_str());
 }
 
-int caster_internal::pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
+int caster_internal::pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
 {
     auto str = _base_status_map.find(connect_key);
     if (str != _base_status_map.end())
     {
-        str->second.add_recv(data_length);
+        str->second.add_recv(data_length, delay);
         add_sum_recv(data_length);
         if (_upload_base_stat)
         {
@@ -1013,12 +1012,12 @@ int caster_internal::send_status_rover_channel(const char *channel, const char *
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", msg.c_str());
 }
 
-int caster_internal::pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length)
+int caster_internal::pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
 {
     auto str = _rover_status_map.find(connect_key);
     if (str != _rover_status_map.end())
     {
-        str->second.add_recv(data_length);
+        str->second.add_recv(data_length, delay);
         add_sum_recv(data_length);
         if (_upload_rover_stat)
         {
@@ -1861,8 +1860,10 @@ str_status::~str_status()
 {
 }
 
-int str_status::add_recv(int size)
+int str_status::add_recv(int size, uint64_t delay)
 {
+    _delay = delay;
+
     _recv_total += size;
     _update_time = util_get_now_second();
     _recvHistory.push_back({_update_time, _recv_total});
@@ -1922,6 +1923,8 @@ std::string str_status::get_status_str(int type)
     info["send_speed"] = _send_speed;
     info["recv_total"] = _recv_total;
     info["recv_speed"] = _recv_speed;
+
+    info["tcp_delay"] = _delay;
 
     info["ecef_x"] = _ecef_x;
     info["ecef_y"] = _ecef_y;

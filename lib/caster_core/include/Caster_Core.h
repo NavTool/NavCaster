@@ -93,7 +93,7 @@ namespace CASTER
     // 将移动站从Caster中注销（Client下线的时候主动调用）
     int Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布移动站数据
-    int Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length);
+    int Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length,uint64_t delay=0);
     // 订阅移动站数据
     int Sub_Rover_Raw_Data(const char *mount_point,const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅移动站数据

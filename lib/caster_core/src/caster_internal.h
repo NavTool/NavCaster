@@ -195,6 +195,8 @@ private:
     size_t _recv_total = 0;   // 总接收字节数
     double _recv_speed = 0.0; // 总接收速度
 
+    uint64_t _delay=0.0; // 数据延迟
+
     double _ecef_x = 0.0;
     double _ecef_y = 0.0;
     double _ecef_z = 0.0;
@@ -212,7 +214,7 @@ public:
     str_status(std::string login_mpt, std::string alias_mpt, int type, std::string user_name, std::string connect_key);
     ~str_status();
 
-    int add_recv(int size);
+    int add_recv(int size, uint64_t delay=0);
     int add_send(int size);
 
     int set_alias_mpt(std::string alias_mpt);
@@ -358,7 +360,7 @@ public:
     // 注销频道
     int withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
-    int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
+    int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length, uint64_t delay);
     // 订阅指定频道
     int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
@@ -375,7 +377,7 @@ public:
     // 注销频道
     int withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
-    int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length);
+    int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length, uint64_t delay);
     // 订阅指定频道
     int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道

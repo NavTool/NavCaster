@@ -237,7 +237,7 @@ int CASTER::Withdraw_Base_Record(const char *mount_point, const char *user_name,
 
 int CASTER::Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
 {
-    return caster_internal::getInstance()->pub_base_channel(mount_point, connect_key, data, data_length);
+    return caster_internal::getInstance()->pub_base_channel(mount_point, connect_key, data, data_length,delay);
 }
 
 int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
@@ -275,9 +275,9 @@ int CASTER::Withdraw_Rover_Record(const char *mount_point, const char *user_name
     return caster_internal::getInstance()->withdraw_rover_channel(mount_point, user_name, connect_key);
 }
 
-int CASTER::Pub_Rover_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
+int CASTER::Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
 {
-    return caster_internal::getInstance()->pub_rover_channel(mount_point, connect_key, data, data_length);
+     return caster_internal::getInstance()->pub_rover_channel(user_name, connect_key, data, data_length,delay);
 }
 
 int CASTER::Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
