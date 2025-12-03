@@ -54,7 +54,7 @@ int server_ntrip::start()
 
 int server_ntrip::stop()
 {
-    if (_heart_beat_interval > 0 && _timeout_ev_flag == true)
+    if (_timeout_ev_flag == true)
     {
         event_del(_timeout_ev);
         event_free(_timeout_ev);
@@ -154,6 +154,13 @@ void server_ntrip::EventCallback(bufferevent *bev, short events, void *arg)
 void server_ntrip::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
     auto *svr = static_cast<server_ntrip *>(arg);
+
+    // 定时函数已经被停止，该次调用不处理
+    if (svr->_timeout_ev_flag == false)
+    {
+        return;
+    }
+
     svr->send_heart_beat_to_server();
     svr->update_tcp_delay_info();
 }
@@ -174,9 +181,9 @@ int server_ntrip::send_heart_beat_to_server()
     }
     else
     {
-        _last_heart_beat_time = now_time; //更新发送时间
+        _last_heart_beat_time = now_time; // 更新发送时间
 
-        //发送心跳包
+        // 发送心跳包
         auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
         if (_unsend_byte_limit > 0 && UnsendBufferSize > _unsend_byte_limit)
         {

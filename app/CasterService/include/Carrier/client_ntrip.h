@@ -60,7 +60,7 @@ private:
     int transfer_sub_raw_data(const char *data, size_t length);
     int publish_recv_raw_data();
 
-        int update_tcp_delay_info();
+    int update_tcp_delay_info();
 
     static void ReadCallback(struct bufferevent *bev, void *arg);
     static void EventCallback(struct bufferevent *bev, short events, void *arg);

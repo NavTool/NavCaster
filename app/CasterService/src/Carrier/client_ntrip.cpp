@@ -61,9 +61,6 @@ int client_ntrip::runing()
         bufferevent_set_timeouts(_bev, &_bev_read_timeout_tv, NULL);
     }
 
-    // 添加一个请求，订阅指定频道数据
-    CASTER::Sub_Base_Raw_Data(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Sub_Callback, this);
-
     if (_timeout_ev_flag == false)
     {
         _timeout_tv.tv_sec = 1;
@@ -72,6 +69,9 @@ int client_ntrip::runing()
         event_add(_timeout_ev, &_timeout_tv);
         _timeout_ev_flag = true;
     }
+
+    // 添加一个请求，订阅指定频道数据
+    CASTER::Sub_Base_Raw_Data(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Sub_Callback, this);
 
     return 0;
 }
@@ -153,6 +153,11 @@ void client_ntrip::EventCallback(bufferevent *bev, short events, void *arg)
 void client_ntrip::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
     auto *svr = static_cast<client_ntrip *>(arg);
+    // 定时函数已经被停止，该次调用不处理
+    if (svr->_timeout_ev_flag == false)
+    {
+        return;
+    }
     // svr->send_heart_beat_to_server();
     svr->update_tcp_delay_info();
 }
