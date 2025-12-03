@@ -16,11 +16,11 @@ server_ntrip::server_ntrip(json req, bufferevent *bev)
     {
         _NtripVersion2 = true;
     }
-    if(_info["http_chunked"] == "chunked")
+    if (_info["http_chunked"] == "chunked")
     {
         _transfer_with_chunked = true;
     }
-    
+
     _send_evbuf = evbuffer_new();
     _recv_evbuf = evbuffer_new();
 
@@ -47,7 +47,7 @@ int server_ntrip::start()
 {
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this,AuthType::SERVER);
+    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this, AuthType::SERVER);
 
     return 0;
 }
@@ -71,7 +71,7 @@ int server_ntrip::stop()
 
     CASTER::Withdraw_Base_Record(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str());
 
-    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(),AuthType::SERVER);
+    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), AuthType::SERVER);
 
     spdlog::info("[{}]: mount [{}] is offline, addr:[{}:{}]", __class__, _mount_point, _ip, _port);
 
@@ -93,9 +93,9 @@ int server_ntrip::runing()
 
     spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _mount_point, _ip, _port);
 
-    if (_heart_beat_interval > 0 && _timeout_ev_flag == false)
+    if (_timeout_ev_flag == false)
     {
-        _timeout_tv.tv_sec = _heart_beat_interval;
+        _timeout_tv.tv_sec = 1;
         _timeout_tv.tv_usec = 0;
         _timeout_ev = event_new(bufferevent_get_base(_bev), -1, EV_PERSIST, TimeoutCallback, this);
         event_add(_timeout_ev, &_timeout_tv);
@@ -155,21 +155,37 @@ void server_ntrip::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
     auto *svr = static_cast<server_ntrip *>(arg);
     svr->send_heart_beat_to_server();
+    svr->update_tcp_delay_info();
 }
 
 int server_ntrip::send_heart_beat_to_server()
 {
-
-    auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
-
-    if (_unsend_byte_limit > 0 && UnsendBufferSize > _unsend_byte_limit)
+    // 检测是否要发送心跳包
+    if (_heart_beat_switch == false)
     {
-        spdlog::info("[{}:{}: send to server [{}]'s  unsend size is too large :[{}], close the connect! addr:[{}:{}]", __class__, __func__, _mount_point, UnsendBufferSize, _ip, _port);
-        stop();
+        return 0;
     }
 
-    bufferevent_write(_bev, _heart_beat_msg.data(), _heart_beat_msg.size());
-    return 0;
+    // 判断距离上次发送心跳包时间间隔是否达到要求
+    time_t now_time = util_get_now_second();
+    if (now_time - _last_heart_beat_time < _heart_beat_interval)
+    {
+        return 0;
+    }
+    else
+    {
+        _last_heart_beat_time = now_time; //更新发送时间
+
+        //发送心跳包
+        auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
+        if (_unsend_byte_limit > 0 && UnsendBufferSize > _unsend_byte_limit)
+        {
+            spdlog::info("[{}:{}: send to server [{}]'s  unsend size is too large :[{}], close the connect! addr:[{}:{}]", __class__, __func__, _mount_point, UnsendBufferSize, _ip, _port);
+            stop();
+        }
+        bufferevent_write(_bev, _heart_beat_msg.data(), _heart_beat_msg.size());
+        return 0;
+    }
 }
 
 int server_ntrip::decode_recv_raw_data()
@@ -224,14 +240,14 @@ int server_ntrip::publish_data_from_chunk()
         data[_chunked_size + 2] = '\0';
 
         evbuffer_remove(_recv_evbuf, data, _chunked_size);
-        CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, _chunked_size, util_get_tcp_delay(bufferevent_getfd(_bev)));
+        CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, _chunked_size);
 
         _str_decoder.Decode(data, _chunked_size);
         if (_str_decoder._has_position)
         {
             CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
                                         _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
-                                         _str_decoder._position_update_time);
+                                        _str_decoder._position_update_time);
         }
 
         _chunked_size = 0;
@@ -255,8 +271,7 @@ int server_ntrip::publish_data_from_chunk()
 int server_ntrip::publish_data_from_evbuf()
 {
 
-  util_get_tcp_delay(bufferevent_getfd(_bev));
-
+    util_get_tcp_delay(bufferevent_getfd(_bev));
 
     size_t length = evbuffer_get_length(_recv_evbuf);
 
@@ -264,17 +279,22 @@ int server_ntrip::publish_data_from_evbuf()
     data[length] = '\0';
 
     evbuffer_remove(_recv_evbuf, data, length);
-    CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, length, util_get_tcp_delay(bufferevent_getfd(_bev)));
+    CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, length);
     _str_decoder.Decode(data, length);
     if (_str_decoder._has_position)
     {
         CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
                                     _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
-                                     _str_decoder._position_update_time);
+                                    _str_decoder._position_update_time);
     }
 
     delete[] data;
     return 0;
+}
+
+int server_ntrip::update_tcp_delay_info()
+{
+    return CASTER::Set_Base_Delay_Info(_mount_point.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
 }
 
 void server_ntrip::Auth_Login_Callback(const char *request, void *arg, AuthReply *reply)

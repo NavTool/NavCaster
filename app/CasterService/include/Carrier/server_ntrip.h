@@ -31,6 +31,7 @@ private:
     int _heart_beat_interval;
     std::string _heart_beat_msg;
     int _unsend_byte_limit;
+    time_t _last_heart_beat_time = 0;
 
     bufferevent *_bev;
     timeval _bev_read_timeout_tv;
@@ -62,6 +63,8 @@ private:
     int publish_recv_raw_data();
     int publish_data_from_chunk();
     int publish_data_from_evbuf();
+
+    int update_tcp_delay_info();
 
     static void ReadCallback(struct bufferevent *bev, void *arg);
     static void EventCallback(struct bufferevent *bev, short events, void *arg);

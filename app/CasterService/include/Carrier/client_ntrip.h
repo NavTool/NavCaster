@@ -39,6 +39,11 @@ private:
     evbuffer *_send_evbuf;
     evbuffer *_recv_evbuf;
 
+    // 定时器和定时事件
+    event *_timeout_ev;
+    timeval _timeout_tv;
+    bool _timeout_ev_flag=false; //是否将timeout_ev注册到event_base的标记
+
     decode_nmea _str_decoder;
 
 public:
@@ -55,8 +60,12 @@ private:
     int transfer_sub_raw_data(const char *data, size_t length);
     int publish_recv_raw_data();
 
+        int update_tcp_delay_info();
+
     static void ReadCallback(struct bufferevent *bev, void *arg);
     static void EventCallback(struct bufferevent *bev, short events, void *arg);
+    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
+
 
     static void Auth_Login_Callback(const char *request, void *arg, AuthReply *reply);
     static void Caster_Register_Callback(const char *request, void *arg, catser_reply *reply);

@@ -75,7 +75,7 @@ namespace CASTER
     // 将基站从Caster中注销（Server下线的时候主动调用）
     int Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布基站数据
-    int Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length,uint64_t delay=0);
+    int Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅基站数据
     int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 最近点基站模式
@@ -84,6 +84,9 @@ namespace CASTER
     int Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key);
     // 设置基站坐标信息
     int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
+    // 设置基站连接延迟信息
+    int Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay);
+
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
@@ -93,14 +96,15 @@ namespace CASTER
     // 将移动站从Caster中注销（Client下线的时候主动调用）
     int Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布移动站数据
-    int Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length,uint64_t delay=0);
+    int Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length);
     // 订阅移动站数据
     int Sub_Rover_Raw_Data(const char *mount_point,const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅移动站数据
     int Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key);
     // 设置用户坐标信息
     int Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time,int Q, int sat, double diff);
-
+    // 设置用户连接延迟信息
+    int Set_Rover_Delay_Info(const char *user_name, const char *connect_key, uint64_t delay);
 
     // 获取文本形式的源列表
     std::string Get_Source_Table_Text();

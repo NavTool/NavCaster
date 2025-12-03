@@ -64,11 +64,28 @@ int client_ntrip::runing()
     // 添加一个请求，订阅指定频道数据
     CASTER::Sub_Base_Raw_Data(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Sub_Callback, this);
 
+    if (_timeout_ev_flag == false)
+    {
+        _timeout_tv.tv_sec = 1;
+        _timeout_tv.tv_usec = 0;
+        _timeout_ev = event_new(bufferevent_get_base(_bev), -1, EV_PERSIST, TimeoutCallback, this);
+        event_add(_timeout_ev, &_timeout_tv);
+        _timeout_ev_flag = true;
+    }
+
     return 0;
 }
 
 int client_ntrip::stop()
 {
+
+    if (_timeout_ev_flag == true)
+    {
+        event_del(_timeout_ev);
+        event_free(_timeout_ev);
+        _timeout_ev_flag = false;
+    }
+
     bufferevent_disable(_bev, EV_READ);
 
     json close_req;
@@ -133,6 +150,13 @@ void client_ntrip::EventCallback(bufferevent *bev, short events, void *arg)
     svr->stop();
 }
 
+void client_ntrip::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
+{
+    auto *svr = static_cast<client_ntrip *>(arg);
+    // svr->send_heart_beat_to_server();
+    svr->update_tcp_delay_info();
+}
+
 int client_ntrip::transfer_sub_raw_data(const char *data, size_t length)
 {
     auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
@@ -166,8 +190,7 @@ int client_ntrip::publish_recv_raw_data()
     data[length] = '\0';
     evbuffer_remove(_recv_evbuf, data, length);
 
-    CASTER::Pub_Rover_Raw_Data(_user_name.c_str(), _connect_key.c_str(), data, length, util_get_tcp_delay(bufferevent_getfd(_bev)));
-
+    CASTER::Pub_Rover_Raw_Data(_user_name.c_str(), _connect_key.c_str(), data, length);
     _str_decoder.Decode(data, length);
     if (_str_decoder._has_position)
     {
@@ -180,6 +203,11 @@ int client_ntrip::publish_recv_raw_data()
 
     delete[] data;
     return 0;
+}
+
+int client_ntrip::update_tcp_delay_info()
+{
+    return CASTER::Set_Rover_Delay_Info(_user_name.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
 }
 
 void client_ntrip::Auth_Login_Callback(const char *request, void *arg, AuthReply *reply)

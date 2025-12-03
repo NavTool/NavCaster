@@ -214,7 +214,8 @@ public:
     str_status(std::string login_mpt, std::string alias_mpt, int type, std::string user_name, std::string connect_key);
     ~str_status();
 
-    int add_recv(int size, uint64_t delay=0);
+    int add_delay(uint64_t delay);
+    int add_recv(int size);
     int add_send(int size);
 
     int set_alias_mpt(std::string alias_mpt);
@@ -360,13 +361,15 @@ public:
     // 注销频道
     int withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
-    int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length, uint64_t delay);
+    int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
     int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_base_channel(const char *channel, const char *connect_key);
     // 设置基站坐标信息
     int set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
+    // 设置基站延迟信息
+    int set_base_delay_info(const char *mount_point, const char *connect_key, uint64_t delay);
     // 设置基站挂载点信息
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
     // 向注册的基站频道发送状态消息
@@ -377,13 +380,16 @@ public:
     // 注销频道
     int withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
-    int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length, uint64_t delay);
+    int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
     int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_rover_channel(const char *channel, const char *connect_key);
     // 设置用户坐标信息
     int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff);
+    // 设置用户延迟信息
+    int set_rover_delay_info(const char *user_name, const char *connect_key, uint64_t delay);
+    
     // 向注册的移动站频道发送状态消息
     int send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
 

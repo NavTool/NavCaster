@@ -289,6 +289,17 @@ int caster_internal::set_rover_coord_info(const char *user_name, const char *con
     return 0;
 }
 
+int caster_internal::set_rover_delay_info(const char *user_name, const char *connect_key, uint64_t delay)
+{
+    auto item = _rover_status_map.find(connect_key);
+    if (item == _rover_status_map.end())
+    {
+        return 1;
+    }
+    item->second.add_delay(delay);
+    return 0;
+}
+
 std::string caster_internal::get_source_list_text()
 {
     return _source_list_text;
@@ -310,6 +321,17 @@ int caster_internal::set_base_coord_info(const char *mount_point, const char *co
     // 更新坐标到GEO表中
     redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD MPT:GEO %f %f %s", lon, lat, mount_point); //
 
+    return 0;
+}
+
+int caster_internal::set_base_delay_info(const char *mount_point, const char *connect_key, uint64_t delay)
+{
+    auto item = _base_status_map.find(connect_key);
+    if (item == _base_status_map.end())
+    {
+        return 1;
+    }
+    item->second.add_delay(delay);
     return 0;
 }
 
@@ -983,12 +1005,12 @@ int caster_internal::send_status_base_channel(const char *channel, const char *c
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", msg.c_str());
 }
 
-int caster_internal::pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
+int caster_internal::pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
 {
     auto str = _base_status_map.find(connect_key);
     if (str != _base_status_map.end())
     {
-        str->second.add_recv(data_length, delay);
+        str->second.add_recv(data_length);
         add_sum_recv(data_length);
         if (_upload_base_stat)
         {
@@ -1012,12 +1034,12 @@ int caster_internal::send_status_rover_channel(const char *channel, const char *
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", msg.c_str());
 }
 
-int caster_internal::pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
+int caster_internal::pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length)
 {
     auto str = _rover_status_map.find(connect_key);
     if (str != _rover_status_map.end())
     {
-        str->second.add_recv(data_length, delay);
+        str->second.add_recv(data_length);
         add_sum_recv(data_length);
         if (_upload_rover_stat)
         {
@@ -1860,10 +1882,14 @@ str_status::~str_status()
 {
 }
 
-int str_status::add_recv(int size, uint64_t delay)
+int str_status::add_delay(uint64_t delay)
 {
     _delay = delay;
+    return 0;
+}
 
+int str_status::add_recv(int size)
+{
     _recv_total += size;
     _update_time = util_get_now_second();
     _recvHistory.push_back({_update_time, _recv_total});

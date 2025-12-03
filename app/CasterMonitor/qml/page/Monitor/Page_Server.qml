@@ -757,6 +757,12 @@ Frame {
                     }
                 }
                 ComItem{
+                    item_name:qsTr("数据延迟")
+                    delegate:TextField{
+                        placeholderText: focusItemUID===""?"":formatDelay(focusItem.tcp_delay)
+                    }
+                }
+                ComItem{
                     item_name:qsTr("上线时刻")
                     delegate:TextField{
                         placeholderText: focusItemUID===""?"":getLocalTime(focusItem.online_time)
@@ -1035,6 +1041,21 @@ Frame {
             return day + "d " + timeStr
         else
             return timeStr
+    }
+
+
+    function formatDelay(us) {
+        if (us === 0)
+            return "0 us"
+
+        var k = 1000
+        var sizes = ["us", "ms", "s"]
+
+        var i = Math.floor(Math.log(us) / Math.log(k))
+        var value = us / Math.pow(k, i)
+
+        // 秒的话只保留 3 位毫秒更好，但保持统一写法
+        return value.toFixed(1) + " " + sizes[i]
     }
 
     function formatBytes(bytes) {

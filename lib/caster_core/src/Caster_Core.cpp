@@ -235,9 +235,9 @@ int CASTER::Withdraw_Base_Record(const char *mount_point, const char *user_name,
     return caster_internal::getInstance()->withdraw_base_channel(mount_point, user_name, connect_key);
 }
 
-int CASTER::Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
+int CASTER::Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
 {
-    return caster_internal::getInstance()->pub_base_channel(mount_point, connect_key, data, data_length,delay);
+    return caster_internal::getInstance()->pub_base_channel(mount_point, connect_key, data, data_length);
 }
 
 int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
@@ -275,9 +275,9 @@ int CASTER::Withdraw_Rover_Record(const char *mount_point, const char *user_name
     return caster_internal::getInstance()->withdraw_rover_channel(mount_point, user_name, connect_key);
 }
 
-int CASTER::Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length, uint64_t delay)
+int CASTER::Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length)
 {
-     return caster_internal::getInstance()->pub_rover_channel(user_name, connect_key, data, data_length,delay);
+     return caster_internal::getInstance()->pub_rover_channel(user_name, connect_key, data, data_length);
 }
 
 int CASTER::Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
@@ -368,7 +368,17 @@ int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key
     return caster_internal::getInstance()->set_base_coord_info(mount_point, connect_key, ecef_x, ecef_y, ecef_z, update_time);
 }
 
+int CASTER::Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay)
+{
+    return caster_internal::getInstance()->set_base_delay_info(mount_point, connect_key, delay);
+}
+
 int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff)
 {
     return caster_internal::getInstance()->set_rover_coord_info(user_name, connect_key, ecef_x, ecef_y, ecef_z, update_time, Q, sat, diff);
+}
+
+int CASTER::Set_Rover_Delay_Info(const char *user_name, const char *connect_key, uint64_t delay)
+{
+    return caster_internal::getInstance()->set_rover_delay_info(user_name, connect_key, delay);
 }
