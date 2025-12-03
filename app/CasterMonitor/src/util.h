@@ -259,6 +259,28 @@ public:                                                                         
 
 // #endif
 
+#define PROPERTY_I64T(TYPE,M)                                                            \
+public:                                                                             \
+    bool M(const nlohmann::json &json, const std::string &key)                      \
+{                                                                               \
+        if (JsonTypeChecker<int64_t>::check(json, key))                            \
+    {                                                                           \
+            m_##M = static_cast<int64_t>(json[key].get<int64_t>());                  \
+            return true;                                                            \
+    }                                                                           \
+        else                                                                        \
+    {                                                                           \
+            std::cerr << "Failed to set [" #M "] from key: " << key << "\n";       \
+            return false;                                                           \
+    }                                                                           \
+}                                                                               \
+    void M(const int64_t &in_##M) { m_##M = in_##M; }                               \
+    int64_t M() const { return static_cast<int64_t>(m_##M); }                       \
+                                                                                    \
+    protected:                                                                          \
+    int64_t m_##M;
+
+
 
 
 

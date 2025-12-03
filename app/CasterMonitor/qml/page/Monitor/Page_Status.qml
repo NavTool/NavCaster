@@ -71,8 +71,68 @@ ScrollablePage{
         {
             // 更新数据源
             dataModel.sourceData = CasterResourceController.node_status_data
+
+
+            // cluster_model.clear()
+
+
+            if(CasterResourceController.node_online===0)
+            {
+                return;
+            }
+
+            cluster_model.set(0,{key:qsTr("负载") ,
+                                  value:qsTr("运行流畅"),
+                                  percent:CasterResourceController.cluster_cpu })
+
+            cluster_model.set(1,{key:qsTr("在线基站")  ,
+                                  value:CasterResourceController.server_online.toString(),
+                                  percent:CasterResourceController.server_online/100 })
+
+            cluster_model.set(2,{key:qsTr("在线移动站") ,
+                                  value:CasterResourceController.client_online.toString(),
+                                  percent:CasterResourceController.client_online/100.0 })
+
+            cluster_model.set(3,{key:qsTr("节点状态") ,
+                                  value:CasterResourceController.node_online+ "/"+CasterResourceController.node_count,
+                                  percent:CasterResourceController.node_online/CasterResourceController.node_count*100.0 })
+
+            cluster_model.set(4,{key:qsTr("内存占用") ,
+                                  value:formatBytes(CasterResourceController.cluster_mem),
+                                  percent:0 })
+
+            cluster_model.set(5,{key:qsTr("输入") ,
+                                  value:formatMbps(CasterResourceController.cluster_recv_speed),
+                                  percent:0 })
+
+            cluster_model.set(6,{key:qsTr("输出") ,
+                                  value:formatMbps(CasterResourceController.cluster_send_speed),
+                                  percent:0 })
+
+            cluster_model.set(7,{key:qsTr("运行时长") ,
+                                  value:formatTime(CasterResourceController.cluster_runsec),
+                                  percent:0 })
+
+
+
+
         }
     }
+
+    ListModel
+    {
+        id:cluster_model
+
+        ListElement{key:qsTr("负载") ; value:qsTr("运行流畅"); percent:0 }
+        ListElement{key:qsTr("在线基站") ; value:qsTr("20000"); percent:0 }
+        ListElement{key:qsTr("在线移动站") ; value:qsTr("85134"); percent:0 }
+        ListElement{key:qsTr("节点状态") ; value:qsTr("0/0"); percent:0 }
+        ListElement{key:qsTr("内存占用") ; value:qsTr("0.0 MB"); percent:0 }
+        ListElement{key:qsTr("下行") ; value:qsTr("0.0 Mbps"); percent:0 }
+        ListElement{key:qsTr("上行") ; value:qsTr("0.0 Mbps"); percent:0 }
+        ListElement{key:qsTr("运行时长") ; value:qsTr("0d 00:00:00"); percent:0 }
+    }
+
 
     GridView
     {
@@ -84,20 +144,7 @@ ScrollablePage{
         cellHeight: 160
         cellWidth: 380
 
-        model:    ListModel
-        {
-            //
-
-            ListElement{key:qsTr("负载") ; value:qsTr("运行流畅"); percent:15.3 }
-            ListElement{key:qsTr("在线基站") ; value:qsTr("20000"); percent:35.3 }
-            ListElement{key:qsTr("在线移动站") ; value:qsTr("85134"); percent:16.3 }
-            ListElement{key:qsTr("节点状态") ; value:qsTr("4/4"); percent:100 }
-            ListElement{key:qsTr("内存占用") ; value:qsTr("556.32MB"); percent:0 }
-            ListElement{key:qsTr("下行") ; value:qsTr("152.23Mbps"); percent:0 }
-            ListElement{key:qsTr("上行") ; value:qsTr("282.15Mbps"); percent:0 }
-            ListElement{key:qsTr("运行时长") ; value:qsTr("36d 15:21:14"); percent:0 }
-
-        }
+        model:cluster_model
 
         delegate:Frame
         {
@@ -128,7 +175,7 @@ ScrollablePage{
                 RowLayout{
                     anchors.centerIn: parent
                     Label{
-                        text: model.percent
+                        text: model.percent.toFixed(0)
                         font.pixelSize: 30         // 设置字体大小（像素）
                         font.bold: true            // 加粗
 
@@ -216,7 +263,6 @@ ScrollablePage{
         }
 
 
-
         delegate:Frame
         {
             width: 200
@@ -244,203 +290,7 @@ ScrollablePage{
     }
 
 
-    Item{
 
-        height: 30
-        implicitWidth: Window.width-100
-
-        Layout.topMargin: 10
-        Layout.bottomMargin: 10
-        Layout.leftMargin: 20
-
-
-        TabBar {
-
-            clip: true
-            Repeater {
-                model:     ListModel{
-                    id: tab_model
-                    ListElement{
-                        title: "负载状态"
-                    }
-                    ListElement{
-                        title: "连接数"
-
-                    }
-                    ListElement{
-                        title: "网络占用"
-                    }
-                    ListElement{
-                        title: "数据交换"
-                    }
-                    ListElement{
-                        title: "内存占用"
-                    }
-                }
-                TabButton {
-                    id: btn_tab
-                    text: model.title
-                    font.pixelSize: 22         // 设置字体大小（像素）
-                    font.bold: true            // 加粗
-                }
-            }
-
-
-            ComboBox
-            {
-                anchors.right: parent.right
-
-                model: ["1","2","3"]
-            }
-
-
-        }
-
-
-        RowLayout{
-            anchors.right:parent.right
-            // rightPadding: 30
-
-
-            spacing: 10
-            Label{
-                text: qsTr("节点:")
-                font.pixelSize: 15         // 设置字体大小（像素）
-                font.bold: true            // 加粗
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            ComboBox
-            {
-
-                // width: 100
-                // Layout.alignment: Qt.AlignRight
-
-                model: ["ALL","节点1","节点2"]
-            }
-
-            Label{
-                text: qsTr("范围:")
-                font.pixelSize: 15         // 设置字体大小（像素）
-                font.bold: true            // 加粗
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            ComboBox
-            {
-                // Layout.alignment: Qt.AlignRight
-
-                model: ["5min","15min","30min","1h","3h","6h","12h","24h","48h","72h"]
-            }
-
-
-        }}
-
-
-
-
-    Item {
-        id: root
-        implicitWidth: Window.width
-        height: 260
-
-        // 数据缓存
-        property var cpuData: []
-        property var memData: []
-        property var chartLabels: []
-
-        function initChart() {
-            cpuData = []
-            memData = []
-            chartLabels = []
-
-            let now = new Date()
-            for (let i = 59; i >= 0; i--) {
-                let t = new Date(now - i * 1000)
-                chartLabels.push(t.toTimeString().substring(3, 8)) // MM:SS
-
-                cpuData.push(0)
-                memData.push(0)
-            }
-        }
-
-        Chart {
-            id: chart
-            anchors{
-
-                fill: parent
-                // topMargin: 30
-            }
-            type: "line"
-
-            datas: {
-                return {
-                    labels: root.chartLabels,
-                    datasets: [
-                        {
-                            label: "CPU (%)",
-                            data: root.cpuData,
-                            fill: false,
-                            borderColor: "rgb(75, 192, 192)",  // 青色
-                            tension: 0.2
-                        },
-                        {
-                            label: "Memory (MB)",
-                            data: root.memData,
-                            fill: false,
-                            borderColor: "rgb(255, 99, 132)",  // 红色
-                            tension: 0.2
-                        }
-                    ]
-                }
-            }
-
-            options: {
-                return {
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            suggestedMin: 0,
-                            suggestedMax: 100   // 可修改，比如内存最大 16000MB
-                        }
-                    }
-                }
-            }
-        }
-
-        Timer {
-            id: timer
-            interval: 1000
-            repeat: true
-
-            onTriggered: {
-                // 模拟 CPU 数据
-                let cpu = Math.random() * 80 + 10   // CPU 10~90%
-                // 模拟内存，例如 2GB ~ 6GB
-                let mem = Math.random() * 4000 + 2000
-
-                // 移除旧数据
-                root.cpuData.shift()
-                root.memData.shift()
-                root.chartLabels.shift()
-
-                // 添加新数据
-                root.cpuData.push(cpu)
-                root.memData.push(mem)
-
-                let t = new Date()
-                root.chartLabels.push(t.toTimeString().substring(3, 8))
-
-                // 更新图表
-                chart.animateToNewData()
-            }
-        }
-
-        Component.onCompleted: {
-            initChart()
-            timer.start()
-        }
-    }
 
     Label{
         text: qsTr("节点状态")
@@ -456,7 +306,7 @@ ScrollablePage{
         Layout.preferredHeight: contentHeight
         Layout.leftMargin: 10
         Layout.rightMargin: 10
-        cellHeight: 320
+        cellHeight: 330
         cellWidth: 300
         model: dataModel
 
@@ -482,7 +332,7 @@ ScrollablePage{
         id:com_item
         Frame{
             width: 280
-            height: 360
+            height: 320
 
             Frame
             {
@@ -522,7 +372,6 @@ ScrollablePage{
                     leftMargin: 10
                 }
 
-
                 spacing: 10
 
                 Label{
@@ -534,14 +383,8 @@ ScrollablePage{
                 Label{
                     text: "建立连接数: "+model.connnect_count+ " ( " +model.server_count + "基站 " + model.client_count +" 移动站)";
                 }
-                // Label{
-                //     text: "在线基准站: "+model.server_count
-                // }
-                // Label{
-                //     text: "在线移动站: "+model.client_count
-                // }
                 Label{
-                    text: "CPU负载: "+ model.cpu_usage.toFixed(2) + "%"
+                    text: "节点负载: "+ model.cpu_usage.toFixed(2) + "%"
                 }
                 Label{
                     text: "内存占用: "+formatBytes(model.mem_usage)
@@ -614,6 +457,20 @@ ScrollablePage{
         var value = bytes / Math.pow(k, i)
         return value.toFixed(3) + " " + sizes[i]
     }
+
+    function formatMbps(bytesPerSecond) {
+        if (bytesPerSecond === 0)
+            return "0 Mbps";
+
+        var bitsPerSecond = bytesPerSecond * 8; // 字节 -> 比特
+        var k = 1000; // 网络通常用 1000 为单位
+        var sizes = ["bps", "Kbps", "Mbps", "Gbps", "Tbps"];
+        var i = Math.floor(Math.log(bitsPerSecond) / Math.log(k));
+        var value = bitsPerSecond / Math.pow(k, i);
+
+        return value.toFixed(2) + " " + sizes[i];
+    }
+
     function formatTime(onlineUtcSeconds) {
         // 当前时间（UTC 秒）
         var nowUtc = Math.floor(Date.now() / 1000)
@@ -638,6 +495,205 @@ ScrollablePage{
             return timeStr
     }
 
+
+
+    // Item{
+
+    //     height: 30
+    //     implicitWidth: Window.width-100
+
+    //     Layout.topMargin: 10
+    //     Layout.bottomMargin: 10
+    //     Layout.leftMargin: 20
+
+
+    //     TabBar {
+
+    //         clip: true
+    //         Repeater {
+    //             model:     ListModel{
+    //                 id: tab_model
+    //                 ListElement{
+    //                     title: "负载状态"
+    //                 }
+    //                 ListElement{
+    //                     title: "连接数"
+
+    //                 }
+    //                 ListElement{
+    //                     title: "网络占用"
+    //                 }
+    //                 ListElement{
+    //                     title: "数据交换"
+    //                 }
+    //                 ListElement{
+    //                     title: "内存占用"
+    //                 }
+    //             }
+    //             TabButton {
+    //                 id: btn_tab
+    //                 text: model.title
+    //                 font.pixelSize: 22         // 设置字体大小（像素）
+    //                 font.bold: true            // 加粗
+    //             }
+    //         }
+
+
+    //         ComboBox
+    //         {
+    //             anchors.right: parent.right
+
+    //             model: ["1","2","3"]
+    //         }
+
+
+    //     }
+
+
+    //     RowLayout{
+    //         anchors.right:parent.right
+    //         // rightPadding: 30
+
+
+    //         spacing: 10
+    //         Label{
+    //             text: qsTr("节点:")
+    //             font.pixelSize: 15         // 设置字体大小（像素）
+    //             font.bold: true            // 加粗
+    //             Layout.alignment: Qt.AlignVCenter
+    //         }
+
+    //         ComboBox
+    //         {
+
+    //             // width: 100
+    //             // Layout.alignment: Qt.AlignRight
+
+    //             model: ["ALL","节点1","节点2"]
+    //         }
+
+    //         Label{
+    //             text: qsTr("范围:")
+    //             font.pixelSize: 15         // 设置字体大小（像素）
+    //             font.bold: true            // 加粗
+    //             Layout.alignment: Qt.AlignVCenter
+    //         }
+
+    //         ComboBox
+    //         {
+    //             // Layout.alignment: Qt.AlignRight
+
+    //             model: ["5min","15min","30min","1h","3h","6h","12h","24h","48h","72h"]
+    //         }
+
+
+    //     }}
+
+
+
+
+    // Item {
+    //     id: root
+    //     implicitWidth: Window.width
+    //     height: 260
+
+    //     // 数据缓存
+    //     property var cpuData: []
+    //     property var memData: []
+    //     property var chartLabels: []
+
+    //     function initChart() {
+    //         cpuData = []
+    //         memData = []
+    //         chartLabels = []
+
+    //         let now = new Date()
+    //         for (let i = 59; i >= 0; i--) {
+    //             let t = new Date(now - i * 1000)
+    //             chartLabels.push(t.toTimeString().substring(3, 8)) // MM:SS
+
+    //             cpuData.push(0)
+    //             memData.push(0)
+    //         }
+    //     }
+
+    //     Chart {
+    //         id: chart
+    //         anchors{
+
+    //             fill: parent
+    //             // topMargin: 30
+    //         }
+    //         type: "line"
+
+    //         datas: {
+    //             return {
+    //                 labels: root.chartLabels,
+    //                 datasets: [
+    //                     {
+    //                         label: "CPU (%)",
+    //                         data: root.cpuData,
+    //                         fill: false,
+    //                         borderColor: "rgb(75, 192, 192)",  // 青色
+    //                         tension: 0.2
+    //                     },
+    //                     {
+    //                         label: "Memory (MB)",
+    //                         data: root.memData,
+    //                         fill: false,
+    //                         borderColor: "rgb(255, 99, 132)",  // 红色
+    //                         tension: 0.2
+    //                     }
+    //                 ]
+    //             }
+    //         }
+
+    //         options: {
+    //             return {
+    //                 maintainAspectRatio: false,
+    //                 scales: {
+    //                     y: {
+    //                         suggestedMin: 0,
+    //                         suggestedMax: 100   // 可修改，比如内存最大 16000MB
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     Timer {
+    //         id: timer
+    //         interval: 1000
+    //         repeat: true
+
+    //         onTriggered: {
+    //             // 模拟 CPU 数据
+    //             let cpu = Math.random() * 80 + 10   // CPU 10~90%
+    //             // 模拟内存，例如 2GB ~ 6GB
+    //             let mem = Math.random() * 4000 + 2000
+
+    //             // 移除旧数据
+    //             root.cpuData.shift()
+    //             root.memData.shift()
+    //             root.chartLabels.shift()
+
+    //             // 添加新数据
+    //             root.cpuData.push(cpu)
+    //             root.memData.push(mem)
+
+    //             let t = new Date()
+    //             root.chartLabels.push(t.toTimeString().substring(3, 8))
+
+    //             // 更新图表
+    //             chart.animateToNewData()
+    //         }
+    //     }
+
+    //     Component.onCompleted: {
+    //         initChart()
+    //         timer.start()
+    //     }
+    // }
 
 }
 

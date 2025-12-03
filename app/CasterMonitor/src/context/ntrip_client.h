@@ -25,9 +25,9 @@ private:
     PROPERTY_AUTO(time_t, online_time); // 上线时刻
     PROPERTY_AUTO(time_t, online_seconds); // 上线持续时间
 
-    PROPERTY_AUTO(int64_t, send_total); // 总发送字节数
+    PROPERTY_AUTO(double, send_total); // 总发送字节数
     PROPERTY_AUTO(double, send_speed); // 总发送速度
-    PROPERTY_AUTO(int64_t, recv_total); // 总接收字节数
+    PROPERTY_AUTO(double, recv_total); // 总接收字节数
     PROPERTY_AUTO(double, recv_speed); // 总接收速度
     PROPERTY_AUTO(int64_t, tcp_delay); // TCP延迟
 

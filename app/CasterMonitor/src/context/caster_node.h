@@ -13,9 +13,9 @@ private:
     PROPERTY_AUTO(double,cpu_usage);   // CPU占用
     PROPERTY_AUTO(int,mem_usage);      // 内存占用
     PROPERTY_AUTO(int,queue_delay);      // 队列平均执行延迟
-    PROPERTY_AUTO(int64_t,send_total);      // 累计发送
+    PROPERTY_AUTO(double,send_total);      // 累计发送
     PROPERTY_AUTO(double,send_speed);      // 发送速度
-    PROPERTY_AUTO(int64_t,recv_total);      // 累计接收
+    PROPERTY_AUTO(double,recv_total);      // 累计接收
     PROPERTY_AUTO(double,recv_speed);      // 接收速度
 
 

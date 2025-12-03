@@ -429,15 +429,15 @@ void CasterMonitor::onUpdateNodeMap(QString OP_UID, bool success, QVariantMap in
         item->second->update_flag(true); //设置数据更新标识
     }
 
-    // //删除所有本次没有更新的元素
-    // auto it = m_ntrip_server_map.begin();
-    // while (it != m_ntrip_server_map.end()) {
-    //     if (it->second->update_flag() == false) {
-    //         it = m_ntrip_server_map.erase(it);  // 删除元素，并更新迭代器
-    //     } else {
-    //         ++it;  // 仅在未删除时前进迭代器
-    //     }
-    // }
+    //删除所有本次没有更新的元素
+    auto it = m_caster_node_map.begin();
+    while (it != m_caster_node_map.end()) {
+        if (it->second->update_flag() == false) {
+            it = m_caster_node_map.erase(it);  // 删除元素，并更新迭代器
+        } else {
+            ++it;  // 仅在未删除时前进迭代器
+        }
+    }
 
     emit operateFinished(OP_UID,success,info);
 }

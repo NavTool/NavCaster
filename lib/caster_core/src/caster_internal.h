@@ -190,9 +190,9 @@ private:
     std::time_t _online_time = 0;    // 上线时刻
     std::time_t _online_seconds = 0; // 上线持续时间
 
-    size_t _send_total = 0;   // 总发送字节数
+    double _send_total = 0.0;   // 总发送字节数
     double _send_speed = 0.0; // 总发送速度
-    size_t _recv_total = 0;   // 总接收字节数
+    double _recv_total = 0.0;   // 总接收字节数
     double _recv_speed = 0.0; // 总接收速度
 
     uint64_t _delay = 0.0; // 数据延迟
@@ -229,7 +229,7 @@ private:
     struct Sample
     {
         int64_t time; // 秒级时间戳
-        size_t bytes;
+        double bytes;
     };
 
     std::deque<Sample> _recvHistory;
@@ -511,16 +511,16 @@ private:
     int pubAttemptReconnect();
 
 private:
-    size_t _send_total = 0;         // 总发送字节数
+    double _send_total = 0;         // 总发送字节数
     double _send_speed = 0.0;       // 总发送速度
-    size_t _recv_total = 0;         // 总接收字节数
+    double _recv_total = 0;         // 总接收字节数
     double _recv_speed = 0.0;       // 总接收速度
     std::time_t _update_time = 0.0; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
 
     struct Sample
     {
         int64_t time; // 秒级时间戳
-        size_t bytes;
+        double bytes;
     };
 
     std::deque<Sample> _recvHistory;
