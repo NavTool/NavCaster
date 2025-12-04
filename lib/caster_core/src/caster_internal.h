@@ -63,7 +63,7 @@ using json = nlohmann::json;
     MPT:LIST:PROXY      类型Hash,          [挂载点名-数据流的挂载点信息]
     MPT:GEO             类型GEO,           [挂载点名-经度-纬度]                  解析出来的单个挂载点的位置信息
     MPT:STAT            类型HASH,          [基站的ConnectKey-数据流详细信息]      设置对应挂载点的RTCM数据组装规则, Client注册到Catser中的时候, Caster会查询规则, 同时把规则返回给Client, 这样Client就可以知道要如何组装数据了
-
+    MPT:ALIAS           类型HASH
 
     USR:REC:KORO5       类型HASH,  用户名 -[用户的ConnectKey-添加记录的时间]    记录单个用户的在线情况(对于用户来说, 可以允许多个用户在线)
     USR:SUB:KORO5       类型Hash,  用户名 -[基站的ConnectKey-添加记录的时间]    记录单个用户的订阅情况(订阅者列表, 订阅者数量没有限制)

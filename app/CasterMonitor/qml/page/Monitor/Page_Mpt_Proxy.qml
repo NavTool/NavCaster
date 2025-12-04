@@ -6,7 +6,7 @@ import FluentUI.impl
 import CasterMonitor
 ScrollablePage{
 
-    title: qsTr("数据中继")
+    title: qsTr("数据中继 ( 开发中 )")
 
 
 

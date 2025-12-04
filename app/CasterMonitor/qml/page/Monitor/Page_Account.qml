@@ -16,7 +16,7 @@ Frame {
     anchors.fill: parent
     property int item_name_width:body_extra.width*0.35
     property int item_value_width:body_extra.width*0.65
-    property int item_height:30
+    property int item_height:35
 
 
     //数据属性
@@ -129,128 +129,40 @@ Frame {
             SplitView.fillWidth: true
             SplitView.fillHeight: true
 
-            Frame {
-                id: header_action
-                anchors {
-                    top: parent.top
-                    left: parent.left
-                    // leftMargin: 20
-                    right: parent.right
-                }
-                height: 40
+            Frame
+            {
+                width: parent.width
+                height: 60
+                RowLayout{
 
-                Row {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        left: parent.left
-                        leftMargin: 5
-                    }
+                    anchors.centerIn:  parent
+                    width: parent.width-30
+
+                    // leftPadding: 20
                     spacing: 5
-                    MenuBar {
-                        id:menu_bar
 
+                    ComboBox{
+                        implicitWidth: 150
+                        implicitHeight: 35
 
-                        Menu {
-                            width: 140
-                            title: qsTr("账号注册")
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("账号注册")
-                                onTriggered:{
-
-                                    Global.open_dialog("/monitor/dialog/account/add_account","")
-                                }
-                            }
-
-                            MenuSeparator { }
-
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("批量注册")
-                                onTriggered:{
-                                }
-                            }
-
-                            MenuSeparator { }
-
-
-                        }
-                        Menu {
-                            width: 140
-                            title: qsTr("用户管理")
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("激活/停用账号")
-                                onTriggered:{
-                                }
-                            }
-                            MenuSeparator { }
-
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("账号续期")
-                                onTriggered:{
-                                }
-                            }
-                        }
-                        Menu {
-                            width: 140
-                            title: qsTr("显示")
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("显示过期账号")
-                                onTriggered:{
-                                }
-                            }
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("显示正常账号")
-                                onTriggered:{
-                                }
-                            }
-                            MenuItem{
-                                // icon.name:  FluentIcons.graph_Info
-                                text:qsTr("显示匿名账号")
-                                onTriggered:{
-                                }
-                            }
-                        }
-                        Menu {
-                            width: 140
-                            title: qsTr("筛选")
-                            Menu{
-                                width: 140
-                                title: qsTr("条件筛选")
-                                Action { text: qsTr("按照账号ID") }
-                                Action { text: qsTr("按照机构") }
-                                Action { text: qsTr("按照账号状态") }
-                            }
-                            MenuSeparator { }
-                            Menu{
-                                width: 140
-                                title: qsTr("条件筛选")
-                                Action { text: qsTr("按照账号ID") }
-                                Action { text: qsTr("按照机构") }
-                                Action { text: qsTr("按照账号状态") }
-                            }
-                        }
-                    }                }
-
-                Row {
-
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        right: parent.right
-                        rightMargin: 10
+                        model: ["按用户账号筛选"]
                     }
-                    spacing: 5
+
+                    // ComboBox{
+                    //     implicitWidth: 150
+                    //     implicitHeight: 35
+
+                    //     model: ["筛选任务类型"]
+                    // }
 
                     AutoSuggestBox {
                         id: auto_suggset_search
-                        width: 300
+                        // width: 300
+                        Layout.fillWidth: true
+                        implicitHeight: 35
                         placeholderText: qsTr("Search")
-                        items: []
-                        textRole: "title"
+                        items: controllerData.data
+                        textRole: "account"
                         trailing: RowLayout {
                             IconButton {
                                 implicitWidth: 30
@@ -273,64 +185,130 @@ Frame {
                             }
                         }
                         onTap: item => {
-                                   if (item.key) {
-                                       page_router.go(item.key)
+                                focusItemUID=item.UID
+
+                                   for (var i = 0; i < dataModel.count; ++i) {
+                                       if (dataModel.get(i).UID === focusItemUID) {
+                                           dataGrid.view.currentIndex = i
+                                           // dataGrid.selected_items.clear()
+                                           dataGrid.selectionModel.select(dataModel.index(i, 0),
+                                                                          ItemSelectionModel.Select)
+
+                                                        dataGrid.view.contentY=i*40
+                                       }
+                                       else{
+                                           dataGrid.selectionModel.select(dataModel.index(i, 0),
+                                                                          ItemSelectionModel.Deselect)
+                                       }
                                    }
+
+
+
                                }
-                        Connections {
-                            target: navigation_view
-                            function onSourceItemsChanged(data) {
-                                auto_suggset_search.items = data.filter(
-                                            item => {
-                                                return item instanceof PaneItem
-                                            })
-                            }
+                    }
+
+
+
+                    Button
+                    {
+                        implicitHeight: 35
+                        implicitWidth: 120
+                        icon.name: FluentIcons.graph_Add
+                        icon.width: 20
+                        icon.height: 20
+
+                        text: "添加账号"
+                        font.pixelSize: 15
+                        font.bold: true            // 加粗
+
+                        // highlighted: true
+
+                        onClicked: {
+                            Global.open_dialog("/monitor/dialog/account/add_account","")
+
                         }
                     }
 
-                    Button {
-                        width: 70
-                        text: qsTr("检索")
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
                 }
+
+
             }
 
             Frame {
-                anchors {
-                    top: header_action.bottom
-                    bottom: footer_action.top
-                    left: parent.left
-                    right: parent.right
-                    leftMargin: 5
-                    rightMargin: 5
-                    topMargin: 5
-                    bottomMargin: 5
+                clip: true
+                anchors{
+                    fill: parent
+                    // margins: 10
+                    topMargin: 65
                 }
-
-                DataGridEx {
+                DataGrid {
                     id: dataGrid
-                    anchors.fill: parent
-
-                    // Pane {
-                    //     id: panel_loading
-                    //     anchors.fill: dataGrid
-                    //     ProgressRing {
-                    //         anchors.centerIn: parent
-                    //         indeterminate: true
-                    //     }
-                    //     background: Rectangle {
-                    //         color: Theme.res.solidBackgroundFillColorBase
-                    //     }
-                    // }
-                    defaultHeight: 30
-                    defaultminimumHeight: 25
-                    defaultmaximumHeight: 240
-                    horizonalHeaderHeight: 30
-
+                    anchors{
+                        fill: parent
+                        margins: 10
+                        // topMargin: 70
+                    }
                     sourceModel: dataModel
+
+                    columnSourceModel: ListModel {
+                        ListElement { frozen: false; width: 120 ; dataIndex: "account"       ; title: qsTr("账号")}
+                        ListElement { frozen: false; width: 180 ; dataIndex: "contact_name"  ; title: qsTr("用户名/机构名")}
+                        ListElement { frozen: false; width: 90 ; dataIndex: "access_limit"  ; title: qsTr("支持连接数")}
+                        ListElement { frozen: false; width: 200 ; dataIndex: "access"        ; title: qsTr("准入类型");}
+                        ListElement { frozen: false; width: 100 ; dataIndex: "type"          ; title: qsTr("账号类型")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "state"         ; title: qsTr("启用状态")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "time_active"   ; title: qsTr("激活状态");}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "time_expired"  ; title: qsTr("可用状态")}
+                        ListElement { frozen: false; width: 200 ; dataIndex: "time_register" ; title: qsTr("注册日期")}
+                        ListElement { frozen: false; width: 200 ; dataIndex: "time_modified" ; title: qsTr("记录修改日期")}
+
+                    }
+
+
+                    delegateProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "access":
+                                return comp_access_label
+                                case "type":
+                                return comp_type_label
+                                case "state":
+                                return comp_state_label
+                                case "time_active":
+                                return comp_active_label
+                                case "time_expired":
+                                return comp_expired_label
+                                case "time_register":
+                                case "time_modified":
+                                return comp_date_label
+                                default:
+                                return comp_mid_label
+                            }
+                        }
+                    columnHeaderProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "avatar":
+                                default:
+
+                                return comp_mid_header
+                                // return defaultColumnHeader
+                            }
+                        }
+                    editDelegateProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "action":
+                                return undefined
+
+                                default:
+                                return undefined
+                                // return defaultEditDelegate
+                            }
+                        }
                     onRowClicked: model => {
                                       // console.debug(model.station_name)
+                                      Global.visable_right_side=true
                                       root.focusItemUID = model.UID
                                       console.log(Util.safeStringify(model))
                                   }
@@ -360,151 +338,9 @@ Frame {
                         }
                     }
 
-                    columnSourceModel: ListModel {
-                        ListElement {
-                            title: qsTr("账号")
-                            dataIndex: "account"
-                            width: 120
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            frozen: false
-                        }
-
-
-
-                        ListElement {
-                            title: qsTr("用户名/机构名")
-                            dataIndex: "contact_name"
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            width: 200
-                        }
-
-                        ListElement {
-                            title: qsTr("支持连接数")
-                            dataIndex: "access_limit"
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            width: 100
-                            frozen: false
-                        }
-
-                        ListElement {
-                            title: qsTr("准入类型")
-                            dataIndex: "access"
-                            rowDelegate: function () {
-                                return comp_access_label
-                            }
-                            width: 200
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("账号类型")
-                            dataIndex: "type"
-                            width: 100
-                            rowDelegate: function () {
-                                return comp_type_label
-                            }
-                            frozen: false
-                        }
-
-                        ListElement {
-                            title: qsTr("启用状态")
-                            dataIndex: "state"
-                            width: 120
-                            rowDelegate: function () {
-                                return comp_state_label
-                            }
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("激活状态")
-                            dataIndex: "time_active"
-                            width: 120
-                            rowDelegate: function () {
-                                return comp_active_label
-                            }
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("可用状态")
-                            dataIndex: "time_expired"
-                            width: 120
-                            rowDelegate: function () {
-                                return comp_expired_label
-                            }
-                            frozen: false
-                        }
-
-
-                        ListElement {
-                            title: qsTr("联系人")
-                            dataIndex: "contact_person"
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            width: 200
-                        }
-                        ListElement {
-                            title: qsTr("联系方式")
-                            dataIndex: "contact_info"
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            width: 200
-                        }
-
-
-                        ListElement {
-                            title: qsTr("注册日期")
-                            dataIndex: "time_register"
-                            rowDelegate: function () {
-                                return comp_date_label
-                            }
-                            width: 180
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("记录修改日期")
-                            dataIndex: "time_modified"
-                            rowDelegate: function () {
-                                return comp_date_label
-                            }
-                            width: 200
-                        }
-                    }
                 }
             }
 
-            Frame {
-                id: footer_action
-                anchors {
-                    bottom: parent.bottom
-                    left: parent.left
-                    right: parent.right
-                }
-                height: 50
-
-                Pagination {
-                    pageCurrent: 1
-                    pageButtonCount: 5
-                    itemCount: 5000
-
-                    anchors.horizontalCenter: parent.horizontalCenter
-
-                    footer: ComboBox {
-
-                        height: 30
-                        width: 100
-
-                        model: [qsTr("25条/页"), qsTr("50条/页"), qsTr(
-                                "100条/页"), qsTr("500条/页"), qsTr("1000条/页")]
-                    }
-                }
-            }
         }
 
         Frame {
@@ -545,6 +381,10 @@ Frame {
                         icon.source: FluentIcons.graph_MiniExpand2Mirrored
                         icon.width: 15
                         icon.height: 15
+
+                        onClicked: {
+                            Global.visable_right_side=!Global.visable_right_side
+                        }
                     }
                 }
 
@@ -562,7 +402,7 @@ Frame {
 
                         ExpanderEx{
                             width: parent.width
-                            expanderHeight:35
+                            expanderHeight:40
 
                             expanded:focusItemUID!==""
                             header: Label{
@@ -574,7 +414,7 @@ Frame {
                         }
                         ExpanderEx{
                             width: parent.width
-                            expanderHeight:35
+                            expanderHeight:40
 
                             expanded:focusItemUID!==""
                             header: Label{
@@ -586,7 +426,7 @@ Frame {
                         }
                         ExpanderEx{
                             width: parent.width
-                            expanderHeight:35
+                            expanderHeight:40
 
                             expanded:focusItemUID!==""
                             header: Label{
@@ -660,6 +500,28 @@ Frame {
             }
         }
     }
+
+    Component{
+        id: comp_mid_label
+        DataItem{
+            itemtext: display
+        }
+    }
+
+    Component{
+        id: comp_mid_header
+        Label{
+            anchors.fill: parent
+            text: columnModel.title
+            verticalAlignment: Qt.AlignVCenter
+            horizontalAlignment: Qt.AlignHCenter
+            leftPadding: 10
+            rightPadding: 10
+            elide: Label.ElideRight
+            font.bold: true
+        }
+    }
+
 
     Component{
         id:com_state
@@ -881,12 +743,6 @@ Frame {
     }
 
 
-    Component{
-        id: comp_mid_label
-        DataItem{
-            itemtext: display
-        }
-    }
 
     Component{
         id: comp_type_label

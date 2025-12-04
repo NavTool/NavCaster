@@ -23,17 +23,19 @@ public:
             {
                 Q_EMIT loadDataStart();
 
-                m_data.clear();  //清除数据
+                m_data.clear();
 
+                auto data_map=CasterMonitor::getInstance()->m_relay_pull_map;
 
-                for(int i=100;i<120;i++)
+                for(auto iter:data_map)
                 {
+                    auto info = iter.second->info();
+                    QVariantMap data= JsonToQVariantMap(info);
 
-
-                    QVariantMap data;//= JsonToQVariantMap(info);
-
-                    data["mpt"]=i;
-
+                    if(data["update_flag"].toBool() == false)
+                    {
+                        // continue;
+                    }
                     m_data.append(data);
                 }
 

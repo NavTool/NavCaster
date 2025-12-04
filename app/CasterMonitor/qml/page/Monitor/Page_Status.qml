@@ -123,14 +123,14 @@ ScrollablePage{
     {
         id:cluster_model
 
-        ListElement{key:qsTr("负载") ; value:qsTr("运行流畅"); percent:0 }
-        ListElement{key:qsTr("在线基站") ; value:qsTr("20000"); percent:0 }
-        ListElement{key:qsTr("在线移动站") ; value:qsTr("85134"); percent:0 }
-        ListElement{key:qsTr("节点状态") ; value:qsTr("0/0"); percent:0 }
-        ListElement{key:qsTr("内存占用") ; value:qsTr("0.0 MB"); percent:0 }
-        ListElement{key:qsTr("下行") ; value:qsTr("0.0 Mbps"); percent:0 }
-        ListElement{key:qsTr("上行") ; value:qsTr("0.0 Mbps"); percent:0 }
-        ListElement{key:qsTr("运行时长") ; value:qsTr("0d 00:00:00"); percent:0 }
+        ListElement{key:qsTr("负载") ; value:qsTr("-"); percent:0 }
+        ListElement{key:qsTr("在线基站") ; value:qsTr("-"); percent:0 }
+        ListElement{key:qsTr("在线移动站") ; value:qsTr("-"); percent:0 }
+        ListElement{key:qsTr("节点状态") ; value:qsTr("-"); percent:0 }
+        ListElement{key:qsTr("内存占用") ; value:qsTr("-"); percent:0 }
+        ListElement{key:qsTr("下行") ; value:qsTr("-"); percent:0 }
+        ListElement{key:qsTr("上行") ; value:qsTr("-"); percent:0 }
+        ListElement{key:qsTr("运行时长") ; value:qsTr("-"); percent:0 }
     }
 
 

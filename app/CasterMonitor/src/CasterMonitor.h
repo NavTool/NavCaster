@@ -5,12 +5,15 @@
 
 #include "EventOperationBase.h"
 #include "EventWorker.h"
-#include "connectRedis.h"
+
 
 #include "context/user_account.h"
 #include "context/caster_node.h"
 #include "context/ntrip_client.h"
 #include "context/ntrip_server.h"
+#include "context/relay_pull.h"
+#include "context/relay_push.h"
+#include "context/alias_rule.h"
 #include "stdafx.h"
 #include "spdlog/spdlog.h"
 
@@ -37,8 +40,19 @@ public:
     Q_INVOKABLE QVariantMap getNtripServerInfoByMpt(QString Mpt);
     Q_INVOKABLE QVariantMap getNtripClientInfo(QString UID);
     Q_INVOKABLE QVariantMap getUserAccountInfo(QString UID);
+    Q_INVOKABLE QVariantMap getRelayPullInfo(QString UID);
+    Q_INVOKABLE QVariantMap getRelayPushInfo(QString UID);
+    Q_INVOKABLE QVariantMap getAliasRuleInfo(QString UID);
 
 
+    // 全量刷新数据
+    Q_INVOKABLE QString addRefreshNodeOperate();
+    Q_INVOKABLE QString addRefreshServerOperate();
+    Q_INVOKABLE QString addRefreshClientOperate();
+    Q_INVOKABLE QString addRefreshAccountOperate();
+    Q_INVOKABLE QString addRefreshRelayPullOperate();
+    Q_INVOKABLE QString addRefreshRelayPushOperate();
+    Q_INVOKABLE QString addRefreshAlisaRuleOperate();
 
 
 public:
@@ -59,21 +73,35 @@ public:
     Q_INVOKABLE QString addConnectAuthOperate(QVariantMap connect_info);
     Q_INVOKABLE QString addDisconnectAuthOperate();
 
-    // 全量刷新数据
-    Q_INVOKABLE QString addRefreshNodeOperate();
-    Q_INVOKABLE QString addRefreshServerOperate();
-    Q_INVOKABLE QString addRefreshClientOperate();
-    Q_INVOKABLE QString addRefreshAccountOperate();
-
 
     // 账号管理
     Q_INVOKABLE QVariantMap genAccountTemp();
     Q_INVOKABLE QString addAddAccountOperate(QVariantMap account_info);  // 添加账号（远程操作，添加完成后，本地也同步更新）
     Q_INVOKABLE QString addSetAccountOperate(QVariantMap account_info);  // 修改已有账号信息（远程操作，添加完成后，本地也同步更新）
-    Q_INVOKABLE QString addDelAccountOperate(QVariantMap account_info);  // 添加账号（添加完成后，本地也同步更新）
+    Q_INVOKABLE QString addDelAccountOperate(QVariantMap account_info);  // 删除账号（添加完成后，本地也同步更新）
     Q_INVOKABLE QString addGetAccountOperate(QVariantMap account_info);  // 查询账号（远程操作）
 
 
+    // 数据接入任务
+    Q_INVOKABLE QVariantMap genPullStreamTemp();
+    Q_INVOKABLE QString addAddPullStreamOperate(QVariantMap account_info);  // 添加
+    Q_INVOKABLE QString addSetPullStreamOperate(QVariantMap account_info);  // 修改
+    Q_INVOKABLE QString addDelPullStreamOperate(QVariantMap account_info);  // 删除
+    Q_INVOKABLE QString addGetPullStreamOperate(QVariantMap account_info);  // 查询
+
+    // 数据推送任务
+    Q_INVOKABLE QVariantMap genPushStreamTemp();
+    Q_INVOKABLE QString addAddPushStreamOperate(QVariantMap account_info);  // 添加
+    Q_INVOKABLE QString addSetPushStreamOperate(QVariantMap account_info);  // 修改
+    Q_INVOKABLE QString addDelPushStreamOperate(QVariantMap account_info);  // 删除
+    Q_INVOKABLE QString addGetPushStreamOperate(QVariantMap account_info);  // 查询
+
+    // 数据流别名
+    Q_INVOKABLE QVariantMap genAliasRuleTemp();
+    Q_INVOKABLE QString addAddAliasRuleOperate(QVariantMap account_info);  // 添加
+    Q_INVOKABLE QString addSetAliasRuleOperate(QVariantMap account_info);  // 修改
+    Q_INVOKABLE QString addDelAliasRuleOperate(QVariantMap account_info);  // 删除
+    Q_INVOKABLE QString addGetAliasRuleOperate(QVariantMap account_info);  // 查询
 
 
     // 执行任务
@@ -117,6 +145,9 @@ private slots:
     void onUpdataServerMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdataClientMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdateAccountMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdatePullMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdatePushMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdateAliasMap(QString OP_UID,bool success,QVariantMap info);
 
     //任务操作发送的信号通过这个转发
     void onOperateFinished(QString OP_UID,bool success,QVariantMap info);
@@ -172,6 +203,10 @@ public:
     std::unordered_map<QString, std::shared_ptr<ntrip_server>> m_ntrip_server_map;    // Connect_Key，对象，站点的基本信息
     std::unordered_map<QString, std::shared_ptr<ntrip_client>> m_ntrip_client_map;    // Connect_Key，对象，站点的基本信息
     std::unordered_map<QString, std::shared_ptr<user_account>> m_user_account_map;          // key，对象，站点的基本信息
+
+    std::unordered_map<QString, std::shared_ptr<relay_pull>> m_relay_pull_map;          // key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<relay_push>> m_relay_push_map;          // key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<alias_rule>> m_alias_rule_map;          // key，对象，站点的基本信息
 
 public:
 

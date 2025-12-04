@@ -387,7 +387,7 @@ ContentPage {
             height:60
 
             Row{
-                IconButton
+                Button
                 {
                     width: 240
                     height: 60
@@ -413,11 +413,11 @@ ContentPage {
                     }
 
                 }
-                IconButton
+                Button
                 {
                     width: 60
                     height: 60
-                    icon.name: FluentIcons.graph_ChevronRightSmall
+                    icon.name: FluentIcons.graph_History
                     icon.color:  Theme.res.textFillColorSecondary
 
                     onClicked: {

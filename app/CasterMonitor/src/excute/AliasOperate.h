@@ -18,32 +18,32 @@
 
 
 
-class EventAddPull : public RedisOperationBase
+class EventAddAlias : public RedisOperationBase
 {
     Q_OBJECT
     QML_ELEMENT
 
-    Q_PROPERTY_AUTO(QVariantMap, relay_info)
+    Q_PROPERTY_AUTO(QVariantMap, alias_info)
 public:
-    explicit EventAddPull(): RedisOperationBase() {};
+    explicit EventAddAlias(): RedisOperationBase() {};
 
     Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
     void execute(redisAsyncContext *ctx) override {
 
-        auto UID= m_relay_info["UID"].toString();
-        auto info= JsonToQString(variantMapToJson(m_relay_info)) ;
+        auto UID= m_alias_info["UID"].toString();
+        auto info= JsonToQString(variantMapToJson(m_alias_info)) ;
 
-        redisAsyncCommand(ctx, Redis_Add_Pull_Callback, this, "HSETNX RELAY:PULL %s %s",UID.toStdString().c_str(),info.toStdString().c_str());
+        redisAsyncCommand(ctx, Redis_Add_Alias_Callback, this, "HSETNX MPT:ALIAS %s %s",UID.toStdString().c_str(),info.toStdString().c_str());
 
     }
 
 public:
-    static void Redis_Add_Pull_Callback(redisAsyncContext *c, void *r, void *privdata)
+    static void Redis_Add_Alias_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
         // 解析数据
         auto reply = static_cast<redisReply *>(r);
-        auto svr = static_cast<EventAddPull *>(privdata);
+        auto svr = static_cast<EventAddAlias *>(privdata);
 
         if (!reply)
         {
@@ -69,15 +69,13 @@ public:
 
     }
 
-
-
 };
 
 
-class EventSetPull : public RedisOperationBase
+class EventSetAlias : public RedisOperationBase
 {
 public:
-    explicit EventSetPull(): RedisOperationBase() {};
+    explicit EventSetAlias(): RedisOperationBase() {};
 
     Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
@@ -100,10 +98,10 @@ public:
 };
 
 
-class EventGetPull : public RedisOperationBase
+class EventGetAlias : public RedisOperationBase
 {
 public:
-    explicit EventGetPull(): RedisOperationBase() {};
+    explicit EventGetAlias(): RedisOperationBase() {};
 
     Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
@@ -126,10 +124,10 @@ public:
 };
 
 
-class EventDelPull : public RedisOperationBase
+class EventDelAlias : public RedisOperationBase
 {
 public:
-    explicit EventDelPull(): RedisOperationBase() {};
+    explicit EventDelAlias(): RedisOperationBase() {};
 
     Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 

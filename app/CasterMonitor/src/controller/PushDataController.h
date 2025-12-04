@@ -26,14 +26,17 @@ public:
                 m_data.clear();  //清除数据
 
 
-                for(int i=100;i<120;i++)
+                auto data_map=CasterMonitor::getInstance()->m_relay_push_map;
+
+                for(auto iter:data_map)
                 {
+                    auto info = iter.second->info();
+                    QVariantMap data= JsonToQVariantMap(info);
 
-
-                    QVariantMap data;//= JsonToQVariantMap(info);
-
-                    data["mpt"]=i;
-
+                    if(data["update_flag"].toBool() == false)
+                    {
+                        // continue;
+                    }
                     m_data.append(data);
                 }
 

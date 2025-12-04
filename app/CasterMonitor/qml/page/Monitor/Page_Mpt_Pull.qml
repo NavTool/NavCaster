@@ -19,6 +19,9 @@ Frame {
     property int item_height:30
 
 
+
+    property bool visable_right_side:false
+
     //数据属性
     // 页面保存的上下文
     property string focusItemUID: ""   // 当前选定的数据记录的UID
@@ -29,10 +32,84 @@ Frame {
 
     }
 
+    Frame
+    {
+        width: parent.width
+        height: 60
+
+        RowLayout{
+
+            anchors.centerIn:  parent
+            width: parent.width-30
+
+            // leftPadding: 20
+            spacing: 5
+
+
+            ComboBox{
+                implicitWidth: 150
+                implicitHeight: 35
+
+                model: ["筛选任务状态"]
+            }
+
+            // ComboBox{
+            //     implicitWidth: 150
+            //     implicitHeight: 35
+
+            //     model: ["筛选任务类型"]
+            // }
+
+            TextBox
+            {
+                Layout.fillWidth: true
+
+                // anchors.verticalCenter: parent.verticalCenter
+
+                implicitHeight: 35
+                trailing: IconButton{
+                    implicitWidth: 30
+                    implicitHeight: 20
+                    icon.name: FluentIcons.graph_Search
+                    icon.width: 20
+                    icon.height: 20
+                    padding: 0
+                }
+
+                placeholderText: "查询已添加的数据任务"
+
+            }
+
+            Button
+            {
+                implicitHeight: 35
+                implicitWidth: 120
+                icon.name: FluentIcons.graph_Add
+                icon.width: 20
+                icon.height: 20
+
+                text: "接入数据"
+                font.pixelSize: 15
+                font.bold: true            // 加粗
+
+                // highlighted: true
+
+                onClicked: {
+                    root.visable_right_side=true;
+                }
+            }
+
+
+        }
+
+    }
 
     SplitView {
         id: split_layout
-        anchors.fill: parent
+        anchors{
+            fill: parent
+            topMargin: 70
+        }
         orientation: Qt.Horizontal
 
         Frame {
@@ -41,20 +118,370 @@ Frame {
             SplitView.fillWidth: true
             SplitView.fillHeight: true
 
-              }
+
+
+            Frame{
+                width: parent.width
+                height: 40
+
+
+                RowLayout{
+
+                    anchors{
+
+                        fill: parent
+                        leftMargin: 10
+                        rightMargin: 10
+                    }
+
+                    Label{
+                        text: "任务数: "
+                        font.bold: true
+                        font.pixelSize: 15
+                    }
+                }
+            }
+
+            Column{
+                id: layout_column
+
+                anchors{
+                    fill: parent
+                    margins: 5
+                    topMargin: 45
+                }
+
+                spacing: 10
+                width: 560
+                Repeater{
+                    model: 10
+                    delegate: Frame{
+                        implicitWidth: layout_column.width
+                        implicitHeight: 120
+                        Rectangle{
+                            id: avatar
+                            width: 100
+                            height: 100
+                            radius: 50
+                            color: Theme.res.dividerStrokeColorDefault
+                            anchors{
+                                verticalCenter: parent.verticalCenter
+                                left: parent.left
+                                leftMargin: 20
+                            }
+                        }
+                        Rectangle{
+                            width: 200
+                            height: 32
+                            radius: 4
+                            color: Theme.res.dividerStrokeColorDefault
+                            anchors{
+                                top: avatar.top
+                                left: avatar.right
+                                topMargin: 6
+                                leftMargin: 20
+                            }
+                            Label{
+                                anchors.centerIn: parent
+                                text:"SHJD01"
+                                font.bold: true
+                                font.pixelSize: 15
+                            }
+                        }
+                        Rectangle{
+                            width: 400
+                            height: 32
+                            radius: 4
+                            color: Theme.res.dividerStrokeColorDefault
+                            anchors{
+                                bottom: avatar.bottom
+                                left: avatar.right
+                                bottomMargin: 6
+                                leftMargin: 20
+                            }
+
+                            Label{
+                                anchors.centerIn: parent
+                                text:"Ntrip Client: 81.68.72.44:2101/A31C05650"
+                                font.bold: true
+                                font.pixelSize: 15
+                            }
+
+                        }
+                        Rectangle{
+                            width: 200
+                            height: 120
+                            radius: 4
+                            color: Theme.res.dividerStrokeColorDefault
+                            anchors{
+                                right: parent.right
+                            }
+
+                            Label{
+                                anchors.centerIn: parent
+                                text:"Input: 1.428 KB/s \nOutput: 1.428 KB/s"
+                                font.bold: true
+                                font.pixelSize: 15
+                            }
+
+                        }
+
+                    }
+                }
+            }
+
+
+        }
 
         Frame {
             id: body_extra
             clip: true
-            visible: Global.visable_right_side
-            implicitWidth: body.width * 0.5
+            visible: root.visable_right_side
+            implicitWidth: body.width * 0.3
             implicitHeight: body.height
 
+            Column{
+                anchors{
+                    fill: parent
+                    margins: 20
+                }
+
+                spacing: 10
+
+                Item{
+                    implicitWidth: 120
+                    height: 30
+                    Label{
+                        anchors.centerIn: parent
+                        text: "数据接入信息"
+                        font.pixelSize: 20
+                        font.bold: true
+                    }
+                }
+
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "接入数据类型"
+                        }
+                    }
+                    ComboBox{
+                        Layout.fillWidth: true
+                        model:["NTRIP Client 1.0","NTRIP Client 2.0","TCP Client","TCP Server"]
+                    }
+                }
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "数据源IP"
+                        }
+                    }
+                    TextBox{
+                        Layout.fillWidth: true
+                    }
+                }
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "数据源端口"
+                        }
+                    }
+                    TextBox{
+                        Layout.fillWidth: true
+                    }
+                }
+
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "挂载点名称"
+                        }
+                    }
+                    TextBox{
+                        Layout.fillWidth: true
+                    }
+                }
+
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "登录用户名"
+                        }
+                    }
+                    TextBox{
+                        Layout.fillWidth: true
+                    }
+                }
+
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "登录密码"
+                        }
+                    }
+                    PasswordBox{
+                        Layout.fillWidth: true
+                    }
+                }
+
+                Item{
+                    implicitWidth: 120
+                    height: 30
+                    Label{
+                        anchors.centerIn: parent
+                        text: "数据接入配置"
+                        font.pixelSize: 20
+                        font.bold: true
+                    }
+                }
+
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "对外挂载点名"
+                        }
+                    }
+                    TextBox{
+                        Layout.fillWidth: true
+                    }
+                }
 
 
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "首次断开重连间隔"
+                        }
+                    }
+                    ComboBox{
+                        Layout.fillWidth: true
+                        model:["5s","10s","30s","60s","180s","300s"]
+                    }
+                }
 
 
-             }
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "最大重连间隔"
+                        }
+                    }
+                    ComboBox{
+                        Layout.fillWidth: true
+                        model:["60s","180s","300s"]
+                    }
+                }
+
+                RowLayout{
+                    width: parent.width
+                    spacing: 10
+
+                    Item{
+                        implicitWidth: 150
+                        Label{
+                            anchors.centerIn: parent
+                            text: "最大重连次数"
+                        }
+                    }
+                    ComboBox{
+                        Layout.fillWidth: true
+                        model:["无限制"]
+                    }
+                }
+            }
+
+            RowLayout{
+
+                anchors{
+                    bottom:parent.bottom
+                    bottomMargin: 30
+                }
+
+                width: parent.width
+                spacing: 10
+
+
+                Button{
+                    implicitHeight: 40
+                    implicitWidth: 120
+
+                    Layout.alignment: Qt.AlignHCenter
+
+                    text:"取消"
+                    font.bold: true
+                    font.pixelSize: 15
+
+
+                    onClicked: {
+                        root.visable_right_side=false;
+                    }
+                }
+
+                Button{
+                    implicitHeight: 40
+                    implicitWidth: 120
+
+                    highlighted: true
+
+                    Layout.alignment: Qt.AlignHCenter
+
+                    text:"添加"
+                    font.bold: true
+                    font.pixelSize: 15
+
+                    onClicked: {
+                        root.visable_right_side=false;
+                    }
+
+                }
+            }
+
+        }
     }
 
 

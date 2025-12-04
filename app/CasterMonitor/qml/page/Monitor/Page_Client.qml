@@ -16,7 +16,7 @@ Frame {
     anchors.fill: parent
     property int item_name_width:body_extra.width*0.35
     property int item_value_width:body_extra.width*0.65
-    property int item_height:30
+    property int item_height:35
 
 
     //数据属性
@@ -129,93 +129,40 @@ Frame {
             SplitView.fillWidth: true
             SplitView.fillHeight: true
 
-            Frame {
-                id: header_action
-                anchors {
-                    top: parent.top
-                    left: parent.left
-                    // leftMargin: 20
-                    right: parent.right
-                }
-                height: 40
+            Frame
+            {
+                width: parent.width
+                height: 60
+                RowLayout{
 
-                Row {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        left: parent.left
-                        leftMargin: 5
-                    }
+                    anchors.centerIn:  parent
+                    width: parent.width-30
+
+                    // leftPadding: 20
                     spacing: 5
-                    MenuBar {
-                        id: menu_bar
 
-                        Menu {
-                            width: 140
-                            title: qsTr("显示")
-                            MenuItem {
-                                // icon.name:  FluentIcons.graph_Info
-                                text: qsTr("显示过期账户")
-                                onTriggered: {
+                    ComboBox{
+                        implicitWidth: 150
+                        implicitHeight: 35
 
-                                }
-                            }
-                            MenuItem {
-                                // icon.name:  FluentIcons.graph_Info
-                                text: qsTr("显示正常账户")
-                                onTriggered: {
-
-                                }
-                            }
-                        }
-                        Menu {
-                            width: 140
-                            title: qsTr("筛选")
-                            Menu {
-                                width: 140
-                                title: qsTr("条件筛选")
-                                Action {
-                                    text: qsTr("按照账号ID")
-                                }
-                                Action {
-                                    text: qsTr("按照机构")
-                                }
-                                Action {
-                                    text: qsTr("按照账号状态")
-                                }
-                            }
-                            MenuSeparator {}
-                            Menu {
-                                width: 140
-                                title: qsTr("条件筛选")
-                                Action {
-                                    text: qsTr("按照账号ID")
-                                }
-                                Action {
-                                    text: qsTr("按照机构")
-                                }
-                                Action {
-                                    text: qsTr("按照账号状态")
-                                }
-                            }
-                        }
+                        model: ["按用户账号筛选"]
                     }
-                }
 
-                Row {
+                    // ComboBox{
+                    //     implicitWidth: 150
+                    //     implicitHeight: 35
 
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        right: parent.right
-                        rightMargin: 10
-                    }
-                    spacing: 5
+                    //     model: ["筛选任务类型"]
+                    // }
 
                     AutoSuggestBox {
                         id: auto_suggset_search
-                        width: 300
+                        // width: 300
+                        Layout.fillWidth: true
+                        implicitHeight: 35
                         placeholderText: qsTr("Search")
-                        items: []
-                        textRole: "title"
+                        items: controllerData.data
+                        textRole: "account"
                         trailing: RowLayout {
                             IconButton {
                                 implicitWidth: 30
@@ -238,64 +185,115 @@ Frame {
                             }
                         }
                         onTap: item => {
-                                   if (item.key) {
-                                       page_router.go(item.key)
+                                   focusItemUID=item.UID
+
+                                   for (var i = 0; i < dataModel.count; ++i) {
+                                       if (dataModel.get(i).UID === focusItemUID) {
+                                           dataGrid.view.currentIndex = i
+                                           // dataGrid.selected_items.clear()
+                                           dataGrid.selectionModel.select(dataModel.index(i, 0),
+                                                                          ItemSelectionModel.Select)
+
+                                           dataGrid.view.contentY=i*40
+                                       }
+                                       else{
+                                           dataGrid.selectionModel.select(dataModel.index(i, 0),
+                                                                          ItemSelectionModel.Deselect)
+                                       }
                                    }
+
+
+
                                }
-                        Connections {
-                            target: navigation_view
-                            function onSourceItemsChanged(data) {
-                                auto_suggset_search.items = data.filter(
-                                            item => {
-                                                return item instanceof PaneItem
-                                            })
-                            }
-                        }
                     }
 
-                    Button {
-                        width: 70
-                        text: qsTr("检索")
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
                 }
+
+
             }
 
             Frame {
-                anchors {
-                    top: header_action.bottom
-                    bottom: footer_action.top
-                    left: parent.left
-                    right: parent.right
-                    leftMargin: 5
-                    rightMargin: 5
-                    topMargin: 5
-                    bottomMargin: 5
+                clip: true
+                anchors{
+                    fill: parent
+                    // margins: 10
+                    topMargin: 65
                 }
 
-                DataGridEx {
+                DataGrid {
                     id: dataGrid
-                    anchors.fill: parent
-
-                    // Pane {
-                    //     id: panel_loading
-                    //     anchors.fill: dataGrid
-                    //     ProgressRing {
-                    //         anchors.centerIn: parent
-                    //         indeterminate: true
-                    //     }
-                    //     background: Rectangle {
-                    //         color: Theme.res.solidBackgroundFillColorBase
-                    //     }
-                    // }
-                    defaultHeight: 30
-                    defaultminimumHeight: 25
-                    defaultmaximumHeight: 240
-                    horizonalHeaderHeight: 30
-
+                    anchors{
+                        fill: parent
+                        margins: 10
+                        // topMargin: 70
+                    }
                     sourceModel: dataModel
+
+
+
+                    columnSourceModel: ListModel {
+                        ListElement { frozen: false; width: 120 ; dataIndex: "account"      ; title: qsTr("账号")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "login_mpt"    ; title: qsTr("接入挂载点")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "alias_mpt"    ; title: qsTr("使用挂载点")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "online_time"  ; title: qsTr("在线时长");}
+                        ListElement { frozen: false; width: 90  ; dataIndex: "quality"      ; title: qsTr("定位状态")}
+                        ListElement { frozen: false; width: 90  ; dataIndex: "diff"         ; title: qsTr("差分延迟")}
+                        ListElement { frozen: false; width: 180 ; dataIndex: "llh_lat"      ; title: qsTr("纬度");}
+                        ListElement { frozen: false; width: 180 ; dataIndex: "llh_lon"      ; title: qsTr("经度")}
+                        ListElement { frozen: false; width: 100 ; dataIndex: "llh_height"   ; title: qsTr("高程")}
+                        ListElement { frozen: false; width: 200 ; dataIndex: "update_time"  ; title: qsTr("数据更新时间")}
+                    }
+
+                    delegateProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "quality":
+                                return comp_quality_label
+                                case "diff":
+                                return comp_diff_label
+                                case "online_time":
+                                return comp_time_label
+                                case "update_time":
+                                return comp_date_label
+                                case "llh_lat":
+                                return comp_lat2dms
+                                case "llh_lon":
+                                return comp_lon2dms
+                                case "llh_height":
+                                return comp_height
+
+
+                                default:
+                                return comp_mid_label
+                                // return defaultDelegate
+                            }
+                        }
+                    columnHeaderProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "avatar":
+                                default:
+
+                                return comp_mid_header
+                                // return defaultColumnHeader
+                            }
+                        }
+                    editDelegateProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "action":
+                                return undefined
+
+                                default:
+                                return undefined
+                                // return defaultEditDelegate
+                            }
+                        }
+
                     onRowClicked: model => {
                                       // console.debug(model.station_name)
+
+                                      Global.visable_right_side=true
                                       root.focusItemUID = model.UID
                                       console.log(Util.safeStringify(model))
                                   }
@@ -324,148 +322,9 @@ Frame {
                             }
                         }
                     }
-
-                    columnSourceModel: ListModel {
-
-                        ListElement {
-                            title: qsTr("账号ID")
-                            dataIndex: "account"
-                            width: 150
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                        }
-
-                        ListElement {
-                            title: qsTr("账号机构")
-                            dataIndex: "account"
-                            width: 150
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                        }
-
-
-                        ListElement {
-                            title: qsTr("接入挂载点")
-                            dataIndex: "login_mpt"
-                            width: 150
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("使用挂载点")
-                            dataIndex: "alias_mpt"
-                            width: 150
-                            rowDelegate: function () {
-                                return comp_mid_label
-                            }
-                            frozen: false
-                        }
-
-                        ListElement {
-                            title: qsTr("定位状态")
-                            dataIndex: "quality"
-                            width: 80
-                            rowDelegate: function () {
-                                return comp_quality_label
-                            }
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("差分延迟")
-                            dataIndex: "diff"
-                            width: 80
-                            rowDelegate: function () {
-                                return comp_diff_label
-                            }
-                            frozen: false
-                        }
-
-                        ListElement {
-                            title: qsTr("在线时长")
-                            dataIndex: "online_time"
-                            width: 100
-                            rowDelegate: function () {
-                                return comp_time_label
-                            }
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("纬度")
-                            dataIndex: "llh_lat"
-                            rowDelegate: function(){return comp_lat2dms}
-                            width: 180
-                            frozen: false
-                        }
-
-                        ListElement {
-                            title: qsTr("经度")
-                            dataIndex: "llh_lon"
-                            rowDelegate: function(){return comp_lon2dms}
-                            width: 180
-                            frozen: false
-                        }
-
-                        ListElement {
-                            title: qsTr("椭球高")
-                            dataIndex: "llh_height"
-                            rowDelegate: function(){return comp_fix4}
-                            width: 100
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("IP")
-                            dataIndex: "ip"
-                            width: 120
-                            frozen: false
-                        }
-                        ListElement {
-                            title: qsTr("端口")
-                            dataIndex: "port"
-                            width: 120
-                        }
-
-                        ListElement {
-                            title: qsTr("数据更新时间")
-                            dataIndex: "update_time"
-                            rowDelegate: function () {
-                                return comp_date_label
-                            }
-                            width: 200
-                        }
-                    }
                 }
             }
 
-            Frame {
-                id: footer_action
-                anchors {
-                    bottom: parent.bottom
-                    left: parent.left
-                    right: parent.right
-                }
-                height: 50
-
-                Pagination {
-                    pageCurrent: 1
-                    pageButtonCount: 5
-                    itemCount: 5000
-
-                    anchors.horizontalCenter: parent.horizontalCenter
-
-                    footer: ComboBox {
-
-                        height: 30
-                        width: 100
-
-                        model: [qsTr("25条/页"), qsTr("50条/页"), qsTr(
-                                "100条/页"), qsTr("500条/页"), qsTr("1000条/页")]
-                    }
-                }
-            }
         }
 
         Frame {
@@ -504,6 +363,10 @@ Frame {
                         icon.source: FluentIcons.graph_MiniExpand2Mirrored
                         icon.width: 15
                         icon.height: 15
+
+                        onClicked: {
+                            Global.visable_right_side=!Global.visable_right_side
+                        }
                     }
                 }
 
@@ -521,7 +384,7 @@ Frame {
 
                         ExpanderEx{
                             width: parent.width
-                            expanderHeight:35
+                            expanderHeight:40
 
                             expanded:focusItemUID!==""
                             header: Label{
@@ -533,7 +396,7 @@ Frame {
                         }
                         ExpanderEx{
                             width: parent.width
-                            expanderHeight:35
+                            expanderHeight:40
 
                             expanded:focusItemUID!==""
                             header: Label{
@@ -545,7 +408,7 @@ Frame {
                         }
                         ExpanderEx{
                             width: parent.width
-                            expanderHeight:35
+                            expanderHeight:40
 
                             expanded:false
                             header: Label{
@@ -557,7 +420,7 @@ Frame {
                         }
                         ExpanderEx{
                             width: parent.width
-                            expanderHeight:35
+                            expanderHeight:40
 
                             expanded:focusItemUID!==""
                             header: Label{
@@ -858,6 +721,20 @@ Frame {
         }
     }
 
+    Component{
+        id: comp_mid_header
+        Label{
+            anchors.fill: parent
+            text: columnModel.title
+            verticalAlignment: Qt.AlignVCenter
+            horizontalAlignment: Qt.AlignHCenter
+            leftPadding: 10
+            rightPadding: 10
+            elide: Label.ElideRight
+            font.bold: true
+        }
+    }
+
     Component {
         id: comp_date_label
         Item {
@@ -943,10 +820,10 @@ Frame {
     }
 
     Component{
-        id:comp_fix4
+        id:comp_height
         Item{
             Label{
-                text: String(display.toFixed(4))
+                text: String(display.toFixed(4)) + " m"
                 elide: Label.ElideRight
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter

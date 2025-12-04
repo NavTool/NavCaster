@@ -25,18 +25,19 @@ public:
 
                 m_data.clear();  //清除数据
 
+                auto data_map=CasterMonitor::getInstance()->m_alias_rule_map;
 
-                for(int i=100;i<120;i++)
+                for(auto iter:data_map)
                 {
+                    auto info = iter.second->info();
+                    QVariantMap data= JsonToQVariantMap(info);
 
-
-                    QVariantMap data;//= JsonToQVariantMap(info);
-
-                    data["mpt"]=i;
-
+                    if(data["update_flag"].toBool() == false)
+                    {
+                        // continue;
+                    }
                     m_data.append(data);
                 }
-
 
                 Q_EMIT loadDataSuccess();
             });

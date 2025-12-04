@@ -174,6 +174,8 @@ class EventSetAccount : public RedisOperationBase
 public:
     explicit EventSetAccount(): RedisOperationBase() {};
 
+    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+
     void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
 
@@ -198,6 +200,8 @@ class EventGetAccount : public RedisOperationBase
 public:
     explicit EventGetAccount(): RedisOperationBase() {};
 
+    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+
     void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
 
@@ -217,3 +221,27 @@ public:
 };
 
 
+class EventDelAccount : public RedisOperationBase
+{
+public:
+    explicit EventDelAccount(): RedisOperationBase() {};
+
+    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+
+    void execute(redisAsyncContext *ctx) override {
+        // Q_UNUSED(base);
+
+        // 添加一条记录
+
+
+        // 调用Monitor的信号
+
+
+    }
+
+public:
+
+
+public:
+
+};

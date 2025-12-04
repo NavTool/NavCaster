@@ -55,17 +55,8 @@ ScrollablePage {
                     title: qsTr("创建连接")
                     desc: qsTr("连接到Caster实例/集群")
                     url: "https://zhuzichu520.github.io/"
-                    clicked: function(model){
-                        Qt.openUrlExternally(model.url)
-                    }
-                }
-                ListElement{
-                    icon: "qrc:/qt/qml/CasterMonitor/res/image/Checkbox.png"
-                    title: qsTr("最近使用")
-                    desc: qsTr("最近使用的连接")
-                    url: "https://github.com/zhuzichu520/FluentUI-Pro"
                     clicked: function(){
-                        Global.displayScreen="/screen/main"
+                        Global.displayInitScreen="/init/page/start"
                     }
                 }
             }

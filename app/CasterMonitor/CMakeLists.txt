@@ -139,6 +139,7 @@ set(SOURCE_FILES
     src/context/ntrip_server.h
     src/context/relay_pull.h
     src/context/relay_push.h
+    src/context/alias_rule.h
 
     src/controller/CasterResourceController.h 
     src/controller/ClientDataController.h 
@@ -147,19 +148,17 @@ set(SOURCE_FILES
     src/controller/AccountDataController.h 
     src/controller/PullDataController.h 
     src/controller/PushDataController.h 
+    src/controller/AliasDataController.h
 
     src/core/EventWorker.h src/core/EventWorker.cpp
     src/core/EventOperationBase.h 
 
     src/excute/AccountOperate.h
-    src/excute/connectRedis.h
-    src/excute/disconnectRedis.h
+    src/excute/AliasOperate.h
+    src/excute/connectOperate.h
     src/excute/pullOperate.h
     src/excute/pushOperate.h
-    src/excute/updateAccount.h
-    src/excute/updateClient.h
-    src/excute/updateServer.h
-    src/excute/updateNode.h
+    src/excute/updateOperate.h
     )
 set(MAIN_FILES src/main.cpp)
 
