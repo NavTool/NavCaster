@@ -548,7 +548,7 @@ private:
     std::deque<Sample> _recvHistory;
     std::deque<Sample> _sendHistory;
 
-    int _windowSize = 60; // 窗口秒数
+    int _windowSize = 5; // 窗口秒数
 
     // 清理超出窗口的样本
     void cleanOld(std::deque<Sample> &history, int64_t now);
