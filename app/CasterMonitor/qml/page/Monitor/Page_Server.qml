@@ -642,7 +642,7 @@ Frame {
                     }
                 }
                 ComItem{
-                    item_name:qsTr("数据延迟")
+                    item_name:qsTr("网络延迟")
                     delegate:TextField{
                         placeholderText: focusItemUID===""?"":formatDelay(focusItem.tcp_delay)
                     }

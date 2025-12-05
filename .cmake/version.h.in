@@ -8,6 +8,8 @@
 #define PROJECT_TAG_VERSION "@PROJECT_TAG_VERSION@"  //完整的tag描述
 #define PORJECT_UPDATE_TIME "@PROJECT_COMMIT_DATE@"  // 代码提交日期
 
+#define SYSTEM_PLATFORM "@SYSTEM_PLATFORM@"  // 运行的系统平台
+
 // 构建相关信息
 #define BUILD_SYSTEM "@CMAKE_SYSTEM@"                     // 编译环境
 #define BUILD_SYSTEM_PROCESSOR "@CMAKE_SYSTEM_PROCESSOR@" // 处理器架构

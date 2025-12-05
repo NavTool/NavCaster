@@ -9,10 +9,15 @@ private:
     PROPERTY_AUTO(std::string, node_name)   // 节点名称
     PROPERTY_AUTO(std::string,set_version); // 版本
     PROPERTY_AUTO(std::string,tag_version); // 版本
+    PROPERTY_AUTO(std::string,run_platform); // 平台
 
     PROPERTY_AUTO(double,cpu_usage);   // CPU占用
     PROPERTY_AUTO(int,mem_usage);      // 内存占用
     PROPERTY_AUTO(int,queue_delay);      // 队列平均执行延迟
+    PROPERTY_AUTO(int,sub_ping_delay);      // SUB连接平均执行延迟
+    PROPERTY_AUTO(int,sub_tcp_delay);      // SUB连接平均执行延迟
+    PROPERTY_AUTO(int,pub_ping_delay);      // PUB队列平均执行延迟
+    PROPERTY_AUTO(int,pub_tcp_delay);      // PUB队列平均执行延迟
     PROPERTY_AUTO(double,send_total);      // 累计发送
     PROPERTY_AUTO(double,send_speed);      // 发送速度
     PROPERTY_AUTO(double,recv_total);      // 累计接收
@@ -38,10 +43,15 @@ public:
         node_name("");
         set_version("");
         tag_version("");
+        run_platform("");
 
         cpu_usage(0.0);
         mem_usage(0);
         queue_delay(0);
+        sub_ping_delay(0);
+        sub_tcp_delay(0);
+        pub_ping_delay(0);
+        pub_tcp_delay(0);
         send_total(0);
         send_speed(0);
         recv_total(0);
@@ -65,10 +75,15 @@ public:
         info["node_name"] = node_name();
         info["set_version"] = set_version();
         info["tag_version"] = tag_version();
+        info["run_platform"] = run_platform();
 
         info["cpu_usage"] = cpu_usage();
         info["mem_usage"] = mem_usage();
         info["queue_delay"] = queue_delay();
+        info["sub_ping_delay"] = sub_ping_delay();
+        info["sub_tcp_delay"] = sub_tcp_delay();
+        info["pub_ping_delay"] = pub_ping_delay();
+        info["pub_tcp_delay"] = pub_tcp_delay();
         info["send_total"] = send_total();
         info["send_speed"] = send_speed();
         info["recv_total"] = recv_total();
@@ -95,10 +110,15 @@ public:
         node_name(info, "node_name");
         set_version(info, "set_version");
         tag_version(info, "tag_version");
+        run_platform(info, "run_platform");
 
         cpu_usage(info, "cpu_usage");
         mem_usage(info, "mem_usage");
         queue_delay(info, "queue_delay");
+        sub_ping_delay(info, "sub_ping_delay");
+        sub_tcp_delay(info, "sub_tcp_delay");
+        pub_ping_delay(info, "pub_ping_delay");
+        pub_tcp_delay(info, "pub_tcp_delay");
         send_total(info, "send_total");
         send_speed(info, "send_speed");
         recv_total(info, "recv_total");

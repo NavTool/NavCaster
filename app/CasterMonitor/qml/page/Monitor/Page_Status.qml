@@ -306,7 +306,7 @@ ScrollablePage{
         Layout.preferredHeight: contentHeight
         Layout.leftMargin: 10
         Layout.rightMargin: 10
-        cellHeight: 330
+        cellHeight: 370
         cellWidth: 300
         model: dataModel
 
@@ -332,7 +332,7 @@ ScrollablePage{
         id:com_item
         Frame{
             width: 280
-            height: 320
+            height: 360
 
             Frame
             {
@@ -375,15 +375,15 @@ ScrollablePage{
                 spacing: 10
 
                 Label{
-                    text: "监听端口: "+formatBytes(model.mem_usage)
-                    font.bold: true            // 加粗
-                }
-                Label{
                     text: "节点版本: "+ model.tag_version
                     font.bold: true            // 加粗
                 }
                 Label{
-                    text: "建立连接数: "+model.connnect_count+ " ( " +model.server_count + " 基站 " + model.client_count +" 移动站)";
+                    text: "运行平台: "+ model.run_platform
+                    font.bold: true            // 加粗
+                }
+                Label{
+                    text: "连接数量: "+model.connnect_count+ " ( " +model.server_count + " 基站 " + model.client_count +" 移动站)";
                     font.bold: true            // 加粗
                 }
                 Label{
@@ -396,6 +396,14 @@ ScrollablePage{
                 }
                 Label{
                     text: "处理延迟: "+formatDelay(model.queue_delay)
+                    font.bold: true            // 加粗
+                }
+                Label{
+                    text: "网络延迟: PUB "+ formatDelay(model.pub_tcp_delay) + " / SUB "+ formatDelay(model.sub_tcp_delay)
+                    font.bold: true            // 加粗
+                }
+                Label{
+                    text: "数据延迟: PUB "+ formatDelay(model.pub_ping_delay) + " / SUB "+ formatDelay(model.sub_ping_delay)
                     font.bold: true            // 加粗
                 }
                 Label{
@@ -445,7 +453,7 @@ ScrollablePage{
     }
     function formatDelay(us) {
         if (us === 0)
-            return "0 us"
+            return " - "
 
         var k = 1000
         var sizes = ["us", "ms", "s"]

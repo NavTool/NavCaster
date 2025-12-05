@@ -363,6 +363,15 @@ int caster_internal::check_redis_connection()
 
     _sub_ping_fail_count++;
     _pub_ping_fail_count++;
+
+    if (_sub_ping_fail_count == 1)
+    {
+        _sub_ping_time = std::chrono::high_resolution_clock::now();
+    }
+    if (_pub_ping_fail_count == 1)
+    {
+        _pub_ping_time = std::chrono::high_resolution_clock::now();
+    }
     redisAsyncCommand(_pub_context, Redis_Pub_Ping_Callback, this, "PING");
     redisAsyncCommand(_sub_context, Redis_Sub_Ping_Callback, this, "PING");
 
@@ -378,10 +387,15 @@ int caster_internal::upload_node_status()
     info["node_name"] = _node_ID.c_str();
     info["set_version"] = PROJECT_SET_VERSION;
     info["tag_version"] = PROJECT_TAG_VERSION;
+    info["run_platform"] = SYSTEM_PLATFORM;
 
     info["cpu_usage"] = SysUsage::getInstance()->getProcessCPU();    // CPU
     info["mem_usage"] = SysUsage::getInstance()->getProcessMemory(); // 内存
-    info["queue_delay"] = _queue_delay;                             // 队列延迟，微秒级
+    info["queue_delay"] = _queue_delay;                              // 队列延迟，微秒级
+    info["sub_ping_delay"] = _sub_ping_delay;                        // SUB连接PING延迟，微秒级
+    info["sub_tcp_delay"] = _sub_tcp_delay;                          // SUB连接TCP延迟，微秒级
+    info["pub_ping_delay"] = _pub_ping_delay;                        // PUB连接PING延迟，微秒级
+    info["pub_tcp_delay"] = _pub_tcp_delay;                          // PUB连接TCP延迟，微秒级
 
     info["send_total"] = _send_total;
     info["send_speed"] = _send_speed;
@@ -1482,7 +1496,9 @@ void caster_internal::Redis_Sub_Ping_Callback(redisAsyncContext *c, void *r, voi
 {
     auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<caster_internal *>(privdata);
-
+    svr->_sub_pong_time = std::chrono::high_resolution_clock::now();
+    svr->_sub_ping_delay = std::chrono::duration_cast<std::chrono::microseconds>(svr->_sub_pong_time - svr->_sub_ping_time).count();
+    svr->_sub_tcp_delay = util_get_tcp_delay(c->c.fd);
     svr->_sub_ping_fail_count = 0;
 }
 
@@ -1490,7 +1506,9 @@ void caster_internal::Redis_Pub_Ping_Callback(redisAsyncContext *c, void *r, voi
 {
     auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<caster_internal *>(privdata);
-
+    svr->_pub_pong_time = std::chrono::high_resolution_clock::now();
+    svr->_pub_ping_delay = std::chrono::duration_cast<std::chrono::microseconds>(svr->_pub_pong_time - svr->_pub_ping_time).count();
+    svr->_pub_tcp_delay = util_get_tcp_delay(c->c.fd);
     svr->_pub_ping_fail_count = 0;
 }
 

@@ -190,9 +190,9 @@ private:
     std::time_t _online_time = 0;    // 上线时刻
     std::time_t _online_seconds = 0; // 上线持续时间
 
-    double _send_total = 0.0;   // 总发送字节数
+    double _send_total = 0.0; // 总发送字节数
     double _send_speed = 0.0; // 总发送速度
-    double _recv_total = 0.0;   // 总接收字节数
+    double _recv_total = 0.0; // 总接收字节数
     double _recv_speed = 0.0; // 总接收速度
 
     uint64_t _delay = 0.0; // 数据延迟
@@ -341,6 +341,16 @@ public:
     redisAsyncContext *_sub_context = nullptr;
     int _sub_ping_fail_count = 0;
     int _pub_ping_fail_count = 0;
+
+    std::chrono::high_resolution_clock::time_point _sub_ping_time; // 激活时间
+    std::chrono::high_resolution_clock::time_point _sub_pong_time; // 执行时间
+    int64_t _sub_ping_delay = 0;                                        // 时间延迟
+    int64_t _sub_tcp_delay = 0;                                        // 时间延迟
+
+    std::chrono::high_resolution_clock::time_point _pub_ping_time; // 激活时间
+    std::chrono::high_resolution_clock::time_point _pub_pong_time; // 执行时间
+    int64_t _pub_ping_delay = 0;                                        // 时间延迟
+    int64_t _pub_tcp_delay = 0;                                        // 时间延迟
 
 public:
     caster_internal();
@@ -541,10 +551,9 @@ private:
 
     event *_testdelay_ev;
 
-    std::chrono::high_resolution_clock::time_point _activate_time;  // 激活时间
-    std::chrono::high_resolution_clock::time_point _execute_time;   // 执行时间
-    int64_t _queue_delay = 0;  // 时间延迟
-
+    std::chrono::high_resolution_clock::time_point _activate_time; // 激活时间
+    std::chrono::high_resolution_clock::time_point _execute_time;  // 执行时间
+    int64_t _queue_delay = 0;                                      // 时间延迟
 
     int test_queue_delay(); // 测试延迟信息更新
 
