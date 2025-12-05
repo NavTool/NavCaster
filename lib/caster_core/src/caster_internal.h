@@ -247,16 +247,29 @@ private:
 class relay_item
 {
 public:
-    std::string ip;
-    int port;
+    std::string UID;             // 请求类型
+    int type;                    // 请求类型
+    std::string target_ip;       // 目标IP
+    int target_port;             // 目标端口
+    std::string target_mpt;      // 挂载点
+    std::string target_account;  // 用户名
+    std::string target_password; // 密码
+    std::string login_mpt;       // 登录的挂载点
 };
 
-class node_status
+class relay_status
 {
 public:
-    std::string ip;
-    int port;
+    std::string UID;             // 请求类型
+    int type;                    // 请求类型
+    std::string target_ip;       // 目标IP
+    int target_port;             // 目标端口
+    std::string target_mpt;      // 挂载点
+    std::string target_account;  // 用户名
+    std::string target_password; // 密码
+    std::string login_mpt;       // 登录的挂载点
 };
+
 
 class caster_cb_item
 {
@@ -270,17 +283,8 @@ public:
 
 class caster_internal
 {
+    // conf  基本配置信息
 private:
-    std::string _redis_IP;
-    int _redis_port;
-    std::string _redis_Requirepass;
-
-    event_base *_base;
-
-    event *_timeout_ev;
-    timeval _timeout_tv;
-
-    // conf
     int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
     int _update_intv = 1;
     int _key_expire_time = 30; // Hash键值默认续期时间
@@ -298,6 +302,16 @@ private:
 
     bool _notify_base_inactive = true;  // 当基站不在线的时候, 通知所有订阅该基站的连接
     bool _notify_rover_inactive = true; // 当用户不在线的时候, 通知所有订阅该用户的连接
+
+    std::string _redis_IP;
+    int _redis_port;
+    std::string _redis_Requirepass;
+
+private:
+    std::string _node_ID = util_generate_random_key(6);
+    std::string _node_name = "NODE-" + _node_ID;
+
+    event_base *_base;
 
 private:
     // 本地记录  这些数据只需要本地维护和上传，无需下载
@@ -329,28 +343,6 @@ private:
     long long _updatetime_int;
 
     long long _startup_time = 0;
-
-public:
-    bool _is_pub_connected = false;
-    bool _is_sub_connected = false;
-    int _pub_reconnect_count = 0; // 重连计数  连接成功后归零   重连失败后, 等待时间0、2、4、8、10(max)
-    int _sub_reconnect_count = 0; // 重连计数
-    std::string _pub_context_errstr;
-    std::string _sub_context_errstr;
-    redisAsyncContext *_pub_context = nullptr;
-    redisAsyncContext *_sub_context = nullptr;
-    int _sub_ping_fail_count = 0;
-    int _pub_ping_fail_count = 0;
-
-    std::chrono::high_resolution_clock::time_point _sub_ping_time; // 激活时间
-    std::chrono::high_resolution_clock::time_point _sub_pong_time; // 执行时间
-    int64_t _sub_ping_delay = 0;                                        // 时间延迟
-    int64_t _sub_tcp_delay = 0;                                        // 时间延迟
-
-    std::chrono::high_resolution_clock::time_point _pub_ping_time; // 激活时间
-    std::chrono::high_resolution_clock::time_point _pub_pong_time; // 执行时间
-    int64_t _pub_ping_delay = 0;                                        // 时间延迟
-    int64_t _pub_tcp_delay = 0;                                        // 时间延迟
 
 public:
     caster_internal();
@@ -407,68 +399,9 @@ public:
     std::string get_source_list_text();
 
 private:
-    // 主节点任务
-    // 获取整个集群的信息
-    // CASTER:MASTER
-    // CASTER:NODE
-
-    // 全量获取当前的转发任务
-    // STR:RELAY:LIST   // 任务列表   和参数信息  （共同生成一个哈希值，作为Key值）
-    // 获取各个任务的执行状态
-    // STR:RELAY:STAT   // 任务执行情况 和参数信息  （任务Key，状态）
-    // 根据当前已有节点数量，将任务分配到各个节点
-    // 考虑各个节点的负载数量
-    // 向指定的频道发送广播（执行任务，关闭任务）（修改任务=关闭任务+新建任务）
-    // 执行任务：LIST中有但是STAT中还没有，关闭任务：STAT中有但是LIST中没有
-
-    // 从节点任务
-    // 尝试抢占主节点，抢占完成后，接管，触发主节点任务
-    // 设置节点 NX，获取节点，判断自己是不是主节点，如果是主节点，给主节点续期，执行主节点任务
-
-    // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
-
-    // 上报任务执行状态
-    // 上报自己的状态
-
-    std::string _node_ID = util_generate_random_key(6);
-    std::string _node_name = "NODE-" + _node_ID;
-
-    std::unordered_map<std::string, node_status> _cluster_node_map;
-    std::unordered_map<std::string, relay_item> _relay_task_map; // 数据转发任务
-
-    int check_redis_connection();
-
-    int upload_node_status();      // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
-    int try_set_master_node();     // 尝试设置为主节点
-    int sync_cluster_state();      // 主节点同步全局信息到本地
-    int relay_task_distribution(); // 主节点执行：Relay任务分发
-    int relay_task_response();     // 从节点执行：Relay任务响应
-    int update_alias_source();     // 根据当前在线的挂载点一级别名任务，更新Alias挂载点列表   维护MPT:LIST:ALIAS
-
-    // 节点频道的回调
-    static void Redis_SetMaster_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, void *privdata);
-
-    static void Redis_SyncClusterNode_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_SyncTaskList_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_SyncTaskStat_Callback(redisAsyncContext *c, void *r, void *privdata);
-
-private:
-    int clear_overdue_item(); // 清理为空的注册记录
-
-    int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
-    int download_active_item(); // 将云端记录的在线挂载点更新到本地
-
-    int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
-    int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
-
     // 挂载点信息生成的函数
     std::string convert_mount_info_to_string(mount_info item);
     mount_info build_default_mount_info(std::string mount_point);
-
-    // libevent 回调
-    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
 
     // 注册回调
     static void Redis_Register_Base_Callback(redisAsyncContext *c, void *r, void *privdata);
@@ -492,10 +425,15 @@ private:
     // 查询回调 (传入的privdata 类型 std::set<std::string> *
     static void Redis_Get_Set_Value_Callback(redisAsyncContext *c, void *r, void *privdata);
 
-    // 异常处理机制：
+    // ---------------------- Redis连接相关函数 --------------------------------------
+private:
+    int init_sub_context();
+    int init_pub_context();
 
-    static void Redis_Sub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_Pub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
+    int subAttemptReconnect();
+    int pubAttemptReconnect();
+
+    // 异常处理机制：
 
     // redis断开连接
     // 如果是pub发生连接断开
@@ -514,12 +452,86 @@ private:
     static void Redis_Pub_Disconnect_Cb(const redisAsyncContext *c, int status);
     static void Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int status);
 
-    int init_sub_context();
-    int init_pub_context();
+public:
+    bool _is_pub_connected = false;
+    bool _is_sub_connected = false;
+    int _pub_reconnect_count = 0; // 重连计数  连接成功后归零   重连失败后, 等待时间0、2、4、8、10(max)
+    int _sub_reconnect_count = 0; // 重连计数
+    std::string _pub_context_errstr;
+    std::string _sub_context_errstr;
+    redisAsyncContext *_pub_context = nullptr;
+    redisAsyncContext *_sub_context = nullptr;
 
-    int subAttemptReconnect();
-    int pubAttemptReconnect();
+    // -------------------------------- 定时任务 --------------------------------------
+private:
+    int clear_overdue_item(); // 清理为空的注册记录
 
+    int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
+    int download_active_item(); // 将云端记录的在线挂载点更新到本地
+
+    int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
+    int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
+
+    int update_alias_source(); // 根据当前在线的挂载点一级别名任务，更新Alias挂载点列表   维护MPT:LIST:ALIAS
+
+    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
+
+    event *_timeout_ev;
+    timeval _timeout_tv;
+
+    // --------------------------- 主节点任务 ------------------------------------
+    // 主节点任务
+    // 获取整个集群的信息
+    // CASTER:MASTER
+    // CASTER:NODE
+
+    // 全量获取当前的转发任务
+    // STR:RELAY:LIST   // 任务列表   和参数信息  （共同生成一个哈希值，作为Key值）
+    // 获取各个任务的执行状态
+    // STR:RELAY:STAT   // 任务执行情况 和参数信息  （任务Key，状态）
+    // 根据当前已有节点数量，将任务分配到各个节点
+    // 考虑各个节点的负载数量
+    // 向指定的频道发送广播（执行任务，关闭任务）（修改任务=关闭任务+新建任务）
+    // 执行任务：LIST中有但是STAT中还没有，关闭任务：STAT中有但是LIST中没有
+
+    std::unordered_map<std::string, std::string> _cluster_node_map;
+    std::unordered_map<std::string, relay_item> _pull_list_map; // 数据转发任务
+    std::unordered_map<std::string, relay_status> _pull_stat_map; // 数据转发任务
+    std::unordered_map<std::string, relay_item> _push_list_map; // 数据转发任务
+    std::unordered_map<std::string, relay_status> _push_stat_map; // 数据转发任务
+
+    int try_set_master_node();     // 尝试设置为主节点
+    int sync_cluster_state();      // 主节点同步全局信息到本地
+    int relay_task_distribution(); // 主节点执行：Relay任务分发
+
+    // 节点频道的回调
+    static void Redis_SetMaster_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_SyncClusterNode_Callback(redisAsyncContext *c, void *r, void *privdata); // 获取所有节点信息
+    static void Redis_SyncPullList_Callback(redisAsyncContext *c, void *r, void *privdata);    // 获取所有的转发任务
+    static void Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r, void *privdata);    // 获取所有的转发任务状态
+    static void Redis_SyncPushList_Callback(redisAsyncContext *c, void *r, void *privdata);    // 获取所有的转发任务
+    static void Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r, void *privdata);    // 获取所有的转发任务状态
+
+    // ---------------------------- 从节点任务 -----------------------------------
+    // 从节点任务
+    // 尝试抢占主节点，抢占完成后，接管，触发主节点任务
+    // 设置节点 NX，获取节点，判断自己是不是主节点，如果是主节点，给主节点续期，执行主节点任务
+
+    // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
+
+    std::unordered_map<std::string, relay_status> _pull_excute_map; // 本地已经执行的任务
+    std::unordered_map<std::string, relay_status> _push_excute_map; // 本地已经执行的任务
+
+    // 上报任务执行状态
+    // 上报自己的状态
+    int upload_node_status();  // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
+    int relay_task_response(); // 从节点执行：Relay任务响应
+    int upload_relay_status(); // 从节点上报本地已执行的Relay任务
+
+    static void Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, void *privdata);
+
+    // ---------------------- 数据流统计 --------------------------------------
 private:
     double _send_total = 0;         // 总发送字节数
     double _send_speed = 0.0;       // 总发送速度
@@ -546,16 +558,45 @@ private:
     int add_sum_recv(int size);
     int add_sum_send(int size);
 
+    // ---------------------- Event执行延迟测试 --------------------------------------
 private:
-    // 测试延迟
+    int test_queue_delay(); // 测试延迟信息更新
 
+    static void TestDelayCallback(evutil_socket_t fd, short events, void *arg);
+
+private:
     event *_testdelay_ev;
 
     std::chrono::high_resolution_clock::time_point _activate_time; // 激活时间
     std::chrono::high_resolution_clock::time_point _execute_time;  // 执行时间
     int64_t _queue_delay = 0;                                      // 时间延迟
 
-    int test_queue_delay(); // 测试延迟信息更新
+    // ------------------------ Redis连接延迟测试 --------------------------------------
+public:
+    int check_redis_connection();
 
-    static void TestDelayCallback(evutil_socket_t fd, short events, void *arg);
+    static void Redis_Sub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Pub_Ping_Callback(redisAsyncContext *c, void *r, void *privdata);
+
+private:
+    int _sub_ping_fail_count = 0;
+    int _pub_ping_fail_count = 0;
+
+    std::chrono::high_resolution_clock::time_point _sub_ping_time; // 激活时间
+    std::chrono::high_resolution_clock::time_point _sub_pong_time; // 执行时间
+    int64_t _sub_ping_delay = 0;                                   // 时间延迟
+    int64_t _sub_tcp_delay = 0;                                    // 时间延迟
+
+    std::chrono::high_resolution_clock::time_point _pub_ping_time; // 激活时间
+    std::chrono::high_resolution_clock::time_point _pub_pong_time; // 执行时间
+    int64_t _pub_ping_delay = 0;                                   // 时间延迟
+    int64_t _pub_tcp_delay = 0;                                    // 时间延迟
+
+    // ------------------- Relay任务处理 --------------------------------------
+public:
+    int relay_register_callback(RelayCallback cb, void *arg);
+
+private:
+    void *_relay_cb_arg = nullptr;
+    RelayCallback _relay_cb = nullptr;
 };

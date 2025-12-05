@@ -429,7 +429,7 @@ QVariantMap CasterMonitor::genPullStreamTemp()
     return JsonToQVariantMap(json_info);
 }
 
-QString CasterMonitor::addAddPullStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addAddPullStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -437,6 +437,7 @@ QString CasterMonitor::addAddPullStreamOperate(QVariantMap account_info)
 
     // 设置对象属性
     op->id(UID);
+    op->relay_info(relay_info);
 
     // 连接信号和槽
     connect(op.get(),&EventAddPull::operateFinished,this,&CasterMonitor::onOperateFinished);

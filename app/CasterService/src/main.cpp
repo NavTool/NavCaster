@@ -110,7 +110,7 @@ json load_Core_Conf(const char *conf_directory)
     conf["Update_Intv"] = Caster_Setting["Update_Intv"].as<int>();
     conf["Unactive_Time"] = Caster_Setting["Unactive_Time"].as<int>();
     conf["Key_Expire_Time"] = Caster_Setting["Key_Expire_Time"].as<int>();
-    
+
     conf["Upload_Base_Stat"] = Caster_Setting["Upload_Base_Stat"].as<bool>();
     conf["Upload_Rover_Stat"] = Caster_Setting["Upload_Rover_Stat"].as<bool>();
     conf["Download_Base_Stat"] = Caster_Setting["Download_Base_Stat"].as<bool>();
@@ -124,9 +124,9 @@ json load_Core_Conf(const char *conf_directory)
     conf["Rover_Enable_Mult"] = Rover_Setting["Enable_Mult"].as<bool>();
     conf["Rover_Keep_Early"] = Rover_Setting["Keep_Early"].as<bool>();
 
-     auto Notify_Setting = Conf["Notify_Setting"];
-     conf["Notify_Base_Inactive"]=Notify_Setting["Notify_Base_Inactive"].as<bool>();
-     conf["Notify_Rover_Inactive"]=Notify_Setting["Notify_Rover_Inactive"].as<bool>();
+    auto Notify_Setting = Conf["Notify_Setting"];
+    conf["Notify_Base_Inactive"] = Notify_Setting["Notify_Base_Inactive"].as<bool>();
+    conf["Notify_Rover_Inactive"] = Notify_Setting["Notify_Rover_Inactive"].as<bool>();
 
     auto Redis_Setting = Conf["Reids_Connect_Setting"];
     conf["Redis_IP"] = Redis_Setting["IP"].as<std::string>();

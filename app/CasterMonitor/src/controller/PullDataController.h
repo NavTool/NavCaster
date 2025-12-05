@@ -15,11 +15,11 @@ public:
     }
     Q_SIGNAL void loadDataStart();
     Q_SIGNAL void loadDataSuccess();
-    Q_INVOKABLE void loadData(const QString UID)
+    Q_INVOKABLE void loadData()
     {
         //创建一个线程执行数据读取操作
         QThreadPool::globalInstance()->start(
-            [UID,this]()
+            [this]()
             {
                 Q_EMIT loadDataStart();
 

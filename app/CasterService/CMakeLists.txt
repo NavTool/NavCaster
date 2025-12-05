@@ -88,28 +88,22 @@ include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/extra/license_chec
 
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)
 
- set(DB_TABLE_SOURCE
-    include/DB/relay_account_tb.h
-    src/DB/relay_account_tb.cpp
-)
 set(COMPONTENT_TYPE_SOURCE
     include/Compontent/process_queue.h
     src/Compontent/process_queue.cpp
 )
 
 set(CARRIER_TYPE_SOURCE
-    include/Carrier/client_ntrip.h
-    include/Carrier/server_ntrip.h
-    # include/Carrier/server_relay.h
-    src/Carrier/client_ntrip.cpp
-    src/Carrier/server_ntrip.cpp
-    # src/Carrier/server_relay.cpp
-    include/Carrier/source_ntrip.h
-    src/Carrier/source_ntrip.cpp
-    include/Carrier/server_grid.h
-    src/Carrier/server_grid.cpp
-    include/Carrier/client_grid.h
-    src/Carrier/client_grid.cpp
+    include/Carrier/client_ntrip.h      src/Carrier/client_ntrip.cpp
+    include/Carrier/server_ntrip.h      src/Carrier/server_ntrip.cpp
+    include/Carrier/source_ntrip.h      src/Carrier/source_ntrip.cpp
+
+    include/Carrier/relay_pull.h      src/Carrier/relay_pull.cpp
+    include/Carrier/relay_push.h      src/Carrier/relay_push.cpp
+
+    include/Carrier/server_grid.h      src/Carrier/server_grid.cpp
+    include/Carrier/client_grid.h      src/Carrier/client_grid.cpp
+
 )
 
 set(CONNECTOR_TYPE_SOURCE
@@ -143,7 +137,6 @@ add_executable(${PROJECT_NAME}
                 ${CARRIER_TYPE_SOURCE}  
                 ${CONNECTOR_TYPE_SOURCE}
                 ${COMPONTENT_TYPE_SOURCE}    
-                ${DB_TABLE_SOURCE} 
                 ${EXTRA_SOURCE}
                 ${VERSION_SOURCES})
 

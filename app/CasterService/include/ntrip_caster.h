@@ -8,11 +8,10 @@
 #include "Carrier/server_ntrip.h"
 // #include "Carrier/server_relay.h"
 #include "Carrier/source_ntrip.h"
-#include "DB/relay_account_tb.h"
+
 
 // #include "../extra/heart_beat/heart_beat.h"
 #include "../extra/license_check/license_check.h"
-
 
 #include <event2/util.h>
 #include <event2/event.h>
@@ -127,16 +126,18 @@ private:
     int init_license_check();                                                        // 初始化许可检查
     static void License_Check_Callback(evutil_socket_t fd, short events, void *arg); // 许可检查的函数
 
+private:
+    // 扩展模块，Relay请求处理
 
-// private:
-//     // 扩展模块 心跳上传功能--------------------------------------------------------------------------
-//     event *_heart_beat_ev;
-//     timeval _heart_beat_tv;
+    static void Relay_Request_Callback(void *arg, relay_request *req);
 
-//     heart_beat _heart_beat;
+    // private:
+    //     // 扩展模块 心跳上传功能--------------------------------------------------------------------------
+    //     event *_heart_beat_ev;
+    //     timeval _heart_beat_tv;
 
-//     int init_heart_beat();                                                        // 初始化信息上传功能
-//     static void Heart_Beat_Callback(evutil_socket_t fd, short events, void *arg); // 定期上传信息的回调
+    //     heart_beat _heart_beat;
 
-
+    //     int init_heart_beat();                                                        // 初始化信息上传功能
+    //     static void Heart_Beat_Callback(evutil_socket_t fd, short events, void *arg); // 定期上传信息的回调
 };

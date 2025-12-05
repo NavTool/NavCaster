@@ -108,6 +108,10 @@ public:
         auto reply = static_cast<redisReply *>(r);
         auto svr = static_cast<EventAddAccount *>(privdata);
 
+
+        QVariantMap info;
+        info["type"]="ADD";
+
         if (!reply)
         {
             return;
@@ -115,13 +119,14 @@ public:
         if (reply->type != REDIS_REPLY_INTEGER)
         {
             // 回应不对
-            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+
+            Q_EMIT svr->operateFinished(svr->id(),false,info);
         }
 
         if(reply->integer==1)
         {
             //添加成功
-            Q_EMIT svr->operateFinished(svr->id(),true,QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(),true,info);
 
             // 根据账号配置项来激活账号
             svr->active_account(c);
@@ -129,7 +134,7 @@ public:
         else
         {
             //添加失败
-            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(),false,info);
         }
 
 
@@ -141,6 +146,9 @@ public:
         auto reply = static_cast<redisReply *>(r);
         auto svr = static_cast<EventAddAccount *>(privdata);
 
+        QVariantMap info;
+        info["type"]="ACTIVE";
+
         if (!reply)
         {
             return;
@@ -148,19 +156,19 @@ public:
         if (reply->type != REDIS_REPLY_INTEGER)
         {
             // 回应不对
-            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(),false,info);
         }
 
         if(reply->integer==1)
         {
             //添加成功
-            Q_EMIT svr->operateFinished(svr->id(),true,QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(),true,info);
 
         }
         else
         {
             //添加失败
-            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(),false,info);
         }
 
 

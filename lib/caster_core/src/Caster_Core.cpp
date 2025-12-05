@@ -363,6 +363,11 @@ std::string CASTER::Get_Source_Table_Text()
     return caster_internal::getInstance()->get_source_list_text();
 }
 
+int CASTER::Relay_Register_Callback(RelayCallback cb, void *arg)
+{
+    return caster_internal::getInstance()->relay_register_callback(cb, arg);
+}
+
 int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
 {
     return caster_internal::getInstance()->set_base_coord_info(mount_point, connect_key, ecef_x, ecef_y, ecef_z, update_time);

@@ -60,6 +60,22 @@ struct mount_info
 
 typedef void (*CasterCallback)(const char *request, void *arg, catser_reply *reply);
 
+
+
+struct relay_request
+{
+    std::string type;        // 请求类型
+    std::string target_ip;   // 目标IP
+    int target_port;         // 目标端口
+    std::string target_mpt; // 挂载点  
+    std::string target_account;   // 用户名   
+    std::string target_password;  // 密码
+    std::string login_mpt;  // 登录的挂载点
+};
+
+
+typedef void (*RelayCallback)(void *arg, relay_request *req);
+
 namespace CASTER
 {
     // 基础函数
@@ -108,6 +124,10 @@ namespace CASTER
 
     // 获取文本形式的源列表
     std::string Get_Source_Table_Text();
+
+
+    int Relay_Register_Callback(RelayCallback cb, void *arg);
+
 
     // 管理用函数---------------------------------------------------------------------------------------------------------
 

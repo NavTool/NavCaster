@@ -78,6 +78,10 @@ void ntrip_caster::License_Check_Callback(evutil_socket_t fd, short events, void
     svr->_compat_listener->enable_accept_new_connect();
 }
 
+void ntrip_caster::Relay_Request_Callback(void *arg, relay_request *req)
+{
+}
+
 ntrip_caster::ntrip_caster(json cfg)
 {
     std::string dump_conf = cfg.dump(4);
@@ -182,6 +186,9 @@ int ntrip_caster::compontent_init()
     // 初始化Caster数据分发核心：当前采用的是Redis，后续开发支持脱离redis运行
     CASTER::Init(_caster_core_setting.dump().c_str(), _base);
 
+    // 注册Relay请求回调
+    CASTER::Relay_Register_Callback(Relay_Request_Callback, this);
+
     // 创建listener请求
     _compat_listener = new ntrip_compat_listener(_listener_setting, _base, &_connect_map);
     _compat_listener->start();
@@ -242,9 +249,9 @@ int ntrip_caster::request_process(json req)
             close_server_ntrip(req);
             break;
         // 虚拟挂载点  //Nearest/Relay/Cors
-        case REQUEST_VIRTUAL_LOGIN:
-            create_client_virtual(req);
-            break;
+        // case REQUEST_VIRTUAL_LOGIN:
+        //     create_client_virtual(req);
+        //     break;
         default:
             spdlog::warn("undefined req_type: {}", REQ_TYPE);
             break;

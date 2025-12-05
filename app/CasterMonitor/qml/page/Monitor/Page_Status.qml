@@ -343,25 +343,18 @@ ScrollablePage{
                     top: parent.top
                 }
 
-
                 IconButton
                 {
                     anchors.centerIn: parent
                     text: qsTr("节点ID: ")+ model.UID
                     font.pixelSize: 15         // 设置字体大小（像素）
                     font.bold: true            // 加粗
-
-
                     onClicked:
                     {
                         console.log(Util.safeStringify(model))
                     }
-
                 }
-
             }
-
-
 
             ColumnLayout
             {
@@ -419,7 +412,6 @@ ScrollablePage{
                     font.bold: true            // 加粗
                 }
             }
-
 
             Frame
             {

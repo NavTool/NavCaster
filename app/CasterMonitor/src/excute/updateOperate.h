@@ -240,7 +240,7 @@ public:
 
     void execute(redisAsyncContext *ctx) override
     {
-        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL ACT:ACCOUNT ");
+        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL STR:PULL:LIST");
     }
 
     static void Redis_Update_Data_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -296,7 +296,7 @@ public:
 
     void execute(redisAsyncContext *ctx) override
     {
-        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL ACT:ACCOUNT ");
+        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL STR:PUSH:LIST");
     }
 
     static void Redis_Update_Data_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -352,7 +352,7 @@ public:
 
     void execute(redisAsyncContext *ctx) override
     {
-        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL ACT:ACCOUNT ");
+        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL MPT:ALIAS");
     }
 
     static void Redis_Update_Data_Callback(redisAsyncContext *c, void *r, void *privdata)

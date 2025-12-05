@@ -6,7 +6,7 @@ import FluentUI.impl
 import CasterMonitor
 import "../../extra"
 
-Frame {
+Item {
     id: root
 
     property string title
@@ -18,8 +18,6 @@ Frame {
     property int item_value_width:body_extra.width*0.65
     property int item_height:30
 
-
-
     property bool visable_right_side:false
 
     //数据属性
@@ -28,8 +26,125 @@ Frame {
     property var focusItem          // 选定记录的详细数据
     property var refreshDataOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
 
+
+
+
+    // 添加任务中间变量
+    property var addTaskOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
+
+
+    property int    type: 0           //数据接入类型
+    property string target_ip: ""
+    property int    target_port: 0
+    property string target_mpt: ""
+    property string target_account: ""
+    property string target_password: ""
+    property string login_mpt: ""
+
+
     Component.onCompleted: {
 
+
+        //创建刷新数据操作
+        refreshDataOpUid = CasterMonitor.addRefreshRelayPullOperate()
+        console.log("refreshDataOpUid: ", refreshDataOpUid)
+
+        // 执行这个指令
+        CasterMonitor.excuteOperate(refreshDataOpUid)
+
+        // 启动定时器，定期刷新数据
+        data_refresh_timer.start()
+
+
+    }
+
+    Connections {
+        target: CasterMonitor
+
+        function onOperateFinished(taskID, success, info) {
+            if (taskID === refreshDataOpUid) {
+                controllerData.loadData()
+            }
+            if(taskID===addTaskOpUid)
+            {
+                if(success)
+                {
+
+                    tip_top.showSuccess(qsTr("账号添加完成"))
+                    visable_right_side=false
+
+                }
+            }
+
+            // 执行数据刷新操作
+
+        }
+    }
+
+
+    PullDataController {
+        id: controllerData
+        onLoadDataStart: {
+            // panel_loading.visible = true
+        }
+        onLoadDataSuccess: {
+
+            //保存上下文
+            // var oldY = dataGrid.view.contentY
+
+            // 更新数据源
+            // dataModel.sourceData = data
+
+            const oldCount = dataModel.count;
+            const newCount = data.length;
+
+            // 1. 先删除多余的项
+            if (oldCount > newCount) {
+                for (var i = oldCount - 1; i >= newCount; --i)
+                    dataModel.remove(i);
+            }
+
+            // 2. 更新已有数据
+            for (var row = 0; row < Math.min(oldCount, newCount); ++row)
+                dataModel.set(row, data[row]);
+
+            // 3. 添加新项
+            for (var i = oldCount; i < newCount; ++i)
+                dataModel.append(data[i]);
+
+            // 恢复上下文
+            // dataGrid.view.contentY = oldY
+            // for (var i = 0; i < dataModel.count; ++i) {
+            //     if (dataModel.get(i).UID === focusItemUID) {
+            //         dataGrid.view.currentIndex = i
+            //         dataGrid.selectionModel.select(dataModel.index(i, 0),
+            //                                        ItemSelectionModel.Select)
+            //         break
+            //     }
+            // }
+
+            //刷新选定条目的数据
+            focusItem=CasterMonitor.getUserAccountInfo(focusItemUID);
+        }
+    }
+
+    onFocusItemUIDChanged: {
+        console.log("onFocusItemUIDChanged: " + focusItemUID)
+
+        focusItem=CasterMonitor.getUserAccountInfo(focusItemUID);
+
+    }
+
+    DataGridModel {
+        id: dataModel
+    }
+    Timer {
+        id: data_refresh_timer
+        repeat: true
+        interval: 1000
+        onTriggered: {
+            CasterMonitor.excuteOperate(refreshDataOpUid)
+        }
     }
 
     Frame
@@ -142,7 +257,7 @@ Frame {
                 }
             }
 
-            Column{
+            Item{
                 id: layout_column
 
                 anchors{
@@ -151,83 +266,116 @@ Frame {
                     topMargin: 45
                 }
 
-                spacing: 10
-                width: 560
-                Repeater{
-                    model: 10
+                GridView{
+
+                    anchors.fill: parent
+                    cellWidth: 230
+                    cellHeight: 290
+
+                    model: dataModel
+                    interactive: false
                     delegate: Frame{
-                        implicitWidth: layout_column.width
-                        implicitHeight: 120
-                        Rectangle{
-                            id: avatar
-                            width: 100
-                            height: 100
-                            radius: 50
-                            color: Theme.res.dividerStrokeColorDefault
+                        width: 220
+                        height: 280
+
+                        Frame
+                        {
+                            width: parent.width
+                            height: 30
+
                             anchors{
-                                verticalCenter: parent.verticalCenter
+                                top: parent.top
+                            }
+                            IconButton
+                            {
+                                anchors.centerIn: parent
+                                text: model.login_mpt
+                                font.pixelSize: 15         // 设置字体大小（像素）
+                                font.bold: true            // 加粗
+                                onClicked:
+                                {
+                                    console.log(Util.safeStringify(model))
+                                }
+                            }
+                        }
+                        ColumnLayout
+                        {
+                            anchors{
+                                top: parent.top
+                                topMargin: 40
                                 left: parent.left
-                                leftMargin: 20
+                                leftMargin: 10
                             }
-                        }
-                        Rectangle{
-                            width: 200
-                            height: 32
-                            radius: 4
-                            color: Theme.res.dividerStrokeColorDefault
-                            anchors{
-                                top: avatar.top
-                                left: avatar.right
-                                topMargin: 6
-                                leftMargin: 20
-                            }
-                            Label{
-                                anchors.centerIn: parent
-                                text:"SHJD01"
-                                font.bold: true
-                                font.pixelSize: 15
-                            }
-                        }
-                        Rectangle{
-                            width: 400
-                            height: 32
-                            radius: 4
-                            color: Theme.res.dividerStrokeColorDefault
-                            anchors{
-                                bottom: avatar.bottom
-                                left: avatar.right
-                                bottomMargin: 6
-                                leftMargin: 20
-                            }
+
+                            spacing: 10
 
                             Label{
-                                anchors.centerIn: parent
-                                text:"Ntrip Client: 81.68.72.44:2101/A31C05650"
-                                font.bold: true
-                                font.pixelSize: 15
+                                text: "数据类型: "+ model.type
+                                font.bold: true            // 加粗
                             }
-
-                        }
-                        Rectangle{
-                            width: 200
-                            height: 120
-                            radius: 4
-                            color: Theme.res.dividerStrokeColorDefault
-                            anchors{
-                                right: parent.right
-                            }
-
                             Label{
+                                text: "挂载点名: "+ model.target_mpt
+                                font.bold: true            // 加粗
+                            }
+                            Label{
+                                text: "数据地址: "+ model.target_ip + ":"+model.target_port
+                                font.bold: true            // 加粗
+                            }
+                            Label{
+                                text: "使用账号: "+model.target_account
+                                font.bold: true            // 加粗
+                            }
+                            Label{
+                                text: "任务状态: 已启用/已禁用"
+                                font.bold: true            // 加粗
+                            }
+                            Label{
+                                text: "连接状态: 已连接/已断开"
+                                font.bold: true            // 加粗
+                            }
+                            Label{
+                                text: "流量统计: "
+                                font.bold: true            // 加粗
+                            }
+                            Label{
+                                text: "连接时长: "
+                                font.bold: true            // 加粗
+                            }
+                        }
+
+                        Frame
+                        {
+                            width: parent.width
+                            height: 40
+
+                            anchors{
+                                bottom: parent.bottom
+                            }
+
+                            Row{
+
                                 anchors.centerIn: parent
-                                text:"Input: 1.428 KB/s \nOutput: 1.428 KB/s"
-                                font.bold: true
-                                font.pixelSize: 15
+
+
+                                IconButton
+                                {
+                                    icon.source: FluentIcons.graph_Settings
+                                }
+                                IconButton
+                                {
+                                    icon.source: FluentIcons.graph_Play
+                                }
                             }
 
                         }
+
 
                     }
+
                 }
+
+
+
             }
 
 
@@ -239,6 +387,17 @@ Frame {
             visible: root.visable_right_side
             implicitWidth: body.width * 0.3
             implicitHeight: body.height
+
+
+            Component.onCompleted: {
+
+
+                var item= CasterMonitor.genPullStreamTemp()
+
+                console.log(Util.safeStringify(item))
+
+            }
+
 
             Column{
                 anchors{
@@ -271,8 +430,23 @@ Frame {
                         }
                     }
                     ComboBox{
+                        id:type_combobox
+
                         Layout.fillWidth: true
                         model:["NTRIP Client 1.0","NTRIP Client 2.0","TCP Client","TCP Server"]
+                        onCurrentIndexChanged: {
+                            root.type=currentIndex+1
+                        }
+                        Connections{
+                            target: root
+                            function onVisable_right_sideChanged()
+                            {
+                                if(root.visable_right_side==false)
+                                {
+                                    type_combobox.currentIndex=0
+                                }
+                            }
+                        }
                     }
                 }
                 RowLayout{
@@ -287,7 +461,22 @@ Frame {
                         }
                     }
                     TextBox{
+                        id:ip_textbox
                         Layout.fillWidth: true
+
+                        onTextChanged: {
+                            root.target_ip=text
+                        }
+                        Connections{
+                            target: root
+                            function onVisable_right_sideChanged()
+                            {
+                                if(root.visable_right_side==false)
+                                {
+                                    ip_textbox.text=""
+                                }
+                            }
+                        }
                     }
                 }
                 RowLayout{
@@ -302,7 +491,22 @@ Frame {
                         }
                     }
                     TextBox{
+                        id:port_textbox
                         Layout.fillWidth: true
+
+                        onTextChanged: {
+                            root.target_port=Number(text)
+                        }
+                        Connections{
+                            target: root
+                            function onVisable_right_sideChanged()
+                            {
+                                if(root.visable_right_side==false)
+                                {
+                                    port_textbox.text=""
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -318,7 +522,21 @@ Frame {
                         }
                     }
                     TextBox{
+                        id:mpt_textbox
                         Layout.fillWidth: true
+                        onTextChanged: {
+                            root.target_mpt=text
+                        }
+                        Connections{
+                            target: root
+                            function onVisable_right_sideChanged()
+                            {
+                                if(root.visable_right_side==false)
+                                {
+                                    mpt_textbox.text=""
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -334,7 +552,21 @@ Frame {
                         }
                     }
                     TextBox{
+                        id: account_textbox
                         Layout.fillWidth: true
+                        onTextChanged: {
+                            root.target_account=text
+                        }
+                        Connections{
+                            target: root
+                            function onVisable_right_sideChanged()
+                            {
+                                if(root.visable_right_side==false)
+                                {
+                                    account_textbox.text=""
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -350,7 +582,21 @@ Frame {
                         }
                     }
                     PasswordBox{
+                        id:password_textbox
                         Layout.fillWidth: true
+                        onTextChanged: {
+                            root.target_password=text
+                        }
+                        Connections{
+                            target: root
+                            function onVisable_right_sideChanged()
+                            {
+                                if(root.visable_right_side==false)
+                                {
+                                    password_textbox.text=""
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -377,7 +623,21 @@ Frame {
                         }
                     }
                     TextBox{
+                        id:localmpt_textbox
                         Layout.fillWidth: true
+                        onTextChanged: {
+                            root.login_mpt=text
+                        }
+                        Connections{
+                            target: root
+                            function onVisable_right_sideChanged()
+                            {
+                                if(root.visable_right_side==false)
+                                {
+                                    localmpt_textbox.text=""
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -395,7 +655,7 @@ Frame {
                     }
                     ComboBox{
                         Layout.fillWidth: true
-                        model:["5s","10s","30s","60s","180s","300s"]
+                        model:["5s"]
                     }
                 }
 
@@ -413,7 +673,7 @@ Frame {
                     }
                     ComboBox{
                         Layout.fillWidth: true
-                        model:["60s","180s","300s"]
+                        model:["60s"]
                     }
                 }
 
@@ -475,7 +735,26 @@ Frame {
                     font.pixelSize: 15
 
                     onClicked: {
-                        root.visable_right_side=false;
+                        // root.visable_right_side=false;
+
+                        var item= CasterMonitor.genPullStreamTemp()
+
+                        item.type           = root.type
+                        item.target_ip      = root.target_ip
+                        item.target_port    = root.target_port
+                        item.target_mpt     = root.target_mpt
+                        item.target_account = root.target_account
+                        item.target_password= root.target_password
+                        item.login_mpt      = root.login_mpt
+                        item.UID= root.login_mpt
+
+                        console.log(Util.safeStringify(item))
+
+
+                        root.addTaskOpUid= CasterMonitor.addAddPullStreamOperate(item)
+
+                        CasterMonitor.excuteOperate(addTaskOpUid)
+
                     }
 
                 }

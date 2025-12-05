@@ -65,7 +65,15 @@ Item {
 
             if(success)
             {
-                tip_top.showSuccess(qsTr("账号添加完成"))
+                if(info.type==="ADD")
+                {
+                    tip_top.showSuccess(qsTr("账号添加完成"))
+                    contentDialog.close()
+                }
+                else if(info.type==="ACTIVE")
+                {
+                    tip_top.showSuccess(qsTr("账号已激活"))
+                }
             }
 
         }

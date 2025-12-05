@@ -34,7 +34,7 @@ public:
         auto UID= m_relay_info["UID"].toString();
         auto info= JsonToQString(variantMapToJson(m_relay_info)) ;
 
-        redisAsyncCommand(ctx, Redis_Add_Pull_Callback, this, "HSETNX RELAY:PULL %s %s",UID.toStdString().c_str(),info.toStdString().c_str());
+        redisAsyncCommand(ctx, Redis_Add_Pull_Callback, this, "HSETNX STR:PULL:LIST %s %s",UID.toStdString().c_str(),info.toStdString().c_str());
 
     }
 

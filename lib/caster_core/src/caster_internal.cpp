@@ -384,7 +384,7 @@ int caster_internal::upload_node_status()
     json info;
 
     info["UID"] = _node_ID.c_str();
-    info["node_name"] = _node_ID.c_str();
+    info["node_name"] = _node_name.c_str();
     info["set_version"] = PROJECT_SET_VERSION;
     info["tag_version"] = PROJECT_TAG_VERSION;
     info["run_platform"] = SYSTEM_PLATFORM;
@@ -427,15 +427,18 @@ int caster_internal::try_set_master_node()
 
 int caster_internal::sync_cluster_state()
 {
-    // 从云端获取所有节点的状态
-    redisAsyncCommand(_pub_context, Redis_SyncClusterNode_Callback, this, "HGETALL CASTER:NODE");
 
     // 从云端获取所有的转发任务
     // STR:RELAY:LIST
-    redisAsyncCommand(_pub_context, Redis_SyncTaskList_Callback, this, "HGETALL STR:RELAY:LIST");
+    redisAsyncCommand(_pub_context, Redis_SyncPullList_Callback, this, "HGETALL STR:PULL:LIST");
+    redisAsyncCommand(_pub_context, Redis_SyncPushList_Callback, this, "HGETALL STR:PUSH:LIST");
     // 从云端获取所有的任务状态
     // STR:RELAY:LIST
-    redisAsyncCommand(_pub_context, Redis_SyncTaskStat_Callback, this, "HGETALL STR:RELAY:STAT");
+    redisAsyncCommand(_pub_context, Redis_SyncPullStat_Callback, this, "HGETALL STR:PULL:STAT");
+    redisAsyncCommand(_pub_context, Redis_SyncPushStat_Callback, this, "HGETALL STR:PUSH:STAT");
+
+    // 从云端获取所有节点的状态（这个放到最后一步，这个回调执行后要保证前面的数据都已经拿到）
+    redisAsyncCommand(_pub_context, Redis_SyncClusterNode_Callback, this, "HGETALL CASTER:NODE");
 
     return 0;
 }
@@ -445,6 +448,22 @@ int caster_internal::relay_task_distribution()
 
     // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
 
+
+    // 查找所有的LIST任务
+
+    // 查找STAT中是否包含这个任务
+
+    // 不包含任务，创建任务（向某个NODE分发这个任务）（具体选择哪个节点的策略先不管了）
+
+    // 查找所有STAT任务
+
+    // 查找LIST中是否包含这个任务
+
+    // 不包含任务，移除任务（STAT中应当包含执行这个任务的节点ID)
+
+
+
+
     return 0;
 }
 
@@ -453,6 +472,11 @@ int caster_internal::relay_task_response()
 
     // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
 
+    return 0;
+}
+
+int caster_internal::upload_relay_status()
+{
     return 0;
 }
 
@@ -473,6 +497,8 @@ void caster_internal::Redis_SetMaster_Callback(redisAsyncContext *c, void *r, vo
                       svr->_node_ID.c_str(),
                       svr->_node_ID.c_str(),
                       std::to_string(svr->_key_expire_time).c_str()); //
+
+    // 如果自己已经不是主节点，那么要清理本地维护的主节点状态信息
 }
 
 void caster_internal::Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -493,19 +519,149 @@ void caster_internal::Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, 
 
 void caster_internal::Redis_SyncClusterNode_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
-    // 将节点的状态更新到本地
+    // 将节点的状态更新到本地（这个应该已经是最后一个主节点同步函数），这个函数执行完之后，开始执行主节点的分发任务
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    svr->_cluster_node_map.clear();
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL CASTER:NODE reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL CASTER:NODE reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        svr->_cluster_node_map.insert(std::pair<std::string, std::string>(field, value));
+    }
+
+    svr->relay_task_distribution();
 }
 
-void caster_internal::Redis_SyncTaskList_Callback(redisAsyncContext *c, void *r, void *privdata)
+void caster_internal::Redis_SyncPullList_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     // 将任务列表更新到本地
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL STR:PULL:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL STR:PULL:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        try
+        {
+            // json转换成relay_item
+            auto info = json::parse(value);
+            relay_item item;
+            item.UID = info["UID"];
+            item.type = info["type"];
+            item.target_ip = info["target_ip"];
+            item.target_port = info["target_port"];
+            item.target_mpt = info["target_mpt"];
+            item.target_account = info["target_account"];
+            item.target_password = info["target_password"];
+            item.login_mpt = info["login_mpt"];
+
+            svr->_pull_list_map.insert(std::pair<std::string, relay_item>(field, item));
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::warn("[{}:{}]: decode field: {},value: {} ,what: {}", __class__, __func__, field, value, e.what());
+        }
+    }
 }
 
-void caster_internal::Redis_SyncTaskStat_Callback(redisAsyncContext *c, void *r, void *privdata)
+void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     // 将任务状态更新到本地
 
     // 筛选需要关闭，启动的任务，进行任务分发
+
+    // 将任务列表更新到本地
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL STR:PULL:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL STR:PULL:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+
+        try
+        {
+            // json转换成relay_item
+            auto info = json::parse(value);
+            relay_status item;
+            item.UID = info["UID"];
+            item.type = info["type"];
+            item.target_ip = info["target_ip"];
+            item.target_port = info["target_port"];
+            item.target_mpt = info["target_mpt"];
+            item.target_account = info["target_account"];
+            item.target_password = info["target_password"];
+            item.login_mpt = info["login_mpt"];
+
+            svr->_pull_stat_map.insert(std::pair<std::string, relay_status>(field, item));
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::warn("[{}:{}]: decode field: {},value: {} ,what: {}", __class__, __func__, field, value, e.what());
+        }
+
+        // svr->_pull_stat_map.insert(std::pair<std::string, std::string>(field, value));
+    }
+}
+
+void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+}
+
+void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
 }
 
 int caster_internal::clear_overdue_item()
@@ -825,6 +981,13 @@ void caster_internal::TestDelayCallback(evutil_socket_t fd, short events, void *
     auto svr = static_cast<caster_internal *>(arg);
     svr->_execute_time = std::chrono::high_resolution_clock::now();
     svr->_queue_delay = std::chrono::duration_cast<std::chrono::microseconds>(svr->_execute_time - svr->_activate_time).count();
+}
+
+int caster_internal::relay_register_callback(RelayCallback cb, void *arg)
+{
+    _relay_cb_arg = arg;
+    _relay_cb = cb;
+    return 0;
 }
 
 int caster_internal::register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
@@ -1205,6 +1368,7 @@ void caster_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int st
 int caster_internal::init_sub_context()
 {
     redisAsyncCommand(_sub_context, Redis_Broadcast_Callback, this, "SUBSCRIBE CASTER:BROADCAST");
+    redisAsyncCommand(_sub_context, Redis_NodeChannel_Callback, this, "SUBSCRIBE NODE:%s",_node_ID);
 
     // 重新订阅所有的需要订阅的频道
     for (auto iter : _base_sub_map)
