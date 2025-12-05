@@ -380,6 +380,10 @@ int caster_internal::check_redis_connection()
 
 int caster_internal::upload_node_status()
 {
+    // 刷新一下速度
+    add_sum_recv(0);
+    add_sum_send(0);
+
     // 将本节点的信息上传到Redis
     json info;
 
@@ -448,7 +452,6 @@ int caster_internal::relay_task_distribution()
 
     // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
 
-
     // 查找所有的LIST任务
 
     // 查找STAT中是否包含这个任务
@@ -460,9 +463,6 @@ int caster_internal::relay_task_distribution()
     // 查找LIST中是否包含这个任务
 
     // 不包含任务，移除任务（STAT中应当包含执行这个任务的节点ID)
-
-
-
 
     return 0;
 }
@@ -1368,7 +1368,7 @@ void caster_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int st
 int caster_internal::init_sub_context()
 {
     redisAsyncCommand(_sub_context, Redis_Broadcast_Callback, this, "SUBSCRIBE CASTER:BROADCAST");
-    redisAsyncCommand(_sub_context, Redis_NodeChannel_Callback, this, "SUBSCRIBE NODE:%s",_node_ID);
+    redisAsyncCommand(_sub_context, Redis_NodeChannel_Callback, this, "SUBSCRIBE NODE:%s", _node_ID);
 
     // 重新订阅所有的需要订阅的频道
     for (auto iter : _base_sub_map)
@@ -2141,6 +2141,11 @@ int str_status::set_position_info(int quality, int sat_num, double diff)
 
 std::string str_status::get_status_str(int type)
 {
+
+    // 强制刷新一次速度
+    add_recv(0);
+    add_send(0);
+
     json info;
 
     info["UID"] = _UID;
