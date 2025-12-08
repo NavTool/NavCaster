@@ -98,6 +98,8 @@ set(CARRIER_TYPE_SOURCE
     include/Carrier/server_ntrip.h      src/Carrier/server_ntrip.cpp
     include/Carrier/source_ntrip.h      src/Carrier/source_ntrip.cpp
 
+    include/Carrier/client_near.h      src/Carrier/client_near.cpp
+
     include/Carrier/relay_pull.h      src/Carrier/relay_pull.cpp
     include/Carrier/relay_push.h      src/Carrier/relay_push.cpp
 

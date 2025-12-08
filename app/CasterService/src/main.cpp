@@ -108,13 +108,10 @@ json load_Core_Conf(const char *conf_directory)
 
     auto Caster_Setting = Conf["Caster_Setting"];
     conf["Update_Intv"] = Caster_Setting["Update_Intv"].as<int>();
-    conf["Unactive_Time"] = Caster_Setting["Unactive_Time"].as<int>();
     conf["Key_Expire_Time"] = Caster_Setting["Key_Expire_Time"].as<int>();
 
     conf["Upload_Base_Stat"] = Caster_Setting["Upload_Base_Stat"].as<bool>();
     conf["Upload_Rover_Stat"] = Caster_Setting["Upload_Rover_Stat"].as<bool>();
-    conf["Download_Base_Stat"] = Caster_Setting["Download_Base_Stat"].as<bool>();
-    conf["Download_Rover_Stat"] = Caster_Setting["Download_Rover_Stat"].as<bool>();
 
     auto Base_Setting = Conf["Base_Setting"];
     conf["Base_Enable_Mult"] = Base_Setting["Enable_Mult"].as<bool>();

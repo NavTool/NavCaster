@@ -14,7 +14,6 @@
 // #define CASTER_REPLY_INTEGER 3
 // #define CASTER_REPLY_NIL 4
 
-
 enum class CasterReply
 {
     ERR = -1,
@@ -24,6 +23,7 @@ enum class CasterReply
     STRING,
     // ARRAY,
     INTEGER,
+    DOUBLE,
     NIL,
 };
 
@@ -32,7 +32,8 @@ struct catser_reply
     CasterReply type;
     const char *str;
     size_t len;
-    int integer;
+    int integer = 0;
+    double dval = 0.0;
 };
 
 struct mount_info
@@ -60,19 +61,16 @@ struct mount_info
 
 typedef void (*CasterCallback)(const char *request, void *arg, catser_reply *reply);
 
-
-
 struct relay_request
 {
-    std::string type;        // 请求类型
-    std::string target_ip;   // 目标IP
-    int target_port;         // 目标端口
-    std::string target_mpt; // 挂载点  
-    std::string target_account;   // 用户名   
-    std::string target_password;  // 密码
-    std::string login_mpt;  // 登录的挂载点
+    std::string type;            // 请求类型
+    std::string target_ip;       // 目标IP
+    int target_port;             // 目标端口
+    std::string target_mpt;      // 挂载点
+    std::string target_account;  // 用户名
+    std::string target_password; // 密码
+    std::string login_mpt;       // 登录的挂载点
 };
-
 
 typedef void (*RelayCallback)(void *arg, relay_request *req);
 
@@ -86,6 +84,9 @@ namespace CASTER
 
     // 服务用函数---------------------------------------------------------------------------------------------------------
 
+    // 检测是否是最近挂载点模式
+    bool Check_Nearest_Mpt(const char *mount_point);
+
     // 将基站注册到Caster中（Server上线的时候主动调用）
     int Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 将基站从Caster中注销（Server下线的时候主动调用）
@@ -95,7 +96,7 @@ namespace CASTER
     // 订阅基站数据
     int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 最近点基站模式
-    int Sub_Base_Raw_Data(double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅基站数据
     int Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key);
     // 设置基站坐标信息
@@ -106,7 +107,6 @@ namespace CASTER
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
-
     // 将移动站注册到Caster中（Client上线的时候主动调用）
     int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 将移动站从Caster中注销（Client下线的时候主动调用）
@@ -114,20 +114,18 @@ namespace CASTER
     // 发布移动站数据
     int Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length);
     // 订阅移动站数据
-    int Sub_Rover_Raw_Data(const char *mount_point,const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅移动站数据
     int Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key);
     // 设置用户坐标信息
-    int Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time,int Q, int sat, double diff);
+    int Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff);
     // 设置用户连接延迟信息
     int Set_Rover_Delay_Info(const char *user_name, const char *connect_key, uint64_t delay);
 
     // 获取文本形式的源列表
     std::string Get_Source_Table_Text();
 
-
     int Relay_Register_Callback(RelayCallback cb, void *arg);
-
 
     // 管理用函数---------------------------------------------------------------------------------------------------------
 
@@ -135,8 +133,6 @@ namespace CASTER
     int Stop_One_Base(const char *mount_point, const char *connect_key, const char *reason);
     // 主动停止指定的移动站
     int Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason);
-
-
 
     // 更新用户位置信息，将用户的信息上报到Caster_Core
 
@@ -157,8 +153,6 @@ namespace CASTER
 
     // 设置虚拟基站的信息
     int Set_Grid_Source_Info(const char *mount_point, const char *connect_key, mount_info);
-
-
 
 }
 

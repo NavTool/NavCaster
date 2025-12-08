@@ -349,12 +349,21 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
             erase_and_free_bev(bev, connect_key);
             return 1;
         }
-        req["req_type"] = REQUEST_CLIENT_LOGIN;
+
+        //  查找是否是最近挂载点
+        if (CASTER::Check_Nearest_Mpt(mount.c_str()))
+        {
+            req["req_type"] = REQUEST_NEAREST_LOGIN;
+        }
+        else
+        {
+            req["req_type"] = REQUEST_CLIENT_LOGIN;
+        }
     }
 
     std::string userID = req["user_baseID"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(), userID.c_str(),Auth_Verify_Cb, ctx, AuthType::CLIENT);
+    AUTH::Verify(userID.c_str(), userID.c_str(), Auth_Verify_Cb, ctx, AuthType::CLIENT);
     return 0;
 }
 
@@ -374,7 +383,7 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
 
     std::string userID = req["user_baseID"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(),userID.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
+    AUTH::Verify(userID.c_str(), userID.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
 
@@ -401,7 +410,7 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
 
     std::string userID = req["user_baseID"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(),userID.c_str(), Auth_Verify_Cb, ctx,AuthType::SERVER);
+    AUTH::Verify(userID.c_str(), userID.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
 

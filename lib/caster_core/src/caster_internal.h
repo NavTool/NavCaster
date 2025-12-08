@@ -270,7 +270,6 @@ public:
     std::string login_mpt;       // 登录的挂载点
 };
 
-
 class caster_cb_item
 {
 public:
@@ -321,6 +320,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _rover_sub_map;      // channel/connect_key/cb_arg
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _base_register_map;  // channel/connect_key/cb_arg
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _rover_register_map; // channel/connect_key/cb_arg
+    std::unordered_map<std::string, caster_cb_item> _base_near_sub_map;                                   // 连接key/cb_arg
 
     std::unordered_map<std::string, str_status> _base_status_map;  // connect_key/str_status  //基站的状态统计信息       MPT:STAT
     std::unordered_map<std::string, str_status> _rover_status_map; // connect_key/str_status  //移动站的状态统计信息     USR:STAT
@@ -339,9 +339,6 @@ private:
     std::string _alias_list_text;
     std::string _nearest_list_text;
 
-    std::string _updatetime_str;
-    long long _updatetime_int;
-
     long long _startup_time = 0;
 
 public:
@@ -358,6 +355,9 @@ public:
 
     std::string get_status_str();
 
+
+    bool is_nearest_mpt(std::string mount_point);
+
     // 注册基站频道 MPT:XXXXXX
     int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 注销频道
@@ -366,6 +366,8 @@ public:
     int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
     int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    // 订阅指定频道
+    int sub_base_channel(const char *channel, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_base_channel(const char *channel, const char *connect_key);
     // 设置基站坐标信息
@@ -419,6 +421,9 @@ private:
     static void Redis_Update_Alias_Base_Callback(redisAsyncContext *c, void *r, void *privdata);   // 拉取MPT:LIST:ALIAS
     static void Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取MPT:LIST:NEAREST
     static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取USR:LIST
+
+    // GRO查询回调
+    static void Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // 查询回调 (传入的privdata 类型 std::unordered_map<std::string, std::string> *
     static void Redis_Get_Hash_Field_Callback(redisAsyncContext *c, void *r, void *privdata);
@@ -495,14 +500,16 @@ private:
     // 执行任务：LIST中有但是STAT中还没有，关闭任务：STAT中有但是LIST中没有
 
     std::unordered_map<std::string, std::string> _cluster_node_map;
-    std::unordered_map<std::string, relay_item> _pull_list_map; // 数据转发任务
+    std::unordered_map<std::string, relay_item> _pull_list_map;   // 数据转发任务
     std::unordered_map<std::string, relay_status> _pull_stat_map; // 数据转发任务
-    std::unordered_map<std::string, relay_item> _push_list_map; // 数据转发任务
+    std::unordered_map<std::string, relay_item> _push_list_map;   // 数据转发任务
     std::unordered_map<std::string, relay_status> _push_stat_map; // 数据转发任务
 
     int try_set_master_node();     // 尝试设置为主节点
     int sync_cluster_state();      // 主节点同步全局信息到本地
     int relay_task_distribution(); // 主节点执行：Relay任务分发
+
+    // 清理已经失效的GEO节点信息（查询是否已经是在线的挂载点，不是那么直接删除）
 
     // 节点频道的回调
     static void Redis_SetMaster_Callback(redisAsyncContext *c, void *r, void *privdata);

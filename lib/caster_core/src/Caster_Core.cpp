@@ -225,6 +225,11 @@ std::string CASTER::Get_Status()
     return caster_internal::getInstance()->get_status_str();
 }
 
+bool CASTER::Check_Nearest_Mpt(const char *mount_point)
+{
+    return caster_internal::getInstance()->is_nearest_mpt(mount_point);
+}
+
 int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
     return caster_internal::getInstance()->register_base_channel(mount_point, user_name, connect_key, cb, arg);
@@ -243,6 +248,11 @@ int CASTER::Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, 
 int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
     return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, connect_key, cb, arg);
+}
+
+int CASTER::Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
+{
+    return caster_internal::getInstance()->sub_base_channel(mount_point, lat, lon, connect_key, cb, arg);
 }
 
 int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key)
@@ -277,7 +287,7 @@ int CASTER::Withdraw_Rover_Record(const char *mount_point, const char *user_name
 
 int CASTER::Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length)
 {
-     return caster_internal::getInstance()->pub_rover_channel(user_name, connect_key, data, data_length);
+    return caster_internal::getInstance()->pub_rover_channel(user_name, connect_key, data, data_length);
 }
 
 int CASTER::Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
@@ -293,24 +303,6 @@ int CASTER::Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key)
 int CASTER::Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason)
 {
     return caster_internal::getInstance()->send_status_rover_channel(user_name, connect_key, CasterReply::ERR, reason);
-}
-
-int CASTER::Sub_Base_Raw_Data(double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
-{
-
-    // 添加一个查询，查询最近的站点
-
-    // 查找成功，
-
-    // 查找所有在半径范围内的点的在线状态
-
-    // 返回状态，订阅距离最近且在线状态正常的点
-
-    // 查询当前connect_key是否已经有订阅站点，
-
-    // 如果已经有订阅，取消原先的订阅，添加到新的订阅点，触发更改订阅成功
-
-    return 0;
 }
 
 int CASTER::Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info)
