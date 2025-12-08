@@ -96,7 +96,7 @@ namespace CASTER
     // 订阅基站数据
     int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 最近点基站模式
-    int Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅基站数据
     int Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key);
     // 设置基站坐标信息

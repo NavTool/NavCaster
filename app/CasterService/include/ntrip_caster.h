@@ -8,6 +8,7 @@
 #include "Carrier/server_ntrip.h"
 // #include "Carrier/server_relay.h"
 #include "Carrier/source_ntrip.h"
+#include "Carrier/client_near.h"
 
 
 // #include "../extra/heart_beat/heart_beat.h"
@@ -77,8 +78,10 @@ private:
     int request_process(json req);
 
     int create_client_ntrip(json req); // 用Ntrip协议登录的用户(一个挂载点一个)
-    int create_client_virtual(json req);
     int close_client_ntrip(json req);
+
+    int create_client_near(json req); // 用Ntrip协议登录的用户(最近挂载点)
+    int close_client_near(json req);
 
     int create_server_ntrip(json req); // 基站主动接入产生的数据源
     int close_server_ntrip(json req);
@@ -99,6 +102,8 @@ private:
     std::unordered_map<std::string, server_ntrip *> _server_map; // Connect_Key,client_ntrip
     std::unordered_map<std::string, client_ntrip *> _client_map; // Connect_Key,client_ntrip
     std::unordered_map<std::string, source_ntrip *> _source_map; // Connect_Key,client_ntrip
+
+    std::unordered_map<std::string, client_near *> _near_map; // Connect_Key,client_ntrip
 
 private:
     event_base *_base;

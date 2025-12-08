@@ -189,7 +189,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
     return 0;
 }
 
-int caster_internal::sub_base_channel(const char *channel, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
+int caster_internal::sub_base_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
 {
     // 查找是否是已经订阅过最近基站
     auto find = _base_near_sub_map.find(connect_key);
@@ -199,6 +199,7 @@ int caster_internal::sub_base_channel(const char *channel, double lat, double lo
         caster_cb_item cb_item;
         cb_item.connect_key = connect_key;
         cb_item.channel = channel;
+        cb_item.user_name = user_name;
         cb_item.cb = cb;
         cb_item.arg = arg;
         _base_near_sub_map.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
@@ -214,7 +215,7 @@ int caster_internal::sub_base_channel(const char *channel, double lat, double lo
     caster_cb_item *ptr = &find->second;
     // 添加一个查询，查询最近的站点
 
-    redisAsyncCommand(_pub_context, Redis_Geo_Radius_Callback, ptr, "GEORADIUS MPT:GEO %s %s 100 km WITHDIST ASC", std::to_string(lon).c_str(), std::to_string(lat).c_str());
+    redisAsyncCommand(_pub_context, Redis_Geo_Radius_Callback, ptr, "GEORADIUS MPT:GEO %s %s 100 KM WITHDIST ASC", std::to_string(lon).c_str(), std::to_string(lat).c_str());
 
     return 0;
 }
@@ -2091,24 +2092,71 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
     auto reply = static_cast<redisReply *>(r);
     auto cb_item = static_cast<caster_cb_item *>(privdata);
 
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: GEORADIUS MPT:GEO reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: GEORADIUS MPT:GEO reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
     // 查找成功
+    for (int i = 0; i < reply->elements; i++)
+    {
+        auto reply_item = reply->element[i];
 
-    // 判断所有符合要求的挂载点
+        auto field = reply_item->element[0]->str;
+        auto value = reply_item->element[1]->str;
 
-    // 查找这个挂载点是否处于在线状态
+        // 判断所有符合要求的挂载点
+        auto iter = caster_internal::getInstance()->_active_mount_map.find(field); // 查找这个挂载点是否处于在线状态
+        if (iter == caster_internal::getInstance()->_active_mount_map.end())       // 如果不在线，那么要把这个记录删掉
+        {
+            redisAsyncCommand(caster_internal::getInstance()->_pub_context, NULL, NULL, "ZREM MPT:GEO %s", field);
+            continue;
+        }
+        else // 如果在线,订阅这个挂载点
+        {
 
-    // 如果不在线，那么要把这个记录删掉
+            // 判断这个挂载点和当前订阅的挂载点是同一个，那么就跳过
+            if (cb_item->channel == field)
+            {
+                // 已经订阅了这个挂载点，跳过
+                return;
+            }
 
-    // 如果在线,订阅这个挂载点
+            // 如果不一致，要先把旧的订阅移除，然后添加到新的订阅上
 
-    // 查询当前connect_key是否已经有订阅站点，
+            // 查询当前connect_key是否已经有订阅站点，
+            auto sub_base_item = caster_internal::getInstance()->_base_sub_map.find(cb_item->channel);
+            if (sub_base_item != caster_internal::getInstance()->_base_sub_map.end()) // 没有这个订阅记录
+            {
+                auto sub_item = sub_base_item->second.find(cb_item->connect_key);
+                if (sub_item != sub_base_item->second.end())
+                {
+                    // 找到这个订阅记录，取消订阅
+                    caster_internal::getInstance()->_base_sub_map[cb_item->channel].erase(cb_item->connect_key);
+                }
+            }
 
-    // 如果已经有订阅，且与新的最优匹配不一致，取消原先的订阅，添加到新的订阅点，触发更改订阅成功
+            // 添加到新的订阅上去
+            cb_item->channel = field;
+            caster_internal::getInstance()->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg);
 
-    // 调用回调  订阅成功，传递已经订阅的挂载点名称
+            return;
+        }
+    }
 
     catser_reply Reply;
-    Reply.type = CasterReply::OK;
+    Reply.type = CasterReply::ERR;
     Reply.str = "";   // 实际使用的挂载点
     Reply.dval = 0.0; // 距离
     cb_item->cb(NULL, cb_item->arg, &Reply);

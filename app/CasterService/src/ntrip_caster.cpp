@@ -167,12 +167,12 @@ int ntrip_caster::periodic_task()
 #ifdef WIN32
 
 #else
-        malloc_trim(0); // 尝试归还、释放内存
+    malloc_trim(0); // 尝试归还、释放内存
 #endif
 
-        // 检测是否激活
+    // 检测是否激活
 
-        return 0;
+    return 0;
 }
 int ntrip_caster::compontent_init()
 {
@@ -247,6 +247,12 @@ int ntrip_caster::request_process(json req)
             break;
         case CLOSE_NTRIP_SERVER:
             close_server_ntrip(req);
+            break;
+        case REQUEST_NEAREST_LOGIN:
+            create_client_near(req);
+            break;
+        case CLOSE_NEAREST_CLIENT:
+            close_client_near(req);
             break;
         // 虚拟挂载点  //Nearest/Relay/Cors
         // case REQUEST_VIRTUAL_LOGIN:
@@ -333,12 +339,6 @@ int ntrip_caster::create_client_ntrip(json req)
     return 0;
 }
 
-int ntrip_caster::create_client_virtual(json req)
-{
-    // 要结合GEO功能开发
-    return 0;
-}
-
 int ntrip_caster::close_client_ntrip(json req)
 {
     json origin_req = req["origin_req"];
@@ -364,6 +364,52 @@ int ntrip_caster::close_client_ntrip(json req)
         delete obj->second;
         _client_map.erase(obj);
     }
+    return 0;
+}
+
+int ntrip_caster::create_client_near(json req)
+{
+    std::string connect_key = req["connect_key"];
+    auto con = _connect_map.find(connect_key);
+    if (con == _connect_map.end())
+    {
+        spdlog::warn("[{}:{}]: Create_Ntrip_Client fail, con not in connect_map", __class__, __func__);
+        return 1;
+    }
+    req["Settings"] = _client_setting;
+    client_near *ntripc = new client_near(req, con->second);
+    _near_map.insert(std::pair<std::string, client_near *>(connect_key, ntripc));
+    ntripc->start();
+
+    return 0;
+}
+
+int ntrip_caster::close_client_near(json req)
+{
+    json origin_req = req["origin_req"];
+    std::string connect_key = origin_req["connect_key"];
+    std::string mount_point = origin_req["mount_point"];
+    int req_type = origin_req["req_type"];
+    auto con = _connect_map.find(connect_key);
+
+    if (con == _connect_map.end())
+    {
+    }
+    else
+    {
+        _connect_map.erase(con);
+    }
+
+    auto obj = _near_map.find(connect_key);
+    if (obj == _near_map.end())
+    {
+    }
+    else
+    {
+        delete obj->second;
+        _near_map.erase(obj);
+    }
+
     return 0;
 }
 

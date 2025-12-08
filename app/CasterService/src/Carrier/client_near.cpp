@@ -220,7 +220,7 @@ int client_near::publish_recv_raw_data()
             // 调用GEO命令查询最近基站
             double lat = 0.0, lon = 0.0, alt = 0.0;
             util_ecef2pos(_str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z, lat, lon, alt);
-            CASTER::Sub_Base_Raw_Data(_inter_mpt.c_str(), lat, lon, _connect_key.c_str(), Caster_Sub_Callback, this);
+            CASTER::Sub_Base_Raw_Data(_inter_mpt.c_str(), lat, lon, _user_name.c_str(),_connect_key.c_str(), Caster_Sub_Callback, this);
         }
     }
 

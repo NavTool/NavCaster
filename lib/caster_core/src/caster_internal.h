@@ -355,7 +355,6 @@ public:
 
     std::string get_status_str();
 
-
     bool is_nearest_mpt(std::string mount_point);
 
     // 注册基站频道 MPT:XXXXXX
@@ -367,7 +366,7 @@ public:
     // 订阅指定频道
     int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 订阅指定频道
-    int sub_base_channel(const char *channel, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    int sub_base_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_base_channel(const char *channel, const char *connect_key);
     // 设置基站坐标信息

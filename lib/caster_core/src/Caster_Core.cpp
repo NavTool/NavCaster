@@ -250,9 +250,9 @@ int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, co
     return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, connect_key, cb, arg);
 }
 
-int CASTER::Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
+int CASTER::Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
-    return caster_internal::getInstance()->sub_base_channel(mount_point, lat, lon, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, lat, lon, connect_key, cb, arg);
 }
 
 int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key)
