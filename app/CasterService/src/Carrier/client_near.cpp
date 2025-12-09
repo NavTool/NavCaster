@@ -92,11 +92,11 @@ int client_near::stop()
 
     json close_req;
     close_req["origin_req"] = _info;
-    close_req["req_type"] = CLOSE_NTRIP_CLIENT;
+    close_req["req_type"] = CLOSE_NEAREST_CLIENT;
     QUEUE::Push(close_req);
 
+    CASTER::Unsub_Base_Raw_Data(_inter_mpt.c_str(), _connect_key.c_str());
     CASTER::Withdraw_Rover_Record(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str());
-    CASTER::Unsub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str());
 
     AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), AuthType::CLIENT);
 
@@ -207,24 +207,30 @@ int client_near::publish_recv_raw_data()
                                      _str_decoder._quality,
                                      _str_decoder._sat_num, _str_decoder._diff);
 
-        // 已完成坐标解析，检索最近基站
-        double distance = util_dist3d(_ecef_x, _ecef_y, _ecef_z,
-                                      _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z);
-
-        if (distance > 1000.0) // 判断旧的坐标和新的坐标的距离差异是否超过1km，如果已经超过，那就触发订阅函数
-        {
-            _ecef_x = _str_decoder._ecef_x;
-            _ecef_y = _str_decoder._ecef_y;
-            _ecef_z = _str_decoder._ecef_z;
-
-            // 调用GEO命令查询最近基站
-            double lat = 0.0, lon = 0.0, alt = 0.0;
-            util_ecef2pos(_str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z, lat, lon, alt);
-            CASTER::Sub_Base_Raw_Data(_inter_mpt.c_str(), lat, lon, _user_name.c_str(),_connect_key.c_str(), Caster_Sub_Callback, this);
-        }
+        try_sub_near_station();
     }
 
     delete[] data;
+    return 0;
+}
+
+int client_near::try_sub_near_station()
+{
+    // 已完成坐标解析，检索最近基站
+    double distance = util_dist3d(_ecef_x, _ecef_y, _ecef_z,
+                                  _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z);
+
+    if (distance > 1000.0) // 判断旧的坐标和新的坐标的距离差异是否超过1km，如果已经超过，那就触发订阅函数
+    {
+        _ecef_x = _str_decoder._ecef_x;
+        _ecef_y = _str_decoder._ecef_y;
+        _ecef_z = _str_decoder._ecef_z;
+
+        // 调用GEO命令查询最近基站
+        double lat = 0.0, lon = 0.0, alt = 0.0;
+        util_ecef2pos(_str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z, lat, lon, alt);
+        CASTER::Sub_Base_Raw_Data(_inter_mpt.c_str(), lat, lon, _user_name.c_str(), _connect_key.c_str(), Caster_Sub_Callback, this);
+    }
     return 0;
 }
 
@@ -294,11 +300,22 @@ void client_near::Caster_Sub_Callback(const char *request, void *arg, catser_rep
     else if (reply->type == CasterReply::OK)
     {
         svr->_inter_mpt = reply->str;
+        svr->_find_nearest = true;
         spdlog::info("[{}:{}]: user [{}] is start recv [{}]'s data, distance {} km, using mount [{}], addr:[{}:{}]", __class__, __func__, svr->_user_name, svr->_inter_mpt, reply->dval, svr->_mount_point, svr->_ip, svr->_port);
     }
     else if (reply->type == CasterReply::ERR)
     {
         spdlog::info("[{}:{}]: CASTER_REPLY_ERR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
-        svr->stop();
+
+        // 当弹出Error的时候，要尝试一次寻找最近的挂载点，寻找不到才会真的下线
+        if (svr->_find_nearest)
+        {
+            svr->_find_nearest = false;
+            svr->try_sub_near_station();
+        }
+        else
+        {
+            svr->stop();
+        }
     }
 }

@@ -36,6 +36,22 @@ struct catser_reply
     double dval = 0.0;
 };
 
+
+enum class BroadcastType
+{
+    UNKNOWN = 0,
+    BASE_REGISTER,       // 基站上线
+    BASE_WITHDRAW,       // 基站下线
+    ROVER_REGISTER,      // 用户上线
+    ROVER_WITHDRAW,      // 用户下线
+    RELAY_PULL_ACTIVE,   // 激活数据接入任务
+    RELAY_PULL_UPDATE,   // 更新任务的参数
+    RELAY_PULL_INACTIVE, // 关闭数据接入任务
+    PROXY_PUSH_ACTIVE,   // 激活数据推送任务
+    PROXY_PUSH_INACTIVE  // 关闭数据推送任务
+
+};
+
 struct mount_info
 {
     std::string STR;
@@ -61,18 +77,18 @@ struct mount_info
 
 typedef void (*CasterCallback)(const char *request, void *arg, catser_reply *reply);
 
-struct relay_request
-{
-    std::string type;            // 请求类型
-    std::string target_ip;       // 目标IP
-    int target_port;             // 目标端口
-    std::string target_mpt;      // 挂载点
-    std::string target_account;  // 用户名
-    std::string target_password; // 密码
-    std::string login_mpt;       // 登录的挂载点
-};
+// struct relay_request
+// {
+//     std::string type;            // 请求类型
+//     std::string target_ip;       // 目标IP
+//     int target_port;             // 目标端口
+//     std::string target_mpt;      // 挂载点
+//     std::string target_account;  // 用户名
+//     std::string target_password; // 密码
+//     std::string login_mpt;       // 登录的挂载点
+// };
 
-typedef void (*RelayCallback)(void *arg, relay_request *req);
+typedef void (*RelayCallback)(void *arg, BroadcastType type, std::string req);
 
 namespace CASTER
 {
@@ -103,6 +119,9 @@ namespace CASTER
     int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
     // 设置基站连接延迟信息
     int Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay);
+
+    int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key,int type, int state);
+
 
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);

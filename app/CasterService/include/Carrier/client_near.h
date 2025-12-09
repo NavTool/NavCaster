@@ -47,6 +47,7 @@ private:
     decode_nmea _str_decoder;
 
     std::string _inter_mpt;
+    bool _find_nearest=false;
     double _ecef_x = 0.0;
     double _ecef_y = 0.0;
     double _ecef_z = 0.0;
@@ -64,6 +65,8 @@ private:
     int bev_send_reply();
     int transfer_sub_raw_data(const char *data, size_t length);
     int publish_recv_raw_data();
+
+    int try_sub_near_station();
 
     int update_tcp_delay_info();
 

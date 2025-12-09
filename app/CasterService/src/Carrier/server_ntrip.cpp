@@ -195,11 +195,6 @@ int server_ntrip::send_heart_beat_to_server()
     }
 }
 
-int server_ntrip::decode_recv_raw_data()
-{
-
-    return 0;
-}
 
 int server_ntrip::publish_recv_raw_data()
 {

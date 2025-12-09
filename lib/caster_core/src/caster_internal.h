@@ -218,6 +218,7 @@ public:
     int add_recv(int size);
     int add_send(int size);
 
+    int set_type(int type);
     int set_alias_mpt(std::string alias_mpt);
 
     int set_coord_info(double ecef_x, double ecef_y, double ecef_z, long long update_time);
@@ -247,27 +248,41 @@ private:
 class relay_item
 {
 public:
-    std::string UID;             // 请求类型
-    int type;                    // 请求类型
-    std::string target_ip;       // 目标IP
-    int target_port;             // 目标端口
-    std::string target_mpt;      // 挂载点
-    std::string target_account;  // 用户名
-    std::string target_password; // 密码
-    std::string login_mpt;       // 登录的挂载点
+    std::string UID; // 请求类型
+
+    std::string para;
+
+    // int type;                    // 请求类型
+    // std::string target_ip;       // 目标IP
+    // int target_port;             // 目标端口
+    // std::string target_mpt;      // 挂载点
+    // std::string target_account;  // 用户名
+    // std::string target_password; // 密码
+    // std::string login_mpt;       // 登录的挂载点
 };
 
 class relay_status
 {
 public:
-    std::string UID;             // 请求类型
-    int type;                    // 请求类型
-    std::string target_ip;       // 目标IP
-    int target_port;             // 目标端口
-    std::string target_mpt;      // 挂载点
-    std::string target_account;  // 用户名
-    std::string target_password; // 密码
-    std::string login_mpt;       // 登录的挂载点
+    std::string Node_ID; // 执行这个任务的节点ID
+
+    std::string UID; // 请求类型
+
+    std::string para;
+
+    int _state; // 任务状态
+    std::string _connect_key;
+    int update_state(std::string connect_key,int state);
+
+    std::string get_status_str(); //
+
+    // int type;                    // 请求类型
+    // std::string target_ip;       // 目标IP
+    // int target_port;             // 目标端口
+    // std::string target_mpt;      // 挂载点
+    // std::string target_account;  // 用户名
+    // std::string target_password; // 密码
+    // std::string login_mpt;       // 登录的挂载点
 };
 
 class caster_cb_item
@@ -278,6 +293,31 @@ public:
     std::string user_name;
     CasterCallback cb;
     void *arg;
+};
+
+// 广播指令生成和解析类
+
+class caster_broadcast_item
+{
+public:
+    // 广播的类型
+    BroadcastType type = BroadcastType::UNKNOWN; // 0:未知 1:基站 2:  3:  4:  5:
+    // 目标ConnectKey
+    std::string connect_key;
+    // 目标频道
+    std::string channel;
+    // 传递参数
+    std::string Para;
+
+    // 状态
+    CasterReply status = CasterReply::NIL;
+    // 原因
+    std::string reason;
+
+public:
+    int fromString(const std::string &str);
+
+    std::string toString();
 };
 
 class caster_internal
@@ -528,7 +568,9 @@ private:
 
     std::unordered_map<std::string, relay_status> _pull_excute_map; // 本地已经执行的任务
     std::unordered_map<std::string, relay_status> _push_excute_map; // 本地已经执行的任务
-
+public:
+    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key,int type, int state);
+private:
     // 上报任务执行状态
     // 上报自己的状态
     int upload_node_status();  // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录

@@ -128,25 +128,52 @@ public:
 
 class EventDelPull : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, relay_info)
 public:
     explicit EventDelPull(): RedisOperationBase() {};
 
     Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
     void execute(redisAsyncContext *ctx) override {
-        // Q_UNUSED(base);
+        auto UID= m_relay_info["UID"].toString();
 
-        // 添加一条记录
-
-
-        // 调用Monitor的信号
-
-
+        redisAsyncCommand(ctx, Redis_Del_Pull_Callback, this, "HDEL STR:PULL:LIST %s",UID.toStdString().c_str());
     }
 
 public:
 
 
-public:
+    static void Redis_Del_Pull_Callback(redisAsyncContext *c, void *r, void *privdata)
+    {
+        // 解析数据
+        auto reply = static_cast<redisReply *>(r);
+        auto svr = static_cast<EventAddPull *>(privdata);
+
+        if (!reply)
+        {
+            return;
+        }
+        if (reply->type != REDIS_REPLY_INTEGER)
+        {
+            // 回应不对
+            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+        }
+
+        if(reply->integer==1)
+        {
+            //添加成功
+            Q_EMIT svr->operateFinished(svr->id(),true,QVariantMap());
+        }
+        else
+        {
+            //添加失败
+            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+        }
+
+    }
+
 
 };

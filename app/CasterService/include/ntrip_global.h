@@ -10,7 +10,7 @@
 // #define SOFTWARE_NAME "KORO_Caster"
 // #define SOFTWARE_VERSION "0.0.2"
 
-//挂载点类型
+// 挂载点类型
 
 #define MOUNT_TYPE_COMMON 1
 #define MOUNT_TYPE_NEAREST 2
@@ -28,25 +28,26 @@
 // 核心部件操作请求
 
 // 一般ntrip请求
-#define REQUEST_SOURCE_LOGIN 301       // 获取源列表请求
+#define REQUEST_SOURCE_LOGIN 301 // 获取源列表请求
 #define CLOSE_NTRIP_SOURCE 302
 
-#define REQUEST_CLIENT_LOGIN 303       // 移动站
+#define REQUEST_CLIENT_LOGIN 303 // 移动站
 #define CLOSE_NTRIP_CLIENT 307
 
-#define REQUEST_NEAREST_LOGIN 304      // 最近挂载点  
+#define REQUEST_NEAREST_LOGIN 304 // 最近挂载点
 #define CLOSE_NEAREST_CLIENT 305
 
-#define REQUEST_SERVER_LOGIN 308        // 基站
+#define REQUEST_SERVER_LOGIN 308 // 基站
 #define CLOSE_NTRIP_SERVER 309
 
-
 // RELAY请求
-#define REQUEST_RELAY_PULL 601       // 数据拉取
-#define CLOSE_RELAY_PULL 602        
+#define REQUEST_RELAY_PULL 601 // 数据拉取
+#define STOP_RELAY_PULL 602    // 停止数据拉取
+#define UPDATE_RELAY_PULL 603    // 停止数据拉取
+#define CLOSE_RELAY_PULL 604   // 删除这个任务
 
-#define REQUEST_RELAY_PUSH 603       // 数据推送
-#define CLOSE_RELAY_PUSH 604       
+#define REQUEST_RELAY_PUSH 701 // 数据推送
+#define CLOSE_RELAY_PUSH 702
 
 // 连接操作请求
 // #define CLOSE_NTRIP_SERVER 307

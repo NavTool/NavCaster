@@ -9,7 +9,7 @@
 // #include "Carrier/server_relay.h"
 #include "Carrier/source_ntrip.h"
 #include "Carrier/client_near.h"
-
+#include "Carrier/relay_pull.h"
 
 // #include "../extra/heart_beat/heart_beat.h"
 #include "../extra/license_check/license_check.h"
@@ -80,14 +80,19 @@ private:
     int create_client_ntrip(json req); // 用Ntrip协议登录的用户(一个挂载点一个)
     int close_client_ntrip(json req);
 
-    int create_client_near(json req); // 用Ntrip协议登录的用户(最近挂载点)
-    int close_client_near(json req);
-
     int create_server_ntrip(json req); // 基站主动接入产生的数据源
     int close_server_ntrip(json req);
 
     int create_source_ntrip(json req); // 用Ntrip协议获取源列表
     int close_source_ntrip(json req);  // 用Ntrip协议获取源列表
+
+    int create_client_near(json req); // 用Ntrip协议登录的用户(最近挂载点)
+    int close_client_near(json req);
+
+    int create_relay_pull(json req); // 用Ntrip协议登录的用户(最近挂载点)
+    int stop_relay_pull(json req);   // 用Ntrip协议登录的用户(最近挂载点)
+    int update_relay_pull(json req);
+    int close_relay_pull(json req);
 
     // 请求处理失败，关闭连接
     int close_unsuccess_req_connect(json req);
@@ -99,11 +104,12 @@ private:
 
     // 连接-对象索引
     std::unordered_map<std::string, bufferevent *> _connect_map; // Connect_Key,bev
-    std::unordered_map<std::string, server_ntrip *> _server_map; // Connect_Key,client_ntrip
+    std::unordered_map<std::string, server_ntrip *> _server_map; // Connect_Key,server_ntrip
     std::unordered_map<std::string, client_ntrip *> _client_map; // Connect_Key,client_ntrip
-    std::unordered_map<std::string, source_ntrip *> _source_map; // Connect_Key,client_ntrip
+    std::unordered_map<std::string, source_ntrip *> _source_map; // Connect_Key,source_ntrip
 
-    std::unordered_map<std::string, client_near *> _near_map; // Connect_Key,client_ntrip
+    std::unordered_map<std::string, client_near *> _near_map; // Connect_Key,client_near
+    std::unordered_map<std::string, relay_pull *> _pull_map;  // Connect_Key,relay_pull
 
 private:
     event_base *_base;
@@ -134,7 +140,7 @@ private:
 private:
     // 扩展模块，Relay请求处理
 
-    static void Relay_Request_Callback(void *arg, relay_request *req);
+    static void Relay_Request_Callback(void *arg, BroadcastType type, std::string req_str);
 
     // private:
     //     // 扩展模块 心跳上传功能--------------------------------------------------------------------------

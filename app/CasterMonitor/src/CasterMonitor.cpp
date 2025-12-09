@@ -447,7 +447,7 @@ QString CasterMonitor::addAddPullStreamOperate(QVariantMap relay_info)
     return UID;
 }
 
-QString CasterMonitor::addSetPullStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addSetPullStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -464,7 +464,7 @@ QString CasterMonitor::addSetPullStreamOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addDelPullStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addDelPullStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -472,7 +472,7 @@ QString CasterMonitor::addDelPullStreamOperate(QVariantMap account_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->relay_info(relay_info);
     // 连接信号和槽
     connect(op.get(),&EventDelPull::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -481,7 +481,7 @@ QString CasterMonitor::addDelPullStreamOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addGetPullStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addGetPullStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -506,7 +506,7 @@ QVariantMap CasterMonitor::genPushStreamTemp()
     return JsonToQVariantMap(json_info);
 }
 
-QString CasterMonitor::addAddPushStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addAddPushStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -523,7 +523,7 @@ QString CasterMonitor::addAddPushStreamOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addSetPushStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addSetPushStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -540,7 +540,7 @@ QString CasterMonitor::addSetPushStreamOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addDelPushStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addDelPushStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -557,7 +557,7 @@ QString CasterMonitor::addDelPushStreamOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addGetPushStreamOperate(QVariantMap account_info)
+QString CasterMonitor::addGetPushStreamOperate(QVariantMap relay_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -582,7 +582,7 @@ QVariantMap CasterMonitor::genAliasRuleTemp()
     return JsonToQVariantMap(json_info);
 }
 
-QString CasterMonitor::addAddAliasRuleOperate(QVariantMap account_info)
+QString CasterMonitor::addAddAliasRuleOperate(QVariantMap alias_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -599,7 +599,7 @@ QString CasterMonitor::addAddAliasRuleOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addSetAliasRuleOperate(QVariantMap account_info)
+QString CasterMonitor::addSetAliasRuleOperate(QVariantMap alias_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -616,7 +616,7 @@ QString CasterMonitor::addSetAliasRuleOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addDelAliasRuleOperate(QVariantMap account_info)
+QString CasterMonitor::addDelAliasRuleOperate(QVariantMap alias_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象
@@ -633,7 +633,7 @@ QString CasterMonitor::addDelAliasRuleOperate(QVariantMap account_info)
     return UID;
 }
 
-QString CasterMonitor::addGetAliasRuleOperate(QVariantMap account_info)
+QString CasterMonitor::addGetAliasRuleOperate(QVariantMap alias_info)
 {
     auto UID = generate_UniqueKey();
     // 创建对象

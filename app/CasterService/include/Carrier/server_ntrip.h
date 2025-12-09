@@ -59,7 +59,6 @@ private:
     int bev_send_reply();
     int send_heart_beat_to_server();
 
-    int decode_recv_raw_data();
     int publish_recv_raw_data();
     int publish_data_from_chunk();
     int publish_data_from_evbuf();

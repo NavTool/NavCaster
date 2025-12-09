@@ -31,7 +31,8 @@ Item {
 
     // 添加任务中间变量
     property var addTaskOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
-
+    property var delTaskOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
+    property var setTaskOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
 
     property int    type: 0           //数据接入类型
     property string target_ip: ""
@@ -69,10 +70,22 @@ Item {
             {
                 if(success)
                 {
-
-                    tip_top.showSuccess(qsTr("账号添加完成"))
+                    tip_top.showSuccess(qsTr("任务添加完成"))
                     visable_right_side=false
-
+                }
+            }
+            if(taskID=== delTaskOpUid)
+            {
+                if(success)
+                {
+                    tip_top.showSuccess(qsTr("任务已移除"))
+                }
+            }
+            if(taskID=== setTaskOpUid)
+            {
+                if(success)
+                {
+                    tip_top.showSuccess(qsTr("任务已更新"))
                 }
             }
 
@@ -355,30 +368,80 @@ Item {
                             Row{
 
                                 anchors.centerIn: parent
+                                IconButton
+                                {
+                                    icon.source: FluentIcons.graph_Delete
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 100
+                                    ToolTip.text: qsTr("删除任务")
 
+                                    onClicked: {
+                                        confirm_dialog.open()
+                                    }
+
+                                    ContentDialog{
+                                        id: confirm_dialog
+                                        x: Math.ceil((parent.width - width) / 2)
+                                        y: Math.ceil((parent.height - height) / 2)
+                                        parent: Overlay.overlay
+                                        dim: true
+                                        modal: true
+                                        title: qsTr("确认删除任务?")
+                                        standardButtons:Dialog.Cancel
+                                        footer:DialogButtonBox {
+                                            Button {
+                                                text: qsTr("删除")
+                                                onClicked: {
+
+                                                    var item= CasterMonitor.genPullStreamTemp()
+
+                                                    item.type           = model.type
+                                                    item.target_ip      = model.target_ip
+                                                    item.target_port    = model.target_port
+                                                    item.target_mpt     = model.target_mpt
+                                                    item.target_account = model.target_account
+                                                    item.target_password= model.target_password
+                                                    item.login_mpt      = model.login_mpt
+                                                    item.UID= model.login_mpt
+
+                                                    console.log(Util.safeStringify(item))
+
+                                                    root.delTaskOpUid= CasterMonitor.addDelPullStreamOperate(item)
+
+                                                    CasterMonitor.excuteOperate(delTaskOpUid)
+
+                                                    confirm_dialog.close()
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
 
                                 IconButton
                                 {
                                     icon.source: FluentIcons.graph_Settings
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 100
+                                    ToolTip.text: qsTr("修改任务")
                                 }
+
                                 IconButton
                                 {
                                     icon.source: FluentIcons.graph_Play
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 100
+                                    ToolTip.text: qsTr("启动/停止任务")
+
+                                    onClicked: {
+                                        icon.source=FluentIcons.graph_Pause
+                                    }
                                 }
                             }
-
                         }
-
-
                     }
-
                 }
-
-
-
             }
-
-
         }
 
         Frame {

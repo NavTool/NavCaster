@@ -84,24 +84,24 @@ public:
 
     // 数据接入任务
     Q_INVOKABLE QVariantMap genPullStreamTemp();
-    Q_INVOKABLE QString addAddPullStreamOperate(QVariantMap account_info);  // 添加
-    Q_INVOKABLE QString addSetPullStreamOperate(QVariantMap account_info);  // 修改
-    Q_INVOKABLE QString addDelPullStreamOperate(QVariantMap account_info);  // 删除
-    Q_INVOKABLE QString addGetPullStreamOperate(QVariantMap account_info);  // 查询
+    Q_INVOKABLE QString addAddPullStreamOperate(QVariantMap relay_info);  // 添加
+    Q_INVOKABLE QString addSetPullStreamOperate(QVariantMap relay_info);  // 修改
+    Q_INVOKABLE QString addDelPullStreamOperate(QVariantMap relay_info);  // 删除
+    Q_INVOKABLE QString addGetPullStreamOperate(QVariantMap relay_info);  // 查询
 
     // 数据推送任务
     Q_INVOKABLE QVariantMap genPushStreamTemp();
-    Q_INVOKABLE QString addAddPushStreamOperate(QVariantMap account_info);  // 添加
-    Q_INVOKABLE QString addSetPushStreamOperate(QVariantMap account_info);  // 修改
-    Q_INVOKABLE QString addDelPushStreamOperate(QVariantMap account_info);  // 删除
-    Q_INVOKABLE QString addGetPushStreamOperate(QVariantMap account_info);  // 查询
+    Q_INVOKABLE QString addAddPushStreamOperate(QVariantMap relay_info);  // 添加
+    Q_INVOKABLE QString addSetPushStreamOperate(QVariantMap relay_info);  // 修改
+    Q_INVOKABLE QString addDelPushStreamOperate(QVariantMap relay_info);  // 删除
+    Q_INVOKABLE QString addGetPushStreamOperate(QVariantMap relay_info);  // 查询
 
     // 数据流别名
     Q_INVOKABLE QVariantMap genAliasRuleTemp();
-    Q_INVOKABLE QString addAddAliasRuleOperate(QVariantMap account_info);  // 添加
-    Q_INVOKABLE QString addSetAliasRuleOperate(QVariantMap account_info);  // 修改
-    Q_INVOKABLE QString addDelAliasRuleOperate(QVariantMap account_info);  // 删除
-    Q_INVOKABLE QString addGetAliasRuleOperate(QVariantMap account_info);  // 查询
+    Q_INVOKABLE QString addAddAliasRuleOperate(QVariantMap alias_info);  // 添加
+    Q_INVOKABLE QString addSetAliasRuleOperate(QVariantMap alias_info);  // 修改
+    Q_INVOKABLE QString addDelAliasRuleOperate(QVariantMap alias_info);  // 删除
+    Q_INVOKABLE QString addGetAliasRuleOperate(QVariantMap alias_info);  // 查询
 
 
     // 执行任务

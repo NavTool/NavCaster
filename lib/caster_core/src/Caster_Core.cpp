@@ -370,6 +370,11 @@ int CASTER::Set_Base_Delay_Info(const char *mount_point, const char *connect_key
     return caster_internal::getInstance()->set_base_delay_info(mount_point, connect_key, delay);
 }
 
+int CASTER::Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int type,int state)
+{
+    return caster_internal::getInstance()->update_pull_base_info(mount_point, alias_mpt, connect_key,type, state);
+}
+
 int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff)
 {
     return caster_internal::getInstance()->set_rover_coord_info(user_name, connect_key, ecef_x, ecef_y, ecef_z, update_time, Q, sat, diff);
