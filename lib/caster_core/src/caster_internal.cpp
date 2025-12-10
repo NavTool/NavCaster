@@ -875,7 +875,7 @@ int caster_internal::upload_record_item()
     {
         for (auto str : _rover_status_map)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str(0).c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str(1).c_str());
         }
     }
 
