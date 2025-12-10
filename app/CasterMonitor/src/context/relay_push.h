@@ -2,7 +2,7 @@
 #include "knt.h"
 #include "util.h"
 
-class relay_push{
+class relay_push_item{
 
 private:
     PROPERTY_AUTO(std::string,UID);        // TCP连接唯一标识
@@ -10,8 +10,8 @@ private:
 
     PROPERTY_AUTO(int, type);              /* 接入类型
                              *  0：未知
-                             *  1：Ntip Server 1.0
-                             *  2：Ntip Server 2.0
+                             *  1：Ntip Client 1.0
+                             *  2：Ntip Client 2.0
                              *  3：Tcp Client
                              *  4：Tcp Server
                              */
@@ -22,6 +22,7 @@ private:
     PROPERTY_AUTO(std::string,target_account);     // 使用用户名
     PROPERTY_AUTO(std::string,target_password);    // 使用密码
 
+    PROPERTY_AUTO(time_t, modify_time); // 信息更新时刻
     // 本地接入挂载点
 
     // 任务执行状态
@@ -29,7 +30,7 @@ private:
     PROPERTY_AUTO(bool,update_flag);
 
 public:
-    relay_push()
+    relay_push_item()
     {
         UID("");
         login_mpt("");
@@ -41,6 +42,9 @@ public:
         target_mpt("");
         target_account("");
         target_password("");
+
+        modify_time(0);
+
 
         update_flag(false);
     }
@@ -59,6 +63,7 @@ public:
         info["target_account"] = target_account();
         info["target_password"] = target_password();
 
+        info["modify_time"] = modify_time();
 
         info["update_flag"] = update_flag();
 
@@ -79,7 +84,69 @@ public:
         target_account(info, "target_account");
         target_password(info, "target_password");
 
+        modify_time(info, "modify_time");
+
         return 0;
     }
+
+
+};
+
+
+class relay_push_stat{
+
+private:
+    PROPERTY_AUTO(std::string,UID);        // TCP连接唯一标识
+
+    PROPERTY_AUTO(time_t, modify_time); // 信息更新时刻
+    // 本地接入挂载点
+
+    PROPERTY_AUTO(std::string, connect_key) // 连接的UID
+    PROPERTY_AUTO(int, state); // 任务的执行状态
+
+
+    // 任务执行状态
+
+    PROPERTY_AUTO(bool,update_flag);
+
+public:
+    relay_push_stat()
+    {
+        UID("");
+        modify_time(0);
+
+        connect_key("");
+        state(0);
+
+        update_flag(false);
+    }
+
+    json info()
+    {
+        json info;
+        info["UID"] = UID();
+
+        info["modify_time"] = modify_time();
+        info["connect_key"] = connect_key();
+        info["state"] = state();
+
+        info["update_flag"] = update_flag();
+
+        return info;
+    }
+
+    int setInfo(json info)
+    {
+
+        UID(info, "UID");
+
+        modify_time(info, "modify_time");
+
+        connect_key(info, "connect_key");
+        state(info, "state");
+
+        return 0;
+    }
+
 
 };

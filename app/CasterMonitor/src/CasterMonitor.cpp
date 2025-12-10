@@ -68,8 +68,8 @@ QVariantMap CasterMonitor::getUserAccountInfo(QString UID)
 
 QVariantMap CasterMonitor::getRelayPullInfo(QString UID)
 {
-    auto iter= m_relay_pull_map.find(UID);
-    if(iter==m_relay_pull_map.end())
+    auto iter= m_relay_pull_list_map.find(UID);
+    if(iter==m_relay_pull_list_map.end())
     {
         user_account obj;
         return JsonToQVariantMap(obj.info());
@@ -79,8 +79,8 @@ QVariantMap CasterMonitor::getRelayPullInfo(QString UID)
 
 QVariantMap CasterMonitor::getRelayPushInfo(QString UID)
 {
-    auto iter= m_relay_push_map.find(UID);
-    if(iter==m_relay_push_map.end())
+    auto iter= m_relay_push_list_map.find(UID);
+    if(iter==m_relay_push_list_map.end())
     {
         user_account obj;
         return JsonToQVariantMap(obj.info());
@@ -300,7 +300,8 @@ QString CasterMonitor::addRefreshRelayPullOperate()
     op->id(UID);
 
     // 连接信号和槽
-    connect(op.get(),&EventUpdateRelayPullData::operateFinished,this,&CasterMonitor::onUpdatePullMap);
+    connect(op.get(),&EventUpdateRelayPullData::updateListFinished,this,&CasterMonitor::onUpdatePullListMap);
+    connect(op.get(),&EventUpdateRelayPullData::updateStatFinished,this,&CasterMonitor::onUpdatePullStatMap);
 
     // 添加到MAP中，等待任务执行
     _caster_redis_map.insert(std::pair(UID,op));
@@ -317,7 +318,8 @@ QString CasterMonitor::addRefreshRelayPushOperate()
     op->id(UID);
 
     // 连接信号和槽
-    connect(op.get(),&EventUpdateRelayPushData::operateFinished,this,&CasterMonitor::onUpdatePushMap);
+    connect(op.get(),&EventUpdateRelayPushData::updateListFinished,this,&CasterMonitor::onUpdatePushListMap);
+    connect(op.get(),&EventUpdateRelayPushData::updateStatFinished,this,&CasterMonitor::onUpdatePushStatMap);
 
     // 添加到MAP中，等待任务执行
     _caster_redis_map.insert(std::pair(UID,op));
@@ -423,7 +425,7 @@ QString CasterMonitor::addGetAccountOperate(QVariantMap account_info)
 
 QVariantMap CasterMonitor::genPullStreamTemp()
 {
-    relay_pull item;
+    relay_pull_item item;
     auto json_info= item.info();
     // json_info.erase("update_flag");
     return JsonToQVariantMap(json_info);
@@ -500,7 +502,7 @@ QString CasterMonitor::addGetPullStreamOperate(QVariantMap relay_info)
 
 QVariantMap CasterMonitor::genPushStreamTemp()
 {
-    relay_push item;
+    relay_push_item item;
     auto json_info= item.info();
     // json_info.erase("update_flag");
     return JsonToQVariantMap(json_info);
@@ -933,10 +935,10 @@ void CasterMonitor::onUpdateAccountMap(QString OP_UID, bool success, QVariantMap
     emit operateFinished(OP_UID,success,info);
 }
 
-void CasterMonitor::onUpdatePullMap(QString OP_UID, bool success, QVariantMap info)
+void CasterMonitor::onUpdatePullListMap(QString OP_UID, bool success, QVariantMap info)
 {
     // 所有数据更新标识标志为false
-    for(auto iter:m_relay_pull_map)
+    for(auto iter:m_relay_pull_list_map)
     {
         iter.second->update_flag(false);
     }
@@ -948,21 +950,59 @@ void CasterMonitor::onUpdatePullMap(QString OP_UID, bool success, QVariantMap in
         QString value = it.value().toString();
         auto info = QStringToJson(value);
 
-        auto item =  m_relay_pull_map.find(key);
-        if(item == m_relay_pull_map.end())
+        auto item =  m_relay_pull_list_map.find(key);
+        if(item == m_relay_pull_list_map.end())
         {
-            auto obj= std::make_shared<relay_pull>();
-            m_relay_pull_map.insert(std::pair(key,obj));
-            item =  m_relay_pull_map.find(key);
+            auto obj= std::make_shared<relay_pull_item>();
+            m_relay_pull_list_map.insert(std::pair(key,obj));
+            item =  m_relay_pull_list_map.find(key);
         }
         item->second->setInfo(info);
         item->second->update_flag(true); //设置数据更新标识
     }
 
-    auto it = m_relay_pull_map.begin();
-    while (it != m_relay_pull_map.end()) {
+    auto it = m_relay_pull_list_map.begin();
+    while (it != m_relay_pull_list_map.end()) {
         if (it->second->update_flag() == false) {
-            it = m_relay_pull_map.erase(it);  // 删除元素，并更新迭代器
+            it = m_relay_pull_list_map.erase(it);  // 删除元素，并更新迭代器
+        } else {
+            ++it;  // 仅在未删除时前进迭代器
+        }
+    }
+
+    // emit operateFinished(OP_UID,success,info);
+}
+
+void CasterMonitor::onUpdatePullStatMap(QString OP_UID, bool success, QVariantMap info)
+{
+    // 所有数据更新标识标志为false
+    for(auto iter:m_relay_pull_stat_map)
+    {
+        iter.second->update_flag(false);
+    }
+    //将数据更新到本地的context中去
+
+    // 遍历所有 key-value
+    for (auto it = info.begin(); it != info.end(); ++it) {
+        QString key = it.key();
+        QString value = it.value().toString();
+        auto info = QStringToJson(value);
+
+        auto item =  m_relay_pull_stat_map.find(key);
+        if(item == m_relay_pull_stat_map.end())
+        {
+            auto obj= std::make_shared<relay_pull_stat>();
+            m_relay_pull_stat_map.insert(std::pair(key,obj));
+            item =  m_relay_pull_stat_map.find(key);
+        }
+        item->second->setInfo(info);
+        item->second->update_flag(true); //设置数据更新标识
+    }
+
+    auto it = m_relay_pull_stat_map.begin();
+    while (it != m_relay_pull_stat_map.end()) {
+        if (it->second->update_flag() == false) {
+            it = m_relay_pull_stat_map.erase(it);  // 删除元素，并更新迭代器
         } else {
             ++it;  // 仅在未删除时前进迭代器
         }
@@ -971,10 +1011,11 @@ void CasterMonitor::onUpdatePullMap(QString OP_UID, bool success, QVariantMap in
     emit operateFinished(OP_UID,success,info);
 }
 
-void CasterMonitor::onUpdatePushMap(QString OP_UID, bool success, QVariantMap info)
+
+void CasterMonitor::onUpdatePushListMap(QString OP_UID, bool success, QVariantMap info)
 {
     // 所有数据更新标识标志为false
-    for(auto iter:m_relay_push_map)
+    for(auto iter:m_relay_push_list_map)
     {
         iter.second->update_flag(false);
     }
@@ -986,21 +1027,59 @@ void CasterMonitor::onUpdatePushMap(QString OP_UID, bool success, QVariantMap in
         QString value = it.value().toString();
         auto info = QStringToJson(value);
 
-        auto item =  m_relay_push_map.find(key);
-        if(item == m_relay_push_map.end())
+        auto item =  m_relay_push_list_map.find(key);
+        if(item == m_relay_push_list_map.end())
         {
-            auto obj= std::make_shared<relay_push>();
-            m_relay_push_map.insert(std::pair(key,obj));
-            item =  m_relay_push_map.find(key);
+            auto obj= std::make_shared<relay_push_item>();
+            m_relay_push_list_map.insert(std::pair(key,obj));
+            item =  m_relay_push_list_map.find(key);
         }
         item->second->setInfo(info);
         item->second->update_flag(true); //设置数据更新标识
     }
 
-    auto it = m_relay_push_map.begin();
-    while (it != m_relay_push_map.end()) {
+    auto it = m_relay_push_list_map.begin();
+    while (it != m_relay_push_list_map.end()) {
         if (it->second->update_flag() == false) {
-            it = m_relay_push_map.erase(it);  // 删除元素，并更新迭代器
+            it = m_relay_push_list_map.erase(it);  // 删除元素，并更新迭代器
+        } else {
+            ++it;  // 仅在未删除时前进迭代器
+        }
+    }
+
+    // emit operateFinished(OP_UID,success,info);
+}
+
+void CasterMonitor::onUpdatePushStatMap(QString OP_UID, bool success, QVariantMap info)
+{
+    // 所有数据更新标识标志为false
+    for(auto iter:m_relay_push_stat_map)
+    {
+        iter.second->update_flag(false);
+    }
+    //将数据更新到本地的context中去
+
+    // 遍历所有 key-value
+    for (auto it = info.begin(); it != info.end(); ++it) {
+        QString key = it.key();
+        QString value = it.value().toString();
+        auto info = QStringToJson(value);
+
+        auto item =  m_relay_push_stat_map.find(key);
+        if(item == m_relay_push_stat_map.end())
+        {
+            auto obj= std::make_shared<relay_push_stat>();
+            m_relay_push_stat_map.insert(std::pair(key,obj));
+            item =  m_relay_push_stat_map.find(key);
+        }
+        item->second->setInfo(info);
+        item->second->update_flag(true); //设置数据更新标识
+    }
+
+    auto it = m_relay_push_stat_map.begin();
+    while (it != m_relay_push_stat_map.end()) {
+        if (it->second->update_flag() == false) {
+            it = m_relay_push_stat_map.erase(it);  // 删除元素，并更新迭代器
         } else {
             ++it;  // 仅在未删除时前进迭代器
         }

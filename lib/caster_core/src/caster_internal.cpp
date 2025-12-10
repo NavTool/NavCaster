@@ -429,8 +429,8 @@ int caster_internal::update_pull_base_info(const char *mount_point, const char *
         stat_item->second.set_alias_mpt(alias_mpt);
     }
 
-    auto pull_item = _pull_excute_map.find(mount_point);
-    if (pull_item != _pull_excute_map.end())
+    auto pull_item = _pull_excute_stat_map.find(mount_point);
+    if (pull_item != _pull_excute_stat_map.end())
     {
         pull_item->second.update_state(connect_key, state);
     }
@@ -545,8 +545,8 @@ int caster_internal::relay_task_distribution()
             // LIST中不包含这个任务，移除任务
             caster_broadcast_item item;
             item.type = BroadcastType::RELAY_PULL_INACTIVE;
-            item.channel = stat_iter.second.UID;
-            item.Para = stat_iter.second.para;
+            item.channel = stat_iter.second._UID;
+            item.Para = stat_iter.second._para;
             item.status = CasterReply::INACTIVE;
             item.reason = "Pull Task Inactive";
             // 根据STAT中记录的节点ID，发送删除任务的广播
@@ -567,17 +567,64 @@ int caster_internal::relay_task_distribution()
     return 0;
 }
 
-int caster_internal::relay_task_response()
+int caster_internal::relay_task_response(std::string req_str)
 {
 
     // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
+    caster_broadcast_item req;
+    if (req.fromString(req_str))
+    {
+        return 1; // 解析失败
+    }
+
+    // 添加到已经任务列表中
+
+    if (req.type == BroadcastType::RELAY_PULL_ACTIVE)
+    {
+        if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
+        {
+            // 已经存在这个任务，说明是重复的广播，忽略
+            return 2;
+        }
+        else
+        {
+            relay_item item;
+            item.fromString(req.Para);
+            _pull_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
+
+            relay_stat stat; // 初始化STAT信息
+            stat._para = req.Para;
+            stat._UID = item.UID;
+            stat._modify_time = item.modify_time;
+            stat._node = _node_ID;
+            _pull_excute_stat_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
+            _relay_cb(_relay_cb_arg, req.type, req.Para);
+        }
+    }
+    else if (req.type == BroadcastType::RELAY_PULL_INACTIVE)
+    {
+        // 停止一个转发任务
+        if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
+        {
+            // 已经存在这个任务，删除这个任务
+            _relay_cb(_relay_cb_arg, req.type, req.Para);
+            _pull_excute_list_map.erase(req.channel);
+            _pull_excute_stat_map.erase(req.channel);
+            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PULL:STAT %s", req.channel.c_str());
+        }
+        else
+        {
+            // 不存在这个任务，忽略
+            return 3;
+        }
+    }
 
     return 0;
 }
 
 int caster_internal::upload_relay_status()
 {
-    for (auto iter : _pull_excute_map)
+    for (auto iter : _pull_excute_stat_map)
     {
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PULL:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.get_status_str().c_str());
     }
@@ -642,91 +689,7 @@ void caster_internal::Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, 
         return; // 回复不是字符串，第一次订阅这个频道的时候回应为 REDIS_REPLY_INTEGER
     }
 
-    caster_broadcast_item item;
-    if (item.fromString(re3->str))
-    {
-        return; // 解析失败
-    }
-
-    // 添加到已经任务列表中
-
-    if (item.type == BroadcastType::RELAY_PULL_ACTIVE)
-    {
-        if (svr->_pull_excute_map.find(item.channel) != svr->_pull_excute_map.end())
-        {
-            // 已经存在这个任务，说明是重复的广播，忽略
-            return;
-        }
-        else
-        {
-            relay_status stat;
-            stat.Node_ID = svr->_node_ID;
-            stat.UID = item.channel;
-            stat.para = item.Para;
-            svr->_pull_excute_map.insert(std::pair<std::string, relay_status>(item.channel, stat));
-
-            svr->_relay_cb(svr->_relay_cb_arg, item.type, item.Para);
-        }
-    }
-    else if (item.type == BroadcastType::RELAY_PULL_INACTIVE)
-    {
-        // 停止一个转发任务
-        if (svr->_pull_excute_map.find(item.channel) != svr->_pull_excute_map.end())
-        {
-            // 已经存在这个任务，删除这个任务
-            relay_status stat;
-            stat.Node_ID = svr->_node_ID;
-            stat.UID = item.channel;
-            stat.para = item.Para;
-
-            svr->_relay_cb(svr->_relay_cb_arg, item.type, item.Para);
-            svr->_pull_excute_map.erase(item.channel);
-            redisAsyncCommand(svr->_pub_context, NULL, NULL, "HDEL STR:PULL:STAT %s", item.channel.c_str());
-        }
-        else
-        {
-            // 不存在这个任务，忽略
-            return;
-        }
-    }
-
-    // auto sub_map = (type == "BASE") ? &svr->_base_register_map : &svr->_rover_register_map;
-
-    // auto item = sub_map->find(ch);
-    // if (item == sub_map->end())
-    // {
-    //     return; // 本地没有该频道的注册记录
-    // }
-
-    // // 复制字符串
-    // catser_reply Reply;
-    // Reply.type = status;
-    // Reply.str = reason.c_str();
-
-    // if (con.size() == 0) // 没有指定特定的连接，则对所有的连接都发送一次回复（针对允许同名频道都在线的情况）
-    // {
-    //     for (auto iter : item->second)
-    //     {
-    //         auto cb_item = iter.second;
-    //         auto Func = cb_item.cb;
-    //         auto arg = cb_item.arg;
-    //         Func(NULL, arg, &Reply);
-    //     }
-    // }
-    // else
-    // {
-    //     auto target = item->second.find(con);
-    //     if (target == item->second.end())
-    //     {
-    //         return; // 本地没有该连接的注册记录
-    //     }
-
-    //     auto cb_item = target->second;
-    //     auto Func = cb_item.cb;
-    //     auto arg = cb_item.arg;
-    //     Func(NULL, arg, &Reply);
-    // }
-    // return;
+    svr->relay_task_response(re3->str);
 }
 
 void caster_internal::Redis_SyncClusterNode_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -791,27 +754,15 @@ void caster_internal::Redis_SyncPullList_Callback(redisAsyncContext *c, void *r,
     {
         auto field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
-        try
-        {
-            // json转换成relay_item
-            auto info = json::parse(value);
-            relay_item item;
-            item.UID = field;
-            item.para = value;
-            // item.type = info["type"];
-            // item.target_ip = info["target_ip"];
-            // item.target_port = info["target_port"];
-            // item.target_mpt = info["target_mpt"];
-            // item.target_account = info["target_account"];
-            // item.target_password = info["target_password"];
-            // item.login_mpt = info["login_mpt"];
 
-            svr->_pull_list_map.insert(std::pair<std::string, relay_item>(field, item));
-        }
-        catch (const std::exception &e)
+        // json转换成relay_item
+        relay_item item;
+        if (item.fromString(value))
         {
-            spdlog::warn("[{}:{}]: decode field: {},value: {} ,what: {}", __class__, __func__, field, value, e.what());
+            // 解析失败
+            continue;
         }
+        svr->_pull_list_map.insert(std::pair<std::string, relay_item>(field, item));
     }
 }
 
@@ -848,30 +799,14 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
         auto field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
 
-        try
+        // json转换成relay_item
+        relay_stat item;
+        if (item.fromString(value))
         {
-            // json转换成relay_item
-            auto info = json::parse(value);
-            relay_status item;
-            item.UID = field;
-            item.para = value;
-            // item.UID = info["UID"];
-            // item.type = info["type"];
-            // item.target_ip = info["target_ip"];
-            // item.target_port = info["target_port"];
-            // item.target_mpt = info["target_mpt"];
-            // item.target_account = info["target_account"];
-            // item.target_password = info["target_password"];
-            // item.login_mpt = info["login_mpt"];
-
-            svr->_pull_stat_map.insert(std::pair<std::string, relay_status>(field, item));
+            // 解析失败
+            continue;
         }
-        catch (const std::exception &e)
-        {
-            spdlog::warn("[{}:{}]: decode field: {},value: {} ,what: {}", __class__, __func__, field, value, e.what());
-        }
-
-        // svr->_pull_stat_map.insert(std::pair<std::string, std::string>(field, value));
+        svr->_pull_stat_map.insert(std::pair<std::string, relay_stat>(field, item));
     }
 }
 
@@ -2568,14 +2503,73 @@ std::string caster_broadcast_item::toString()
     return info.dump();
 }
 
-int relay_status::update_state(std::string connect_key, int state)
+int relay_stat::update_state(std::string connect_key, int state)
 {
     _connect_key = connect_key;
     _state = state;
     return 0;
 }
 
-std::string relay_status::get_status_str()
+std::string relay_stat::get_status_str()
 {
-    return para;
+    json info;
+
+    info["UID"] = _UID;
+    info["modify_time"] = _modify_time;
+
+    info["node"] = _node;
+    info["connect_key"] = _connect_key;
+    info["state"] = _state;
+
+    return info.dump();
+}
+
+int relay_item::fromString(const std::string &str)
+{
+    para = str;
+
+    json info = json::parse(str);
+    try
+    {
+        UID = info["UID"];
+        modify_time = info["modify_time"];
+
+        type = info["type"];
+        target_ip = info["target_ip"];
+        target_port = info["target_port"];
+        target_mpt = info["target_mpt"];
+        target_account = info["target_account"];
+        target_password = info["target_password"];
+        login_mpt = info["login_mpt"];
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::warn("[relay_item:{}]: decode field: {} ,what: {}", __func__, str, e.what());
+
+        return 1;
+    }
+    return 0;
+}
+
+int relay_stat::fromString(const std::string &str)
+{
+    _para = str;
+
+    json info = json::parse(str);
+    try
+    {
+        _UID = info["UID"];
+        _modify_time = info["modify_time"];
+
+        _node = info["node"];
+        _state = info["state"];
+        _connect_key = info["connect_key"];
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::warn("[relay_stat:{}]: decode field: {} ,what: {}", __func__, str, e.what());
+
+        return 1;
+    }
+    return 0;
 }

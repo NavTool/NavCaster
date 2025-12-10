@@ -27,8 +27,6 @@ Item {
     property var refreshDataOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
 
 
-
-
     // 添加任务中间变量
     property var addTaskOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
     property var delTaskOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
@@ -278,169 +276,90 @@ Item {
                     margins: 5
                     topMargin: 45
                 }
+                DataGrid {
+                    id: dataGrid
+                    anchors{
+                        fill: parent
+                        margins: 10
+                        // topMargin: 70
+                    }
+                    sourceModel: dataModel
 
-                GridView{
+                    columnSourceModel: ListModel {
+                        ListElement { frozen: false; width: 200 ; dataIndex: "login_mpt"    ; title: qsTr("挂载点名")}
+                        ListElement { frozen: false; width: 300 ; dataIndex: "UID"          ; title: qsTr("数据地址")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "UID"   ; title: qsTr("任务状态");}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "UID"  ; title: qsTr("连接时长")}
+                        ListElement { frozen: true; width: 180 ; dataIndex: "action"  ; title: qsTr("Action")}
+                    }
 
-                    anchors.fill: parent
-                    cellWidth: 230
-                    cellHeight: 290
 
-                    model: dataModel
-                    interactive: false
-                    delegate: Frame{
-                        width: 220
-                        height: 280
-
-                        Frame
-                        {
-                            width: parent.width
-                            height: 30
-
-                            anchors{
-                                top: parent.top
-                            }
-                            IconButton
-                            {
-                                anchors.centerIn: parent
-                                text: model.login_mpt
-                                font.pixelSize: 15         // 设置字体大小（像素）
-                                font.bold: true            // 加粗
-                                onClicked:
-                                {
-                                    console.log(Util.safeStringify(model))
-                                }
+                    delegateProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "UID":
+                                return comp_addr_label
+                                case "action":
+                                return comp_row_action
+                                default:
+                                return comp_mid_label
                             }
                         }
-                        ColumnLayout
-                        {
-                            anchors{
-                                top: parent.top
-                                topMargin: 40
-                                left: parent.left
-                                leftMargin: 10
-                            }
+                    columnHeaderProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "avatar":
+                                default:
 
-                            spacing: 10
-
-                            Label{
-                                text: "数据类型: "+ model.type
-                                font.bold: true            // 加粗
-                            }
-                            Label{
-                                text: "挂载点名: "+ model.target_mpt
-                                font.bold: true            // 加粗
-                            }
-                            Label{
-                                text: "数据地址: "+ model.target_ip + ":"+model.target_port
-                                font.bold: true            // 加粗
-                            }
-                            Label{
-                                text: "使用账号: "+model.target_account
-                                font.bold: true            // 加粗
-                            }
-                            Label{
-                                text: "任务状态: 已启用/已禁用"
-                                font.bold: true            // 加粗
-                            }
-                            Label{
-                                text: "连接状态: 已连接/已断开"
-                                font.bold: true            // 加粗
-                            }
-                            Label{
-                                text: "流量统计: "
-                                font.bold: true            // 加粗
-                            }
-                            Label{
-                                text: "连接时长: "
-                                font.bold: true            // 加粗
+                                return comp_mid_header
+                                // return defaultColumnHeader
                             }
                         }
+                    editDelegateProvider:
+                        (dataIndex)=>{
+                            switch(dataIndex){
+                                case "action":
+                                return undefined
 
-                        Frame
-                        {
-                            width: parent.width
-                            height: 40
-
-                            anchors{
-                                bottom: parent.bottom
+                                default:
+                                return undefined
+                                // return defaultEditDelegate
                             }
+                        }
+                    onRowClicked: model => {
+                                      // console.debug(model.station_name)
+                                      Global.visable_right_side=true
+                                      root.focusItemUID = model.UID
+                                      console.log(Util.safeStringify(model))
+                                  }
+                    onRowRightClicked: model => {
+                                           // console.debug(model.station_name)
+                                           operate_item_menu.open_with_ctx(
+                                               model)
+                                       }
 
-                            Row{
+                    Menu {
+                        property var ctx
+                        id: operate_item_menu
+                        width: 150
+                        title: qsTr("操作站点")
 
-                                anchors.centerIn: parent
-                                IconButton
-                                {
-                                    icon.source: FluentIcons.graph_Delete
-                                    ToolTip.visible: hovered
-                                    ToolTip.delay: 100
-                                    ToolTip.text: qsTr("删除任务")
+                        function open_with_ctx(data) {
+                            ctx = data
+                            popup()
+                        }
 
-                                    onClicked: {
-                                        confirm_dialog.open()
-                                    }
-
-                                    ContentDialog{
-                                        id: confirm_dialog
-                                        x: Math.ceil((parent.width - width) / 2)
-                                        y: Math.ceil((parent.height - height) / 2)
-                                        parent: Overlay.overlay
-                                        dim: true
-                                        modal: true
-                                        title: qsTr("确认删除任务?")
-                                        standardButtons:Dialog.Cancel
-                                        footer:DialogButtonBox {
-                                            Button {
-                                                text: qsTr("删除")
-                                                onClicked: {
-
-                                                    var item= CasterMonitor.genPullStreamTemp()
-
-                                                    item.type           = model.type
-                                                    item.target_ip      = model.target_ip
-                                                    item.target_port    = model.target_port
-                                                    item.target_mpt     = model.target_mpt
-                                                    item.target_account = model.target_account
-                                                    item.target_password= model.target_password
-                                                    item.login_mpt      = model.login_mpt
-                                                    item.UID= model.login_mpt
-
-                                                    console.log(Util.safeStringify(item))
-
-                                                    root.delTaskOpUid= CasterMonitor.addDelPullStreamOperate(item)
-
-                                                    CasterMonitor.excuteOperate(delTaskOpUid)
-
-                                                    confirm_dialog.close()
-
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                IconButton
-                                {
-                                    icon.source: FluentIcons.graph_Settings
-                                    ToolTip.visible: hovered
-                                    ToolTip.delay: 100
-                                    ToolTip.text: qsTr("修改任务")
-                                }
-
-                                IconButton
-                                {
-                                    icon.source: FluentIcons.graph_Play
-                                    ToolTip.visible: hovered
-                                    ToolTip.delay: 100
-                                    ToolTip.text: qsTr("启动/停止任务")
-
-                                    onClicked: {
-                                        icon.source=FluentIcons.graph_Pause
-                                    }
-                                }
+                        MenuItem {
+                            text: qsTr("站点详情")
+                            onTriggered: {
+                                console.log(Util.safeStringify(
+                                                operate_item_menu.ctx))
                             }
                         }
                     }
+
                 }
+
             }
         }
 
@@ -827,131 +746,6 @@ Item {
     }
 
 
-    Component{
-        id:com_account
-        Item{
-            height: column.implicitHeight
-            Column{
-                id:column
-                spacing: 3
-                anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("账号ID")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":focusItem.account
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("接入类型")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":formatAccess(focusItem.access)
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("注册日期")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.time_register)
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("激活日期")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.time_active)
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("失效日期")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.time_expired)
-                    }
-                }
-            }
-        }
-    }
-
-    Component{
-        id:com_state
-        Item{
-            height: column.implicitHeight
-            Column{
-                id:column
-                spacing: 3
-                anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("账号状态")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : formatState(focusItem.UID)
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("在线连接数")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : formatState(focusItem.UID)
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("剩余有效期")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : formatResTime(focusItem.time_expired)
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("累计在线时长")
-                    delegate:TextField{
-                        // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : formatState(focusItem.UID)
-                    }
-                }
-
-
-
-            }
-        }
-    }
-
-
-    Component{
-        id:com_from
-        Item{
-            height: column.implicitHeight
-            Column{
-                id:column
-                topPadding: 5
-                spacing: 3
-                anchors.fill: parent
-                ComItem{
-                    item_name:qsTr("数据供应商")
-                    delegate:TextField{
-                        text: focusItemUID===""?"":focusItem.contact_name
-                    }
-                }
-                ComItem{
-                    item_name:qsTr("联系人")
-                    delegate:TextField{
-                        text: focusItemUID===""?"":focusItem.contact_person
-                    }
-                }
-
-                ComItem{
-                    item_name:qsTr("联系方式")
-                    delegate:TextField{
-                        text: focusItemUID===""?"":focusItem.contact_info
-                    }
-                }
-            }
-        }
-    }
-
-
-
     component ComItem:Item{
         property string item_name;
         property Component delegate
@@ -1018,81 +812,20 @@ Item {
         }
     }
 
-    Component {
-        id: comp_str_count
-        DataItem {
-            itemtext: formatBytes(display)
-
-        }
-    }
-
-    Component {
-        id: comp_str_speed
-        DataItem {
-            itemtext: formatBytes(display) + "/s"
-        }
-    }
-
 
     Component{
-        id:comp_lat2dms
-        Item{
-            Label{
-                text: lattoDMS(display)
-                elide: Label.ElideRight
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                anchors{
-                    verticalCenter: parent.verticalCenter
-                    left: parent.left
-                    leftMargin: 10
-                    right: parent.right
-                    rightMargin: 10
-                }
-
-            }
+        id: comp_mid_header
+        Label{
+            anchors.fill: parent
+            text: columnModel.title
+            verticalAlignment: Qt.AlignVCenter
+            horizontalAlignment: Qt.AlignHCenter
+            leftPadding: 10
+            rightPadding: 10
+            elide: Label.ElideRight
+            font.bold: true
         }
     }
-
-    Component{
-        id:comp_lon2dms
-        Item{
-            Label{
-                text: lontoDMS(display)
-                elide: Label.ElideRight
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                anchors{
-                    verticalCenter: parent.verticalCenter
-                    left: parent.left
-                    leftMargin: 10
-                    right: parent.right
-                    rightMargin: 10
-                }
-
-            }
-        }
-    }
-
-    Component{
-        id:comp_fix4
-        Item{
-            Label{
-                text: String(display.toFixed(4))
-                elide: Label.ElideRight
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                anchors{
-                    verticalCenter: parent.verticalCenter
-                    left: parent.left
-                    leftMargin: 10
-                    right: parent.right
-                    rightMargin: 10
-                }
-            }
-        }
-    }
-
 
     Component{
         id: comp_mid_label
@@ -1102,131 +835,131 @@ Item {
     }
 
     Component{
-        id: comp_type_label
-
-        DataItem {
-            itemtext: formatType(display) // 传入 UTC 秒数
-        }
-    }
+        id: comp_addr_label
+        DataItem{
+            itemtext: genAddr(display)
 
 
-    Component{
-        id: comp_state_label
+            function genAddr(UID)
+            {
+                var info= CasterMonitor.getRelayPullInfo(display)
 
-        DataItem {
-            itemtext: formatState(display) // 传入 UTC 秒数
-        }
-    }
+                return info.target_ip+":"+info.target_port +"/"+info.target_mpt
+            }
 
-    Component{
-        id: comp_active_label
-
-        DataItem {
-            itemtext: formatActive(display) // 传入 UTC 秒数
-        }
-    }
-    Component{
-        id: comp_expired_label
-
-        DataItem {
-            itemtext: formatExpired(display) // 传入 UTC 秒数
         }
     }
 
     Component{
-        id: comp_access_label
+        id: comp_row_action
+        Item{
+            Row{
+                spacing: 15
+                anchors.centerIn: parent
+                IconButton
+                {
+                    // anchors.verticalCenter: parent.verticalCenter
+                    // width: 22
+                    // height: 22
+                    // highlighted:true
+                    icon.source:FluentIcons.graph_Play
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 100
+                    ToolTip.text: qsTr("启动任务")
+                    property bool enableTask:false
+                    onClicked: {
+                        if(enableTask) //如果已经启动
+                        {
+                            //停止任务
+                            enableTask=false
+                            icon.source=FluentIcons.graph_Play   //图表切换为启动
+                            // highlighted=false
+                            ToolTip.text= qsTr("启动任务")
+                        }
+                        else
+                        {
+                            enableTask=true
+                            icon.source=FluentIcons.graph_Stop
+                            // highlighted=true
+                            ToolTip.text= qsTr("停止任务")
+                        }
 
-        DataItem {
-            itemtext: formatAccess(display) // 传入 UTC 秒数
+
+                    }
+                }
+                IconButton
+                {
+                    icon.source: FluentIcons.graph_More
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 100
+                    ToolTip.text: qsTr("修改任务")
+                }
+
+                Rectangle{
+                    implicitWidth: 1
+                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height-5
+                    // width: 30
+                    // height: 30
+                    color: Theme.res.dividerStrokeColorDefault
+                }
+
+                IconButton
+                {
+                    icon.source: FluentIcons.graph_Delete
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 100
+                    ToolTip.text: qsTr("删除任务")
+
+                    onClicked: {
+                        confirm_dialog.open()
+                    }
+
+                    ContentDialog{
+                        id: confirm_dialog
+                        x: Math.ceil((parent.width - width) / 2)
+                        y: Math.ceil((parent.height - height) / 2)
+                        parent: Overlay.overlay
+                        dim: true
+                        modal: true
+                        title: qsTr("确认删除任务?")
+                        standardButtons:Dialog.Cancel
+                        footer:DialogButtonBox {
+                            Button {
+                                text: qsTr("删除")
+                                onClicked: {
+
+                                    var item= CasterMonitor.genPullStreamTemp()
+
+                                    item.type           = rowModel.type
+                                    item.target_ip      = rowModel.target_ip
+                                    item.target_port    = rowModel.target_port
+                                    item.target_mpt     = rowModel.target_mpt
+                                    item.target_account = rowModel.target_account
+                                    item.target_password= rowModel.target_password
+                                    item.login_mpt      = rowModel.login_mpt
+                                    item.UID= rowModel.login_mpt
+
+                                    console.log(Util.safeStringify(item))
+
+                                    root.delTaskOpUid= CasterMonitor.addDelPullStreamOperate(item)
+
+                                    CasterMonitor.excuteOperate(delTaskOpUid)
+
+                                    confirm_dialog.close()
+
+                                }
+                            }
+                        }
+                    }
+                }
+
+            }
+
         }
     }
 
-    function formatType(type)
-    {
-        switch (type) {
-        case 0:
-            return qsTr("长期")
-        case 1:
-            return qsTr("期限")
-        case 2:
-            return qsTr("期限")
-        case 3:
-            return qsTr("时限")
-        default:
-            return qsTr("未知")
-        }
-    }
 
-
-    function formatState(state)
-    {
-        if(state===0)
-        {
-            return qsTr("已停用")
-        }
-        else
-        {
-            // 已经启用
-            return qsTr("已启用")
-        }
-    }
-
-    function formatActive(state)
-    {
-        if(state===0)
-        {
-            return qsTr("未激活")
-        }
-        else
-        {
-            // 已经启用
-            return qsTr("已激活")
-        }
-    }
-    function formatExpired(expireUtcSeconds)
-    {
-
-        if(expireUtcSeconds===0)
-        {
-            return "正常"
-        }
-
-        // 当前 UTC 秒
-        var nowUtc = Math.floor(Date.now() / 1000)
-        // 剩余秒数
-        var remaining = expireUtcSeconds - nowUtc
-
-        if (remaining <= 0) {
-            return "已过期"
-        } else if (remaining < 24 * 3600) {
-            return "不足1天"
-        } else if (remaining < 3 * 24 * 3600) {
-            return "不足3天"
-        } else if (remaining < 7 * 24 * 3600) {
-            return "不足7天"
-        } else {
-            return "正常"
-        }
-    }
-
-
-
-    function formatAccess(type)
-    {
-
-        switch (type) {
-        case 1:
-            return qsTr("Ntrip Server/Client")
-        case 2:
-            return qsTr("Ntrip1.0/2.0 Client")
-        case 3:
-            return qsTr("Ntrip1.0 Server")
-        case 4:
-            return qsTr("Ntrip2.0 Server")
-        default:
-            return qsTr("未知")
-        }
-    }
 
     function getLocalTime(utcSeconds) {
         if (utcSeconds === 0) {

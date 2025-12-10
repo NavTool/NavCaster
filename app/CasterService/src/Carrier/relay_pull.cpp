@@ -4,7 +4,7 @@
 
 #define __class__ "relay_pull"
 
-relay_pull::relay_pull(json info, event_base *base)
+relay_pull_item::relay_pull_item(json info, event_base *base)
 {
     _info = info;
 
@@ -22,7 +22,7 @@ relay_pull::relay_pull(json info, event_base *base)
     _recv_evbuf = evbuffer_new();
 }
 
-relay_pull::~relay_pull()
+relay_pull_item::~relay_pull_item()
 {
     bufferevent_free(_bev);
     evbuffer_free(_send_evbuf);
@@ -31,7 +31,7 @@ relay_pull::~relay_pull()
     spdlog::info("[{}]: delete mount [{}], addr:[{}:{}]", __class__, _mount_point, _target_ip, _target_port);
 }
 
-int relay_pull::start()
+int relay_pull_item::start()
 {
 
     // 创建连接
@@ -100,7 +100,7 @@ int relay_pull::start()
     return 0;
 }
 
-int relay_pull::stop()
+int relay_pull_item::stop()
 {
     if (_timeout_ev_flag == true)
     {
@@ -124,20 +124,25 @@ int relay_pull::stop()
     return 0;
 }
 
-int relay_pull::retry()
+int relay_pull_item::retry()
 {
+    CASTER::Withdraw_Base_Record(_mount_point.c_str(), "SYSTEM", _connect_key.c_str());
     CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 3, 0);
     // 清理当前上下文
     bufferevent_free(_bev);
+
+    _bev = nullptr;
     // evbuffer_free(_send_evbuf);
     // evbuffer_free(_recv_evbuf);
 
     // 设置定时函数，定时函数到期则开始尝试重连
 
+    start();
+
     return 0;
 }
 
-int relay_pull::runing()
+int relay_pull_item::runing()
 {
     bufferevent_enable(_bev, EV_READ | EV_WRITE);
 
@@ -164,12 +169,12 @@ int relay_pull::runing()
     return 0;
 }
 
-int relay_pull::send_heart_beat_to_server()
+int relay_pull_item::send_heart_beat_to_server()
 {
     return 0;
 }
 
-int relay_pull::publish_recv_raw_data()
+int relay_pull_item::publish_recv_raw_data()
 {
 
     if (_transfer_with_chunked)
@@ -185,7 +190,7 @@ int relay_pull::publish_recv_raw_data()
     return 0;
 }
 
-int relay_pull::publish_data_from_chunk()
+int relay_pull_item::publish_data_from_chunk()
 {
     if (_chunked_size == 0)
     {
@@ -246,7 +251,7 @@ int relay_pull::publish_data_from_chunk()
     return 0;
 }
 
-int relay_pull::publish_data_from_evbuf()
+int relay_pull_item::publish_data_from_evbuf()
 {
     util_get_tcp_delay(bufferevent_getfd(_bev));
 
@@ -269,17 +274,18 @@ int relay_pull::publish_data_from_evbuf()
     return 0;
 }
 
-int relay_pull::update_pull_status_info()
+int relay_pull_item::update_pull_status_info()
 {
-
-    CASTER::Set_Base_Delay_Info(_mount_point.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
-
+    if (_bev != nullptr)
+    {
+        CASTER::Set_Base_Delay_Info(_mount_point.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
+    }
     return 0;
 }
 
-void relay_pull::ConnectedCallback(bufferevent *bev, short events, void *arg)
+void relay_pull_item::ConnectedCallback(bufferevent *bev, short events, void *arg)
 {
-    auto svr = static_cast<relay_pull *>(arg);
+    auto svr = static_cast<relay_pull_item *>(arg);
 
     // 如果是连接建立成功，发送验证消息
     // 连接建立成功
@@ -298,13 +304,14 @@ void relay_pull::ConnectedCallback(bufferevent *bev, short events, void *arg)
                  (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
                  (events & BEV_EVENT_CONNECTED) ? "connected" : "-");
 
-    bufferevent_free(bev);
+    // bufferevent_free(bev);
+    svr->retry();
     //  如果是连接建立失败，关闭连接，移除
 }
 
-void relay_pull::VerifyCallback(bufferevent *bev, void *arg)
+void relay_pull_item::VerifyCallback(bufferevent *bev, void *arg)
 {
-    auto svr = static_cast<relay_pull *>(arg);
+    auto svr = static_cast<relay_pull_item *>(arg);
 
     bufferevent_disable(bev, EV_READ);              // 暂停/停止接收数据
     bufferevent_setcb(bev, NULL, NULL, NULL, NULL); // 清空bev绑定的回调？  如果这个时候bev event_cb已经激活怎么办?是否就不继续执行了
@@ -324,9 +331,9 @@ void relay_pull::VerifyCallback(bufferevent *bev, void *arg)
     }
 }
 
-void relay_pull::EventCallback(bufferevent *bev, short events, void *arg)
+void relay_pull_item::EventCallback(bufferevent *bev, short events, void *arg)
 {
-    auto svr = static_cast<relay_pull *>(arg);
+    auto svr = static_cast<relay_pull_item *>(arg);
 
     spdlog::info("[{}:{}]: {}{}{}{}{}{} , mount [{}], addr:[{}:{}]",
                  __class__, __func__,
@@ -340,16 +347,16 @@ void relay_pull::EventCallback(bufferevent *bev, short events, void *arg)
     svr->retry();
 }
 
-void relay_pull::ReadCallback(bufferevent *bev, void *arg)
+void relay_pull_item::ReadCallback(bufferevent *bev, void *arg)
 {
-    auto svr = static_cast<relay_pull *>(arg);
+    auto svr = static_cast<relay_pull_item *>(arg);
     bufferevent_read_buffer(bev, svr->_recv_evbuf);
     svr->publish_recv_raw_data();
 }
 
-void relay_pull::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
+void relay_pull_item::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
-    auto *svr = static_cast<relay_pull *>(arg);
+    auto *svr = static_cast<relay_pull_item *>(arg);
 
     // 定时函数已经被停止，该次调用不处理
     if (svr->_timeout_ev_flag == false)
@@ -361,9 +368,9 @@ void relay_pull::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
     svr->update_pull_status_info();
 }
 
-void relay_pull::Caster_Register_Callback(const char *request, void *arg, catser_reply *reply)
+void relay_pull_item::Caster_Register_Callback(const char *request, void *arg, catser_reply *reply)
 {
-    auto svr = static_cast<relay_pull *>(arg);
+    auto svr = static_cast<relay_pull_item *>(arg);
     switch (reply->type)
     {
     case CasterReply::OK:
@@ -384,7 +391,7 @@ void relay_pull::Caster_Register_Callback(const char *request, void *arg, catser
     }
 }
 
-int relay_pull::send_login_request()
+int relay_pull_item::send_login_request()
 {
     evbuffer *evbuf = bufferevent_get_output(_bev);
 
@@ -412,7 +419,7 @@ int relay_pull::send_login_request()
     return 0;
 }
 
-int relay_pull::verify_login_response()
+int relay_pull_item::verify_login_response()
 {
 
     // 读取回复报文头
@@ -450,7 +457,7 @@ int relay_pull::verify_login_response()
     return 0;
 }
 
-int relay_pull::request_new_relay_server()
+int relay_pull_item::request_new_relay_server()
 {
     // 将自己按照一个基站的形式推送到CASTER
 

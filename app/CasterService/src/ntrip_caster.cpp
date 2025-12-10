@@ -174,7 +174,14 @@ int ntrip_caster::periodic_task()
 {
     if (_output_state) // 输出状态信息
     {
-        spdlog::info("[Service Statistic]: Connection: {}, Online Server: {}, Online Client: {} , Use Memory: {} BYTE.", _connect_map.size(), _server_map.size(), _client_map.size(), util_get_use_memory());
+        spdlog::info("[Service Statistic]: Connection: {}, Server: {}, Client: {} ,Nearest: {} ,Pull: {} ,Push: {} , Use Memory: {} BYTE.",
+                     _connect_map.size()+_pull_map.size()+_push_map.size(),
+                     _server_map.size(),
+                     _client_map.size(),
+                     _near_map.size(),
+                     _pull_map.size(),
+                     _push_map.size(),
+                     util_get_use_memory());
         spdlog::info("[CasterCore Status]: {}", CASTER::Get_Status());
 
         // double cpu = SysUsage::getInstance()->getProcessCPU();
@@ -456,8 +463,8 @@ int ntrip_caster::create_relay_pull(json req)
     {
         return 1; // 已经存在
     }
-    relay_pull *obj = new relay_pull(req, _base);
-    _pull_map.insert(std::pair<std::string, relay_pull *>(UID, obj));
+    relay_pull_item *obj = new relay_pull_item(req, _base);
+    _pull_map.insert(std::pair<std::string, relay_pull_item *>(UID, obj));
     obj->start();
     return 0;
 }
@@ -465,7 +472,7 @@ int ntrip_caster::create_relay_pull(json req)
 int ntrip_caster::stop_relay_pull(json req)
 {
     // 找到已经运行的实例
-    auto item = _pull_map.find(req["login_mpt"]);
+    auto item = _pull_map.find(req["UID"]);
     if (item == _pull_map.end())
     {
         return 1; // 不存在

@@ -109,7 +109,8 @@ private:
     std::unordered_map<std::string, source_ntrip *> _source_map; // Connect_Key,source_ntrip
 
     std::unordered_map<std::string, client_near *> _near_map; // Connect_Key,client_near
-    std::unordered_map<std::string, relay_pull *> _pull_map;  // Connect_Key,relay_pull
+    std::unordered_map<std::string, relay_pull_item *> _pull_map;  // Connect_Key,relay_pull
+    std::unordered_map<std::string, relay_pull_item *> _push_map;  // Connect_Key,relay_pull
 
 private:
     event_base *_base;

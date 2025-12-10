@@ -26,12 +26,21 @@ public:
                 m_data.clear();  //清除数据
 
 
-                auto data_map=CasterMonitor::getInstance()->m_relay_push_map;
+                auto data_map=CasterMonitor::getInstance()->m_relay_push_list_map;
+                auto stat_map=CasterMonitor::getInstance()->m_relay_push_stat_map;   // 再从Stat中拉取当前已经在执行的任务的状态
 
                 for(auto iter:data_map)
                 {
                     auto info = iter.second->info();
                     QVariantMap data= JsonToQVariantMap(info);
+
+
+                    auto stat_item=stat_map.find(iter.first);
+                    if(stat_item!=stat_map.end())
+                    {
+                        data["connect_key"]=stat_item->second->connect_key().c_str();
+                        data["state"]=stat_item->second->state();
+                    }
 
                     if(data["update_flag"].toBool() == false)
                     {

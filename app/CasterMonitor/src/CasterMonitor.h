@@ -145,8 +145,10 @@ private slots:
     void onUpdataServerMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdataClientMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdateAccountMap(QString OP_UID,bool success,QVariantMap info);
-    void onUpdatePullMap(QString OP_UID,bool success,QVariantMap info);
-    void onUpdatePushMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdatePullListMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdatePullStatMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdatePushListMap(QString OP_UID,bool success,QVariantMap info);
+    void onUpdatePushStatMap(QString OP_UID,bool success,QVariantMap info);
     void onUpdateAliasMap(QString OP_UID,bool success,QVariantMap info);
 
     //任务操作发送的信号通过这个转发
@@ -204,9 +206,13 @@ public:
     std::unordered_map<QString, std::shared_ptr<ntrip_client>> m_ntrip_client_map;    // Connect_Key，对象，站点的基本信息
     std::unordered_map<QString, std::shared_ptr<user_account>> m_user_account_map;          // key，对象，站点的基本信息
 
-    std::unordered_map<QString, std::shared_ptr<relay_pull>> m_relay_pull_map;          // key，对象，站点的基本信息
-    std::unordered_map<QString, std::shared_ptr<relay_push>> m_relay_push_map;          // key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<relay_pull_stat>> m_relay_pull_stat_map;          // key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<relay_push_stat>> m_relay_push_stat_map;          // key，对象，站点的基本信息
+
+    std::unordered_map<QString, std::shared_ptr<relay_pull_item>> m_relay_pull_list_map;          // key，对象，站点的基本信息
+    std::unordered_map<QString, std::shared_ptr<relay_push_item>> m_relay_push_list_map;          // key，对象，站点的基本信息
     std::unordered_map<QString, std::shared_ptr<alias_rule>> m_alias_rule_map;          // key，对象，站点的基本信息
+
 
 public:
 

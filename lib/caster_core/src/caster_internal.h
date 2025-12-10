@@ -174,15 +174,15 @@ private:
                              *  6：Proxy挂载点(Ntrip Client)
                              *  7：Alias挂载点(挂载点添加一个别名, 可通过这个别名来获取数据)
                              */
-                            /* 接入类型
-                             *  0：未知
-                             *  1：普通接入模式
-                             *  2：最近基站模式
-                             *  3：Push数据(Ntrip Server)
-                             *  4：Push数据(TCP Client)
-                             *  5：Push数据(TCP Server)
-                             *  6：Proxy模式
-                             */
+    /* 接入类型
+     *  0：未知
+     *  1：普通接入模式
+     *  2：最近基站模式
+     *  3：Push数据(Ntrip Server)
+     *  4：Push数据(TCP Client)
+     *  5：Push数据(TCP Server)
+     *  6：Proxy模式
+     */
 
     std::string _account;
     std::string _ip;
@@ -248,41 +248,39 @@ private:
 class relay_item
 {
 public:
-    std::string UID; // 请求类型
+    std::string para; // 原始参数
 
-    std::string para;
+    std::string UID;    // 请求类型
+    time_t modify_time; // 任务参数的更新时间，按照这个时间来确定参数是否发生变化
 
-    // int type;                    // 请求类型
-    // std::string target_ip;       // 目标IP
-    // int target_port;             // 目标端口
-    // std::string target_mpt;      // 挂载点
-    // std::string target_account;  // 用户名
-    // std::string target_password; // 密码
-    // std::string login_mpt;       // 登录的挂载点
+    int type;                    // 请求类型
+    std::string target_ip;       // 目标IP
+    int target_port;             // 目标端口
+    std::string target_mpt;      // 挂载点
+    std::string target_account;  // 用户名
+    std::string target_password; // 密码
+    std::string login_mpt;       // 登录的挂载点
+public:
+    int fromString(const std::string &str);
 };
 
-class relay_status
+class relay_stat
 {
 public:
-    std::string Node_ID; // 执行这个任务的节点ID
+    std::string _para; // 原始参数
 
-    std::string UID; // 请求类型
+    std::string _UID;    // 请求类型
+    time_t _modify_time; // 任务参数的更新时间，按照这个时间来确定参数是否发生变化
 
-    std::string para;
-
-    int _state; // 任务状态
+    std::string _node; // 执行这个任务的节点ID
     std::string _connect_key;
-    int update_state(std::string connect_key,int state);
+    int _state; // 任务状态
+public:
+    int fromString(const std::string &str);
+
+    int update_state(std::string connect_key, int state);
 
     std::string get_status_str(); //
-
-    // int type;                    // 请求类型
-    // std::string target_ip;       // 目标IP
-    // int target_port;             // 目标端口
-    // std::string target_mpt;      // 挂载点
-    // std::string target_account;  // 用户名
-    // std::string target_password; // 密码
-    // std::string login_mpt;       // 登录的挂载点
 };
 
 class caster_cb_item
@@ -539,10 +537,10 @@ private:
     // 执行任务：LIST中有但是STAT中还没有，关闭任务：STAT中有但是LIST中没有
 
     std::unordered_map<std::string, std::string> _cluster_node_map;
-    std::unordered_map<std::string, relay_item> _pull_list_map;   // 数据转发任务
-    std::unordered_map<std::string, relay_status> _pull_stat_map; // 数据转发任务
-    std::unordered_map<std::string, relay_item> _push_list_map;   // 数据转发任务
-    std::unordered_map<std::string, relay_status> _push_stat_map; // 数据转发任务
+    std::unordered_map<std::string, relay_item> _pull_list_map; // 数据转发任务
+    std::unordered_map<std::string, relay_item> _push_list_map; // 数据转发任务
+    std::unordered_map<std::string, relay_stat> _pull_stat_map; // 数据转发任务
+    std::unordered_map<std::string, relay_stat> _push_stat_map; // 数据转发任务
 
     int try_set_master_node();     // 尝试设置为主节点
     int sync_cluster_state();      // 主节点同步全局信息到本地
@@ -566,16 +564,20 @@ private:
 
     // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
 
-    std::unordered_map<std::string, relay_status> _pull_excute_map; // 本地已经执行的任务
-    std::unordered_map<std::string, relay_status> _push_excute_map; // 本地已经执行的任务
+    std::unordered_map<std::string, relay_item> _pull_excute_list_map; // 本地已经执行的任务
+    std::unordered_map<std::string, relay_item> _push_excute_list_map; // 本地已经执行的任务
+    std::unordered_map<std::string, relay_stat> _pull_excute_stat_map; // 本地已经执行的任务
+    std::unordered_map<std::string, relay_stat> _push_excute_stat_map; // 本地已经执行的任务
+
 public:
-    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key,int type, int state);
+    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int type, int state);
+
 private:
     // 上报任务执行状态
     // 上报自己的状态
-    int upload_node_status();  // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
-    int relay_task_response(); // 从节点执行：Relay任务响应
-    int upload_relay_status(); // 从节点上报本地已执行的Relay任务
+    int upload_node_status();                     // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
+    int relay_task_response(std::string req_str); // 从节点执行：Relay任务响应
+    int upload_relay_status();                    // 从节点上报本地已执行的Relay任务
 
     static void Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, void *privdata);
 

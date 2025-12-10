@@ -1,9 +1,9 @@
 #include "relay_push.h"
 
-relay_push::relay_push(/* args */)
+relay_push_item::relay_push_item(/* args */)
 {
 }
 
-relay_push::~relay_push()
+relay_push_item::~relay_push_item()
 {
 }

@@ -240,10 +240,11 @@ public:
 
     void execute(redisAsyncContext *ctx) override
     {
-        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL STR:PULL:LIST");
+        redisAsyncCommand(ctx, Redis_Update_List_Callback, this, "HGETALL STR:PULL:LIST");
+        redisAsyncCommand(ctx, Redis_Update_Stat_Callback, this, "HGETALL STR:PULL:STAT");
     }
 
-    static void Redis_Update_Data_Callback(redisAsyncContext *c, void *r, void *privdata)
+    static void Redis_Update_List_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
         // 解析数据
         auto reply = static_cast<redisReply *>(r);
@@ -276,11 +277,55 @@ public:
         }
 
         // 更新数据
+        Q_EMIT svr->updateListFinished(svr->id(),true,data);
+    }
+
+
+    static void Redis_Update_Stat_Callback(redisAsyncContext *c, void *r, void *privdata)
+    {
+        // 解析数据
+        auto reply = static_cast<redisReply *>(r);
+        auto svr = static_cast<EventUpdateRelayPullData *>(privdata);
+
+        auto&data = svr->m_data;
+
+        data.clear();
+
+        if (!reply)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_NIL)
+        {
+            return;
+        }
+        if (reply->type != REDIS_REPLY_ARRAY)
+        {
+            return;
+        }
+
+        // 更新data
+        for (int i = 0; i < reply->elements; i += 2)
+        {
+            QString field = reply->element[i]->str;
+            QString value = reply->element[i + 1]->str;
+
+            data[field]=value;
+        }
+
+        // 更新数据
+        Q_EMIT svr->updateStatFinished(svr->id(),true,data);
         Q_EMIT svr->operateFinished(svr->id(),true,data);
     }
 
+
 public:
     QVariantMap  m_data;
+
+signals:
+    void updateListFinished(QString OP_UID,bool success,QVariantMap info);
+    void updateStatFinished(QString OP_UID,bool success,QVariantMap info);
+
 
 };
 
@@ -296,10 +341,11 @@ public:
 
     void execute(redisAsyncContext *ctx) override
     {
-        redisAsyncCommand(ctx, Redis_Update_Data_Callback, this, "HGETALL STR:PUSH:LIST");
+        redisAsyncCommand(ctx, Redis_Update_List_Callback, this, "HGETALL STR:PUSH:LIST");
+        redisAsyncCommand(ctx, Redis_Update_Stat_Callback, this, "HGETALL STR:PUSH:STAT");
     }
 
-    static void Redis_Update_Data_Callback(redisAsyncContext *c, void *r, void *privdata)
+    static void Redis_Update_List_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
         // 解析数据
         auto reply = static_cast<redisReply *>(r);
@@ -332,11 +378,53 @@ public:
         }
 
         // 更新数据
+        Q_EMIT svr->updateListFinished(svr->id(),true,data);
+    }
+
+
+    static void Redis_Update_Stat_Callback(redisAsyncContext *c, void *r, void *privdata)
+    {
+        // 解析数据
+        auto reply = static_cast<redisReply *>(r);
+        auto svr = static_cast<EventUpdateRelayPushData *>(privdata);
+
+        auto&data = svr->m_data;
+
+        data.clear();
+
+        if (!reply)
+        {
+            return;
+        }
+        if (reply->type == REDIS_REPLY_NIL)
+        {
+            return;
+        }
+        if (reply->type != REDIS_REPLY_ARRAY)
+        {
+            return;
+        }
+
+        // 更新data
+        for (int i = 0; i < reply->elements; i += 2)
+        {
+            QString field = reply->element[i]->str;
+            QString value = reply->element[i + 1]->str;
+
+            data[field]=value;
+        }
+
+        // 更新数据
+        Q_EMIT svr->updateStatFinished(svr->id(),true,data);
         Q_EMIT svr->operateFinished(svr->id(),true,data);
     }
 
+
 public:
     QVariantMap  m_data;
+signals:
+    void updateListFinished(QString OP_UID,bool success,QVariantMap info);
+    void updateStatFinished(QString OP_UID,bool success,QVariantMap info);
 
 };
 

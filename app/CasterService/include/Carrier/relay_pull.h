@@ -13,7 +13,7 @@ using json = nlohmann::json;
 
 // 从第三方拉取数据，推送到本地的频道
 
-class relay_pull
+class relay_pull_item
 {
 private:
     /* data */
@@ -23,8 +23,8 @@ private:
     timeval _connect_timeout_tv;
 
 public:
-    relay_pull(json req, event_base *base);
-    ~relay_pull();
+    relay_pull_item(json req, event_base *base);
+    ~relay_pull_item();
 
     int start();
     int stop();

@@ -1,12 +1,12 @@
 #pragma once
 
 
-class relay_push
+class relay_push_item
 {
 private:
     /* data */
 public:
-    relay_push(/* args */);
-    ~relay_push();
+    relay_push_item(/* args */);
+    ~relay_push_item();
 };
 
