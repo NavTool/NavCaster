@@ -16,6 +16,9 @@ client_ntrip::client_ntrip(json req, bufferevent *bev)
     if (_info["ntrip_version"] == "Ntrip/2.0")
     {
         _NtripVersion2 = true;
+    }
+    if (_info["http_chunked"] == "chunked")
+    {
         _transfer_with_chunked = true;
     }
 
@@ -114,7 +117,10 @@ int client_ntrip::bev_send_reply()
         evbuffer_add_printf(_send_evbuf, "Pragma: no-cache\r\n");
         evbuffer_add_printf(_send_evbuf, "Connection: close\r\n");
         evbuffer_add_printf(_send_evbuf, "Content-Type: gnss/data\r\n");
-        evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
+        if (_transfer_with_chunked)
+        {
+            evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
+        }
         evbuffer_add_printf(_send_evbuf, "\r\n");
     }
     else

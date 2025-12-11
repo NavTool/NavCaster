@@ -114,7 +114,11 @@ int server_ntrip::bev_send_reply()
         evbuffer_add_printf(_send_evbuf, "Server: Ntrip ExampleCaster/2.0\r\n");
         evbuffer_add_printf(_send_evbuf, "Date: %s\r\n", util_get_http_date().c_str());
         evbuffer_add_printf(_send_evbuf, "Connection: close\r\n");
-        evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
+        if (_transfer_with_chunked)
+        {
+            evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
+        }
+
         evbuffer_add_printf(_send_evbuf, "\r\n");
     }
     else
@@ -194,7 +198,6 @@ int server_ntrip::send_heart_beat_to_server()
         return 0;
     }
 }
-
 
 int server_ntrip::publish_recv_raw_data()
 {
