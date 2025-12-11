@@ -317,9 +317,9 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
     if(WIN32)
         find_program(QT_DEPLOY NAMES windeployqt)
         if (MSVC)
-            file(GLOB_RECURSE RUNTIME_FILE_PATHS ${CMAKE_SOURCE_DIR}/rely/runtime/msvc/*.dll)
+            file(GLOB_RECURSE RUNTIME_FILE_PATHS ${CMAKE_SOURCE_DIR}/env/runtime/msvc/*.dll)
         elseif (MINGW)
-            file(GLOB_RECURSE RUNTIME_FILE_PATHS ${CMAKE_SOURCE_DIR}/rely/runtime/mingw/*.dll)
+            file(GLOB_RECURSE RUNTIME_FILE_PATHS ${CMAKE_SOURCE_DIR}/env/runtime/mingw/*.dll)
         endif ()
 
         # 获取所有 .dll 文件
@@ -328,12 +328,9 @@ if (CMAKE_BUILD_TYPE MATCHES "Release")
     add_custom_target(${PROJECT_NAME}_dist
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${DIST_PATH}
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/${PROJECT_NAME}.exe ${DIST_PATH}/${PROJECT_NAME}.exe
-        # COMMAND ${QT_DEPLOY} --qmldir=${CMAKE_SOURCE_DIR} --plugindir ${DIST_PATH}/plugins --no-translations --compiler-runtime ${DIST_PATH}/${PROJECT_NAME}.exe
         COMMAND ${QT_DEPLOY} --qmldir=${CMAKE_SOURCE_DIR} --plugindir ${DIST_PATH}/plugins --compiler-runtime ${DIST_PATH}/${PROJECT_NAME}.exe
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/remove_build_files.cmake
         COMMAND ${CMAKE_COMMAND} -E copy ${RUNTIME_FILE_PATHS} ${DIST_PATH}
-        COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_DLL_FILES} ${DIST_PATH}
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}/data ${DIST_PATH}/data  #将Proj的data拷贝到目录
         COMMENT "Windows Deploying Qt Dependencies After Build........."
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
