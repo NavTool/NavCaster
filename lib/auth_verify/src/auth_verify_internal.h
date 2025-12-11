@@ -54,14 +54,13 @@ using json = nlohmann::json;
 
 struct auth_ctx
 {
-    AuthType type=AuthType::UNKNOWN;
+    AuthType type = AuthType::UNKNOWN;
     std::string user_name;
     std::string user_pwd;
     std::string connect_key;
-    VerifyCallback cb=nullptr;
-    void *arg=nullptr;
+    VerifyCallback cb = nullptr;
+    void *arg = nullptr;
 };
-
 
 class auth_status
 {
@@ -94,22 +93,78 @@ public:
 class auth_limit
 {
 public:
-    int _online_limit = 0;
+    std::string _account;  // 账号
+    std::string _password; // 密码
+    bool _active = false;  /* 账号状态  只有两个状态  停用和启用，配合判断别的状态来得知账号的状态
+                            * 0：已停用
+                            * 1：已启用
+                            */
 
+    int _type = 0;           /* 账号类型
+                              * 0：永久
+                              * 1：期限账号（日期）
+                              * 2：期限账号（天数）
+                              * 3：时限账号（在线时长）
+                              */
+    int64_t _date_limit = 0; // 有效时间
+    int64_t _time_limit = 0; // 在线时长限制
+    int _access = 0;         /*   账号权限类型
+                              *   0 无权限
+                              *   1 Ntrip1.0/2.0 Client + Ntrip2.0 Server权限
+                              *   2 Ntrip1.0/2.0 Client权限
+                              *   3 Ntrip2.0 Server权限
+                              *   4 Ntrip1.0 Server权限
+                              */
+    int _connect_limit = 0;  // 允许连接数量
+    std::string _group;      /* 访问权限（账号可以访问的数据分组）  按照分号分隔
+                              *   ALL          不进行访问权限判断
+                              *   GROUP_NAME   查询这个分组里是否包含数据
+                              *   空           没有任何访问权限，基站账号没有访问权限
+                              */
+    int64_t _expire = 0;     // 过期时间，时间戳，0表示不限制
+
+public:
+    int fromString(const std::string &str);
 };
 
 class auth_cb_item
 {
 public:
     std::string connect_key;
-    // std::string channel;
     std::string user_name;
     VerifyCallback cb;
     void *arg;
 };
 
+class auth_broadcast_item
+{
+public:
+    // 广播的类型
+    AuthBroadcastType type = AuthBroadcastType::UNKNOWN; // 0:未知 1:基站 2:  3:  4:  5:
+    // 目标ConnectKey
+    std::string connect_key;
+    // 目标频道
+    std::string channel;
+    // 传递参数
+    std::string Para;
+
+    // 状态
+    AuthReply status = AuthReply::NIL;
+    // 原因
+    std::string reason;
+
+public:
+    int fromString(const std::string &str);
+
+    std::string toString();
+};
+
 class auth_internal
 {
+
+private:
+    bool _keep_early = true; // 已在线的优先级高，踢出当前登录的连接
+
 private:
     std::string _redis_IP;
     int _redis_port;
@@ -122,20 +177,20 @@ private:
 
     // conf
     int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
-    int _update_intv = 1;
-    int _key_expire_time = 3600; // Hash键值默认续期时间
+    int _update_intv = 5;
+    int _key_expire_time = 10; // Hash键值默认续期时间
 
     bool _anonymous_server_login = true;
-    bool _anonymous_client_login = true;
+    bool _anonymous_client_login = false;
 
 private:
     // 本地已经注册的用户
     // 频道名(挂载点, 用户名)：[具体连接key:注册回调]
-    std::unordered_map<std::string, std::unordered_map<std::string, auth_cb_item>> _register_map;
+    std::unordered_map<std::string, std::unordered_map<std::string, auth_cb_item>> _register_map; // 本地的注册表
     std::unordered_map<std::string, std::unordered_map<std::string, auth_cb_item>> _unnamed_map;
 
-    std::unordered_map<std::string, auth_limit> _register_limit_map;
-    std::unordered_map<std::string, auth_limit> _unnamed_limit_map;
+    std::unordered_map<std::string, auth_limit> _register_limit_map; // 用户激活表
+    std::unordered_map<std::string, auth_limit> _unnamed_limit_map;  // 匿名的激活表
 
     std::unordered_map<std::string, auth_status> _register_status_map; // connect_key/str_status  //移动站的状态统计信息
 
@@ -176,6 +231,10 @@ private:
 
     int upload_record_item(); // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
 
+    int send_change_auth_status(const char *user_name, const char *connect_key, AuthReply type, const char *reason);
+
+    int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
+
 public:
     static void Redis_Pub_Connect_Cb(const redisAsyncContext *c, int status);
     static void Redis_Sub_Connect_Cb(const redisAsyncContext *c, int status);
@@ -192,13 +251,13 @@ public:
     static void Redis_Verify_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // 添加匿名账户的回调
-    static void Redis_Add_Unnamed_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // 添加登录信息的回调
     static void Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void *privdata);
 
-    // 移除登录信息的回调
-    static void Redis_Add_Logout_Callback(redisAsyncContext *c, void *r, void *privdata);
+    // 添加匿名登录信息回调
+    static void Redis_Add_Unname_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // 获取激活用户信息状态的回调
     static void Redis_Update_Active_Callback(redisAsyncContext *c, void *r, void *privdata);

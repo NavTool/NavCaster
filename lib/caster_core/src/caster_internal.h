@@ -299,7 +299,7 @@ class caster_broadcast_item
 {
 public:
     // 广播的类型
-    BroadcastType type = BroadcastType::UNKNOWN; // 0:未知 1:基站 2:  3:  4:  5:
+    CasterBroadcastType type = CasterBroadcastType::UNKNOWN; // 0:未知 1:基站 2:  3:  4:  5:
     // 目标ConnectKey
     std::string connect_key;
     // 目标频道
@@ -452,6 +452,8 @@ private:
 
     // 广播频道的回调
     static void Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata);
+    int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
+
 
     // 更新有效挂载点、有效用户的回调
     static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取MPT:LIST:COMMON

@@ -74,6 +74,10 @@ public:
 
 class EventSetAlias : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, alias_info)
 public:
     explicit EventSetAlias(): RedisOperationBase() {};
 
@@ -100,6 +104,10 @@ public:
 
 class EventGetAlias : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, alias_info)
 public:
     explicit EventGetAlias(): RedisOperationBase() {};
 
@@ -126,6 +134,10 @@ public:
 
 class EventDelAlias : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, alias_info)
 public:
     explicit EventDelAlias(): RedisOperationBase() {};
 

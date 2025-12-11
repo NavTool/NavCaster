@@ -78,23 +78,23 @@ void ntrip_caster::License_Check_Callback(evutil_socket_t fd, short events, void
     svr->_compat_listener->enable_accept_new_connect();
 }
 
-void ntrip_caster::Relay_Request_Callback(void *arg, BroadcastType type, std::string req_str)
+void ntrip_caster::Relay_Request_Callback(void *arg, CasterBroadcastType type, std::string req_str)
 {
-    if (type == BroadcastType::RELAY_PULL_ACTIVE)
+    if (type == CasterBroadcastType::RELAY_PULL_ACTIVE)
     {
         // 创建一个请求，添加到队列中去
         json req = json::parse(req_str);
         req["req_type"] = REQUEST_RELAY_PULL;
         QUEUE::Push(req);
     }
-    if (type == BroadcastType::RELAY_PULL_INACTIVE)
+    if (type == CasterBroadcastType::RELAY_PULL_INACTIVE)
     {
         // 创建一个请求，添加到队列中去
         json req = json::parse(req_str);
         req["req_type"] = STOP_RELAY_PULL;
         QUEUE::Push(req);
     }
-    if (type == BroadcastType::RELAY_PULL_UPDATE)
+    if (type == CasterBroadcastType::RELAY_PULL_UPDATE)
     {
         // 创建一个请求，添加到队列中去
         json req = json::parse(req_str);

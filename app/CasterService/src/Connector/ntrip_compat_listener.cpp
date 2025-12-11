@@ -362,8 +362,18 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
     }
 
     std::string userID = req["user_baseID"];
+    std::string user_name = req["user_name"];
+    std::string user_pwd = req["user_pwd"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(), userID.c_str(), Auth_Verify_Cb, ctx, AuthType::CLIENT);
+
+    if (req["req_type"] == REQUEST_SOURCE_LOGIN)
+    {
+        AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SOURCE);
+    }
+    else
+    {
+        AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::CLIENT);
+    }
     return 0;
 }
 
@@ -382,8 +392,10 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
     req["req_type"] = REQUEST_SERVER_LOGIN;
 
     std::string userID = req["user_baseID"];
+    std::string user_name = req["user_name"];
+    std::string user_pwd = req["user_pwd"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(), userID.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
+    AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
 
@@ -404,13 +416,16 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
     std::string pwd = secret;
     if (pwd != "")
     {
-        req["user"] = pwd;
-        req["pwd"] = pwd;
+        req["user_baseID"] = pwd + ":" + pwd;
+        req["user_name"] = pwd;
+        req["user_pwd"] = pwd;
     }
 
     std::string userID = req["user_baseID"];
+    std::string user_name = req["user_name"];
+    std::string user_pwd = req["user_pwd"];
     auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
-    AUTH::Verify(userID.c_str(), userID.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
+    AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
 
@@ -420,22 +435,24 @@ int ntrip_compat_listener::Process_Unsupport_Request(bufferevent *bev, std::stri
     return 0;
 }
 
-void ntrip_compat_listener::Auth_Verify_Cb(const char *request, void *arg, AuthReply *reply)
+void ntrip_compat_listener::Auth_Verify_Cb(const char *request, void *arg, auth_reply *reply)
 {
     auto ctx = static_cast<std::pair<ntrip_compat_listener *, json> *>(arg);
 
     auto svr = ctx->first;
     auto req = ctx->second;
 
-    if (reply->type == AUTH_REPLY_OK)
+    if (reply->type == AuthReply::OK)
     {
         QUEUE::Push(req); // 如果连接已经关闭了
     }
     else
     {
+        spdlog::info("[{}:{}]: Auth Verify Failed: {}", __class__, __func__, reply->str); // 验证失败，关闭连接
         // 验证失败，关闭当前连接
-
+        std::string connect_key = req["connect_key"];
         // 从connect_map中删除该连接
+        svr->erase_and_free_bev(nullptr, connect_key);
     }
 
     delete ctx;
@@ -645,7 +662,10 @@ int ntrip_compat_listener::erase_and_free_bev(bufferevent *bev, std::string Conn
     else
     {
         spdlog::warn("[{}:{}]: con't find bev in connect_map, connect key: {}", __class__, __func__, Connect_Key);
-        bufferevent_free(bev);
+        if (bev != nullptr)
+        {
+            bufferevent_free(bev);
+        }
     }
 
     return 0;

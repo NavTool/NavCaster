@@ -76,6 +76,10 @@ public:
 
 class EventSetPull : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, relay_info)
 public:
     explicit EventSetPull(): RedisOperationBase() {};
 
@@ -102,6 +106,10 @@ public:
 
 class EventGetPull : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, relay_info)
 public:
     explicit EventGetPull(): RedisOperationBase() {};
 

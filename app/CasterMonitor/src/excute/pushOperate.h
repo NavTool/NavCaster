@@ -74,6 +74,10 @@ public:
 
 class EventSetPush : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, relay_info)
 public:
     explicit EventSetPush(): RedisOperationBase() {};
 
@@ -100,6 +104,10 @@ public:
 
 class EventGetPush : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, relay_info)
 public:
     explicit EventGetPush(): RedisOperationBase() {};
 
@@ -126,6 +134,10 @@ public:
 
 class EventDelPush : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, relay_info)
 public:
     explicit EventDelPush(): RedisOperationBase() {};
 

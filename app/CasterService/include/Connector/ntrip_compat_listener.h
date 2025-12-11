@@ -93,7 +93,7 @@ public:
     int Process_Unsupport_Request(bufferevent *bev, std::string connect_key);
 
     // Auth验证回调
-    static void Auth_Verify_Cb(const char *request, void *arg, AuthReply *reply);
+    static void Auth_Verify_Cb(const char *request, void *arg, auth_reply *reply);
 
 private:
     // 内部函数

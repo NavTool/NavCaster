@@ -176,7 +176,7 @@ Item {
                 implicitWidth: 150
                 implicitHeight: 35
 
-                model: ["筛选任务状态"]
+                model: ["筛选挂载点名"]
             }
 
             // ComboBox{
@@ -186,25 +186,58 @@ Item {
             //     model: ["筛选任务类型"]
             // }
 
-            TextBox
-            {
+            AutoSuggestBox {
+                id: auto_suggset_search
+                // width: 300
                 Layout.fillWidth: true
-
-                // anchors.verticalCenter: parent.verticalCenter
-
                 implicitHeight: 35
-                trailing: IconButton{
-                    implicitWidth: 30
-                    implicitHeight: 20
-                    icon.name: FluentIcons.graph_Search
-                    icon.width: 20
-                    icon.height: 20
-                    padding: 0
+                placeholderText: qsTr("Search")
+                items: controllerData.data
+                textRole: "UID"
+                trailing: RowLayout {
+                    IconButton {
+                        implicitWidth: 30
+                        implicitHeight: 20
+                        icon.name: FluentIcons.graph_ChromeClose
+                        icon.width: 10
+                        icon.height: 10
+                        visible: auto_suggset_search.text !== ""
+                        onClicked: {
+                            auto_suggset_search.clear()
+                        }
+                    }
+                    IconButton {
+                        implicitWidth: 30
+                        implicitHeight: 20
+                        icon.name: FluentIcons.graph_Search
+                        enabled: false
+                        icon.width: 14
+                        icon.height: 14
+                    }
                 }
+                onTap: item => {
+                           focusItemUID=item.UID
 
-                placeholderText: "查询已添加的数据任务"
+                           for (var i = 0; i < dataModel.count; ++i) {
+                               if (dataModel.get(i).UID === focusItemUID) {
+                                   dataGrid.view.currentIndex = i
+                                   // dataGrid.selected_items.clear()
+                                   dataGrid.selectionModel.select(dataModel.index(i, 0),
+                                                                  ItemSelectionModel.Select)
 
+                                   dataGrid.view.contentY=i*40
+                               }
+                               else{
+                                   dataGrid.selectionModel.select(dataModel.index(i, 0),
+                                                                  ItemSelectionModel.Deselect)
+                               }
+                           }
+
+
+
+                       }
             }
+
 
             Button
             {

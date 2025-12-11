@@ -54,14 +54,16 @@ public:
         item.setInfo(variantMapToJson(m_account_info));
 
         json info;
+        info["account"]=item.account();
+        info["password"]=item.password();
         info["active"]=item.time_active()==0? false:true;
         info["type"]=item.type();
-        info["vlaue1"]=item.time_valid();     // 有效天数      0:不限制
-        info["value2"]=item.time_limit();   // 在线时长限制   0：不限制
-        info["access"]=item.access();         // 准入类型
-        info["limit"]=item.access_limit();    // 连接数限制    0：不限制
-        info["group"]=item.access_group();    // 访问组        "ALL"：不限制
-        info["expire"]=item.time_expired();   // 过期时间      0:"不限制"
+        info["date_limit"]=item.time_valid();       // 有效天数      0:不限制
+        info["time_limit"]=item.time_limit();       // 在线时长限制   0：不限制
+        info["access"]=item.access();               // 准入类型
+        info["connect_limit"]=item.access_limit();  // 连接数限制    0：不限制
+        info["group"]=item.access_group();          // 访问组        "ALL"：不限制
+        info["expire"]=item.time_expired();         // 过期时间      0:"不限制"
 
         // 判断账号是否是启用状态，如果是启用状态，那么把这个账号添加到ACT:ACTIVE中去
         if(item.state()==0)
@@ -90,12 +92,12 @@ public:
 
 
         // 如果是未激活的账号，那么激活的时候还要更新一下过期时间，以及账号的激活日期
-                // 只针对active=0的情况
+        // 只针对active=0的情况
 
-                // 除了更新active表之外，还要更新账号表
+        // 除了更新active表之外，还要更新账号表
 
         // 如果是时限账号
-                // 有一个在线时长记录表
+        // 有一个在线时长记录表
 
 
     }
@@ -179,6 +181,10 @@ public:
 
 class EventSetAccount : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, account_info)
 public:
     explicit EventSetAccount(): RedisOperationBase() {};
 
@@ -205,6 +211,10 @@ public:
 
 class EventGetAccount : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, account_info)
 public:
     explicit EventGetAccount(): RedisOperationBase() {};
 
@@ -231,25 +241,52 @@ public:
 
 class EventDelAccount : public RedisOperationBase
 {
+    Q_OBJECT
+    QML_ELEMENT
+
+    Q_PROPERTY_AUTO(QVariantMap, account_info)
 public:
     explicit EventDelAccount(): RedisOperationBase() {};
 
     Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
-    void execute(redisAsyncContext *ctx) override {
-        // Q_UNUSED(base);
+        void execute(redisAsyncContext *ctx) override {
+        auto UID= m_account_info["UID"].toString();
 
-        // 添加一条记录
-
-
-        // 调用Monitor的信号
-
-
+        redisAsyncCommand(ctx, NULL, NULL, "HDEL ACT:ACTIVE %s",UID.toStdString().c_str());
+        redisAsyncCommand(ctx, Redis_Del_Account_Callback, this, "HDEL ACT:ACCOUNT %s",UID.toStdString().c_str());
     }
 
 public:
 
 
-public:
+    static void Redis_Del_Account_Callback(redisAsyncContext *c, void *r, void *privdata)
+    {
+        // 解析数据
+        auto reply = static_cast<redisReply *>(r);
+        auto svr = static_cast<EventDelAccount *>(privdata);
+
+        if (!reply)
+        {
+            return;
+        }
+        if (reply->type != REDIS_REPLY_INTEGER)
+        {
+            // 回应不对
+            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+        }
+
+        if(reply->integer==1)
+        {
+            //添加成功
+            Q_EMIT svr->operateFinished(svr->id(),true,QVariantMap());
+        }
+        else
+        {
+            //添加失败
+            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+        }
+
+    }
 
 };

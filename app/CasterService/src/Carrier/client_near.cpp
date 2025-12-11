@@ -239,16 +239,16 @@ int client_near::update_tcp_delay_info()
     return CASTER::Set_Rover_Delay_Info(_user_name.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
 }
 
-void client_near::Auth_Login_Callback(const char *request, void *arg, AuthReply *reply)
+void client_near::Auth_Login_Callback(const char *request, void *arg, auth_reply *reply)
 {
     auto svr = static_cast<client_near *>(arg);
 
     switch (reply->type)
     {
-    case AUTH_REPLY_OK:
+    case AuthReply::OK:
         CASTER::Register_Rover_Record(svr->_mount_point.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr);
         break;
-    case AUTH_REPLY_ERR:
+    case AuthReply::ERR:
         spdlog::info("[{}:{}]: AUTH_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
         svr->stop();
         break;
@@ -265,6 +265,7 @@ void client_near::Auth_Login_Callback(const char *request, void *arg, AuthReply 
     //     svr->stop();
     // }
 }
+
 
 void client_near::Caster_Register_Callback(const char *request, void *arg, catser_reply *reply)
 {

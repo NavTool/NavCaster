@@ -48,55 +48,55 @@ public:
     // ---------------------------
     // 获取 CPU 占用率 (%)
     // ---------------------------
-double getProcessCPU()
-{
+    double getProcessCPU()
+    {
 #if defined(_WIN32)
-    FILETIME ftime, fsys, fuser;
-    ULARGE_INTEGER now, sys, user;
+        FILETIME ftime, fsys, fuser;
+        ULARGE_INTEGER now, sys, user;
 
-    GetSystemTimeAsFileTime(&ftime);
-    memcpy(&now, &ftime, sizeof(FILETIME));
+        GetSystemTimeAsFileTime(&ftime);
+        memcpy(&now, &ftime, sizeof(FILETIME));
 
-    HANDLE self = GetCurrentProcess();
-    GetProcessTimes(self, &ftime, &ftime, &fsys, &fuser);
+        HANDLE self = GetCurrentProcess();
+        GetProcessTimes(self, &ftime, &ftime, &fsys, &fuser);
 
-    memcpy(&sys, &fsys, sizeof(FILETIME));
-    memcpy(&user, &fuser, sizeof(FILETIME));
+        memcpy(&sys, &fsys, sizeof(FILETIME));
+        memcpy(&user, &fuser, sizeof(FILETIME));
 
-    double sysDiff = (sys.QuadPart - lastSysCPU.QuadPart);
-    double userDiff = (user.QuadPart - lastUserCPU.QuadPart);
-    double totalDiff = (now.QuadPart - lastCPU.QuadPart);
+        double sysDiff = (sys.QuadPart - lastSysCPU.QuadPart);
+        double userDiff = (user.QuadPart - lastUserCPU.QuadPart);
+        double totalDiff = (now.QuadPart - lastCPU.QuadPart);
 
-    lastCPU = now;
-    lastUserCPU = user;
-    lastSysCPU = sys;
+        lastCPU = now;
+        lastUserCPU = user;
+        lastSysCPU = sys;
 
-    // -----------------------------
-    // 单核占用：不除核心数
-    // -----------------------------
-    double cpu = (sysDiff + userDiff) * 100.0 / totalDiff;
-    return cpu;
+        // -----------------------------
+        // 单核占用：不除核心数
+        // -----------------------------
+        double cpu = (sysDiff + userDiff) * 100.0 / totalDiff;
+        return cpu;
 #else
-    unsigned long long u, s;
-    readProcStat(u, s);
+        unsigned long long u, s;
+        readProcStat(u, s);
 
-    auto now = std::chrono::steady_clock::now();
-    double dt = std::chrono::duration<double>(now - lastTime).count();
+        auto now = std::chrono::steady_clock::now();
+        double dt = std::chrono::duration<double>(now - lastTime).count();
 
-    unsigned long long du = u - lastUTime;
-    unsigned long long ds = s - lastSTime;
+        unsigned long long du = u - lastUTime;
+        unsigned long long ds = s - lastSTime;
 
-    lastUTime = u;
-    lastSTime = s;
-    lastTime = now;
+        lastUTime = u;
+        lastSTime = s;
+        lastTime = now;
 
-    // -----------------------------
-    // 单核占用：不除核心数
-    // -----------------------------
-    double cpu = (du + ds) / (double)sysconf(_SC_CLK_TCK) * 100.0 / dt;
-    return cpu;
+        // -----------------------------
+        // 单核占用：不除核心数
+        // -----------------------------
+        double cpu = (du + ds) / (double)sysconf(_SC_CLK_TCK) * 100.0 / dt;
+        return cpu;
 #endif
-}
+    }
     // ---------------------------
     // 获取当前进程的内存占用（bytes）
     // ---------------------------

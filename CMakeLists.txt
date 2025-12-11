@@ -256,6 +256,11 @@ add_subdirectory(rely/rtklib)
 
 option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
 option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
+if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+else()
+    set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
+endif()
 add_subdirectory(rely/FluentUI-Pro/FluentUI)
 
 

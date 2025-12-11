@@ -377,7 +377,7 @@ QString CasterMonitor::addSetAccountOperate(QVariantMap account_info)
 
     // 设置对象属性
     op->id(UID);
-    // op->account_info(account_info);
+    op->account_info(account_info);
 
     // 连接信号和槽
     connect(op.get(),&EventSetAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
@@ -395,7 +395,7 @@ QString CasterMonitor::addDelAccountOperate(QVariantMap account_info)
 
     // 设置对象属性
     op->id(UID);
-    // op->account_info(account_info);
+    op->account_info(account_info);
 
     // 连接信号和槽
     connect(op.get(),&EventDelAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
@@ -413,7 +413,7 @@ QString CasterMonitor::addGetAccountOperate(QVariantMap account_info)
 
     // 设置对象属性
     op->id(UID);
-    // op->account_info(account_info);
+    op->account_info(account_info);
 
     // 连接信号和槽
     connect(op.get(),&EventGetAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
@@ -457,6 +457,7 @@ QString CasterMonitor::addSetPullStreamOperate(QVariantMap relay_info)
 
     // 设置对象属性
     op->id(UID);
+    op->relay_info(relay_info);
 
     // 连接信号和槽
     connect(op.get(),&EventSetPull::operateFinished,this,&CasterMonitor::onOperateFinished);
@@ -491,7 +492,7 @@ QString CasterMonitor::addGetPullStreamOperate(QVariantMap relay_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->relay_info(relay_info);
     // 连接信号和槽
     connect(op.get(),&EventGetPull::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -516,7 +517,7 @@ QString CasterMonitor::addAddPushStreamOperate(QVariantMap relay_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->relay_info(relay_info);
     // 连接信号和槽
     connect(op.get(),&EventAddPush::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -533,7 +534,7 @@ QString CasterMonitor::addSetPushStreamOperate(QVariantMap relay_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->relay_info(relay_info);
     // 连接信号和槽
     connect(op.get(),&EventSetPush::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -550,7 +551,7 @@ QString CasterMonitor::addDelPushStreamOperate(QVariantMap relay_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->relay_info(relay_info);
     // 连接信号和槽
     connect(op.get(),&EventDelPush::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -567,7 +568,7 @@ QString CasterMonitor::addGetPushStreamOperate(QVariantMap relay_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->relay_info(relay_info);
     // 连接信号和槽
     connect(op.get(),&EventGetPush::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -592,7 +593,7 @@ QString CasterMonitor::addAddAliasRuleOperate(QVariantMap alias_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->alias_info(alias_info);
     // 连接信号和槽
     connect(op.get(),&EventAddAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -609,7 +610,7 @@ QString CasterMonitor::addSetAliasRuleOperate(QVariantMap alias_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->alias_info(alias_info);
     // 连接信号和槽
     connect(op.get(),&EventSetAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -626,7 +627,7 @@ QString CasterMonitor::addDelAliasRuleOperate(QVariantMap alias_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->alias_info(alias_info);
     // 连接信号和槽
     connect(op.get(),&EventDelAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
 
@@ -643,7 +644,7 @@ QString CasterMonitor::addGetAliasRuleOperate(QVariantMap alias_info)
 
     // 设置对象属性
     op->id(UID);
-
+    op->alias_info(alias_info);
     // 连接信号和槽
     connect(op.get(),&EventDelAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
 

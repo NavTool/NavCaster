@@ -36,12 +36,13 @@ struct catser_reply
     double dval = 0.0;
 };
 
-
-enum class BroadcastType
+enum class CasterBroadcastType
 {
     UNKNOWN = 0,
+    BASE_STATUS_UPDATE, // 基站状态更新
     BASE_REGISTER,       // 基站上线
     BASE_WITHDRAW,       // 基站下线
+    ROVER_STATUS_UPDATE,// 移动站状态更新
     ROVER_REGISTER,      // 用户上线
     ROVER_WITHDRAW,      // 用户下线
     RELAY_PULL_ACTIVE,   // 激活数据接入任务
@@ -88,7 +89,7 @@ typedef void (*CasterCallback)(const char *request, void *arg, catser_reply *rep
 //     std::string login_mpt;       // 登录的挂载点
 // };
 
-typedef void (*RelayCallback)(void *arg, BroadcastType type, std::string req);
+typedef void (*RelayCallback)(void *arg, CasterBroadcastType type, std::string req);
 
 namespace CASTER
 {
@@ -120,8 +121,7 @@ namespace CASTER
     // 设置基站连接延迟信息
     int Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay);
 
-    int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key,int type, int state);
-
+    int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int type, int state);
 
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);

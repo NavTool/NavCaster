@@ -302,7 +302,7 @@ int server_ntrip::update_tcp_delay_info()
     return CASTER::Set_Base_Delay_Info(_mount_point.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
 }
 
-void server_ntrip::Auth_Login_Callback(const char *request, void *arg, AuthReply *reply)
+void server_ntrip::Auth_Login_Callback(const char *request, void *arg, auth_reply *reply)
 {
     auto svr = static_cast<server_ntrip *>(arg);
     // if (reply->type == AUTH_REPLY_OK)
@@ -317,10 +317,10 @@ void server_ntrip::Auth_Login_Callback(const char *request, void *arg, AuthReply
 
     switch (reply->type)
     {
-    case AUTH_REPLY_OK:
+    case AuthReply::OK:
         CASTER::Register_Base_Record(svr->_mount_point.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr);
         break;
-    case AUTH_REPLY_ERR:
+    case AuthReply::ERR:
         spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
         svr->stop();
         break;

@@ -519,7 +519,7 @@ int caster_internal::relay_task_distribution()
         {
             // STAT中不包含这个任务，创建任务
             caster_broadcast_item item;
-            item.type = BroadcastType::RELAY_PULL_ACTIVE;
+            item.type = CasterBroadcastType::RELAY_PULL_ACTIVE;
             item.channel = list_iter.second.UID;
             item.Para = list_iter.second.para;
             item.status = CasterReply::ACTIVE;
@@ -544,7 +544,7 @@ int caster_internal::relay_task_distribution()
         {
             // LIST中不包含这个任务，移除任务
             caster_broadcast_item item;
-            item.type = BroadcastType::RELAY_PULL_INACTIVE;
+            item.type = CasterBroadcastType::RELAY_PULL_INACTIVE;
             item.channel = stat_iter.second._UID;
             item.Para = stat_iter.second._para;
             item.status = CasterReply::INACTIVE;
@@ -579,7 +579,7 @@ int caster_internal::relay_task_response(std::string req_str)
 
     // 添加到已经任务列表中
 
-    if (req.type == BroadcastType::RELAY_PULL_ACTIVE)
+    if (req.type == CasterBroadcastType::RELAY_PULL_ACTIVE)
     {
         if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
         {
@@ -601,7 +601,7 @@ int caster_internal::relay_task_response(std::string req_str)
             _relay_cb(_relay_cb_arg, req.type, req.Para);
         }
     }
-    else if (req.type == BroadcastType::RELAY_PULL_INACTIVE)
+    else if (req.type == CasterBroadcastType::RELAY_PULL_INACTIVE)
     {
         // 停止一个转发任务
         if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
@@ -1368,15 +1368,16 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
 int caster_internal::send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
     // 向redis发布广播
-    json req;
-    req["Type"] = "BASE";
-    req["Ch"] = channel;
-    req["Con"] = connect_key;
-    req["Status"] = status;
-    req["Reason"] = reason;
+    caster_broadcast_item item;
 
-    std::string msg = req.dump();
-    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", msg.c_str());
+    item.type = CasterBroadcastType::BASE_STATUS_UPDATE;
+    item.channel = channel;
+    item.connect_key = connect_key;
+    item.Para = "";
+    item.status = status;
+    item.reason = reason;
+
+    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
 }
 
 int caster_internal::pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
@@ -1397,15 +1398,16 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
 int caster_internal::send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
     // 向redis发布广播
-    json req;
-    req["Type"] = "ROVER";
-    req["Ch"] = channel;
-    req["Con"] = connect_key;
-    req["Status"] = status;
-    req["Reason"] = reason;
+    caster_broadcast_item item;
 
-    std::string msg = req.dump();
-    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", msg.c_str());
+    item.type = CasterBroadcastType::ROVER_STATUS_UPDATE;
+    item.channel = channel;
+    item.connect_key = connect_key;
+    item.Para = "";
+    item.status = status;
+    item.reason = reason;
+
+    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
 }
 
 int caster_internal::pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length)
@@ -1972,21 +1974,11 @@ int caster_internal::add_sum_send(int size)
 
 void caster_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
+    // 接收广播信息，触发回调执行任务
     // 订阅到的是一个Json字符串
-
-    // 字符串组成：
-    //   对象type  Base/Rover
-    //   频道ch    MountName/UserName        "MPT"
-    //   连接con   Connect_Key       "XXXXXXXXXXXX"
-    //   指令Status   Status              CASTER_RELPY_
-    //   原因reason  reason            "Already Online / New Same Name Login"
 
     auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<caster_internal *>(privdata);
-
-    json req;
-    std::string type, ch, con, reason;
-    CasterReply status;
 
     if (!reply)
     {
@@ -2005,35 +1997,46 @@ void caster_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, vo
     {
         return; // 回复不是字符串，第一次订阅这个频道的时候回应为 REDIS_REPLY_INTEGER
     }
-    try
+
+    svr->broadcast_response(re3->str);
+}
+
+int caster_internal::broadcast_response(std::string req_str)
+{
+    // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
+    caster_broadcast_item req;
+    if (req.fromString(req_str))
     {
-        req = json::parse(re3->str);
-        type = req["Type"];
-        ch = req["Ch"];
-        con = req["Con"];
-        status = req["Status"];
-        reason = req["Reason"];
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::warn("[{}:{}]: exception:  {}", __class__, __func__, e.what());
-        return;
+        return 1; // 解析失败
     }
 
-    auto sub_map = (type == "BASE") ? &svr->_base_register_map : &svr->_rover_register_map;
+    std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> *item_map = nullptr;
 
-    auto item = sub_map->find(ch);
-    if (item == sub_map->end())
+    if (req.type == CasterBroadcastType::ROVER_STATUS_UPDATE)
     {
-        return; // 本地没有该频道的注册记录
+        item_map = &_base_register_map;
+    }
+    else if (req.type == CasterBroadcastType::BASE_STATUS_UPDATE)
+    {
+        item_map = &_rover_register_map;
+    }
+    else
+    {
+        return 1; // 不支持的广播类型
+    }
+    // 收到拉取激活源的请求
+    auto item = item_map->find(req.channel);
+    if (item == item_map->end())
+    {
+        return 2; // 本地没有该频道的注册记录
     }
 
     // 复制字符串
     catser_reply Reply;
-    Reply.type = status;
-    Reply.str = reason.c_str();
+    Reply.type = req.status;
+    Reply.str = req.reason.c_str();
 
-    if (con.size() == 0) // 没有指定特定的连接，则对所有的连接都发送一次回复（针对允许同名频道都在线的情况）
+    if (req.connect_key.size() == 0) // 没有指定特定的连接，则对所有的连接都发送一次回复（针对允许同名频道都在线的情况）
     {
         for (auto iter : item->second)
         {
@@ -2045,10 +2048,10 @@ void caster_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, vo
     }
     else
     {
-        auto target = item->second.find(con);
+        auto target = item->second.find(req.connect_key);
         if (target == item->second.end())
         {
-            return; // 本地没有该连接的注册记录
+            return 3; // 本地没有该连接的注册记录
         }
 
         auto cb_item = target->second;
@@ -2056,7 +2059,8 @@ void caster_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, vo
         auto arg = cb_item.arg;
         Func(NULL, arg, &Reply);
     }
-    return;
+
+    return 0;
 }
 
 void caster_internal::Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -2472,7 +2476,7 @@ int caster_broadcast_item::fromString(const std::string &str)
     json info = json::parse(str);
     try
     {
-        type = static_cast<BroadcastType>(info["type"].get<int>());
+        type = static_cast<CasterBroadcastType>(info["type"].get<int>());
         connect_key = info["connect_key"].get<std::string>();
         channel = info["channel"].get<std::string>();
         Para = info["Para"].get<std::string>();
@@ -2482,7 +2486,6 @@ int caster_broadcast_item::fromString(const std::string &str)
     catch (const std::exception &e)
     {
         spdlog::warn("[caster_broadcast_item:{}]: decode field: {} ,what: {}", __func__, str, e.what());
-
         return 1;
     }
 

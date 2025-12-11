@@ -16,22 +16,6 @@ using json = nlohmann::json;
 class relay_pull_item
 {
 private:
-    /* data */
-    event_base *_base = nullptr;
-    bufferevent *_bev = nullptr;
-
-    timeval _connect_timeout_tv;
-
-public:
-    relay_pull_item(json req, event_base *base);
-    ~relay_pull_item();
-
-    int start();
-    int stop();
-
-    int retry();
-
-private:
     // 连接相关参数和上下文
     json _info;
     // 登录参数
@@ -43,24 +27,10 @@ private:
     std::string _target_account;
     std::string _target_password;
 
-private:
-    static void ConnectedCallback(struct bufferevent *bev, short events, void *arg);
-    static void VerifyCallback(struct bufferevent *bev, void *arg);
-
-    // 发送验证消息
-    int send_login_request();
-
-    // 验证登录响应
-    int verify_login_response();
-
-    // 建立连接，开始推送
-    int request_new_relay_server();
-
-private:
     int _connect_timeout = 0;
-    timeval _bev_read_timeout_tv;
-    // 数据传输相关上下文
 
+private:
+    // 内部成员 和内部维护变量
     std::string _connect_key;
     std::string _mount_point;
 
@@ -71,15 +41,43 @@ private:
     evbuffer *_send_evbuf;
     evbuffer *_recv_evbuf;
 
-    timeval _timeout_tv;
-    event *_timeout_ev;
-    bool _timeout_ev_flag = false; // 是否将timeout_ev注册到event_base的标记
-
     decode_rtcm _str_decoder;
 
-private:
-    int runing();
+    /* data */
+    event_base *_base = nullptr;
+    bufferevent *_bev = nullptr;
 
+    timeval _connect_timeout_tv;  // 连接超时时间
+    timeval _bev_read_timeout_tv; // bufferevent读超时时间
+
+    timeval _reconnect_tv; // 重连时间间隔
+    event *_reconnect_ev;  // 重连定时事件
+
+    bool _timeout_ev_flag = false; // 是否将timeout_ev注册到event_base的标记
+    timeval _timeout_tv;           // 定时时间间隔
+    event *_timeout_ev;            // 定时事件
+
+public:
+    relay_pull_item(json req, event_base *base);
+    ~relay_pull_item();
+
+    int start();    // 启动连接
+    int stop();     // 停止连接
+
+    int runing();   // 连接成功，进入运行状态
+
+    int retry();    // 重试连接
+
+private:
+    int send_login_request();       // 发送验证消息
+    int verify_login_response();    // 验证登录响应
+    int request_new_relay_server(); // 建立连接，开始推送
+
+    static void ConnectedCallback(struct bufferevent *bev, short events, void *arg); // 连接建立回调
+    static void VerifyCallback(struct bufferevent *bev, void *arg);                  // 连接回复信息回调
+    static void ReconnectCallback(evutil_socket_t fd, short events, void *arg);     // 重连回调
+
+private:
     int send_heart_beat_to_server();
 
     int publish_recv_raw_data();

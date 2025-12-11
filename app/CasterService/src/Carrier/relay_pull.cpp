@@ -20,13 +20,19 @@ relay_pull_item::relay_pull_item(json info, event_base *base)
 
     _send_evbuf = evbuffer_new();
     _recv_evbuf = evbuffer_new();
+
+    _reconnect_ev = event_new(_base, -1, 0, ReconnectCallback, this);
+    _timeout_ev = event_new(_base, -1, EV_PERSIST, TimeoutCallback, this);
 }
 
 relay_pull_item::~relay_pull_item()
 {
-    bufferevent_free(_bev);
+
     evbuffer_free(_send_evbuf);
     evbuffer_free(_recv_evbuf);
+
+    event_free(_reconnect_ev);
+    event_free(_timeout_ev);
 
     spdlog::info("[{}]: delete mount [{}], addr:[{}:{}]", __class__, _mount_point, _target_ip, _target_port);
 }
@@ -74,14 +80,13 @@ int relay_pull_item::start()
         return 2;
     }
 
-    std::string Connect_Key = util_cal_connect_key(fd);
-    if (Connect_Key.empty())
+    _mount_point = _login_mpt;
+    _connect_key = util_cal_connect_key(fd);
+    if (_connect_key.empty())
     {
         bufferevent_free(_bev);
         return 3;
     }
-    _connect_key = Connect_Key;
-    _mount_point = _login_mpt;
 
     _connect_timeout_tv.tv_sec = 300;
     _connect_timeout_tv.tv_usec = 0;
@@ -105,11 +110,14 @@ int relay_pull_item::stop()
     if (_timeout_ev_flag == true)
     {
         event_del(_timeout_ev);
-        event_free(_timeout_ev);
         _timeout_ev_flag = false;
     }
 
-    bufferevent_disable(_bev, EV_READ);
+    if (_bev != nullptr)
+    {
+        bufferevent_free(_bev);
+        _bev = nullptr;
+    }
 
     // 向xx发送销毁请求
     json close_req;
@@ -127,17 +135,28 @@ int relay_pull_item::stop()
 int relay_pull_item::retry()
 {
     CASTER::Withdraw_Base_Record(_mount_point.c_str(), "SYSTEM", _connect_key.c_str());
-    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 3, 0);
+    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(),"", 3, 0);  // 更新PULL数据流状态
     // 清理当前上下文
-    bufferevent_free(_bev);
+    if (_bev != nullptr)
+    {
+        bufferevent_free(_bev);
+        _bev = nullptr;
+    }
 
-    _bev = nullptr;
     // evbuffer_free(_send_evbuf);
     // evbuffer_free(_recv_evbuf);
 
     // 设置定时函数，定时函数到期则开始尝试重连
 
-    start();
+    // 设置一个超时回调
+
+    _reconnect_tv.tv_sec = 5;
+    _reconnect_tv.tv_usec = 0;
+
+    // 设置仅激活一次
+    event_add(_reconnect_ev, &_reconnect_tv);
+
+    // start();
 
     return 0;
 }
@@ -159,7 +178,6 @@ int relay_pull_item::runing()
     {
         _timeout_tv.tv_sec = 1;
         _timeout_tv.tv_usec = 0;
-        _timeout_ev = event_new(bufferevent_get_base(_bev), -1, EV_PERSIST, TimeoutCallback, this);
         event_add(_timeout_ev, &_timeout_tv);
         _timeout_ev_flag = true;
     }
@@ -331,6 +349,13 @@ void relay_pull_item::VerifyCallback(bufferevent *bev, void *arg)
     }
 }
 
+void relay_pull_item::ReconnectCallback(evutil_socket_t fd, short events, void *arg)
+{
+    auto svr = static_cast<relay_pull_item *>(arg);
+
+    svr->start();
+}
+
 void relay_pull_item::EventCallback(bufferevent *bev, short events, void *arg)
 {
     auto svr = static_cast<relay_pull_item *>(arg);
@@ -459,10 +484,10 @@ int relay_pull_item::verify_login_response()
 
 int relay_pull_item::request_new_relay_server()
 {
-    // 将自己按照一个基站的形式推送到CASTER
 
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
+    // 验证完成，注册数据流到CasterCore
     CASTER::Register_Base_Record(_login_mpt.c_str(), "SYSTEM", _connect_key.c_str(), Caster_Register_Callback, this);
     CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 3, 0);
 

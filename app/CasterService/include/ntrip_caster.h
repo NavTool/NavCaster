@@ -141,7 +141,7 @@ private:
 private:
     // 扩展模块，Relay请求处理
 
-    static void Relay_Request_Callback(void *arg, BroadcastType type, std::string req_str);
+    static void Relay_Request_Callback(void *arg, CasterBroadcastType type, std::string req_str);
 
     // private:
     //     // 扩展模块 心跳上传功能--------------------------------------------------------------------------

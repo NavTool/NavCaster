@@ -25,6 +25,14 @@ Frame {
     property var focusItem          // 选定记录的详细数据
     property var refreshDataOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
 
+
+    // 添加任务中间变量
+    property var addAccountOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
+    property var delAccountOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
+    property var setAccountOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
+
+
+
     Component.onCompleted: {
 
         // focusItem= CasterMonitor.getNtripServerInfo("")  //初始化，填充空白数据
@@ -44,11 +52,32 @@ Frame {
         target: CasterMonitor
 
         function onOperateFinished(taskID, success, info) {
-            if (taskID !== refreshDataOpUid) {
-                return  //非当前指令,跳过
+            if (taskID === refreshDataOpUid) {
+                controllerData.loadData()
             }
-            // 执行数据刷新操作
-            controllerData.loadData()
+            if(taskID===addAccountOpUid)
+            {
+                if(success)
+                {
+                    tip_top.showSuccess(qsTr("账号已添加"))
+                    visable_right_side=false
+                }
+            }
+            if(taskID=== delAccountOpUid)
+            {
+                if(success)
+                {
+                    tip_top.showSuccess(qsTr("账号已移除"))
+                }
+            }
+            if(taskID=== setAccountOpUid)
+            {
+                if(success)
+                {
+                    tip_top.showSuccess(qsTr("账号已修改"))
+                }
+            }
+
         }
     }
 
@@ -185,7 +214,7 @@ Frame {
                             }
                         }
                         onTap: item => {
-                                focusItemUID=item.UID
+                                   focusItemUID=item.UID
 
                                    for (var i = 0; i < dataModel.count; ++i) {
                                        if (dataModel.get(i).UID === focusItemUID) {
@@ -194,7 +223,7 @@ Frame {
                                            dataGrid.selectionModel.select(dataModel.index(i, 0),
                                                                           ItemSelectionModel.Select)
 
-                                                        dataGrid.view.contentY=i*40
+                                           dataGrid.view.contentY=i*40
                                        }
                                        else{
                                            dataGrid.selectionModel.select(dataModel.index(i, 0),
@@ -314,6 +343,7 @@ Frame {
                                   }
                     onRowRightClicked: model => {
                                            // console.debug(model.station_name)
+                                           root.focusItemUID = model.UID
                                            operate_item_menu.open_with_ctx(
                                                model)
                                        }
@@ -330,11 +360,42 @@ Frame {
                         }
 
                         MenuItem {
-                            text: qsTr("站点详情")
+                            text: qsTr("删除账号")
                             onTriggered: {
-                                console.log(Util.safeStringify(
-                                                operate_item_menu.ctx))
+                                confirm_dialog.open()
                             }
+
+                            ContentDialog{
+                                id: confirm_dialog
+
+                                x: Math.ceil((parent.width - width) / 2)
+                                y: Math.ceil((parent.height - height) / 2)
+                                parent: Overlay.overlay
+                                dim: true
+                                modal: true
+                                title: qsTr("确认删除账号:[ %1 ] ？").arg(root.focusItemUID)
+
+                                standardButtons:Dialog.Cancel
+                                footer:DialogButtonBox {
+                                    Button {
+                                        text: qsTr("删除")
+                                        onClicked: {
+                                            var item= CasterMonitor.genAccountTemp()
+                                            item.UID = root.focusItemUID
+
+                                            console.log(Util.safeStringify(item))
+
+                                            root.delAccountOpUid= CasterMonitor.addDelAccountOperate(item)
+
+                                            CasterMonitor.excuteOperate(delAccountOpUid)
+
+                                            confirm_dialog.close()
+
+                                        }
+                                    }
+                                }
+                            }
+
                         }
                     }
 
