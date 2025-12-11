@@ -1791,32 +1791,32 @@
 <context>
     <name>Page_Start</name>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="295"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="320"/>
         <source>IP :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="322"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="347"/>
         <source>Port :</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="350"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="375"/>
         <source>Auth:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="374"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="399"/>
         <source>保存密码</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="379"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="404"/>
         <source>自动连接</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Init/Page_Start.qml" line="395"/>
+        <location filename="qml/page/Init/Page_Start.qml" line="420"/>
         <source>连接</source>
         <translation type="unfinished"></translation>
     </message>

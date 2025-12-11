@@ -14,12 +14,33 @@ ContentPage {
     property string login_auth:""
 
 
+    // property var loginOpUid      // 数据刷新操作的UID 重复调用这个UID指向的任务来刷新数据
+
+
 
     property var colors : [Colors.yellow,Colors.orange,Colors.red,Colors.magenta,Colors.purple,Colors.blue,Colors.teal,Colors.green]
 
     property var randomAccentColor: function(){
         return colors[Math.floor(Math.random() * 8)]
     }
+
+
+
+    Connections {
+        target: CasterMonitor
+
+        function onConnectCasterSuccess() {
+
+            Global.displayScreen= "/screen/main"
+            Global.displayMainScreen= "/monitor/page/status"
+
+
+
+        }
+    }
+
+
+
 
     topPadding: 0
     leftPadding: 0
@@ -408,8 +429,8 @@ ContentPage {
                         info.port= root.login_port
                         info.auth=  root.login_auth
 
-                        var task_uid= CasterMonitor.addConnectCasterOperate(info)
-                        CasterMonitor.excuteOperate(task_uid)
+                        var loginOpUid= CasterMonitor.addConnectCasterOperate(info)
+                        CasterMonitor.excuteOperate( loginOpUid)
                     }
 
                 }
