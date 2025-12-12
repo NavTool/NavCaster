@@ -448,7 +448,7 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
     }
     else
     {
-        req["req_type"] = REQUEST_CLIENT_LOGIN;
+        req["req_type"] = REQUEST_SERVER_LOGIN;
     }
 
     std::string pwd = secret;
