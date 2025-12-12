@@ -37,8 +37,14 @@
 #define REQUEST_NEAREST_LOGIN 304 // 最近挂载点
 #define CLOSE_NEAREST_CLIENT 305
 
+
 #define REQUEST_SERVER_LOGIN 308 // 基站
 #define CLOSE_NTRIP_SERVER 309
+
+
+#define REQUEST_ALIAS_LOGIN 304 // 最近挂载点
+#define CLOSE_ALIAS_CLIENT 305
+
 
 // RELAY请求
 #define REQUEST_RELAY_PULL 601 // 数据拉取

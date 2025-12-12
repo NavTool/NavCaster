@@ -182,6 +182,7 @@ private:
      *  4：Push数据(TCP Client)
      *  5：Push数据(TCP Server)
      *  6：Proxy模式
+     *  7：Alias挂载点
      */
 
     std::string _account;
@@ -205,26 +206,26 @@ private:
     std::time_t _update_time = 0.0; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
 
 private:
+    bool _is_rover = false;
+
     // 用户专有的数据
     int _quality = 0;   // 定位状态
     int _sat_num = 0;   // 卫星数
     double _diff = 0.0; // 差分延迟
 
 public:
-    str_status(std::string login_mpt, std::string alias_mpt, int type, std::string user_name, std::string connect_key);
+    str_status(std::string login_mpt, CasterRegisterType type, std::string user_name, std::string connect_key, bool is_rover);
     ~str_status();
 
+    int set_alias_mpt(std::string alias_mpt);
     int add_delay(uint64_t delay);
     int add_recv(int size);
     int add_send(int size);
 
-    int set_type(int type);
-    int set_alias_mpt(std::string alias_mpt);
-
     int set_coord_info(double ecef_x, double ecef_y, double ecef_z, long long update_time);
     int set_position_info(int quality, int sat_num, double diff);
 
-    std::string get_status_str(int type); // 0 基站  1 移动站
+    std::string get_status_str(); // 0 基站  1 移动站
 
 private:
     struct Sample
@@ -391,20 +392,26 @@ public:
     int start();
     int stop();
 
+    // 返回Caster的状态信息
     std::string get_status_str();
 
+    // 判断是否是最近挂载点
     bool is_nearest_mpt(std::string mount_point);
+    // 判断是否是别名挂载点
+    bool is_alias_mpt(std::string mount_point);
 
     // 注册基站频道 MPT:XXXXXX
-    int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
     // 注销频道
     int withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
     int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
     int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
-    // 订阅指定频道
-    int sub_base_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    // 订阅最近频道
+    int sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    // 订阅别名频道
+    int sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道
     int unsub_base_channel(const char *channel, const char *connect_key);
     // 设置基站坐标信息
@@ -413,11 +420,9 @@ public:
     int set_base_delay_info(const char *mount_point, const char *connect_key, uint64_t delay);
     // 设置基站挂载点信息
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
-    // 向注册的基站频道发送状态消息
-    int send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
 
     // 注册移动站频道 USR:XXXXXX
-    int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
     // 注销频道
     int withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
@@ -431,11 +436,15 @@ public:
     // 设置用户延迟信息
     int set_rover_delay_info(const char *user_name, const char *connect_key, uint64_t delay);
 
-    // 向注册的移动站频道发送状态消息
-    int send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
-
     // 获取挂载点列表正文
     std::string get_source_list_text();
+
+private:
+    // 向注册的基站频道发送状态消息
+    int send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
+
+    // 向注册的移动站频道发送状态消息
+    int send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason);
 
 private:
     // 挂载点信息生成的函数
@@ -453,7 +462,6 @@ private:
     // 广播频道的回调
     static void Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata);
     int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
-
 
     // 更新有效挂载点、有效用户的回调
     static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取MPT:LIST:COMMON
@@ -572,7 +580,7 @@ private:
     std::unordered_map<std::string, relay_stat> _push_excute_stat_map; // 本地已经执行的任务
 
 public:
-    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int type, int state);
+    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
 private:
     // 上报任务执行状态

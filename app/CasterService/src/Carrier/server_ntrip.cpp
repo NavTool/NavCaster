@@ -318,7 +318,7 @@ void server_ntrip::Auth_Login_Callback(const char *request, void *arg, auth_repl
     switch (reply->type)
     {
     case AuthReply::OK:
-        CASTER::Register_Base_Record(svr->_mount_point.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr);
+        CASTER::Register_Base_Record(svr->_mount_point.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr,CasterRegisterType::NORMAL);
         break;
     case AuthReply::ERR:
         spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);

@@ -135,7 +135,7 @@ int relay_pull_item::stop()
 int relay_pull_item::retry()
 {
     CASTER::Withdraw_Base_Record(_mount_point.c_str(), "SYSTEM", _connect_key.c_str());
-    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(),"", 3, 0);  // 更新PULL数据流状态
+    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 0); // 更新PULL数据流状态
     // 清理当前上下文
     if (_bev != nullptr)
     {
@@ -182,7 +182,7 @@ int relay_pull_item::runing()
         _timeout_ev_flag = true;
     }
 
-    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), _connect_key.c_str(), 3, 1);
+    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), _connect_key.c_str(), 1);
 
     return 0;
 }
@@ -488,8 +488,8 @@ int relay_pull_item::request_new_relay_server()
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
     // 验证完成，注册数据流到CasterCore
-    CASTER::Register_Base_Record(_login_mpt.c_str(), "SYSTEM", _connect_key.c_str(), Caster_Register_Callback, this);
-    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 3, 0);
+    CASTER::Register_Base_Record(_login_mpt.c_str(), "SYSTEM", _connect_key.c_str(), Caster_Register_Callback, this, CasterRegisterType::PULL_MPT);
+    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 0);
 
     return 0;
 }

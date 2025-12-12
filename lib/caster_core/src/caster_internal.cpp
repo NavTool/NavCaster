@@ -125,6 +125,14 @@ bool caster_internal::is_nearest_mpt(std::string mount_point)
     return false;
 }
 
+bool caster_internal::is_alias_mpt(std::string mount_point)
+{
+
+    // 从alias列表中查找
+
+    return false;
+}
+
 int caster_internal::sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
     try
@@ -189,7 +197,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
     return 0;
 }
 
-int caster_internal::sub_base_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
+int caster_internal::sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
 {
     // 查找是否是已经订阅过最近基站
     auto find = _base_near_sub_map.find(connect_key);
@@ -216,6 +224,76 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
     // 添加一个查询，查询最近的站点
 
     redisAsyncCommand(_pub_context, Redis_Geo_Radius_Callback, ptr, "GEORADIUS MPT:GEO %s %s 100 KM WITHDIST ASC", std::to_string(lon).c_str(), std::to_string(lat).c_str());
+
+    return 0;
+}
+
+int caster_internal::sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+{
+    // 先从别名映射表中查找实体基站列表
+
+    // 找到一个可用的基站进行订阅
+
+    // 返回订阅列表
+
+    try
+    {
+        if (_active_mount_map.find(channel) == _active_mount_map.end()) // 不是活跃频道
+        {
+            catser_reply Reply;
+            Reply.type = CasterReply::ERR;
+            Reply.str = "Can't Find Sub Base Recored";
+            cb(NULL, arg, &Reply);
+            return 1;
+        }
+
+        auto find = _base_sub_map.find(channel);
+        if (find == _base_sub_map.end())
+        {
+            // 还没有订阅频道，添加订阅
+            redisAsyncCommand(_sub_context, Redis_SUB_Base_Callback, this, "SUBSCRIBE MPT:%s", channel);
+            std::unordered_map<std::string, caster_cb_item> channel_subs;
+            _base_sub_map.insert(std::pair<std::string, std::unordered_map<std::string, caster_cb_item>>(channel, channel_subs));
+
+            // 由于该频道是此节点的第一次订阅，因此发送一次激活函数
+            send_status_base_channel(channel, "", CasterReply::ACTIVE, "First subscribe in one Caster Node");
+        }
+        find = _base_sub_map.find(channel);
+
+        // 更新订阅者列表
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SUB:%s EX %s FIELDS 1 %s %s",
+                          channel,
+                          std::to_string(_key_expire_time).c_str(),
+                          connect_key,
+                          util_get_time_stamp_str().c_str());
+
+        caster_cb_item cb_item;
+        cb_item.connect_key = connect_key;
+        cb_item.channel = channel;
+        cb_item.user_name = user_name;
+        cb_item.cb = cb;
+        cb_item.arg = arg;
+        find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
+
+        // 更新用户订阅的挂载点信息
+        auto item = _rover_status_map.find(connect_key);
+        if (item != _rover_status_map.end())
+        {
+            item->second.set_alias_mpt(channel);
+        }
+
+        catser_reply Reply;
+        Reply.type = CasterReply::OK;
+        Reply.str = channel;
+        cb(NULL, arg, &Reply);
+    }
+    catch (const std::exception &e)
+    {
+        catser_reply Reply;
+        Reply.type = CasterReply::ERR;
+        Reply.str = e.what();
+        cb(NULL, arg, &Reply);
+    }
 
     return 0;
 }
@@ -420,12 +498,11 @@ int caster_internal::check_redis_connection()
     return 0;
 }
 
-int caster_internal::update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int type, int state)
+int caster_internal::update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
 {
     auto stat_item = _base_status_map.find(connect_key);
     if (stat_item != _base_status_map.end())
     {
-        stat_item->second.set_type(type);
         stat_item->second.set_alias_mpt(alias_mpt);
     }
 
@@ -867,7 +944,7 @@ int caster_internal::upload_record_item()
     {
         for (auto str : _base_status_map)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str(0).c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str().c_str());
         }
     }
 
@@ -875,7 +952,7 @@ int caster_internal::upload_record_item()
     {
         for (auto str : _rover_status_map)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str(1).c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str().c_str());
         }
     }
 
@@ -1161,7 +1238,7 @@ int caster_internal::relay_register_callback(RelayCallback cb, void *arg)
     return 0;
 }
 
-int caster_internal::register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int caster_internal::register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
 {
     // 查询要注册的频道
     auto find = _base_register_map.find(channel);
@@ -1176,12 +1253,12 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     try
     {
         // 创建一条新的stream记录
-        str_status str(channel, channel, 1, user_name, connect_key);
+        str_status str(channel, type, user_name, connect_key, false);
         _base_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
         // // 向云端插入记录
         if (_upload_base_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str(0).c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str().c_str());
         }
 
         // 将cb注册回调记录到本地
@@ -1226,7 +1303,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     return 0;
 }
 
-int caster_internal::register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int caster_internal::register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
 {
     // 查询要注册的频道
     auto find = _rover_register_map.find(user_name);
@@ -1241,12 +1318,12 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
     try
     {
         // 创建一条新的stream记录
-        str_status str(channel, channel, 1, user_name, connect_key);
+        str_status str(channel, type, user_name, connect_key, true);
         _rover_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
         // 向云端插入记录
         if (_upload_rover_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str(1).c_str()); // 更新挂载点数据生产者的更新时间
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str().c_str()); // 更新挂载点数据生产者的更新时间
         }
 
         // 将cb注册回调记录到本地
@@ -2324,13 +2401,35 @@ void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, s
     clientPort = hexToDec(hexPort2);
 }
 
-str_status::str_status(std::string login_mpt, std::string alias_mpt, int type, std::string user_name, std::string connect_key)
+str_status::str_status(std::string login_mpt, CasterRegisterType type, std::string user_name, std::string connect_key, bool is_rover)
 {
+    _is_rover = is_rover;
+
     _UID = connect_key;
     _login_mpt = login_mpt;
-    _alias_mpt = alias_mpt;
-    _type = type;
     _account = user_name;
+
+    switch (type)
+    {
+    case CasterRegisterType::NORMAL:
+        _type = 1;
+        break;
+    case CasterRegisterType::NEAREST_MPT:
+        _type = 2;
+        break;
+    case CasterRegisterType::ALIAS_MPT:
+        _type = 7;
+        break;
+    case CasterRegisterType::PULL_MPT:
+        _type = 3;
+        break;
+    case CasterRegisterType::PUSH_USR:
+        _type = 3;
+        break;
+    default:
+        _type = 0;
+        break;
+    }
 
     std::string server_ip;
     int server_port;
@@ -2378,12 +2477,6 @@ int str_status::add_send(int size)
     return 0;
 }
 
-int str_status::set_type(int type)
-{
-    _type = type;
-    return 0;
-}
-
 int str_status::set_alias_mpt(std::string alias_mpt)
 {
     _alias_mpt = alias_mpt;
@@ -2407,9 +2500,8 @@ int str_status::set_position_info(int quality, int sat_num, double diff)
     return 0;
 }
 
-std::string str_status::get_status_str(int type)
+std::string str_status::get_status_str()
 {
-
     // 强制刷新一次速度
     add_recv(0);
     add_send(0);
@@ -2440,7 +2532,7 @@ std::string str_status::get_status_str(int type)
 
     info["update_time"] = _update_time;
 
-    if (type == 1)
+    if (_is_rover)
     {
         info["quality"] = _quality;
         info["sat_num"] = _sat_num;

@@ -1,10 +1,10 @@
-#include "client_near.h"
+#include "client_alias.h"
 #include "knt.h"
 #include <iostream>
 
-#define __class__ "client_near"
+#define __class__ "client_alias"
 
-client_near::client_near(json req, bufferevent *bev)
+client_alias::client_alias(json req, bufferevent *bev)
 {
     _conf = req["Settings"];
     _info = req;
@@ -16,6 +16,9 @@ client_near::client_near(json req, bufferevent *bev)
     if (_info["ntrip_version"] == "Ntrip/2.0")
     {
         _NtripVersion2 = true;
+    }
+    if (_info["http_chunked"] == "chunked")
+    {
         _transfer_with_chunked = true;
     }
 
@@ -30,7 +33,7 @@ client_near::client_near(json req, bufferevent *bev)
     _unsend_byte_limit = _conf["Unsend_Byte_Limit"];
 }
 
-client_near::~client_near()
+client_alias::~client_alias()
 {
     // auto fd = bufferevent_getfd(_bev);
     // evutil_closesocket(fd);
@@ -41,7 +44,7 @@ client_near::~client_near()
     spdlog::info("[{}]:delete user [{}], using mount [{}], addr:[{}:{}]", __class__, _user_name, _mount_point, _ip, _port);
 }
 
-int client_near::start()
+int client_alias::start()
 {
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
@@ -50,7 +53,7 @@ int client_near::start()
     return 0;
 }
 
-int client_near::runing()
+int client_alias::runing()
 {
     bufferevent_enable(_bev, EV_READ);
 
@@ -70,15 +73,13 @@ int client_near::runing()
         _timeout_ev_flag = true;
     }
 
-    // // 添加一个请求，订阅指定频道数据
-    // CASTER::Sub_Base_Raw_Data(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Sub_Callback, this);
-    spdlog::info("[{}]: user [{}] is login, using mount [{}], addr:[{}:{}]", __class__, _user_name, _mount_point, _ip, _port);
-    bev_send_reply();
+    // 添加一个请求，订阅指定频道数据
+    CASTER::Sub_Alias_Raw_Data(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Sub_Callback, this);
 
     return 0;
 }
 
-int client_near::stop()
+int client_alias::stop()
 {
 
     if (_timeout_ev_flag == true)
@@ -92,11 +93,11 @@ int client_near::stop()
 
     json close_req;
     close_req["origin_req"] = _info;
-    close_req["req_type"] = CLOSE_NEAREST_CLIENT;
+    close_req["req_type"] = CLOSE_NTRIP_CLIENT;
     QUEUE::Push(close_req);
 
-    CASTER::Unsub_Base_Raw_Data(_inter_mpt.c_str(), _connect_key.c_str());
     CASTER::Withdraw_Rover_Record(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str());
+    CASTER::Unsub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str());
 
     AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), AuthType::CLIENT);
 
@@ -104,7 +105,7 @@ int client_near::stop()
 
     return 0;
 }
-int client_near::bev_send_reply()
+int client_alias::bev_send_reply()
 {
     if (_NtripVersion2)
     {
@@ -116,7 +117,10 @@ int client_near::bev_send_reply()
         evbuffer_add_printf(_send_evbuf, "Pragma: no-cache\r\n");
         evbuffer_add_printf(_send_evbuf, "Connection: close\r\n");
         evbuffer_add_printf(_send_evbuf, "Content-Type: gnss/data\r\n");
-        evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
+        if (_transfer_with_chunked)
+        {
+            evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
+        }
         evbuffer_add_printf(_send_evbuf, "\r\n");
     }
     else
@@ -129,16 +133,16 @@ int client_near::bev_send_reply()
     return 0;
 }
 
-void client_near::ReadCallback(bufferevent *bev, void *arg)
+void client_alias::ReadCallback(bufferevent *bev, void *arg)
 {
-    auto svr = static_cast<client_near *>(arg);
+    auto svr = static_cast<client_alias *>(arg);
     bufferevent_read_buffer(bev, svr->_recv_evbuf);
     svr->publish_recv_raw_data();
 }
 
-void client_near::EventCallback(bufferevent *bev, short events, void *arg)
+void client_alias::EventCallback(bufferevent *bev, short events, void *arg)
 {
-    auto svr = static_cast<client_near *>(arg);
+    auto svr = static_cast<client_alias *>(arg);
 
     spdlog::info("[{}:{}]: {}{}{}{}{}{} , user [{}], mount [{}], addr:[{}:{}]",
                  __class__, __func__,
@@ -152,9 +156,9 @@ void client_near::EventCallback(bufferevent *bev, short events, void *arg)
     svr->stop();
 }
 
-void client_near::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
+void client_alias::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
-    auto *svr = static_cast<client_near *>(arg);
+    auto *svr = static_cast<client_alias *>(arg);
     // 定时函数已经被停止，该次调用不处理
     if (svr->_timeout_ev_flag == false)
     {
@@ -164,7 +168,7 @@ void client_near::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
     svr->update_tcp_delay_info();
 }
 
-int client_near::transfer_sub_raw_data(const char *data, size_t length)
+int client_alias::transfer_sub_raw_data(const char *data, size_t length)
 {
     auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
 
@@ -190,7 +194,7 @@ int client_near::transfer_sub_raw_data(const char *data, size_t length)
     return 0;
 }
 
-int client_near::publish_recv_raw_data()
+int client_alias::publish_recv_raw_data()
 {
     size_t length = evbuffer_get_length(_recv_evbuf);
     char *data = new char[length + 1];
@@ -206,47 +210,25 @@ int client_near::publish_recv_raw_data()
                                      _str_decoder._position_update_time,
                                      _str_decoder._quality,
                                      _str_decoder._sat_num, _str_decoder._diff);
-
-        try_sub_near_station();
     }
 
     delete[] data;
     return 0;
 }
 
-int client_near::try_sub_near_station()
-{
-    // 已完成坐标解析，检索最近基站
-    double distance = util_dist3d(_ecef_x, _ecef_y, _ecef_z,
-                                  _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z);
-
-    if (distance > 1000.0) // 判断旧的坐标和新的坐标的距离差异是否超过1km，如果已经超过，那就触发订阅函数
-    {
-        _ecef_x = _str_decoder._ecef_x;
-        _ecef_y = _str_decoder._ecef_y;
-        _ecef_z = _str_decoder._ecef_z;
-
-        // 调用GEO命令查询最近基站
-        double lat = 0.0, lon = 0.0, alt = 0.0;
-        util_ecef2pos(_str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z, lat, lon, alt);
-        CASTER::Sub_Near_Raw_Data(_inter_mpt.c_str(), lat, lon, _user_name.c_str(), _connect_key.c_str(), Caster_Sub_Callback, this);
-    }
-    return 0;
-}
-
-int client_near::update_tcp_delay_info()
+int client_alias::update_tcp_delay_info()
 {
     return CASTER::Set_Rover_Delay_Info(_user_name.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
 }
 
-void client_near::Auth_Login_Callback(const char *request, void *arg, auth_reply *reply)
+void client_alias::Auth_Login_Callback(const char *request, void *arg, auth_reply *reply)
 {
-    auto svr = static_cast<client_near *>(arg);
+    auto svr = static_cast<client_alias *>(arg);
 
     switch (reply->type)
     {
     case AuthReply::OK:
-        CASTER::Register_Rover_Record(svr->_mount_point.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr,CasterRegisterType::NEAREST_MPT);
+        CASTER::Register_Rover_Record(svr->_mount_point.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr,CasterRegisterType::ALIAS_MPT);
         break;
     case AuthReply::ERR:
         spdlog::info("[{}:{}]: AUTH_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
@@ -266,10 +248,9 @@ void client_near::Auth_Login_Callback(const char *request, void *arg, auth_reply
     // }
 }
 
-
-void client_near::Caster_Register_Callback(const char *request, void *arg, catser_reply *reply)
+void client_alias::Caster_Register_Callback(const char *request, void *arg, catser_reply *reply)
 {
-    auto svr = static_cast<client_near *>(arg);
+    auto svr = static_cast<client_alias *>(arg);
     switch (reply->type)
     {
     case CasterReply::OK:
@@ -290,9 +271,9 @@ void client_near::Caster_Register_Callback(const char *request, void *arg, catse
     }
 }
 
-void client_near::Caster_Sub_Callback(const char *request, void *arg, catser_reply *reply)
+void client_alias::Caster_Sub_Callback(const char *request, void *arg, catser_reply *reply)
 {
-    auto svr = static_cast<client_near *>(arg);
+    auto svr = static_cast<client_alias *>(arg);
 
     if (reply->type == CasterReply::STRING)
     {
@@ -300,23 +281,13 @@ void client_near::Caster_Sub_Callback(const char *request, void *arg, catser_rep
     }
     else if (reply->type == CasterReply::OK)
     {
-        svr->_inter_mpt = reply->str;
-        svr->_find_nearest = true;
-        spdlog::info("[{}:{}]: user [{}] is start recv [{}]'s data, distance {} km, using mount [{}], addr:[{}:{}]", __class__, __func__, svr->_user_name, svr->_inter_mpt, reply->dval, svr->_mount_point, svr->_ip, svr->_port);
+        spdlog::info("[{}]: user [{}] is login, using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
+
+        svr->bev_send_reply();
     }
     else if (reply->type == CasterReply::ERR)
     {
         spdlog::info("[{}:{}]: CASTER_REPLY_ERR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
-
-        // 当弹出Error的时候，要尝试一次寻找最近的挂载点，寻找不到才会真的下线
-        if (svr->_find_nearest)
-        {
-            svr->_find_nearest = false;
-            svr->try_sub_near_station();
-        }
-        else
-        {
-            svr->stop();
-        }
+        svr->stop();
     }
 }

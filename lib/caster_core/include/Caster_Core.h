@@ -39,10 +39,10 @@ struct catser_reply
 enum class CasterBroadcastType
 {
     UNKNOWN = 0,
-    BASE_STATUS_UPDATE, // 基站状态更新
+    BASE_STATUS_UPDATE,  // 基站状态更新
     BASE_REGISTER,       // 基站上线
     BASE_WITHDRAW,       // 基站下线
-    ROVER_STATUS_UPDATE,// 移动站状态更新
+    ROVER_STATUS_UPDATE, // 移动站状态更新
     ROVER_REGISTER,      // 用户上线
     ROVER_WITHDRAW,      // 用户下线
     RELAY_PULL_ACTIVE,   // 激活数据接入任务
@@ -51,6 +51,15 @@ enum class CasterBroadcastType
     PROXY_PUSH_ACTIVE,   // 激活数据推送任务
     PROXY_PUSH_INACTIVE  // 关闭数据推送任务
 
+};
+
+enum class CasterRegisterType
+{
+    NORMAL = 1,
+    NEAREST_MPT, // 最近挂载点模式
+    ALIAS_MPT,   // 别名挂载点模式
+    PULL_MPT,    // 拉取模式
+    PUSH_USR     // 推送模式
 };
 
 struct mount_info
@@ -104,8 +113,10 @@ namespace CASTER
     // 检测是否是最近挂载点模式
     bool Check_Nearest_Mpt(const char *mount_point);
 
+    bool Check_Alias_Mpt(const char *mount_point);
+
     // 将基站注册到Caster中（Server上线的时候主动调用）
-    int Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
     // 将基站从Caster中注销（Server下线的时候主动调用）
     int Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布基站数据
@@ -113,7 +124,9 @@ namespace CASTER
     // 订阅基站数据
     int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 最近点基站模式
-    int Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    // 订阅基站数据
+    int Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅基站数据
     int Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key);
     // 设置基站坐标信息
@@ -121,13 +134,13 @@ namespace CASTER
     // 设置基站连接延迟信息
     int Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay);
 
-    int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int type, int state);
+    int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
     // 将移动站注册到Caster中（Client上线的时候主动调用）
-    int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg,CasterRegisterType type);
     // 将移动站从Caster中注销（Client下线的时候主动调用）
     int Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布移动站数据
@@ -148,10 +161,10 @@ namespace CASTER
 
     // 管理用函数---------------------------------------------------------------------------------------------------------
 
-    //  主动停止指定的基站
-    int Stop_One_Base(const char *mount_point, const char *connect_key, const char *reason);
-    // 主动停止指定的移动站
-    int Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason);
+    // //  主动停止指定的基站
+    // int Stop_One_Base(const char *mount_point, const char *connect_key, const char *reason);
+    // // 主动停止指定的移动站
+    // int Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason);
 
     // 更新用户位置信息，将用户的信息上报到Caster_Core
 

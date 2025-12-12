@@ -355,6 +355,10 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
         {
             req["req_type"] = REQUEST_NEAREST_LOGIN;
         }
+        else if (CASTER::Check_Alias_Mpt(mount.c_str()))
+        {
+            req["req_type"] = REQUEST_ALIAS_LOGIN;
+        }
         else
         {
             req["req_type"] = REQUEST_CLIENT_LOGIN;
@@ -391,6 +395,24 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
     req["mount_para"] = extract_para(url);
     req["req_type"] = REQUEST_SERVER_LOGIN;
 
+    //  查找是否是最近挂载点
+    if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
+    {
+        // 已经定义为最近挂载点，不允许实体基站以该挂载点登录
+        erase_and_free_bev(nullptr, connect_key);
+        return 2;
+    }
+    else if (CASTER::Check_Alias_Mpt(extract_path(url).c_str()))
+    {
+        // 已经定义为别名挂载点，不允许实体基站以该挂载点登录
+        erase_and_free_bev(nullptr, connect_key);
+        return 3;
+    }
+    else
+    {
+        req["req_type"] = REQUEST_CLIENT_LOGIN;
+    }
+
     std::string userID = req["user_baseID"];
     std::string user_name = req["user_name"];
     std::string user_pwd = req["user_pwd"];
@@ -411,7 +433,23 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
     json req = decode_bufferevent_req(bev, connect_key);
     req["mount_point"] = extract_path(url);
     req["mount_para"] = extract_para(url);
-    req["req_type"] = REQUEST_SERVER_LOGIN;
+    //  查找是否是最近挂载点
+    if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
+    {
+        // 已经定义为最近挂载点，不允许实体基站以该挂载点登录
+        erase_and_free_bev(nullptr, connect_key);
+        return 2;
+    }
+    else if (CASTER::Check_Alias_Mpt(extract_path(url).c_str()))
+    {
+        // 已经定义为别名挂载点，不允许实体基站以该挂载点登录
+        erase_and_free_bev(nullptr, connect_key);
+        return 3;
+    }
+    else
+    {
+        req["req_type"] = REQUEST_CLIENT_LOGIN;
+    }
 
     std::string pwd = secret;
     if (pwd != "")

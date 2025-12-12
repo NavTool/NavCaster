@@ -230,9 +230,14 @@ bool CASTER::Check_Nearest_Mpt(const char *mount_point)
     return caster_internal::getInstance()->is_nearest_mpt(mount_point);
 }
 
-int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+bool CASTER::Check_Alias_Mpt(const char *mount_point)
 {
-    return caster_internal::getInstance()->register_base_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->is_alias_mpt(mount_point);
+}
+
+int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
+{
+    return caster_internal::getInstance()->register_base_channel(mount_point, user_name, connect_key, cb, arg, type);
 }
 
 int CASTER::Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key)
@@ -250,9 +255,14 @@ int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, co
     return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, connect_key, cb, arg);
 }
 
-int CASTER::Sub_Base_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int CASTER::Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
-    return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, lat, lon, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_near_channel(mount_point, user_name, lat, lon, connect_key, cb, arg);
+}
+
+int CASTER::Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+{
+    return caster_internal::getInstance()->sub_alias_channel(mount_point, user_name, connect_key, cb, arg);
 }
 
 int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key)
@@ -260,24 +270,10 @@ int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key
     return caster_internal::getInstance()->unsub_base_channel(mount_point, connect_key);
 }
 
-int CASTER::Stop_One_Base(const char *mount_point, const char *connect_key, const char *reason)
+
+int CASTER::Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
 {
-    return caster_internal::getInstance()->send_status_base_channel(mount_point, connect_key, CasterReply::ERR, reason);
-}
-
-// int CASTER::Check_Base_Online(const char *mount_point, CasterCallback cb, void *arg)
-// {
-//     return 0;
-// }
-
-// int CASTER::Get_Base_Record(const char *mount_point, CasterCallback cb, void *arg)
-// {
-//     return 0;
-// }
-
-int CASTER::Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
-{
-    return caster_internal::getInstance()->register_rover_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->register_rover_channel(mount_point, user_name, connect_key, cb, arg, type);
 }
 
 int CASTER::Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key)
@@ -300,10 +296,7 @@ int CASTER::Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key)
     return caster_internal::getInstance()->unsub_rover_channel(user_name, connect_key);
 }
 
-int CASTER::Stop_One_Rover(const char *user_name, const char *connect_key, const char *reason)
-{
-    return caster_internal::getInstance()->send_status_rover_channel(user_name, connect_key, CasterReply::ERR, reason);
-}
+
 
 int CASTER::Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info)
 {
@@ -370,9 +363,9 @@ int CASTER::Set_Base_Delay_Info(const char *mount_point, const char *connect_key
     return caster_internal::getInstance()->set_base_delay_info(mount_point, connect_key, delay);
 }
 
-int CASTER::Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int type,int state)
+int CASTER::Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
 {
-    return caster_internal::getInstance()->update_pull_base_info(mount_point, alias_mpt, connect_key,type, state);
+    return caster_internal::getInstance()->update_pull_base_info(mount_point, alias_mpt, connect_key, state);
 }
 
 int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff)

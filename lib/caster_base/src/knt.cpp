@@ -4,7 +4,6 @@
 #include <iomanip>
 #include <chrono>
 
-
 // #include <unistd.h>
 #include <sstream>
 #ifdef WIN32
@@ -22,7 +21,6 @@
 #include <sys/resource.h>
 #endif
 
-
 #include <stdint.h>
 
 #if defined(_WIN32)
@@ -33,8 +31,6 @@
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #endif
-
-
 
 #include <random>
 
@@ -392,12 +388,11 @@ std::string util_generate_random_key(int length)
 
 int64_t util_get_tcp_delay(util_socket_t sockfd)
 {
-    #if defined(_WIN32)
+#if defined(_WIN32)
 
     // Windows 平台
     TCP_INFO_v0 info;
-    DWORD bytes = sizeof(info);  // 必须是 sizeof(TCP_INFO_v0)
-
+    DWORD bytes = sizeof(info); // 必须是 sizeof(TCP_INFO_v0)
 
     if (WSAIoctl(
             sockfd,
@@ -430,5 +425,3 @@ int64_t util_get_tcp_delay(util_socket_t sockfd)
 
 #endif
 }
-
-

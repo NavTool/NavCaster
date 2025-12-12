@@ -66,7 +66,7 @@ int auth_internal::verify(const char *user_name, const char *user_pwd, VerifyCal
         // 自动注册一个匿名账户
         redisAsyncCommand(_pub_context, Redis_Add_Temp_Callback, ctx, "HSET ACT:UNNAMED %s %s", user_name, util_get_time_stamp_str().c_str());
     }
-    else if(type == AuthType::SOURCE)
+    else if (type == AuthType::SOURCE)
     {
         // 数据源登录，不验证密码，直接返回成功
         auth_reply Reply;
@@ -362,8 +362,20 @@ int auth_internal::upload_record_item()
     return 0;
 }
 
-int auth_internal::send_change_auth_status(const char *user_name, const char *connect_key, AuthReply type, const char *reason)
+int auth_internal::send_change_auth_status(const char *user_name, const char *connect_key, AuthReply status, const char *reason)
 {
+    // 向redis发布广播
+    auth_broadcast_item item;
+
+    item.type = AuthBroadcastType::ACCOUNT_STATUS_UPDATE;
+    item.channel = user_name;
+    item.connect_key = connect_key;
+    item.Para = "";
+    item.status = status;
+    item.reason = reason;
+
+    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH AUTH:BROADCAST %s", item.toString().c_str());
+
     return 0;
 }
 
@@ -611,6 +623,12 @@ void auth_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *p
         return;
     }
 
+    // 为了避免已经写入记录，这里需要先删除原有的记录
+    auto find = auth_internal::getInstance()->_register_limit_map.find(ctx->user_name);
+    if (find != auth_internal::getInstance()->_register_limit_map.end())
+    {
+        auth_internal::getInstance()->_register_limit_map.erase(find);
+    }
     auth_internal::getInstance()->_register_limit_map.insert(std::pair<std::string, auth_limit>(ctx->user_name, active_info));
     // 解析查询到的信息,存储到本地
 
@@ -704,7 +722,7 @@ void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void
     }
     catch (const std::exception &e)
     {
-        auth_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.begin()->second.c_str(), AuthReply::ERR, e.what()); //
+        auth_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), ctx->connect_key.c_str(), AuthReply::ERR, e.what()); //
     }
 
     delete ctx;
