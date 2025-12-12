@@ -1254,6 +1254,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     {
         // 创建一条新的stream记录
         str_status str(channel, type, user_name, connect_key, false);
+        str.set_alias_mpt(channel); //  对于一般挂载点，alias挂载点和login一致
         _base_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
         // // 向云端插入记录
         if (_upload_base_stat)
@@ -1319,6 +1320,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
     {
         // 创建一条新的stream记录
         str_status str(channel, type, user_name, connect_key, true);
+        str.set_alias_mpt(channel); //  对于一般挂载点，alias挂载点和login一致
         _rover_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
         // 向云端插入记录
         if (_upload_rover_stat)
@@ -2346,6 +2348,13 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
             // 添加到新的订阅上去
             cb_item->channel = field;
             caster_internal::getInstance()->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg);
+
+            // 更新用户订阅的挂载点信息
+            auto item = caster_internal::getInstance()->_rover_status_map.find(cb_item->connect_key);
+            if (item != caster_internal::getInstance()->_rover_status_map.end())
+            {
+                item->second.set_alias_mpt(field);
+            }
 
             return;
         }
