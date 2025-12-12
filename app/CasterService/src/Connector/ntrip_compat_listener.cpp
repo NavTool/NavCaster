@@ -410,7 +410,7 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
     }
     else
     {
-        req["req_type"] = REQUEST_CLIENT_LOGIN;
+        req["req_type"] = REQUEST_SERVER_LOGIN;
     }
 
     std::string userID = req["user_baseID"];
