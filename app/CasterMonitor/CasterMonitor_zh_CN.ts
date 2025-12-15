@@ -1460,9 +1460,90 @@
 <context>
     <name>Page_Mpt_Push</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="9"/>
-        <source>数据推送 ( 开发中 )</source>
-        <oldsource>数据推送</oldsource>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="71"/>
+        <source>任务添加完成</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="79"/>
+        <source>任务已移除</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="86"/>
+        <source>任务已更新</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="194"/>
+        <source>Search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="322"/>
+        <source>挂载点名</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="323"/>
+        <source>推送地址</source>
+        <oldsource>数据地址</oldsource>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="324"/>
+        <source>任务状态</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="325"/>
+        <source>连接时长</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="326"/>
+        <source>Action</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="378"/>
+        <source>操作站点</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="386"/>
+        <source>站点详情</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="901"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="910"/>
+        <source>启动任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="917"/>
+        <source>停止任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="927"/>
+        <source>修改任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="944"/>
+        <source>删除任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="957"/>
+        <source>确认删除任务?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="961"/>
+        <source>删除</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -195,13 +195,13 @@ int ntrip_caster::periodic_task()
 {
     if (_output_state) // 输出状态信息
     {
-        spdlog::info("[Service Statistic]: Connection: {}, Server: {}, Client: {} ,Nearest: {} ,Pull: {} ,Push: {} , Use Memory: {} BYTE.",
+        spdlog::info("[Service Statistic]: Connection: {}, Server: {}, Client: {}, Pull: {}, Push: {}, Nearest: {}, Memory: {} BYTE.",
                      _connect_map.size() + _pull_map.size() + _push_map.size(),
                      _server_map.size(),
                      _client_map.size(),
-                     _near_map.size(),
                      _pull_map.size(),
                      _push_map.size(),
+                     _near_map.size(),
                      util_get_use_memory());
         spdlog::info("[CasterCore Status]: {}", CASTER::Get_Status());
 
@@ -488,7 +488,7 @@ int ntrip_caster::close_client_near(json req)
 
 int ntrip_caster::create_relay_pull(json req)
 {
-    std::string UID = req["login_mpt"];
+    std::string UID = req["UID"];
 
     auto item = _pull_map.find(UID);
     if (item != _pull_map.end())
@@ -536,15 +536,15 @@ int ntrip_caster::close_relay_pull(json req)
 
 int ntrip_caster::create_relay_push(json req)
 {
-    std::string UID = req["login_mpt"];
+    std::string UID = req["UID"];
 
     auto item = _push_map.find(UID);
     if (item != _push_map.end())
     {
         return 1; // 已经存在
     }
-    relay_pull *obj = new relay_pull(req, _base);
-    _push_map.insert(std::pair<std::string, relay_pull *>(UID, obj));
+    relay_push *obj = new relay_push(req, _base);
+    _push_map.insert(std::pair<std::string, relay_push *>(UID, obj));
     obj->start();
     return 0;
 }

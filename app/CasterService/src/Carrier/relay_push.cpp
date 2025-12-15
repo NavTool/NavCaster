@@ -126,17 +126,17 @@ int relay_push::stop()
     close_req["req_type"] = CLOSE_RELAY_PUSH;
     QUEUE::Push(close_req);
 
-    CASTER::Withdraw_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
+    CASTER::Withdraw_Rover_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
 
-    spdlog::info("[{}]: Relay Pull [{}] is stop, addr:[{}:{}]", __class__, _login_mpt, _target_ip, _target_port);
+    spdlog::info("[{}]: Relay Push [{}] is stop, addr:[{}:{}]", __class__, _login_mpt, _target_ip, _target_port);
 
     return 0;
 }
 
 int relay_push::retry()
 {
-    CASTER::Withdraw_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
-    CASTER::Set_Push_Base_Info(_login_mpt.c_str(), _target_mpt.c_str(), "", 0); // 更新PULL数据流状态
+    CASTER::Withdraw_Rover_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
+    CASTER::Set_Push_Rover_Info(_login_mpt.c_str(), _target_mpt.c_str(), "", 0); // 更新PUSH数据流状态
     // 清理当前上下文
     if (_bev != nullptr)
     {
@@ -377,7 +377,7 @@ void relay_push::Caster_Sub_Callback(const char *request, void *arg, catser_repl
     else if (reply->type == CasterReply::ERR)
     {
         spdlog::info("[{}:{}]: CASTER_REPLY_ERR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
-        svr->stop();
+        svr->retry();
     }
 }
 
@@ -470,8 +470,8 @@ int relay_push::request_new_relay_server()
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
     // 验证完成，注册数据流到CasterCore
-    CASTER::Register_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Register_Callback, this, CasterRegisterType::PULL_MPT);
-    CASTER::Set_Pull_Base_Info(_login_mpt.c_str(), _target_mpt.c_str(), "", 0);
+    CASTER::Register_Rover_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Register_Callback, this, CasterRegisterType::PUSH_USR);
+    CASTER::Set_Push_Rover_Info(_login_mpt.c_str(), _target_mpt.c_str(), "", 0);
 
     return 0;
 }

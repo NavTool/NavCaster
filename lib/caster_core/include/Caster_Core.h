@@ -137,7 +137,7 @@ namespace CASTER
 
     int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
-    int Set_Push_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+    int Set_Push_Rover_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
 
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)

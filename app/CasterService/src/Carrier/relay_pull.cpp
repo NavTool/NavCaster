@@ -219,7 +219,7 @@ int relay_pull::publish_data_from_chunk()
         if (!chunk_head_data)
         {
             spdlog::warn("[{}:{}: chunked data error,close connect! {},{},{}", __class__, __func__, _login_mpt, _target_ip, _target_port);
-            stop();
+            retry();
             return 1;
         }
         sscanf(chunk_head_data, "%zx", &chunk_head_size);

@@ -8,7 +8,7 @@ server_ntrip::server_ntrip(json req, bufferevent *bev)
     _connect_key = _info["connect_key"];
     _login_mpt = _info["mount_point"];
     _user_name = _info["user_name"];
-    int fd = bufferevent_getfd(_bev);
+    int fd = bufferevent_getfd(bev);
     _ip = util_get_user_ip(fd);
     _port = util_get_user_port(fd);
     if (_info["ntrip_version"] == "Ntrip/2.0")

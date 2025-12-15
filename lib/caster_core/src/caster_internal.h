@@ -352,6 +352,14 @@ private:
     event_base *_base;
 
 private:
+
+    // 全局状态，获取整个节点的负载信息
+    size_t _server_connection_count = 0; // 当前连接数   MPT:STAT
+    size_t _client_connection_count = 0; // 当前连接数   USR:STAT
+    size_t _pull_connection_count = 0;   // 当前连接数   STR:PULL:STAT
+    size_t _push_connection_count = 0;   // 当前连接数   STR:PUSH:STAT
+
+
     // 本地记录  这些数据只需要本地维护和上传，无需下载
 
     // 频道名(挂载点, 用户名)：[具体连接key:连接回调]
@@ -472,7 +480,6 @@ private:
 
     static void Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, void *r, void *privdata); // MPT:ALIAS
 
-
     // GRO查询回调
     static void Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, void *privdata);
 
@@ -480,6 +487,9 @@ private:
     static void Redis_Get_Hash_Field_Callback(redisAsyncContext *c, void *r, void *privdata);
     // 查询回调 (传入的privdata 类型 std::set<std::string> *
     static void Redis_Get_Set_Value_Callback(redisAsyncContext *c, void *r, void *privdata);
+
+    // 查询回调
+    static void Redis_Get_Hash_Lenth_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // ---------------------- Redis连接相关函数 --------------------------------------
 private:
@@ -557,10 +567,10 @@ private:
     std::unordered_map<std::string, relay_stat> _pull_stat_map; // 数据转发任务
     std::unordered_map<std::string, relay_stat> _push_stat_map; // 数据转发任务
 
-    int try_set_master_node();     // 尝试设置为主节点
-    int sync_cluster_state();      // 主节点同步全局信息到本地
+    int try_set_master_node();          // 尝试设置为主节点
+    int sync_cluster_state();           // 主节点同步全局信息到本地
     int relay_pull_task_distribution(); // 主节点执行：Relay任务分发
-        int relay_push_task_distribution(); // 主节点执行：Relay任务分发
+    int relay_push_task_distribution(); // 主节点执行：Relay任务分发
 
     // 清理已经失效的GEO节点信息（查询是否已经是在线的挂载点，不是那么直接删除）
 
@@ -587,7 +597,7 @@ private:
 
 public:
     int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
-    int update_push_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+    int update_push_rover_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
 private:
     // 上报任务执行状态

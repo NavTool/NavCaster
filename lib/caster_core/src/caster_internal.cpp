@@ -104,11 +104,15 @@ std::string caster_internal::get_status_str()
 {
 
     std::string str = "Connection: " +
-                      std::to_string(_active_mount_map.size() + _active_user_map.size()) +
-                      ", Active Server: " +
-                      std::to_string(_active_mount_map.size()) +
-                      ", Active Client: " +
-                      std::to_string(_active_user_map.size());
+                      std::to_string(_server_connection_count + _client_connection_count) +
+                      ", Server: " +
+                      std::to_string(_server_connection_count - _pull_connection_count) +
+                      ", Client: " +
+                      std::to_string(_client_connection_count - _push_connection_count) +
+                      ", Pull: " +
+                      std::to_string(_pull_connection_count) +
+                      ", Push: " +
+                      std::to_string(_push_connection_count);
 
     return str;
 
@@ -514,7 +518,7 @@ int caster_internal::update_pull_base_info(const char *mount_point, const char *
     return 0;
 }
 
-int caster_internal::update_push_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
+int caster_internal::update_push_rover_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
 {
     auto stat_item = _rover_status_map.find(connect_key);
     if (stat_item != _rover_status_map.end())
@@ -812,6 +816,10 @@ int caster_internal::upload_relay_status()
     {
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PULL:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.get_status_str().c_str());
     }
+    for (auto iter : _push_excute_stat_map)
+    {
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PUSH:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.get_status_str().c_str());
+    }
     return 0;
 }
 
@@ -997,10 +1005,86 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
 
 void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
+    // 将任务列表更新到本地
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL STR:PUSH:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL STR:PUSH:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    svr->_push_list_map.clear();
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+
+        // json转换成relay_item
+        relay_item item;
+        if (item.fromString(value))
+        {
+            // 解析失败
+            continue;
+        }
+        svr->_push_list_map.insert(std::pair<std::string, relay_item>(field, item));
+    }
 }
 
 void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
+    // 将任务状态更新到本地
+
+    // 筛选需要关闭，启动的任务，进行任务分发
+
+    // 将任务列表更新到本地
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL STR:PULL:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL STR:PULL:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    svr->_push_stat_map.clear();
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+
+        // json转换成relay_item
+        relay_stat item;
+        if (item.fromString(value))
+        {
+            // 解析失败
+            continue;
+        }
+        svr->_push_stat_map.insert(std::pair<std::string, relay_stat>(field, item));
+    }
 }
 
 int caster_internal::clear_overdue_item()
@@ -1126,6 +1210,11 @@ int caster_internal::download_active_item()
     redisAsyncCommand(_pub_context, Redis_Update_Nearest_Base_Callback, this, "HGETALL MPT:LIST:NEAREST");
     redisAsyncCommand(_pub_context, Redis_Update_Alias_Base_Callback, this, "HGETALL MPT:LIST:ALIAS");
     redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST");
+
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_server_connection_count, "HLEN MPT:STAT");
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_client_connection_count, "HLEN USR:STAT");
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_pull_connection_count, "HLEN STR:PULL:STAT");
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_push_connection_count, "HLEN STR:PUSH:STAT");
     return 0;
 }
 
@@ -2023,6 +2112,22 @@ void caster_internal::Redis_Get_Set_Value_Callback(redisAsyncContext *c, void *r
     {
         auto value = reply->element[i]->str; // 调试用
         set->insert(value);
+    }
+}
+
+void caster_internal::Redis_Get_Hash_Lenth_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto count = static_cast<size_t *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_INTEGER)
+    {
+        *count = static_cast<size_t>(reply->integer);
     }
 }
 
