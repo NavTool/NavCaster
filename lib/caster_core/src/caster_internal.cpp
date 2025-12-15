@@ -236,70 +236,64 @@ int caster_internal::sub_alias_channel(const char *channel, const char *user_nam
 {
     // 先从别名映射表中查找实体基站列表
 
-    // 找到一个可用的基站进行订阅
-
-    // 返回订阅列表
-
-    try
-    {
-        if (_active_mount_map.find(channel) == _active_mount_map.end()) // 不是活跃频道
-        {
-            catser_reply Reply;
-            Reply.type = CasterReply::ERR;
-            Reply.str = "Can't Find Sub Base Recored";
-            cb(NULL, arg, &Reply);
-            return 1;
-        }
-
-        auto find = _base_sub_map.find(channel);
-        if (find == _base_sub_map.end())
-        {
-            // 还没有订阅频道，添加订阅
-            redisAsyncCommand(_sub_context, Redis_SUB_Base_Callback, this, "SUBSCRIBE MPT:%s", channel);
-            std::unordered_map<std::string, caster_cb_item> channel_subs;
-            _base_sub_map.insert(std::pair<std::string, std::unordered_map<std::string, caster_cb_item>>(channel, channel_subs));
-
-            // 由于该频道是此节点的第一次订阅，因此发送一次激活函数
-            send_status_base_channel(channel, "", CasterReply::ACTIVE, "First subscribe in one Caster Node");
-        }
-        find = _base_sub_map.find(channel);
-
-        // 更新订阅者列表
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SUB:%s EX %s FIELDS 1 %s %s",
-                          channel,
-                          std::to_string(_key_expire_time).c_str(),
-                          connect_key,
-                          util_get_time_stamp_str().c_str());
-
-        caster_cb_item cb_item;
-        cb_item.connect_key = connect_key;
-        cb_item.channel = channel;
-        cb_item.user_name = user_name;
-        cb_item.cb = cb;
-        cb_item.arg = arg;
-        find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
-
-        // 更新用户订阅的挂载点信息
-        auto item = _rover_status_map.find(connect_key);
-        if (item != _rover_status_map.end())
-        {
-            item->second.set_alias_mpt(channel);
-        }
-
-        catser_reply Reply;
-        Reply.type = CasterReply::OK;
-        Reply.str = channel;
-        cb(NULL, arg, &Reply);
-    }
-    catch (const std::exception &e)
+    auto alias_rule = _alias_rule_map.find(channel);
+    if (alias_rule == _alias_rule_map.end())
     {
         catser_reply Reply;
         Reply.type = CasterReply::ERR;
-        Reply.str = e.what();
+        Reply.str = "Can't Find Alias Mount Point";
         cb(NULL, arg, &Reply);
+        return 1;
     }
 
-    return 0;
+    for (auto &alias_mpt : alias_rule->second)
+    {
+        // 查找这个基站是否在线
+        if (_active_mount_map.find(alias_mpt) == _active_mount_map.end())
+        {
+            continue;
+        }
+        else
+        {
+            // 判断这个挂载点和当前订阅的挂载点是同一个，那么就跳过
+            if (channel == alias_mpt)
+            {
+                // 已经订阅了这个挂载点，跳过
+                return 0;
+            }
+
+            // 如果不一致，要先把旧的订阅移除，然后添加到新的订阅上
+            // 查询当前connect_key是否已经有订阅站点，
+            auto sub_base_item = caster_internal::getInstance()->_base_sub_map.find(channel);
+            if (sub_base_item != caster_internal::getInstance()->_base_sub_map.end()) // 没有这个订阅记录
+            {
+                auto sub_item = sub_base_item->second.find(connect_key);
+                if (sub_item != sub_base_item->second.end())
+                {
+                    // 找到这个订阅记录，取消订阅
+                    caster_internal::getInstance()->_base_sub_map[channel].erase(connect_key);
+                }
+            }
+
+            // 更新用户订阅的挂载点信息
+            auto item = caster_internal::getInstance()->_rover_status_map.find(connect_key);
+            if (item != caster_internal::getInstance()->_rover_status_map.end())
+            {
+                item->second.set_alias_mpt(alias_mpt);
+            }
+
+            // 添加到新的订阅上去
+            return caster_internal::getInstance()->sub_base_channel(alias_mpt.c_str(), user_name, connect_key, cb, arg);
+        }
+    }
+
+    catser_reply Reply;
+    Reply.type = CasterReply::ERR;
+    Reply.str = "Can't Find Useful Alias Mount Point"; // 实际使用的挂载点
+    Reply.dval = 0.0;                                  // 距离
+    cb(NULL, arg, &Reply);
+
+    return 2;
 }
 
 int caster_internal::unsub_base_channel(const char *channel, const char *connect_key)
@@ -2605,16 +2599,16 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
                 }
             }
 
-            // 添加到新的订阅上去
-            cb_item->channel = field;
-            caster_internal::getInstance()->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg);
-
             // 更新用户订阅的挂载点信息
             auto item = caster_internal::getInstance()->_rover_status_map.find(cb_item->connect_key);
             if (item != caster_internal::getInstance()->_rover_status_map.end())
             {
                 item->second.set_alias_mpt(field);
             }
+
+            // 添加到新的订阅上去
+            cb_item->channel = field;
+            caster_internal::getInstance()->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg);
 
             return;
         }
