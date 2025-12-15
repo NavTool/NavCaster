@@ -361,6 +361,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _rover_register_map; // channel/connect_key/cb_arg
     std::unordered_map<std::string, caster_cb_item> _base_near_sub_map;                                   // 连接key/cb_arg
 
+    // 本节点维护的状态信息 挂载点解析的状态信息
     std::unordered_map<std::string, str_status> _base_status_map;  // connect_key/str_status  //基站的状态统计信息       MPT:STAT
     std::unordered_map<std::string, str_status> _rover_status_map; // connect_key/str_status  //移动站的状态统计信息     USR:STAT
     std::unordered_map<std::string, mount_info> _mount_map;        // Mount_Point // 挂载点名为XXXX-F1A6(虚拟挂载点名-本地连接第三方时采用的端口转为4位16进制)
@@ -372,7 +373,7 @@ private:
     std::unordered_map<std::string, std::string> _active_user_map;   // 在线用户名  用户基本信息                        USR:LIST:COMMON
 
     // ALIAS映射关系(如果实体基站不在线，检索一下映射基站，然后从映射的表里找一个当前在线的基站播发数据，如果离线了，那么就再次从这个映射表里找，找到就上线，找不到就下线)
-    std::unordered_map<std::string, std::set<std::string>> _alias_mapping_map; // 映射关系表             MPT:ALIAS
+    std::unordered_map<std::string, std::list<std::string>> _alias_rule_map; // 映射关系表             MPT:ALIAS
 
     std::string _source_list_text;
     std::string _alias_list_text;
@@ -469,6 +470,9 @@ private:
     static void Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取MPT:LIST:NEAREST
     static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取USR:LIST
 
+    static void Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, void *r, void *privdata); // MPT:ALIAS
+
+
     // GRO查询回调
     static void Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, void *privdata);
 
@@ -520,6 +524,7 @@ private:
 
     int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
     int download_active_item(); // 将云端记录的在线挂载点更新到本地
+    int download_alias_rule();  // 下载别名映射规则
 
     int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
     int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
@@ -554,7 +559,8 @@ private:
 
     int try_set_master_node();     // 尝试设置为主节点
     int sync_cluster_state();      // 主节点同步全局信息到本地
-    int relay_task_distribution(); // 主节点执行：Relay任务分发
+    int relay_pull_task_distribution(); // 主节点执行：Relay任务分发
+        int relay_push_task_distribution(); // 主节点执行：Relay任务分发
 
     // 清理已经失效的GEO节点信息（查询是否已经是在线的挂载点，不是那么直接删除）
 
@@ -581,6 +587,7 @@ private:
 
 public:
     int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+    int update_push_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
 private:
     // 上报任务执行状态

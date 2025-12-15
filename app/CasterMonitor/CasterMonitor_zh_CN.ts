@@ -1264,8 +1264,89 @@
 <context>
     <name>Page_Mpt_Alias</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="9"/>
-        <source>数据分发 ( 开发中 )</source>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="71"/>
+        <source>任务添加完成</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="79"/>
+        <source>任务已移除</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="86"/>
+        <source>任务已更新</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="194"/>
+        <source>Search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="322"/>
+        <source>挂载点名</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="323"/>
+        <source>数据地址</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="324"/>
+        <source>任务状态</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="325"/>
+        <source>连接时长</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="326"/>
+        <source>Action</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="378"/>
+        <source>操作站点</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="386"/>
+        <source>站点详情</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="675"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="684"/>
+        <source>启动任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="691"/>
+        <source>停止任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="702"/>
+        <source>修改任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="719"/>
+        <source>删除任务</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="732"/>
+        <source>确认删除任务?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="736"/>
+        <source>删除</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

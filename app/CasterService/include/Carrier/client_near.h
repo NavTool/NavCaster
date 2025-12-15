@@ -18,39 +18,42 @@ using json = nlohmann::json;
 class client_near
 {
 private:
-    json _info;
-    std::string _connect_key;
-    std::string _mount_point;
-    std::string _user_name;
-    std::string _ip;
-    int _port;
+    // 基本上下文 在构造函数的时候传入
+    json _info;                          // 原始请求
+    std::string _connect_key;            // 连接唯一标识
+    std::string _login_mpt;              // 登录的挂载点
+    std::string _user_name;              // 用户名
+    std::string _ip;                     // 用户IP
+    int _port;                           // 用户端口
+    bool _NtripVersion2 = false;         // 这个决定回复的消息是按照1.0还是2.0
+    bool _transfer_with_chunked = false; // 这个决定数据传输是否使用chunked编码，以及回复消息中是否包含Transfer-Encoding:chunked头(只有Ntrip2.0才会使用chunked编码)
 
+    json _conf; // 配置参数
     int _connect_timeout = 0;
-    int _unsend_byte_limit;
-
-    bool _NtripVersion2 = false;
-    bool _transfer_with_chunked = false;
-
-    json _conf;
+    int _unsend_byte_limit; // 未发送数据大小限制
 
     bufferevent *_bev;
-    timeval _bev_read_timeout_tv;
 
-    evbuffer *_send_evbuf;
-    evbuffer *_recv_evbuf;
-
-    // 定时器和定时事件
-    event *_timeout_ev;
-    timeval _timeout_tv;
-    bool _timeout_ev_flag = false; // 是否将timeout_ev注册到event_base的标记
-
-    decode_nmea _str_decoder;
-
-    std::string _inter_mpt;
-    bool _find_nearest=false;
+private:
+    // 内部成员变量
+    std::string _alias_mpt; // 实际使用的挂载点
     double _ecef_x = 0.0;
     double _ecef_y = 0.0;
     double _ecef_z = 0.0;
+    double _lon = 0.0;
+    double _lat = 0.0;
+
+    timeval _bev_read_timeout_tv;
+
+    evbuffer *_send_evbuf; // 发送缓冲区
+    evbuffer *_recv_evbuf; // 接收缓冲区
+
+    // 定时器和定时事件标识
+    bool _timeout_ev_flag = false; // 是否将timeout_ev注册到event_base的标记
+    event *_timeout_ev;
+    timeval _timeout_tv;
+
+    decode_nmea _str_decoder;
 
 public:
     client_near(json req, bufferevent *bev);

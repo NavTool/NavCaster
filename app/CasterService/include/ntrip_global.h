@@ -52,8 +52,11 @@
 #define UPDATE_RELAY_PULL 603    // 停止数据拉取
 #define CLOSE_RELAY_PULL 604   // 删除这个任务
 
-#define REQUEST_RELAY_PUSH 701 // 数据推送
-#define CLOSE_RELAY_PUSH 702
+#define REQUEST_RELAY_PUSH 701 // 数据拉取
+#define STOP_RELAY_PUSH 702    // 停止数据拉取
+#define UPDATE_RELAY_PUSH 703    // 停止数据拉取
+#define CLOSE_RELAY_PUSH 704   // 删除这个任务
+
 
 // 连接操作请求
 // #define CLOSE_NTRIP_SERVER 307

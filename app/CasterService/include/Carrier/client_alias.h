@@ -18,32 +18,37 @@ using json = nlohmann::json;
 class client_alias
 {
 private:
-    json _info;
-    std::string _connect_key;
-    std::string _mount_point;
-    std::string _user_name;
-    std::string _ip;
-    int _port;
+    // 基本上下文 在构造函数的时候传入
+    json _info;                          // 原始请求
+    std::string _connect_key;            // 连接唯一标识
+    std::string _login_mpt;              // 登录的挂载点
+    std::string _user_name;              // 用户名
+    std::string _ip;                     // 用户IP
+    int _port;                           // 用户端口
+    bool _NtripVersion2 = false;         // 这个决定回复的消息是按照1.0还是2.0
+    bool _transfer_with_chunked = false; // 这个决定数据传输是否使用chunked编码，以及回复消息中是否包含Transfer-Encoding:chunked头(只有Ntrip2.0才会使用chunked编码)
 
+    json _conf; // 配置参数
     int _connect_timeout = 0;
-    int _unsend_byte_limit;
-
-    bool _NtripVersion2 = false;
-    bool _transfer_with_chunked = false;
-
-    json _conf;
+    int _unsend_byte_limit; // 未发送数据大小限制
 
     bufferevent *_bev;
-    timeval _bev_read_timeout_tv;
 
-    evbuffer *_send_evbuf;
-    evbuffer *_recv_evbuf;
+private:
+    // 内部成员变量
+    std::string _alias_mpt; // 实际使用的挂载点
 
-    // 定时器和定时事件
+    timeval _bev_read_timeout_tv; // bev读超时定时器
+
+    evbuffer *_send_evbuf; // 发送缓冲区
+    evbuffer *_recv_evbuf; // 接收缓冲区
+
+    // 定时器和定时事件标识
+    bool _timeout_ev_flag = false; // 是否将timeout_ev注册到event_base的标记
     event *_timeout_ev;
     timeval _timeout_tv;
-    bool _timeout_ev_flag=false; //是否将timeout_ev注册到event_base的标记
 
+    // 解码器
     decode_nmea _str_decoder;
 
 public:
@@ -65,7 +70,6 @@ private:
     static void ReadCallback(struct bufferevent *bev, void *arg);
     static void EventCallback(struct bufferevent *bev, short events, void *arg);
     static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
-
 
     static void Auth_Login_Callback(const char *request, void *arg, auth_reply *reply);
     static void Caster_Register_Callback(const char *request, void *arg, catser_reply *reply);

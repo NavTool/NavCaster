@@ -94,6 +94,11 @@ private:
     int update_relay_pull(json req);
     int close_relay_pull(json req);
 
+    int create_relay_push(json req); // 用Ntrip协议登录的用户(最近挂载点)
+    int stop_relay_push(json req);   // 用Ntrip协议登录的用户(最近挂载点)
+    int update_relay_push(json req);
+    int close_relay_push(json req);
+
     // 请求处理失败，关闭连接
     int close_unsuccess_req_connect(json req);
 
@@ -109,8 +114,8 @@ private:
     std::unordered_map<std::string, source_ntrip *> _source_map; // Connect_Key,source_ntrip
 
     std::unordered_map<std::string, client_near *> _near_map; // Connect_Key,client_near
-    std::unordered_map<std::string, relay_pull_item *> _pull_map;  // Connect_Key,relay_pull
-    std::unordered_map<std::string, relay_pull_item *> _push_map;  // Connect_Key,relay_pull
+    std::unordered_map<std::string, relay_pull *> _pull_map;  // Connect_Key,relay_pull
+    std::unordered_map<std::string, relay_pull *> _push_map;  // Connect_Key,relay_pull
 
 private:
     event_base *_base;

@@ -4,10 +4,9 @@
 
 #define __class__ "relay_pull"
 
-relay_pull_item::relay_pull_item(json info, event_base *base)
+relay_pull::relay_pull(json info, event_base *base)
 {
     _info = info;
-
     _login_mpt = info["login_mpt"];
     _type = info["type"];
     _target_ip = info["target_ip"];
@@ -15,6 +14,8 @@ relay_pull_item::relay_pull_item(json info, event_base *base)
     _target_mpt = info["target_mpt"];
     _target_account = info["target_account"];
     _target_password = info["target_password"];
+
+    _connect_timeout = 0;
 
     _base = base;
 
@@ -25,7 +26,7 @@ relay_pull_item::relay_pull_item(json info, event_base *base)
     _timeout_ev = event_new(_base, -1, EV_PERSIST, TimeoutCallback, this);
 }
 
-relay_pull_item::~relay_pull_item()
+relay_pull::~relay_pull()
 {
 
     evbuffer_free(_send_evbuf);
@@ -34,12 +35,11 @@ relay_pull_item::~relay_pull_item()
     event_free(_reconnect_ev);
     event_free(_timeout_ev);
 
-    spdlog::info("[{}]: delete mount [{}], addr:[{}:{}]", __class__, _mount_point, _target_ip, _target_port);
+    spdlog::info("[{}]: delete mount [{}], addr:[{}:{}]", __class__, _login_mpt, _target_ip, _target_port);
 }
 
-int relay_pull_item::start()
+int relay_pull::start()
 {
-
     // 创建连接
     std::string addr = _target_ip;
     std::string port = std::to_string(_target_port);
@@ -80,8 +80,10 @@ int relay_pull_item::start()
         return 2;
     }
 
-    _mount_point = _login_mpt;
+
     _connect_key = util_cal_connect_key(fd);
+    _ip = util_get_user_ip(fd);
+    _port = util_get_user_port(fd);
     if (_connect_key.empty())
     {
         bufferevent_free(_bev);
@@ -105,7 +107,7 @@ int relay_pull_item::start()
     return 0;
 }
 
-int relay_pull_item::stop()
+int relay_pull::stop()
 {
     if (_timeout_ev_flag == true)
     {
@@ -125,17 +127,17 @@ int relay_pull_item::stop()
     close_req["req_type"] = CLOSE_RELAY_PULL;
     QUEUE::Push(close_req);
 
-    CASTER::Withdraw_Base_Record(_mount_point.c_str(), "SYSTEM", _connect_key.c_str());
+    CASTER::Withdraw_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
 
-    spdlog::info("[{}]: Relay Pull [{}] is stop, addr:[{}:{}]", __class__, _mount_point, _target_ip, _target_port);
+    spdlog::info("[{}]: Relay Pull [{}] is stop, addr:[{}:{}]", __class__, _login_mpt, _target_ip, _target_port);
 
     return 0;
 }
 
-int relay_pull_item::retry()
+int relay_pull::retry()
 {
-    CASTER::Withdraw_Base_Record(_mount_point.c_str(), "SYSTEM", _connect_key.c_str());
-    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 0); // 更新PULL数据流状态
+    CASTER::Withdraw_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
+    CASTER::Set_Pull_Base_Info(_login_mpt.c_str(), _target_mpt.c_str(), "", 0); // 更新PULL数据流状态
     // 清理当前上下文
     if (_bev != nullptr)
     {
@@ -161,7 +163,7 @@ int relay_pull_item::retry()
     return 0;
 }
 
-int relay_pull_item::runing()
+int relay_pull::runing()
 {
     bufferevent_enable(_bev, EV_READ | EV_WRITE);
 
@@ -172,7 +174,7 @@ int relay_pull_item::runing()
         bufferevent_set_timeouts(_bev, &_bev_read_timeout_tv, NULL);
     }
 
-    spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _mount_point, _target_ip, _target_port);
+    spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _login_mpt, _target_ip, _target_port);
 
     if (_timeout_ev_flag == false)
     {
@@ -182,19 +184,18 @@ int relay_pull_item::runing()
         _timeout_ev_flag = true;
     }
 
-    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), _connect_key.c_str(), 1);
+    CASTER::Set_Pull_Base_Info(_login_mpt.c_str(), _target_mpt.c_str(), _connect_key.c_str(), 1);
 
     return 0;
 }
 
-int relay_pull_item::send_heart_beat_to_server()
+int relay_pull::send_heart_beat_to_server()
 {
     return 0;
 }
 
-int relay_pull_item::publish_recv_raw_data()
+int relay_pull::publish_recv_raw_data()
 {
-
     if (_transfer_with_chunked)
     {
         publish_data_from_chunk();
@@ -204,11 +205,9 @@ int relay_pull_item::publish_recv_raw_data()
         publish_data_from_evbuf();
     }
     return 0;
-
-    return 0;
 }
 
-int relay_pull_item::publish_data_from_chunk()
+int relay_pull::publish_data_from_chunk()
 {
     if (_chunked_size == 0)
     {
@@ -219,7 +218,7 @@ int relay_pull_item::publish_data_from_chunk()
 
         if (!chunk_head_data)
         {
-            spdlog::warn("[{}:{}: chunked data error,close connect! {},{},{}", __class__, __func__, _mount_point, _target_ip, _target_port);
+            spdlog::warn("[{}:{}: chunked data error,close connect! {},{},{}", __class__, __func__, _login_mpt, _target_ip, _target_port);
             stop();
             return 1;
         }
@@ -241,12 +240,12 @@ int relay_pull_item::publish_data_from_chunk()
         data[_chunked_size + 2] = '\0';
 
         evbuffer_remove(_recv_evbuf, data, _chunked_size);
-        CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, _chunked_size);
+        CASTER::Pub_Base_Raw_Data(_login_mpt.c_str(), _connect_key.c_str(), data, _chunked_size);
 
         _str_decoder.Decode(data, _chunked_size);
         if (_str_decoder._has_position)
         {
-            CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
+            CASTER::Set_Base_Coord_Info(_login_mpt.c_str(), _connect_key.c_str(),
                                         _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
                                         _str_decoder._position_update_time);
         }
@@ -269,7 +268,7 @@ int relay_pull_item::publish_data_from_chunk()
     return 0;
 }
 
-int relay_pull_item::publish_data_from_evbuf()
+int relay_pull::publish_data_from_evbuf()
 {
     util_get_tcp_delay(bufferevent_getfd(_bev));
 
@@ -279,11 +278,11 @@ int relay_pull_item::publish_data_from_evbuf()
     data[length] = '\0';
 
     evbuffer_remove(_recv_evbuf, data, length);
-    CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, length);
+    CASTER::Pub_Base_Raw_Data(_login_mpt.c_str(), _connect_key.c_str(), data, length);
     _str_decoder.Decode(data, length);
     if (_str_decoder._has_position)
     {
-        CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
+        CASTER::Set_Base_Coord_Info(_login_mpt.c_str(), _connect_key.c_str(),
                                     _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
                                     _str_decoder._position_update_time);
     }
@@ -292,18 +291,18 @@ int relay_pull_item::publish_data_from_evbuf()
     return 0;
 }
 
-int relay_pull_item::update_pull_status_info()
+int relay_pull::update_pull_status_info()
 {
     if (_bev != nullptr)
     {
-        CASTER::Set_Base_Delay_Info(_mount_point.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
+        CASTER::Set_Base_Delay_Info(_login_mpt.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
     }
     return 0;
 }
 
-void relay_pull_item::ConnectedCallback(bufferevent *bev, short events, void *arg)
+void relay_pull::ConnectedCallback(bufferevent *bev, short events, void *arg)
 {
-    auto svr = static_cast<relay_pull_item *>(arg);
+    auto svr = static_cast<relay_pull *>(arg);
 
     // 如果是连接建立成功，发送验证消息
     // 连接建立成功
@@ -327,9 +326,9 @@ void relay_pull_item::ConnectedCallback(bufferevent *bev, short events, void *ar
     //  如果是连接建立失败，关闭连接，移除
 }
 
-void relay_pull_item::VerifyCallback(bufferevent *bev, void *arg)
+void relay_pull::VerifyCallback(bufferevent *bev, void *arg)
 {
-    auto svr = static_cast<relay_pull_item *>(arg);
+    auto svr = static_cast<relay_pull *>(arg);
 
     bufferevent_disable(bev, EV_READ);              // 暂停/停止接收数据
     bufferevent_setcb(bev, NULL, NULL, NULL, NULL); // 清空bev绑定的回调？  如果这个时候bev event_cb已经激活怎么办?是否就不继续执行了
@@ -340,6 +339,7 @@ void relay_pull_item::VerifyCallback(bufferevent *bev, void *arg)
     {
         spdlog::warn("[{}:{}]: verify login response fail", __class__, __func__);
         bufferevent_free(bev); // 释放bev
+        svr->retry();
     }
     else
     {
@@ -349,16 +349,16 @@ void relay_pull_item::VerifyCallback(bufferevent *bev, void *arg)
     }
 }
 
-void relay_pull_item::ReconnectCallback(evutil_socket_t fd, short events, void *arg)
+void relay_pull::ReconnectCallback(evutil_socket_t fd, short events, void *arg)
 {
-    auto svr = static_cast<relay_pull_item *>(arg);
+    auto svr = static_cast<relay_pull *>(arg);
 
     svr->start();
 }
 
-void relay_pull_item::EventCallback(bufferevent *bev, short events, void *arg)
+void relay_pull::EventCallback(bufferevent *bev, short events, void *arg)
 {
-    auto svr = static_cast<relay_pull_item *>(arg);
+    auto svr = static_cast<relay_pull *>(arg);
 
     spdlog::info("[{}:{}]: {}{}{}{}{}{} , mount [{}], addr:[{}:{}]",
                  __class__, __func__,
@@ -367,21 +367,21 @@ void relay_pull_item::EventCallback(bufferevent *bev, short events, void *arg)
                  (events & BEV_EVENT_EOF) ? "eof" : "-",
                  (events & BEV_EVENT_ERROR) ? "error" : "-",
                  (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
-                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", svr->_mount_point, svr->_target_ip, svr->_target_port);
+                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", svr->_login_mpt, svr->_target_ip, svr->_target_port);
 
     svr->retry();
 }
 
-void relay_pull_item::ReadCallback(bufferevent *bev, void *arg)
+void relay_pull::ReadCallback(bufferevent *bev, void *arg)
 {
-    auto svr = static_cast<relay_pull_item *>(arg);
+    auto svr = static_cast<relay_pull *>(arg);
     bufferevent_read_buffer(bev, svr->_recv_evbuf);
     svr->publish_recv_raw_data();
 }
 
-void relay_pull_item::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
+void relay_pull::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
-    auto *svr = static_cast<relay_pull_item *>(arg);
+    auto *svr = static_cast<relay_pull *>(arg);
 
     // 定时函数已经被停止，该次调用不处理
     if (svr->_timeout_ev_flag == false)
@@ -393,30 +393,30 @@ void relay_pull_item::TimeoutCallback(evutil_socket_t fd, short events, void *ar
     svr->update_pull_status_info();
 }
 
-void relay_pull_item::Caster_Register_Callback(const char *request, void *arg, catser_reply *reply)
+void relay_pull::Caster_Register_Callback(const char *request, void *arg, catser_reply *reply)
 {
-    auto svr = static_cast<relay_pull_item *>(arg);
+    auto svr = static_cast<relay_pull *>(arg);
     switch (reply->type)
     {
     case CasterReply::OK:
         svr->runing();
         break;
     case CasterReply::ERR:
-        spdlog::info("[{}:{}]: CASTER_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, "SYSTEM", svr->_mount_point, svr->_target_ip, svr->_target_port);
+        spdlog::info("[{}:{}]: CASTER_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_target_ip, svr->_target_port);
         svr->retry();
         break;
     case CasterReply::ACTIVE:
-        // spdlog::info("[{}:{}]: CASTER_REPLY_ACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
+        // spdlog::info("[{}:{}]: CASTER_REPLY_ACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         break;
     case CasterReply::INACTIVE:
-        // spdlog::info("[{}:{}]: CASTER_REPLY_INACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
+        // spdlog::info("[{}:{}]: CASTER_REPLY_INACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         break;
     default:
         break;
     }
 }
 
-int relay_pull_item::send_login_request()
+int relay_pull::send_login_request()
 {
     evbuffer *evbuf = bufferevent_get_output(_bev);
 
@@ -440,11 +440,10 @@ int relay_pull_item::send_login_request()
         evbuffer_add_printf(evbuf, "Authorization: Basic %s\r\n", userID.c_str());
         evbuffer_add_printf(evbuf, "\r\n");
     }
-
     return 0;
 }
 
-int relay_pull_item::verify_login_response()
+int relay_pull::verify_login_response()
 {
 
     // 读取回复报文头
@@ -466,6 +465,23 @@ int relay_pull_item::verify_login_response()
             spdlog::warn("[{}:{}]: Unexpected respone", __class__, __func__);
             return 1;
         }
+
+        // 判断是否包含chunked传输
+        while (evbuffer_get_length(evbuf) > 0)
+        {
+            size_t line_len = 0;
+            char *line = evbuffer_readln(evbuf, &line_len, EVBUFFER_EOL_CRLF_STRICT);
+            if (line == NULL || line_len == 0)
+            {
+                free(line);
+                break;
+            }
+            if (strcmp(header, "Transfer-Encoding: chunked"))
+            {
+                _transfer_with_chunked = true;
+            }
+            free(line);
+        }
     }
     else if (_type == 1) // Ntrip/1.0
     {
@@ -482,14 +498,14 @@ int relay_pull_item::verify_login_response()
     return 0;
 }
 
-int relay_pull_item::request_new_relay_server()
+int relay_pull::request_new_relay_server()
 {
 
     bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
 
     // 验证完成，注册数据流到CasterCore
-    CASTER::Register_Base_Record(_login_mpt.c_str(), "SYSTEM", _connect_key.c_str(), Caster_Register_Callback, this, CasterRegisterType::PULL_MPT);
-    CASTER::Set_Pull_Base_Info(_mount_point.c_str(), _target_mpt.c_str(), "", 0);
+    CASTER::Register_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str(), Caster_Register_Callback, this, CasterRegisterType::PULL_MPT);
+    CASTER::Set_Pull_Base_Info(_login_mpt.c_str(), _target_mpt.c_str(), "", 0);
 
     return 0;
 }

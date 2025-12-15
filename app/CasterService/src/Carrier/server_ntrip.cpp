@@ -4,14 +4,13 @@
 
 server_ntrip::server_ntrip(json req, bufferevent *bev)
 {
-    _conf = req["Settings"];
     _info = req;
-    _bev = bev;
-
+    _connect_key = _info["connect_key"];
+    _login_mpt = _info["mount_point"];
+    _user_name = _info["user_name"];
     int fd = bufferevent_getfd(_bev);
     _ip = util_get_user_ip(fd);
     _port = util_get_user_port(fd);
-
     if (_info["ntrip_version"] == "Ntrip/2.0")
     {
         _NtripVersion2 = true;
@@ -21,17 +20,17 @@ server_ntrip::server_ntrip(json req, bufferevent *bev)
         _transfer_with_chunked = true;
     }
 
-    _send_evbuf = evbuffer_new();
-    _recv_evbuf = evbuffer_new();
-
-    _user_name = _info["user_name"];
-    _connect_key = _info["connect_key"];
-    _mount_point = _info["mount_point"];
-
+    _conf = req["Settings"];
     _connect_timeout = _conf["Connect_Timeout"];
     _unsend_byte_limit = _conf["Unsend_Byte_Limit"];
     _heart_beat_interval = _conf["Heart_Beat_Interval"];
     _heart_beat_msg = _conf["Heart_Beat_Msg"];
+
+    _bev = bev;
+
+    _send_evbuf = evbuffer_new();
+    _recv_evbuf = evbuffer_new();
+    _timeout_ev = event_new(bufferevent_get_base(_bev), -1, EV_PERSIST, TimeoutCallback, this);
 }
 
 server_ntrip::~server_ntrip()
@@ -40,7 +39,7 @@ server_ntrip::~server_ntrip()
     evbuffer_free(_send_evbuf);
     evbuffer_free(_recv_evbuf);
 
-    spdlog::info("[{}]: delete mount [{}], addr:[{}:{}]", __class__, _mount_point, _ip, _port);
+    spdlog::info("[{}]: delete mount [{}], addr:[{}:{}]", __class__, _login_mpt, _ip, _port);
 }
 
 int server_ntrip::start()
@@ -69,11 +68,11 @@ int server_ntrip::stop()
     close_req["req_type"] = CLOSE_NTRIP_SERVER;
     QUEUE::Push(close_req);
 
-    CASTER::Withdraw_Base_Record(_mount_point.c_str(), _user_name.c_str(), _connect_key.c_str());
+    CASTER::Withdraw_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
 
     AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), AuthType::SERVER);
 
-    spdlog::info("[{}]: mount [{}] is offline, addr:[{}:{}]", __class__, _mount_point, _ip, _port);
+    spdlog::info("[{}]: mount [{}] is offline, addr:[{}:{}]", __class__, _login_mpt, _ip, _port);
 
     return 0;
 }
@@ -89,18 +88,17 @@ int server_ntrip::runing()
         bufferevent_set_timeouts(_bev, &_bev_read_timeout_tv, NULL);
     }
 
-    bev_send_reply();
-
-    spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _mount_point, _ip, _port);
-
     if (_timeout_ev_flag == false)
     {
         _timeout_tv.tv_sec = 1;
         _timeout_tv.tv_usec = 0;
-        _timeout_ev = event_new(bufferevent_get_base(_bev), -1, EV_PERSIST, TimeoutCallback, this);
         event_add(_timeout_ev, &_timeout_tv);
         _timeout_ev_flag = true;
     }
+
+    bev_send_reply();
+
+    spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _login_mpt, _ip, _port);
 
     return 0;
 }
@@ -111,14 +109,13 @@ int server_ntrip::bev_send_reply()
     {
         evbuffer_add_printf(_send_evbuf, "HTTP/1.1 200 OK\r\n");
         evbuffer_add_printf(_send_evbuf, "Ntrip-Version: Ntrip/2.0\r\n");
-        evbuffer_add_printf(_send_evbuf, "Server: Ntrip ExampleCaster/2.0\r\n");
+        evbuffer_add_printf(_send_evbuf, "Server: Ntrip %s_%s/2.0\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
         evbuffer_add_printf(_send_evbuf, "Date: %s\r\n", util_get_http_date().c_str());
-        evbuffer_add_printf(_send_evbuf, "Connection: close\r\n");
         if (_transfer_with_chunked)
         {
             evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
         }
-
+        evbuffer_add_printf(_send_evbuf, "Connection: close\r\n");
         evbuffer_add_printf(_send_evbuf, "\r\n");
     }
     else
@@ -150,7 +147,7 @@ void server_ntrip::EventCallback(bufferevent *bev, short events, void *arg)
                  (events & BEV_EVENT_EOF) ? "eof" : "-",
                  (events & BEV_EVENT_ERROR) ? "error" : "-",
                  (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
-                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", svr->_mount_point, svr->_ip, svr->_port);
+                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", svr->_login_mpt, svr->_ip, svr->_port);
 
     svr->stop();
 }
@@ -172,7 +169,7 @@ void server_ntrip::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 int server_ntrip::send_heart_beat_to_server()
 {
     // 检测是否要发送心跳包
-    if (_heart_beat_switch == false)
+    if (_heart_beat_interval <= 0)
     {
         return 0;
     }
@@ -191,7 +188,7 @@ int server_ntrip::send_heart_beat_to_server()
         auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
         if (_unsend_byte_limit > 0 && UnsendBufferSize > _unsend_byte_limit)
         {
-            spdlog::info("[{}:{}: send to server [{}]'s  unsend size is too large :[{}], close the connect! addr:[{}:{}]", __class__, __func__, _mount_point, UnsendBufferSize, _ip, _port);
+            spdlog::info("[{}:{}: send to server [{}]'s  unsend size is too large :[{}], close the connect! addr:[{}:{}]", __class__, __func__, _login_mpt, UnsendBufferSize, _ip, _port);
             stop();
         }
         bufferevent_write(_bev, _heart_beat_msg.data(), _heart_beat_msg.size());
@@ -223,7 +220,7 @@ int server_ntrip::publish_data_from_chunk()
 
         if (!chunk_head_data)
         {
-            spdlog::warn("[{}:{}: chunked data error,close connect! {},{},{}", __class__, __func__, _mount_point, _ip, _port);
+            spdlog::warn("[{}:{}: chunked data error,close connect! {},{},{}", __class__, __func__, _login_mpt, _ip, _port);
             stop();
             return 1;
         }
@@ -245,12 +242,12 @@ int server_ntrip::publish_data_from_chunk()
         data[_chunked_size + 2] = '\0';
 
         evbuffer_remove(_recv_evbuf, data, _chunked_size);
-        CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, _chunked_size);
+        CASTER::Pub_Base_Raw_Data(_login_mpt.c_str(), _connect_key.c_str(), data, _chunked_size);
 
         _str_decoder.Decode(data, _chunked_size);
         if (_str_decoder._has_position)
         {
-            CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
+            CASTER::Set_Base_Coord_Info(_login_mpt.c_str(), _connect_key.c_str(),
                                         _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
                                         _str_decoder._position_update_time);
         }
@@ -284,11 +281,11 @@ int server_ntrip::publish_data_from_evbuf()
     data[length] = '\0';
 
     evbuffer_remove(_recv_evbuf, data, length);
-    CASTER::Pub_Base_Raw_Data(_mount_point.c_str(), _connect_key.c_str(), data, length);
+    CASTER::Pub_Base_Raw_Data(_login_mpt.c_str(), _connect_key.c_str(), data, length);
     _str_decoder.Decode(data, length);
     if (_str_decoder._has_position)
     {
-        CASTER::Set_Base_Coord_Info(_mount_point.c_str(), _connect_key.c_str(),
+        CASTER::Set_Base_Coord_Info(_login_mpt.c_str(), _connect_key.c_str(),
                                     _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
                                     _str_decoder._position_update_time);
     }
@@ -299,29 +296,19 @@ int server_ntrip::publish_data_from_evbuf()
 
 int server_ntrip::update_tcp_delay_info()
 {
-    return CASTER::Set_Base_Delay_Info(_mount_point.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
+    return CASTER::Set_Base_Delay_Info(_login_mpt.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
 }
 
 void server_ntrip::Auth_Login_Callback(const char *request, void *arg, auth_reply *reply)
 {
     auto svr = static_cast<server_ntrip *>(arg);
-    // if (reply->type == AUTH_REPLY_OK)
-    // {
-    //     CASTER::Register_Base_Record(svr->_mount_point.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr);
-    // }
-    // else
-    // {
-    //     spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
-    //     svr->stop();
-    // }
-
     switch (reply->type)
     {
     case AuthReply::OK:
-        CASTER::Register_Base_Record(svr->_mount_point.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr,CasterRegisterType::NORMAL);
+        CASTER::Register_Base_Record(svr->_login_mpt.c_str(), svr->_user_name.c_str(), svr->_connect_key.c_str(), Caster_Register_Callback, svr, CasterRegisterType::NORMAL);
         break;
     case AuthReply::ERR:
-        spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
+        spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         svr->stop();
         break;
     default:
@@ -338,14 +325,14 @@ void server_ntrip::Caster_Register_Callback(const char *request, void *arg, cats
         svr->runing();
         break;
     case CasterReply::ERR:
-        spdlog::info("[{}:{}]: CASTER_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
+        spdlog::info("[{}:{}]: CASTER_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         svr->stop();
         break;
     case CasterReply::ACTIVE:
-        // spdlog::info("[{}:{}]: CASTER_REPLY_ACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
+        // spdlog::info("[{}:{}]: CASTER_REPLY_ACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         break;
     case CasterReply::INACTIVE:
-        // spdlog::info("[{}:{}]: CASTER_REPLY_INACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_mount_point, svr->_ip, svr->_port);
+        // spdlog::info("[{}:{}]: CASTER_REPLY_INACTIVE:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         break;
     default:
         break;

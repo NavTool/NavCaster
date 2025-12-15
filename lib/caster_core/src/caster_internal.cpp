@@ -514,6 +514,22 @@ int caster_internal::update_pull_base_info(const char *mount_point, const char *
     return 0;
 }
 
+int caster_internal::update_push_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
+{
+    auto stat_item = _rover_status_map.find(connect_key);
+    if (stat_item != _rover_status_map.end())
+    {
+        stat_item->second.set_alias_mpt(alias_mpt);
+    }
+
+    auto push_item = _push_excute_stat_map.find(mount_point);
+    if (push_item != _push_excute_stat_map.end())
+    {
+        push_item->second.update_state(connect_key, state);
+    }
+    return 0;
+}
+
 int caster_internal::upload_node_status()
 {
     // 刷新一下速度
@@ -583,7 +599,59 @@ int caster_internal::sync_cluster_state()
     return 0;
 }
 
-int caster_internal::relay_task_distribution()
+int caster_internal::relay_push_task_distribution()
+{
+    // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
+
+    // 查找所有的LIST任务
+    for (auto list_iter : _push_list_map)
+    {
+        auto stat_iter = _push_stat_map.find(list_iter.first);
+        if (stat_iter == _push_stat_map.end())
+        {
+            // STAT中不包含这个任务，创建任务
+            caster_broadcast_item item;
+            item.type = CasterBroadcastType::RELAY_PUSH_ACTIVE;
+            item.channel = list_iter.second.UID;
+            item.Para = list_iter.second.para;
+            item.status = CasterReply::ACTIVE;
+            item.reason = "Push Task Active";
+
+            // 向某个节点发送广播，当前默认选择主节点执行这个任务
+            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+        }
+        // else
+        // {
+        //     // 查看任务的状态是否和当前的参数一致，具体使用一个字段来表示任务的参数版本号
+
+        //     // 如果不一致,那么要更新任务参数
+        // }
+    }
+    // 查找STAT中是否包含这个任务
+
+    for (auto stat_iter : _push_stat_map)
+    {
+        auto list_iter = _push_list_map.find(stat_iter.first);
+        if (list_iter == _push_list_map.end())
+        {
+            // LIST中不包含这个任务，移除任务
+            caster_broadcast_item item;
+            item.type = CasterBroadcastType::RELAY_PUSH_INACTIVE;
+            item.channel = stat_iter.second._UID;
+            item.Para = stat_iter.second._para;
+            item.status = CasterReply::INACTIVE;
+            item.reason = "Push Task Inactive";
+            // 根据STAT中记录的节点ID，发送删除任务的广播
+
+            // 向指定节点发送广播
+            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+        }
+    }
+
+    return 0;
+}
+
+int caster_internal::relay_pull_task_distribution()
 {
 
     // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
@@ -688,6 +756,45 @@ int caster_internal::relay_task_response(std::string req_str)
             _pull_excute_list_map.erase(req.channel);
             _pull_excute_stat_map.erase(req.channel);
             redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PULL:STAT %s", req.channel.c_str());
+        }
+        else
+        {
+            // 不存在这个任务，忽略
+            return 3;
+        }
+    }
+    else if (req.type == CasterBroadcastType::RELAY_PUSH_ACTIVE)
+    {
+        if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
+        {
+            // 已经存在这个任务，说明是重复的广播，忽略
+            return 2;
+        }
+        else
+        {
+            relay_item item;
+            item.fromString(req.Para);
+            _push_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
+
+            relay_stat stat; // 初始化STAT信息
+            stat._para = req.Para;
+            stat._UID = item.UID;
+            stat._modify_time = item.modify_time;
+            stat._node = _node_ID;
+            _push_excute_stat_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
+            _relay_cb(_relay_cb_arg, req.type, req.Para);
+        }
+    }
+    else if (req.type == CasterBroadcastType::RELAY_PUSH_INACTIVE)
+    {
+        // 停止一个转发任务
+        if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
+        {
+            // 已经存在这个任务，删除这个任务
+            _relay_cb(_relay_cb_arg, req.type, req.Para);
+            _push_excute_list_map.erase(req.channel);
+            _push_excute_stat_map.erase(req.channel);
+            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PUSH:STAT %s", req.channel.c_str());
         }
         else
         {
@@ -800,7 +907,8 @@ void caster_internal::Redis_SyncClusterNode_Callback(redisAsyncContext *c, void 
         svr->_cluster_node_map.insert(std::pair<std::string, std::string>(field, value));
     }
 
-    svr->relay_task_distribution();
+    svr->relay_pull_task_distribution();
+    svr->relay_push_task_distribution();
 }
 
 void caster_internal::Redis_SyncPullList_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -1021,6 +1129,13 @@ int caster_internal::download_active_item()
     return 0;
 }
 
+int caster_internal::download_alias_rule()
+{
+    redisAsyncCommand(_pub_context, Redis_Update_Alias_Rule_Callback, this, "HGETALL MPT:ALIAS");
+
+    return 0;
+}
+
 int caster_internal::check_active_base_channel()
 {
     auto sub_map = _base_sub_map; // 先复制一份副本,采用副本进行操作，避免执行的回调函数对本体进行了操作，导致for循环出错
@@ -1222,6 +1337,9 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
 
     // 获取所有在线挂载点、在线用户列表，删除没有按时续期的用户和挂载点
     svr->download_active_item();
+
+    // 获取别名规则列表
+    svr->download_alias_rule();
 }
 
 void caster_internal::TestDelayCallback(evutil_socket_t fd, short events, void *arg)
@@ -2283,6 +2401,43 @@ void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, v
     // spdlog::info("Sync active rover, current item:{} ", svr->_active_user_set.size());
 
     svr->check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
+}
+
+void caster_internal::Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("HGETALL MPT:ALIAS reply->type == REDIS_REPLY_NIL");
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("HGETALL MPT:ALIAS reply->type != REDIS_REPLY_ARRAY: {}", reply->type);
+        return;
+    }
+
+    svr->_alias_rule_map.clear();
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+
+        // value是用分号分隔的字符串, 需要拆分成list
+        std::list<std::string> values = util_split_string(value, ';');
+        svr->_alias_rule_map.insert(std::pair<std::string, std::list<std::string>>(field, values));
+    }
+
+    // 查找实体基站是否有和别名基站重名的，如果有，那么要踢出实体基站，以别名基站为准
+    // svr->check_alias_rule_conflict();
 }
 
 void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, void *privdata)

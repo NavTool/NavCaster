@@ -101,6 +101,27 @@ void ntrip_caster::Relay_Request_Callback(void *arg, CasterBroadcastType type, s
         req["req_type"] = UPDATE_RELAY_PULL;
         QUEUE::Push(req);
     }
+    if (type == CasterBroadcastType::RELAY_PUSH_ACTIVE)
+    {
+        // 创建一个请求，添加到队列中去
+        json req = json::parse(req_str);
+        req["req_type"] = REQUEST_RELAY_PUSH;
+        QUEUE::Push(req);
+    }
+    if (type == CasterBroadcastType::RELAY_PUSH_INACTIVE)
+    {
+        // 创建一个请求，添加到队列中去
+        json req = json::parse(req_str);
+        req["req_type"] = STOP_RELAY_PUSH;
+        QUEUE::Push(req);
+    }
+    if (type == CasterBroadcastType::RELAY_PUSH_UPDATE)
+    {
+        // 创建一个请求，添加到队列中去
+        json req = json::parse(req_str);
+        req["req_type"] = UPDATE_RELAY_PUSH;
+        QUEUE::Push(req);
+    }
 }
 
 ntrip_caster::ntrip_caster(json cfg)
@@ -175,7 +196,7 @@ int ntrip_caster::periodic_task()
     if (_output_state) // 输出状态信息
     {
         spdlog::info("[Service Statistic]: Connection: {}, Server: {}, Client: {} ,Nearest: {} ,Pull: {} ,Push: {} , Use Memory: {} BYTE.",
-                     _connect_map.size()+_pull_map.size()+_push_map.size(),
+                     _connect_map.size() + _pull_map.size() + _push_map.size(),
                      _server_map.size(),
                      _client_map.size(),
                      _near_map.size(),
@@ -293,6 +314,18 @@ int ntrip_caster::request_process(json req)
             break;
         case CLOSE_RELAY_PULL:
             close_relay_pull(req);
+            break;
+        case REQUEST_RELAY_PUSH:
+            create_relay_push(req);
+            break;
+        case STOP_RELAY_PUSH:
+            stop_relay_push(req);
+            break;
+        case UPDATE_RELAY_PUSH:
+            update_relay_push(req);
+            break;
+        case CLOSE_RELAY_PUSH:
+            close_relay_push(req);
             break;
         // 虚拟挂载点  //Nearest/Relay/Cors
         // case REQUEST_VIRTUAL_LOGIN:
@@ -455,7 +488,6 @@ int ntrip_caster::close_client_near(json req)
 
 int ntrip_caster::create_relay_pull(json req)
 {
-
     std::string UID = req["login_mpt"];
 
     auto item = _pull_map.find(UID);
@@ -463,8 +495,8 @@ int ntrip_caster::create_relay_pull(json req)
     {
         return 1; // 已经存在
     }
-    relay_pull_item *obj = new relay_pull_item(req, _base);
-    _pull_map.insert(std::pair<std::string, relay_pull_item *>(UID, obj));
+    relay_pull *obj = new relay_pull(req, _base);
+    _pull_map.insert(std::pair<std::string, relay_pull *>(UID, obj));
     obj->start();
     return 0;
 }
@@ -498,6 +530,54 @@ int ntrip_caster::close_relay_pull(json req)
     {
         delete obj->second;
         _pull_map.erase(obj);
+    }
+    return 0;
+}
+
+int ntrip_caster::create_relay_push(json req)
+{
+    std::string UID = req["login_mpt"];
+
+    auto item = _push_map.find(UID);
+    if (item != _push_map.end())
+    {
+        return 1; // 已经存在
+    }
+    relay_pull *obj = new relay_pull(req, _base);
+    _push_map.insert(std::pair<std::string, relay_pull *>(UID, obj));
+    obj->start();
+    return 0;
+}
+
+int ntrip_caster::stop_relay_push(json req)
+{
+    // 找到已经运行的实例
+    auto item = _push_map.find(req["UID"]);
+    if (item == _push_map.end())
+    {
+        return 1; // 不存在
+    }
+    // 停止服务
+    item->second->stop();
+    return 0;
+}
+
+int ntrip_caster::update_relay_push(json req)
+{
+    return 0;
+}
+
+int ntrip_caster::close_relay_push(json req)
+{
+    json origin_req = req["origin_req"];
+    auto obj = _push_map.find(origin_req["login_mpt"]);
+    if (obj == _push_map.end())
+    {
+    }
+    else
+    {
+        delete obj->second;
+        _push_map.erase(obj);
     }
     return 0;
 }

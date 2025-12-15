@@ -425,3 +425,18 @@ int64_t util_get_tcp_delay(util_socket_t sockfd)
 
 #endif
 }
+
+std::list<std::string> util_split_string(std::string str, char delimiter)
+{
+    std::list<std::string> result;
+    size_t start = 0;
+    size_t end = str.find(delimiter);
+    while (end != std::string::npos)
+    {
+        result.push_back(str.substr(start, end - start));
+        start = end + 1;
+        end = str.find(delimiter, start);
+    }
+    result.push_back(str.substr(start));
+    return result;
+}

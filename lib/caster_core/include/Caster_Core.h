@@ -48,8 +48,9 @@ enum class CasterBroadcastType
     RELAY_PULL_ACTIVE,   // 激活数据接入任务
     RELAY_PULL_UPDATE,   // 更新任务的参数
     RELAY_PULL_INACTIVE, // 关闭数据接入任务
-    PROXY_PUSH_ACTIVE,   // 激活数据推送任务
-    PROXY_PUSH_INACTIVE  // 关闭数据推送任务
+    RELAY_PUSH_ACTIVE,   // 激活数据推送任务
+    RELAY_PUSH_UPDATE,   // 更新任务的参数
+    RELAY_PUSH_INACTIVE  // 关闭数据推送任务
 
 };
 
@@ -135,6 +136,9 @@ namespace CASTER
     int Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay);
 
     int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+
+    int Set_Push_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+
 
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);

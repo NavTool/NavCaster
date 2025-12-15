@@ -2,6 +2,7 @@
 
 #include <string>
 #include <chrono>
+#include <list>
 
 #ifdef _WIN32
 #define util_socket_t intptr_t
@@ -55,3 +56,6 @@ int64_t util_get_tcp_delay(util_socket_t sockfd);
 
 // // 解析 NTRIP 请求头，返回 mount_point,user_name,password,chunked version parameters
 // std::string decode_ntrip_req(const char *auth_str);
+
+
+std::list<std::string> util_split_string(std::string str, char delimiter);
