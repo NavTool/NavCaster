@@ -21,7 +21,7 @@
 	url = ../yaml-cpp.git
 [submodule "rely/abseil-cpp"]
 	path = rely/abseil-cpp
-	url = http://127.0.0.1:3000/GitHub/abseil-cpp.git
+	url = ../abseil-cpp.git
 [submodule "rely/protobuf"]
 	path = rely/protobuf
-	url = http://127.0.0.1:3000/GitHub/protobuf.git
+	url = ../protobuf.git

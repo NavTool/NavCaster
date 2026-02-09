@@ -223,6 +223,26 @@ else()
 endif()
 
 
+
+#abseil-cpp
+if(MSVC)
+    set(BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
+endif()
+set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+set(ABSL_PROPAGATE_CXX_STD ON CACHE INTERNAL "")
+add_subdirectory(rely/abseil-cpp/)
+
+#protobuf
+if(MSVC)
+    set(protobuf_BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
+endif()
+set(protobuf_LOCAL_DEPENDENCIES_ONLY ON CACHE BOOL "Prevent downloading any dependencies from GitHub. If this option is set, the dependency must be available locally as an installed package." FORCE)
+add_subdirectory(rely/protobuf/)
+if(MSVC)
+    target_compile_options(libupb PRIVATE /wd5287)    # 忽略编译libupb时候的警告
+endif()
+
+
 #libevent option
 # set(EVENT_LIBRARY_TYPE STATIC)
 set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Set library type to STATIC" FORCE)
