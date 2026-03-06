@@ -971,7 +971,7 @@ Item {
                                     item.target_account = rowModel.target_account
                                     item.target_password= rowModel.target_password
                                     item.login_mpt      = rowModel.login_mpt
-                                    item.UID= rowModel.login_mpt
+                                    item.UID= rowModel.UID
 
                                     console.log(Util.safeStringify(item))
 

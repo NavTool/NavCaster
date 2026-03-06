@@ -34,12 +34,12 @@ public:
         auto UID= m_relay_info["UID"].toString();
         auto info= JsonToQString(variantMapToJson(m_relay_info)) ;
 
-        redisAsyncCommand(ctx, Redis_Add_Pull_Callback, this, "HSETNX STR:PUSH:LIST %s %s",UID.toStdString().c_str(),info.toStdString().c_str());
+        redisAsyncCommand(ctx, Redis_Add_Push_Callback, this, "HSETNX STR:PUSH:LIST %s %s",UID.toStdString().c_str(),info.toStdString().c_str());
 
     }
 
 public:
-    static void Redis_Add_Pull_Callback(redisAsyncContext *c, void *r, void *privdata)
+    static void Redis_Add_Push_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
         // 解析数据
         auto reply = static_cast<redisReply *>(r);
@@ -151,11 +151,44 @@ public:
 
         // 调用Monitor的信号
 
+        auto UID= m_relay_info["UID"].toString();
+
+        redisAsyncCommand(ctx, Redis_Del_Push_Callback, this, "HDEL STR:PUSH:LIST %s",UID.toStdString().c_str());
+
+
 
     }
 
 public:
 
+    static void Redis_Del_Push_Callback(redisAsyncContext *c, void *r, void *privdata)
+    {
+        // 解析数据
+        auto reply = static_cast<redisReply *>(r);
+        auto svr = static_cast<EventAddPush *>(privdata);
+
+        if (!reply)
+        {
+            return;
+        }
+        if (reply->type != REDIS_REPLY_INTEGER)
+        {
+            // 回应不对
+            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+        }
+
+        if(reply->integer==1)
+        {
+            //添加成功
+            Q_EMIT svr->operateFinished(svr->id(),true,QVariantMap());
+        }
+        else
+        {
+            //添加失败
+            Q_EMIT svr->operateFinished(svr->id(),false,QVariantMap());
+        }
+
+    }
 
 public:
 
