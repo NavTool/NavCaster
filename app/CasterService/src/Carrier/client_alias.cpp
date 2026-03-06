@@ -4,6 +4,10 @@
 
 #define __class__ "client_alias"
 
+client_alias::client_alias(ConnectInfo req, bufferevent *bev)
+{
+}
+
 client_alias::client_alias(json req, bufferevent *bev)
 {
     _info = req;

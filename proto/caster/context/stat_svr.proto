@@ -1,0 +1,27 @@
+// 基站状态信息
+syntax = "proto3";
+package caster.context;
+
+enum SvrType{
+  SVR_TYPE_UNKNOWN = 0;
+  SVR_TYPE_COMMON  = 1;
+  SVR_TYPE_NEAREST = 2;
+  SVR_TYPE_PULL    = 3;
+  SVR_TYPE_TCPC    = 4;
+  SVR_TYPE_TCPS    = 5;
+  SVR_TYPE_PROXY   = 6;
+  SVR_TYPE_ALIAS   = 7;
+}
+
+message SvrStat {
+  string uid = 1; //UID
+
+  uint64 online_time = 2;
+  uint64 update_time = 3;
+
+  string  login_mpt = 4;
+  string  alias_mpt = 5;
+  SvrType type      = 6;
+  string  account   = 7;
+
+}

@@ -8,26 +8,37 @@
 
 #define __class__ "ntrip_compat_listener"
 
-ntrip_compat_listener::ntrip_compat_listener(json conf, event_base *base, std::unordered_map<std::string, bufferevent *> *connect_map)
+ntrip_compat_listener::ntrip_compat_listener()
 {
-    _listen_port = conf["Listen_Port"];
-    _connect_timeout = conf["Connect_Timeout"];
-
-    _enable_source_login = conf["Enable_Source_Login"];
-    _enable_server_login = conf["Enable_Server_Login"];
-    _enable_client_login = conf["Enable_Client_Login"];
-    _enable_nearest_mpt = conf["Enable_Nearest_MPT"];
-    _enable_virtual_mpt = conf["Enable_Virtual_MPT"];
-    _enable_common_mpt = conf["Enable_Common_MPT"];
-
-    _enable_header_no_CRLF = conf["Enable_Header_No_CRLF"];
-
-    _base = base;
-    _connect_map = connect_map;
 }
 
 ntrip_compat_listener::~ntrip_compat_listener()
 {
+}
+
+ntrip_compat_listener *ntrip_compat_listener::getInstance()
+{
+    static ntrip_compat_listener *instance = new ntrip_compat_listener();
+    return instance;
+}
+
+int ntrip_compat_listener::init(ListenerOpt opt, event_base *base)
+{
+    _listen_port = opt.listen_port();
+    _connect_timeout = opt.connect_timeout();
+
+    _enable_source_login = opt.enable_source_login();
+    _enable_server_login = opt.enable_server_login();
+    _enable_client_login = opt.enable_client_login();
+    _enable_nearest_login = opt.enable_nearest_login();
+    _enable_proxy_login = opt.enable_proxy_login();
+    _enable_alias_login = opt.enable_alias_login();
+
+    _enable_header_no_CRLF = opt.enable_header_no_crlf();
+
+    _base = base;
+
+    return 0;
 }
 
 int ntrip_compat_listener::start()
@@ -326,11 +337,9 @@ void ntrip_compat_listener::Bev_EventCallback(bufferevent *bev, short events, vo
 
 int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string connect_key, const char *url)
 {
-    json req = decode_bufferevent_req(bev, connect_key);
-    req["mount_point"] = extract_path(url); // 提取请求的?前的内容
-    req["mount_para"] = extract_para(url);  // 提取请求的?后的内容
+    auto req = decode_bufferevent_req(bev, connect_key, url);
 
-    std::string mount = req["mount_point"];
+    std::string mount = req.mount_point();
     if (mount.empty()) // 相当于"/"
     {
         if (!_enable_source_login)
@@ -339,7 +348,7 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
             erase_and_free_bev(bev, connect_key);
             return 1;
         }
-        req["req_type"] = REQUEST_SOURCE_LOGIN;
+        req.set_type(CONNECT_TYPE_SOURCE);
     }
     else
     {
@@ -353,24 +362,24 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
         //  查找是否是最近挂载点
         if (CASTER::Check_Nearest_Mpt(mount.c_str()))
         {
-            req["req_type"] = REQUEST_NEAREST_LOGIN;
+            req.set_type(CONNECT_TYPE_NEAREST);
         }
         else if (CASTER::Check_Alias_Mpt(mount.c_str()))
         {
-            req["req_type"] = REQUEST_ALIAS_LOGIN;
+            req.set_type(CONNECT_TYPE_ALIAS);
         }
         else
         {
-            req["req_type"] = REQUEST_CLIENT_LOGIN;
+            req.set_type(CONNECT_TYPE_CLIENT);
         }
     }
 
-    std::string userID = req["user_baseID"];
-    std::string user_name = req["user_name"];
-    std::string user_pwd = req["user_pwd"];
-    auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
+    std::string userID = req.user_base64();
+    std::string user_name = req.user_name();
+    std::string user_pwd = req.user_pwd();
+    auto ctx = new std::pair<ntrip_compat_listener *, ConnectInfo>(this, req);
 
-    if (req["req_type"] == REQUEST_SOURCE_LOGIN)
+    if (req.type() == CONNECT_TYPE_SOURCE)
     {
         AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SOURCE);
     }
@@ -390,10 +399,7 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
         return 1;
     }
 
-    json req = decode_bufferevent_req(bev, connect_key);
-    req["mount_point"] = extract_path(url);
-    req["mount_para"] = extract_para(url);
-    req["req_type"] = REQUEST_SERVER_LOGIN;
+    auto req = decode_bufferevent_req(bev, connect_key, url);
 
     //  查找是否是最近挂载点
     if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
@@ -410,13 +416,13 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
     }
     else
     {
-        req["req_type"] = REQUEST_SERVER_LOGIN;
+        req.set_type(CONNECT_TYPE_SERVER);
     }
 
-    std::string userID = req["user_baseID"];
-    std::string user_name = req["user_name"];
-    std::string user_pwd = req["user_pwd"];
-    auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
+    std::string userID = req.user_base64();
+    std::string user_name = req.user_name();
+    std::string user_pwd = req.user_pwd();
+    auto ctx = new std::pair<ntrip_compat_listener *, ConnectInfo>(this, req);
     AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
@@ -430,9 +436,7 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
         return 1;
     }
 
-    json req = decode_bufferevent_req(bev, connect_key);
-    req["mount_point"] = extract_path(url);
-    req["mount_para"] = extract_para(url);
+    auto req = decode_bufferevent_req(bev, connect_key, url);
     //  查找是否是最近挂载点
     if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
     {
@@ -448,21 +452,21 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
     }
     else
     {
-        req["req_type"] = REQUEST_SERVER_LOGIN;
+        req.set_type(CONNECT_TYPE_SERVER);
     }
 
     std::string pwd = secret;
     if (pwd != "")
     {
-        req["user_baseID"] = pwd + ":" + pwd;
-        req["user_name"] = pwd;
-        req["user_pwd"] = pwd;
+        req.set_user_base64(pwd + ":" + pwd);
+        req.set_user_name(pwd);
+        req.set_user_pwd(pwd);
     }
 
-    std::string userID = req["user_baseID"];
-    std::string user_name = req["user_name"];
-    std::string user_pwd = req["user_pwd"];
-    auto ctx = new std::pair<ntrip_compat_listener *, json>(this, req);
+    std::string userID = req.user_base64();
+    std::string user_name = req.user_name();
+    std::string user_pwd = req.user_pwd();
+    auto ctx = new std::pair<ntrip_compat_listener *, ConnectInfo>(this, req);
     AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
@@ -475,7 +479,7 @@ int ntrip_compat_listener::Process_Unsupport_Request(bufferevent *bev, std::stri
 
 void ntrip_compat_listener::Auth_Verify_Cb(const char *request, void *arg, auth_reply *reply)
 {
-    auto ctx = static_cast<std::pair<ntrip_compat_listener *, json> *>(arg);
+    auto ctx = static_cast<std::pair<ntrip_compat_listener *, ConnectInfo> *>(arg);
 
     auto svr = ctx->first;
     auto req = ctx->second;
@@ -488,7 +492,7 @@ void ntrip_compat_listener::Auth_Verify_Cb(const char *request, void *arg, auth_
     {
         spdlog::info("[{}:{}]: Auth Verify Failed: {}", __class__, __func__, reply->str); // 验证失败，关闭连接
         // 验证失败，关闭当前连接
-        std::string connect_key = req["connect_key"];
+        std::string connect_key = req.connect_key();
         // 从connect_map中删除该连接
         svr->erase_and_free_bev(nullptr, connect_key);
     }
@@ -501,7 +505,7 @@ void ntrip_compat_listener::Auth_Verify_Cb(const char *request, void *arg, auth_
 //     return util_cal_connect_key(bufferevent_getfd(bev));
 // }
 
-json ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string connect_key)
+ConnectInfo ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url)
 {
     /*
         connect_key
@@ -519,22 +523,11 @@ json ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string
         http_host           Host
 
     */
-    json info;
-    info["connect_key"] = "none";
-    info["mount_point"] = "none";
-    info["mount_para"] = "none";
-    info["mount_group"] = MOUNT_TYPE_COMMON;
-    info["mount_info"] = "none";
-    info["http_host"] = "none";
-    info["http_chunked"] = "unchunked";
-    info["user_agent"] = "unknown";
-    info["ntrip_version"] = "none";
-    info["ntrip_gga"] = "none";
-    info["user_baseID"] = "none";
-    info["user_name"] = "none";
-    info["user_pwd"] = "none";
 
-    info["connect_key"] = connect_key;
+    ConnectInfo con_info;
+    con_info.set_connect_key(connect_key);
+    con_info.set_mount_point(extract_path(url)); // 提取请求的?前的内容
+    con_info.set_mount_para(extract_para(url));  // 提取请求的?后的内容
 
     evbuffer *evbuf = bufferevent_get_input(bev);
     json item;
@@ -583,34 +576,35 @@ json ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string
 
     if (item["Host"].is_string())
     {
-        info["http_host"] = item["Host"];
+        con_info.set_http_host(std::string(item["Host"]));
     }
     if (item["Transfer-Encoding"].is_string())
     {
-        info["http_chunked"] = item["Transfer-Encoding"];
+        con_info.set_http_chunked(std::string(item["Transfer-Encoding"]));
     }
     if (item["User-Agent"].is_string())
     {
-        info["user_agent"] = item["User-Agent"];
+        con_info.set_user_agent(std::string(item["User-Agent"]));
     }
     else if (item["Source-Agent"].is_string())
     {
-        info["user_agent"] = item["Source-Agent"];
+        con_info.set_user_agent(std::string(item["Source-Agent"]));
     }
     if (item["STR"].is_string())
     {
-        info["mount_info"] = item["STR"];
+        con_info.set_mount_info(std::string(item["STR"]));
     }
     if (item["Ntrip-Version"].is_string())
     {
-        info["ntrip_version"] = item["Ntrip-Version"];
+        con_info.set_ntrip_version(std::string(item["Ntrip-Version"]));
     }
     if (item["Ntrip-GGA"].is_string())
     {
-        info["ntrip_gga"] = item["Ntrip-GGA"];
+        con_info.set_ntrip_gga(std::string(item["Ntrip-GGA"]));
     }
     if (item["Authorization"].is_string())
     {
+        std::string auth = item["Authorization"];
         std::string decodeID = decode_basic_authentication(item["Authorization"]);
         int x = decodeID.find(":");
         if (x == decodeID.npos)
@@ -619,12 +613,14 @@ json ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string
         }
         else
         {
-            info["user_baseID"] = decodeID;
-            info["user_name"] = decodeID.substr(0, x);
-            info["user_pwd"] = decodeID.substr(x + 1);
+            con_info.set_ntrip_auth(auth);
+            con_info.set_user_base64(decodeID);
+            con_info.set_user_name(decodeID.substr(0, x));
+            con_info.set_user_pwd(decodeID.substr(x + 1));
         }
     }
-    return info;
+
+    return con_info;
 }
 
 std::string ntrip_compat_listener::extract_path(std::string path)

@@ -1,0 +1,27 @@
+// 移动站状态信息
+syntax = "proto3";
+package caster.context;
+
+enum UsrType{
+  USR_TYPE_UNKNOWN = 0;
+  USR_TYPE_COMMON  = 1;
+  USR_TYPE_NEAREST = 2;
+  USR_TYPE_PUSH    = 3;
+  USR_TYPE_TCPC    = 4;
+  USR_TYPE_TCPS    = 5;
+  USR_TYPE_PROXY   = 6;
+  USR_TYPE_ALIAS   = 7;
+}
+
+message UsrStat {
+  string uid = 1; //UID
+
+  uint64 online_time = 2;
+  uint64 update_time = 3;
+
+  string  login_mpt = 4;
+  string  alias_mpt = 5;
+  UsrType type      = 6;
+  string  account   = 7;
+
+}

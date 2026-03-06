@@ -2,12 +2,14 @@
 // #include "spdlog/spdlog.h"
 // #include "knt/knt.h"
 
+#inc    
+
 #define __class__ "process_queue"
 
 class process_queue_intenal
 {
 private:
-    std::queue<json> _queue;
+    std::queue<ConnectInfo> _queue;
     event *_processer;
 
 public:
@@ -16,13 +18,13 @@ public:
 
     int add_processer(event *processer);
 
-    int push(json req);
+    int push(json ConnectInfo);
 
     int active_prrocesser();
 
-    int push_and_active(json req);
+    int push_and_active(json ConnectInfo);
 
-    json pop();
+    ConnectInfo pop();
 
     bool not_null();
 
@@ -37,7 +39,7 @@ process_queue_intenal::~process_queue_intenal()
 {
 }
 
-int process_queue_intenal::push(json req)
+int process_queue_intenal::push(ConnectInfo req)
 {
     _queue.push(req);
     return 0;
@@ -93,12 +95,12 @@ int QUEUE::Free()
     return 0;
 }
 
-int QUEUE::Push(json req)
+int QUEUE::Push(ConnectInfo req)
 {
     return queue_svr->push_and_active(req);
 }
 
-json QUEUE::Pop()
+ConnectInfo QUEUE::Pop()
 {
     return queue_svr->pop();
 }

@@ -1,0 +1,23 @@
+syntax = "proto3";
+package caster.service;
+
+// 监听器的配置  改为protobuf形式是为了能够远程下发配置
+// 接入配置
+
+message ListenerOpt {
+
+  uint32 listen_port     = 1; // 监听的端口
+  uint32 connect_timeout = 2; // TCP连接超时限制，避免连接长时间建立但是并不进入下一个流程
+
+  // 登录权限控制，限制当前节点可登录的类型
+  bool enable_source_login  = 3;
+  bool enable_server_login  = 4;
+  bool enable_client_login  = 5;
+  bool enable_nearest_login = 6;
+  bool enable_proxy_login   = 7;
+  bool enable_alias_login   = 8;
+
+  // 高级配置
+  bool enable_header_no_crlf = 9; // 允许不带回车换行的设备登录
+
+}

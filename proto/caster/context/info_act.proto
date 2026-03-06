@@ -1,0 +1,15 @@
+// 账户信息 account
+syntax = "proto3";
+package caster.context;
+
+
+// 账号的注册信息
+message ActInfo {
+    string uid = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+    // 账号的基本信息
+
+
+
+}

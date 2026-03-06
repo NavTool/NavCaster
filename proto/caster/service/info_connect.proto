@@ -1,0 +1,54 @@
+// 账户信息 account
+syntax = "proto3";
+package caster.service;
+
+enum ConnectType
+{
+  CONNECT_TYPE_UNKNOWN = 0; // 未知
+  CONNECT_TYPE_SOURCE  = 1; // 源列表
+  CONNECT_TYPE_SERVER  = 2; // NtripServer
+  CONNECT_TYPE_CLIENT  = 3; // NtripClient
+  CONNECT_TYPE_NEAREST = 4; // 最近点
+  CONNECT_TYPE_PROXY   = 5; // Proxy
+  CONNECT_TYPE_ALIAS   = 6; // Alias
+  CONNECT_TYPE_PULL    = 7; // Pull
+  CONNECT_TYPE_PUSH    = 8; // Push
+  CONNECT_TYPE_GRID    = 9; // Grid
+  CONNECT_TYPE_VRS    = 10; // 虚拟参考站
+
+}
+
+enum OperateType
+{
+  OPERATE_TYPE_UNKNOWN = 0; // 未知
+  OPERATE_TYPE_CREATE  = 1; // 创建对象
+  OPERATE_TYPE_DESTORY = 2; // 释放对象
+  // OPERATE_TYPE_PAUSE   = 3; // 暂停
+  // OPERATE_TYPE_UPDATE  = 4; // 更新
+
+}
+
+message ConnectInfo {
+
+    // TCP KEY
+  string connect_key = 1;
+
+    //
+  ConnectType type    = 2; // 登录类型  根据这个类型来执行创建和释放函数
+  OperateType operate = 3; // 操作类型  创建，销毁，停止，更新
+
+  string mount_point = 4;
+  string mount_para  = 5;
+
+  string user_base64 = 6;
+  string user_name   = 7;
+  string user_pwd    = 8;
+
+  string http_host     = 9; // Host
+  string http_chunked  = 10; // Transfer-Encoding
+  string user_agent    = 11; // User-Agent / Source-Agent
+  string mount_info    = 12; // STR
+  string ntrip_version = 13; // Ntrip-Version
+  string ntrip_gga     = 14; // Ntrip-GGA
+  string ntrip_auth    = 15; //Authorization
+}

@@ -134,6 +134,7 @@ bool caster_internal::is_alias_mpt(std::string mount_point)
 
     // 从alias列表中查找
 
+
     return false;
 }
 
@@ -2638,6 +2639,8 @@ void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, s
     {
         throw std::invalid_argument("Invalid key length");
     }
+
+    // 如果使用的时IPv6那要如何支持呢
 
     // 分离16进制字符串
     std::string hexIp1 = key.substr(0, 8);    // 服务器IP部分

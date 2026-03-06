@@ -42,6 +42,8 @@
 
 #include <regex>
 
+
+
 class ntrip_compat_listener
 {
 private:
@@ -52,9 +54,9 @@ private:
     bool _enable_source_login = true;
     bool _enable_server_login = true;
     bool _enable_client_login = true;
-    bool _enable_nearest_mpt = false;
-    bool _enable_virtual_mpt = false;
-    bool _enable_common_mpt = true;
+    bool _enable_nearest_login = false;
+    bool _enable_proxy_login = false;
+    bool _enable_alias_login = true;
 
     bool _enable_header_no_CRLF = false;
 
@@ -64,14 +66,19 @@ private:
     event_base *_base;
     evconnlistener *_listener;
 
-    std::unordered_map<std::string, bufferevent *> *_connect_map;
+    std::unordered_map<std::string, bufferevent *> _connect_map;
     std::unordered_map<std::string, timeval *> _timer_map;
 
     std::set<std::string> _support_virtual_mount;
 
 public:
-    ntrip_compat_listener(json conf, event_base *base, std::unordered_map<std::string, bufferevent *> *connect_map);
+    ntrip_compat_listener();
     ~ntrip_compat_listener();
+
+    static ntrip_compat_listener *getInstance();
+
+    int init(ListenerOpt opt, event_base *base);
+
 
     int start();
     int stop();
@@ -98,7 +105,7 @@ public:
 private:
     // 内部函数
     // std::string get_conncet_key(bufferevent *bev);
-    json decode_bufferevent_req(bufferevent *bev, std::string connect_key);
+    ConnectInfo decode_bufferevent_req(bufferevent *bev, std::string connect_key,const char *url);
     std::string extract_path(std::string path);
     std::string extract_para(std::string path);
     std::string decode_basic_authentication(std::string authentication);

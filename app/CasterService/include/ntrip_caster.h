@@ -34,6 +34,8 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+
+
 class ntrip_caster
 {
 private:
@@ -52,8 +54,12 @@ private:
 
 public:
     // 公开的接口
-    ntrip_caster(json cfg);
+    ntrip_caster();
     ~ntrip_caster();
+
+    static ntrip_caster *getInstance();
+
+    int init(json cfg);
 
     int start();
     int stop();
@@ -75,6 +81,15 @@ private:
     int extra_stop();
 
 private:
+    int request_process(ConnectInfo req);
+
+    int operate_client_ntrip(ConnectInfo req);
+    int operate_server_ntrip(ConnectInfo req);
+    int operate_source_ntrip(ConnectInfo req);
+    int operate_client_near(ConnectInfo req);
+    int operate_client_proxy(ConnectInfo req);
+    int operate_client_alias(ConnectInfo req);
+
     // 任务处理函数
     int request_process(json req);
 
@@ -109,14 +124,19 @@ private:
     // ntrip_relay_connector *_relay_connetcotr; // 主动创建Ntrip连接
 
     // 连接-对象索引
+public:
     std::unordered_map<std::string, bufferevent *> _connect_map; // Connect_Key,bev
-    std::unordered_map<std::string, server_ntrip *> _server_map; // Connect_Key,server_ntrip
-    std::unordered_map<std::string, client_ntrip *> _client_map; // Connect_Key,client_ntrip
-    std::unordered_map<std::string, source_ntrip *> _source_map; // Connect_Key,source_ntrip
 
-    std::unordered_map<std::string, client_near *> _near_map; // Connect_Key,client_near
-    std::unordered_map<std::string, relay_pull *> _pull_map;  // Connect_Key,relay_pull
-    std::unordered_map<std::string, relay_push *> _push_map;  // Connect_Key,relay_pull
+    std::unordered_map<std::string, std::shared_ptr<ConnectInfo>> _connect_info_map;
+
+private:
+    std::unordered_map<std::string, std::shared_ptr<server_ntrip>> _server_map; // Connect_Key,server_ntrip
+    std::unordered_map<std::string, std::shared_ptr<client_ntrip>> _client_map; // Connect_Key,client_ntrip
+    std::unordered_map<std::string, std::shared_ptr<source_ntrip>> _source_map; // Connect_Key,source_ntrip
+
+    std::unordered_map<std::string, std::shared_ptr<client_near>> _near_map; // Connect_Key,client_near
+    std::unordered_map<std::string, std::shared_ptr<relay_pull>> _pull_map;  // Connect_Key,relay_pull
+    std::unordered_map<std::string, std::shared_ptr<relay_push>> _push_map;  // Connect_Key,relay_pull
 
 private:
     event_base *_base;

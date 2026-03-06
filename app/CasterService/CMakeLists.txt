@@ -94,6 +94,9 @@ set(COMPONTENT_TYPE_SOURCE
 )
 
 set(CARRIER_TYPE_SOURCE
+
+    include/Carrier/carrier_base.h      src/Carrier/carrier_base.cpp
+
     include/Carrier/client_ntrip.h      src/Carrier/client_ntrip.cpp
     include/Carrier/server_ntrip.h      src/Carrier/server_ntrip.cpp
     include/Carrier/source_ntrip.h      src/Carrier/source_ntrip.cpp
@@ -164,31 +167,29 @@ message(STATUS "BINARY_DIR : ${CMAKE_SOURCE_DIR}/bin")
 
 # target_link_libraries(${PROJECT_NAME} openssl)
 
-#Koro_NavTool
-target_link_libraries(${PROJECT_NAME} casterbase)
-#caster_core
-target_link_libraries(${PROJECT_NAME} castercore)
-#auth_verify
-target_link_libraries(${PROJECT_NAME} authverify)
-
-#libevent 
-target_link_libraries(${PROJECT_NAME} event)
-target_link_libraries(${PROJECT_NAME} event_core)
-target_link_libraries(${PROJECT_NAME} event_extra)
+target_link_libraries(${PROJECT_NAME} 
+    casterbase
+    castercore
+    authverify
+    event
+    event_extra
+    event_core
+    yaml-cpp
+    libprotobuf
+    caster_proto
+    )
 
 #nlohmann/json
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})
 #spdlog
 # target_link_libraries(${PROJECT_NAME} spdlog)
 include_directories(${PROJECT_NAME} ${SPDLOG_INCLUDE_PATH})
-#yaml
-target_link_libraries(${PROJECT_NAME} yaml-cpp)
 
 
 
 set(REG_SOURCES
-   src/reg_check.cpp
-       extra/license_check/register.h
+    src/reg_check.cpp
+    extra/license_check/register.h
     extra/license_check/register.cpp
 )
 add_executable(reg_check ${REG_SOURCES}  )

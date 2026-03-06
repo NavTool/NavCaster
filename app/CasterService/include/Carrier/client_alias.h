@@ -52,6 +52,7 @@ private:
     decode_nmea _str_decoder;
 
 public:
+    client_alias(ConnectInfo req, bufferevent *bev);
     client_alias(json req, bufferevent *bev);
     ~client_alias();
 

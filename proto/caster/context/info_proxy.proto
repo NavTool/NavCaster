@@ -1,0 +1,21 @@
+// 数据代理规则信息
+syntax = "proto3";
+package caster.context;
+
+message ProxyInfo {
+
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+
+    // 本地挂载点
+  string proxy_name = 4;
+    // 第三方挂载点
+  string source_ip   = 5;
+  string source_port = 6;
+  string source_name = 7;
+
+    // 账号池
+  string account_pool = 8; // 帐号池的UID   (在使用的时候同时维护一个位置)
+
+}

@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.21)
 project(NavCaster)
 
+
+
+option(BUILD_CASTER_MONITOR "Build Caster Monitor." OFF)
+option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
+
+
+
+
+
+
 #版本14以下可能会导致abseil不支持
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,7 +58,7 @@ set(VERSION_EXTRA 0)
 # -------------------------设置软件基本信息-------------------------------------------------
 # 设置可执行程序名称
 set(PROJECT_COMPANY "NavTool")
-set(PROJECT_COPYRIGHT "Copyright (c) 2025 NavTool's Lab. All rights reserved.")
+set(PROJECT_COPYRIGHT "Copyright (c) 2026 NavTool's Lab. All rights reserved.")
 set(PROJECT_DOMAIN "https://github.com/NavTool/NavTool")
 set(PROJECT_DESCRIPTION "A Navigation Tool")
 
@@ -129,20 +139,7 @@ endif()
 # 设置项目的版本号
 set(PROJECT_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_EXTRA}")
 
-# -------------------------获取Qt版本和编译器信息-------------------------------------------------
-find_package(Qt6 COMPONENTS Quick QUIET)
-if (NOT Qt6_FOUND)
-    find_package(Qt5 COMPONENTS Core REQUIRED)
-endif()
 
-# 获取并显示 Qt 版本（包括子版本）
-if (Qt6Core_VERSION)
-    set(QtVersion ${Qt6Core_VERSION})
-elseif (Qt5Core_VERSION)
-    set(QtVersion ${Qt5Core_VERSION})
-else()
-    message(FATAL_ERROR "Qt not found")
-endif()
 
 # 获取编译器信息
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -164,63 +161,9 @@ endif()
 # 获取系统架构
 set(Arch ${CMAKE_SYSTEM_PROCESSOR})
 
-# 输出完整的版本信息
-set(QT_COMPILER_VERSION "Qt ${QtVersion} (${Compiler}, ${Arch})")
+
 
 #------------------------------------------------------------------------------
-
-
-
-# -------------------------输出软件的定义-------------------------------------------------
-message(STATUS "")
-message(STATUS "---------------- ${PROJECT_NAME} ----------------------")
-message(STATUS "PROJECT_NAME          : ${PROJECT_NAME}")
-message(STATUS "PROJECT_VERSION       : ${PROJECT_VERSION}")
-message(STATUS "PROJECT_GIT_BRANCH    : ${PROJECT_GIT_BRANCH}")
-message(STATUS "PROJECT_GIT_VERSION   : ${PROJECT_GIT_VERSION}")
-message(STATUS "PROJECT_TAG_VERSION   : ${PROJECT_TAG_VERSION}")
-message(STATUS "PROJECT_COMMIT_DATE   : ${PROJECT_COMMIT_DATE}")
-message(STATUS "")
-message(STATUS "CMAKE_SYSTEM          : ${CMAKE_SYSTEM}")
-message(STATUS "CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(WINDOWS_X64_PLATFORM TRUE)
-    set(SYSTEM_PLATFORM "WINDOWS_X64_PLATFORM")
-    message(STATUS "SYSTEM_PLATFORM       : WINDOWS_X64_PLATFORM")
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
-     set(LINUX_X64_PLATFORM TRUE)
-     set(SYSTEM_PLATFORM "LINUX_X64_PLATFORM")
-     message(STATUS "SYSTEM_PLATFORM       : LINUX_X64_PLATFORM")
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-    set(LINUX_ARM_PLATFORM TRUE)
-    set(SYSTEM_PLATFORM "LINUX_ARM_PLATFORM")
-     message(STATUS "SYSTEM_PLATFORM       : LINUX_ARM_PLATFORM")
-endif()
-message(STATUS "CMAKE_BUILD_TYPE      : ${CMAKE_BUILD_TYPE}")
-message(STATUS "PROJECT_BUILD_DATE    : ${PROJECT_BUILD_DATE}")
-message(STATUS "QT_COMPILER_VERSION   : ${QT_COMPILER_VERSION}")
-message(STATUS "")
-message(STATUS "PROJECT_APP_NAME      : ${PROJECT_APP_NAME}")
-message(STATUS "PROJECT_COMPANY       : ${PROJECT_COMPANY}")
-message(STATUS "PROJECT_COPYRIGHT     : ${PROJECT_COPYRIGHT}")
-message(STATUS "PROJECT_DOMAIN        : ${PROJECT_DOMAIN}")
-message(STATUS "PROJECT_DESCRIPTION   : ${PROJECT_DESCRIPTION}")
-message(STATUS "")
-
-message(STATUS "CMAKE_CXX_FLAGS_DEBUG   : ${CMAKE_CXX_FLAGS_DEBUG}")
-message(STATUS "CMAKE_CXX_FLAGS_RELEASE : ${CMAKE_CXX_FLAGS_RELEASE}")
-message(STATUS "CMAKE_BUILD_TYPE        : ${CMAKE_BUILD_TYPE}")
-
-
-
-#FluentUI-Pro
-option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
-option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
-if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-else()
-    set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
-endif()
 
 
 
@@ -274,14 +217,54 @@ add_subdirectory(rely/rtklib)
 
 
 
-option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
-option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
-if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-else()
-    set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
+include_directories(${CMAKE_SOURCE_DIR}/proto/src)
+add_subdirectory(proto)
+
+
+add_subdirectory(lib)
+add_subdirectory(dev)
+
+# add_subdirectory(app/CasterService)
+
+
+
+if(BUILD_CASTER_MONITOR)
+
+    # -------------------------获取Qt版本和编译器信息-------------------------------------------------
+    find_package(Qt6 COMPONENTS Quick QUIET)
+    if (NOT Qt6_FOUND)
+        find_package(Qt5 COMPONENTS Core REQUIRED)
+    endif()
+
+    # 获取并显示 Qt 版本（包括子版本）
+    if (Qt6Core_VERSION)
+        set(QtVersion ${Qt6Core_VERSION})
+    elseif (Qt5Core_VERSION)
+        set(QtVersion ${Qt5Core_VERSION})
+    else()
+        message(FATAL_ERROR "Qt not found")
+    endif()
+
+    # 输出完整的版本信息
+    set(QT_COMPILER_VERSION "Qt ${QtVersion} (${Compiler}, ${Arch})")
+
+    #FluentUI-Pro
+    option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
+    option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
+    if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
+        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+    else()
+        set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
+    endif()
+
+    add_subdirectory(rely/FluentUI-Pro/FluentUI)
+    add_subdirectory(app/CasterMonitor)
+
 endif()
-add_subdirectory(rely/FluentUI-Pro/FluentUI)
+
+#基于version.h.in 生成 version.h
+configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
+
 
 
 message("---------------------------- FluentUI ----------------------------")
@@ -291,16 +274,53 @@ message("------------------------------------------------------------------")
 
 option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 message("---------------------------- NavTool ----------------------------")
-message("Enable hot reload: ${HOTLOAD_ENABLED}")
+message("Enable hot reload   : ${HOTLOAD_ENABLED}")
+message("Build Caster Service: ${BUILD_CASTER_SERVICE}")
+message("Build Caster Monitor: ${BUILD_CASTER_MONITOR}")
 message("------------------------------------------------------------------")
 
 
-add_subdirectory(app)
-add_subdirectory(lib)
-add_subdirectory(dev)
 
-#基于version.h.in 生成 version.h
-configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
+
+# -------------------------输出软件的定义-------------------------------------------------
+message(STATUS "")
+message(STATUS "---------------- ${PROJECT_NAME} ----------------------")
+message(STATUS "PROJECT_NAME          : ${PROJECT_NAME}")
+message(STATUS "PROJECT_VERSION       : ${PROJECT_VERSION}")
+message(STATUS "PROJECT_GIT_BRANCH    : ${PROJECT_GIT_BRANCH}")
+message(STATUS "PROJECT_GIT_VERSION   : ${PROJECT_GIT_VERSION}")
+message(STATUS "PROJECT_TAG_VERSION   : ${PROJECT_TAG_VERSION}")
+message(STATUS "PROJECT_COMMIT_DATE   : ${PROJECT_COMMIT_DATE}")
+message(STATUS "")
+message(STATUS "CMAKE_SYSTEM          : ${CMAKE_SYSTEM}")
+message(STATUS "CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(WINDOWS_X64_PLATFORM TRUE)
+    set(SYSTEM_PLATFORM "WINDOWS_X64_PLATFORM")
+    message(STATUS "SYSTEM_PLATFORM       : WINDOWS_X64_PLATFORM")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+     set(LINUX_X64_PLATFORM TRUE)
+     set(SYSTEM_PLATFORM "LINUX_X64_PLATFORM")
+     message(STATUS "SYSTEM_PLATFORM       : LINUX_X64_PLATFORM")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+    set(LINUX_ARM_PLATFORM TRUE)
+    set(SYSTEM_PLATFORM "LINUX_ARM_PLATFORM")
+     message(STATUS "SYSTEM_PLATFORM       : LINUX_ARM_PLATFORM")
+endif()
+message(STATUS "CMAKE_BUILD_TYPE      : ${CMAKE_BUILD_TYPE}")
+message(STATUS "PROJECT_BUILD_DATE    : ${PROJECT_BUILD_DATE}")
+message(STATUS "QT_COMPILER_VERSION   : ${QT_COMPILER_VERSION}")
+message(STATUS "")
+message(STATUS "PROJECT_APP_NAME      : ${PROJECT_APP_NAME}")
+message(STATUS "PROJECT_COMPANY       : ${PROJECT_COMPANY}")
+message(STATUS "PROJECT_COPYRIGHT     : ${PROJECT_COPYRIGHT}")
+message(STATUS "PROJECT_DOMAIN        : ${PROJECT_DOMAIN}")
+message(STATUS "PROJECT_DESCRIPTION   : ${PROJECT_DESCRIPTION}")
+message(STATUS "")
+
+message(STATUS "CMAKE_CXX_FLAGS_DEBUG   : ${CMAKE_CXX_FLAGS_DEBUG}")
+message(STATUS "CMAKE_CXX_FLAGS_RELEASE : ${CMAKE_CXX_FLAGS_RELEASE}")
+message(STATUS "CMAKE_BUILD_TYPE        : ${CMAKE_BUILD_TYPE}")
 
 
 

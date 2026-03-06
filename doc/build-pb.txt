@@ -1,0 +1,3 @@
+bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/*.proto
+bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/context/*.proto
+bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto

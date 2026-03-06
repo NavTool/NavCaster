@@ -14,13 +14,16 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+#include "service/info_connect.pb.h"
+using namespace caster::service;
+
 namespace QUEUE
 {
     int Init(event *process_event);
     int Free();
 
-    int Push(json req);
-    json Pop();
+    int Push(ConnectInfo req);
+    ConnectInfo Pop();
 
     bool Active();
     bool Not_Null();

@@ -7,6 +7,12 @@
 #include "version.h"
 #include "Caster_Core.h"
 #include "Auth_Verify.h"
+
+#include "service/opt_listener.pb.h"
+#include "service/info_connect.pb.h"
+using namespace caster::service;
+
+
 // #define SOFTWARE_NAME "KORO_Caster"
 // #define SOFTWARE_VERSION "0.0.2"
 

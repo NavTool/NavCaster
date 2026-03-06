@@ -124,7 +124,22 @@ void ntrip_caster::Relay_Request_Callback(void *arg, CasterBroadcastType type, s
     }
 }
 
-ntrip_caster::ntrip_caster(json cfg)
+ntrip_caster::ntrip_caster()
+{
+}
+
+ntrip_caster::~ntrip_caster()
+{
+    event_base_free(_base);
+}
+
+ntrip_caster *ntrip_caster::getInstance()
+{
+    static ntrip_caster *instance = new ntrip_caster();
+    return instance;
+}
+
+int ntrip_caster::init(json cfg)
 {
     std::string dump_conf = cfg.dump(4);
     spdlog::debug("load conf info:\n{}", dump_conf);
@@ -147,11 +162,8 @@ ntrip_caster::ntrip_caster(json cfg)
     _timeout_tv.tv_sec = _refresh_state_interval;
     _timeout_tv.tv_usec = 0;
     _timeout_ev = event_new(_base, -1, EV_PERSIST, TimeoutCallback, this);
-}
 
-ntrip_caster::~ntrip_caster()
-{
-    event_base_free(_base);
+    return 0;
 }
 
 int ntrip_caster::start()
@@ -263,6 +275,167 @@ int ntrip_caster::extra_init()
 
 int ntrip_caster::extra_stop()
 {
+    return 0;
+}
+
+int ntrip_caster::request_process(ConnectInfo req)
+{
+    try
+    {
+        // 根据请求的类型，执行对应的操作
+        switch (req.type())
+        {
+        // 一般ntrip请求-------------------------------------
+        case CONNECT_TYPE_SOURCE:
+            operate_source_ntrip(req);
+            break;
+        case CONNECT_TYPE_SERVER:
+            operate_server_ntrip(req);
+            break;
+        case CONNECT_TYPE_CLIENT:
+            operate_client_ntrip(req);
+            break;
+        case CONNECT_TYPE_NEAREST:
+            operate_client_near(req);
+            break;
+        case CONNECT_TYPE_PROXY:
+            operate_client_proxy(req);
+            break;
+        case CONNECT_TYPE_ALIAS:
+            operate_client_alias(req);
+            break;
+        default:
+            spdlog::warn("undefined req_type: {}", req.type());
+            break;
+        }
+    }
+    catch (std::exception &e)
+    {
+        std::string dump_safe = "[[dump failed]]";
+        try
+        {
+            dump_safe = req.DebugString();
+        }
+        catch (...)
+        {
+            // 忽略二次异常，保留默认提示
+        }
+        spdlog::warn("[{}:{}]: request_process error, from: [req_dump: {}] ,what: {}", __class__, __func__, dump_safe, e.what());
+    }
+    return 0;
+}
+
+int ntrip_caster::operate_client_ntrip(ConnectInfo req)
+{
+    switch (req.operate())
+    {
+    case OPERATE_TYPE_CREATE:
+    {
+        std::string connect_key = req.connect_key();
+        auto con = _connect_map.find(connect_key);
+        if (con == _connect_map.end())
+        {
+            spdlog::warn("[{}:{}]: Create_Ntrip_Client fail, con not in connect_map", __class__, __func__);
+            return 1;
+        }
+
+        auto item = std::make_shared<client_ntrip>(req, con->second);
+        _client_map.insert(std::pair<std::string, std::shared_ptr<client_ntrip>>(connect_key, item));
+        item->start();
+    }
+    break;
+    case OPERATE_TYPE_DESTORY:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int ntrip_caster::operate_server_ntrip(ConnectInfo req)
+{
+    switch (req.operate())
+    {
+    case OPERATE_TYPE_CREATE:
+        /* code */
+        break;
+    case OPERATE_TYPE_DESTORY:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int ntrip_caster::operate_source_ntrip(ConnectInfo req)
+{
+    switch (req.operate())
+    {
+    case OPERATE_TYPE_CREATE:
+        /* code */
+        break;
+    case OPERATE_TYPE_DESTORY:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int ntrip_caster::operate_client_near(ConnectInfo req)
+{
+    switch (req.operate())
+    {
+    case OPERATE_TYPE_CREATE:
+        /* code */
+        break;
+    case OPERATE_TYPE_DESTORY:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int ntrip_caster::operate_client_proxy(ConnectInfo req)
+{
+    switch (req.operate())
+    {
+    case OPERATE_TYPE_CREATE:
+        /* code */
+        break;
+    case OPERATE_TYPE_DESTORY:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int ntrip_caster::operate_client_alias(ConnectInfo req)
+{
+    switch (req.operate())
+    {
+    case OPERATE_TYPE_CREATE:
+        /* code */
+        break;
+    case OPERATE_TYPE_DESTORY:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
     return 0;
 }
 
