@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.21)
 project(NavCaster)
 
+
+
+option(BUILD_CASTER_MONITOR "Build Caster Monitor." OFF)
+option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
+
+
+
+
+
+
 #版本14以下可能会导致abseil不支持
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,7 +58,7 @@ set(VERSION_EXTRA 0)
 # -------------------------设置软件基本信息-------------------------------------------------
 # 设置可执行程序名称
 set(PROJECT_COMPANY "NavTool")
-set(PROJECT_COPYRIGHT "Copyright (c) 2025 NavTool's Lab. All rights reserved.")
+set(PROJECT_COPYRIGHT "Copyright (c) 2026 NavTool's Lab. All rights reserved.")
 set(PROJECT_DOMAIN "https://github.com/NavTool/NavTool")
 set(PROJECT_DESCRIPTION "A Navigation Tool")
 
@@ -129,20 +139,7 @@ endif()
 # 设置项目的版本号
 set(PROJECT_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_EXTRA}")
 
-# -------------------------获取Qt版本和编译器信息-------------------------------------------------
-find_package(Qt6 COMPONENTS Quick QUIET)
-if (NOT Qt6_FOUND)
-    find_package(Qt5 COMPONENTS Core REQUIRED)
-endif()
 
-# 获取并显示 Qt 版本（包括子版本）
-if (Qt6Core_VERSION)
-    set(QtVersion ${Qt6Core_VERSION})
-elseif (Qt5Core_VERSION)
-    set(QtVersion ${Qt5Core_VERSION})
-else()
-    message(FATAL_ERROR "Qt not found")
-endif()
 
 # 获取编译器信息
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -164,10 +161,123 @@ endif()
 # 获取系统架构
 set(Arch ${CMAKE_SYSTEM_PROCESSOR})
 
-# 输出完整的版本信息
-set(QT_COMPILER_VERSION "Qt ${QtVersion} (${Compiler}, ${Arch})")
+
 
 #------------------------------------------------------------------------------
+
+
+
+# #abseil-cpp
+# if(MSVC)
+#     set(BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
+# endif()
+# set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
+# set(ABSL_PROPAGATE_CXX_STD ON CACHE INTERNAL "")
+# add_subdirectory(rely/abseil-cpp/)
+
+# #protobuf
+# if(MSVC)
+#     set(protobuf_BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
+# endif()
+# set(protobuf_LOCAL_DEPENDENCIES_ONLY ON CACHE BOOL "Prevent downloading any dependencies from GitHub. If this option is set, the dependency must be available locally as an installed package." FORCE)
+# add_subdirectory(rely/protobuf/)
+# if(MSVC)
+#     target_compile_options(libupb PRIVATE /wd5287)    # 忽略编译libupb时候的警告
+# endif()
+# include_directories(${CMAKE_SOURCE_DIR}/proto/src)
+# add_subdirectory(proto)
+
+
+
+#libevent option
+# set(EVENT_LIBRARY_TYPE STATIC)
+set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Set library type to STATIC" FORCE)
+set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "force set this option" FORCE)
+set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "force set this option" FORCE)
+set(EVENT__DISABLE_TESTS ON CACHE BOOL "force set this option" FORCE)
+set(EVENT__DISABLE_REGRESS ON CACHE BOOL "force set this option" FORCE)
+set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "force set this option" FORCE)
+add_subdirectory(rely/libevent)
+
+#hiredis option
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
+set(DISABLE_TESTS ON CACHE BOOL "force set this option"  FORCE)
+add_subdirectory(rely/hiredis)
+
+#yaml-cpp option
+set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "force set this option"  FORCE)
+add_subdirectory(rely/yaml-cpp)
+
+#json
+set(JSON_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/rely/json/include")
+
+#spdlog
+set(SPDLOG_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/rely/spdlog/include")
+
+#rtklib
+add_subdirectory(rely/rtklib)
+
+
+add_subdirectory(lib)
+add_subdirectory(dev)
+
+if(BUILD_CASTER_SERVICE)
+    add_subdirectory(app/CasterService)
+endif()
+
+
+if(BUILD_CASTER_MONITOR)
+
+    # -------------------------获取Qt版本和编译器信息-------------------------------------------------
+    find_package(Qt6 COMPONENTS Quick QUIET)
+    if (NOT Qt6_FOUND)
+        find_package(Qt5 COMPONENTS Core REQUIRED)
+    endif()
+
+    # 获取并显示 Qt 版本（包括子版本）
+    if (Qt6Core_VERSION)
+        set(QtVersion ${Qt6Core_VERSION})
+    elseif (Qt5Core_VERSION)
+        set(QtVersion ${Qt5Core_VERSION})
+    else()
+        message(FATAL_ERROR "Qt not found")
+    endif()
+
+    # 输出完整的版本信息
+    set(QT_COMPILER_VERSION "Qt ${QtVersion} (${Compiler}, ${Arch})")
+
+    #FluentUI-Pro
+    option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
+    option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
+    if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
+        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
+    else()
+        set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
+    endif()
+
+    add_subdirectory(rely/FluentUI-Pro/FluentUI)
+    add_subdirectory(app/CasterMonitor)
+
+endif()
+
+#基于version.h.in 生成 version.h
+configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
+
+
+
+message("---------------------------- FluentUI ----------------------------")
+message("Build FluentUI static library: ${FLUENTUI_BUILD_STATIC_LIB}")
+message("Universal build FluentUI for macOS: ${FLUENTUI_UNIVERSAL_BUILD_MACOS}")
+message("------------------------------------------------------------------")
+
+option(HOTLOAD_ENABLED "Enable hot reload" OFF)
+message("---------------------------- NavTool ----------------------------")
+message("Enable hot reload   : ${HOTLOAD_ENABLED}")
+message("Build Caster Service: ${BUILD_CASTER_SERVICE}")
+message("Build Caster Monitor: ${BUILD_CASTER_MONITOR}")
+message("------------------------------------------------------------------")
+
 
 
 
@@ -210,97 +320,6 @@ message(STATUS "")
 message(STATUS "CMAKE_CXX_FLAGS_DEBUG   : ${CMAKE_CXX_FLAGS_DEBUG}")
 message(STATUS "CMAKE_CXX_FLAGS_RELEASE : ${CMAKE_CXX_FLAGS_RELEASE}")
 message(STATUS "CMAKE_BUILD_TYPE        : ${CMAKE_BUILD_TYPE}")
-
-
-
-#FluentUI-Pro
-option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
-option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
-if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-else()
-    set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
-endif()
-
-
-
-#abseil-cpp
-if(MSVC)
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
-endif()
-set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
-set(ABSL_PROPAGATE_CXX_STD ON CACHE INTERNAL "")
-add_subdirectory(rely/abseil-cpp/)
-
-#protobuf
-if(MSVC)
-    set(protobuf_BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
-endif()
-set(protobuf_LOCAL_DEPENDENCIES_ONLY ON CACHE BOOL "Prevent downloading any dependencies from GitHub. If this option is set, the dependency must be available locally as an installed package." FORCE)
-add_subdirectory(rely/protobuf/)
-if(MSVC)
-    target_compile_options(libupb PRIVATE /wd5287)    # 忽略编译libupb时候的警告
-endif()
-
-
-#libevent option
-# set(EVENT_LIBRARY_TYPE STATIC)
-set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Set library type to STATIC" FORCE)
-set(EVENT__DISABLE_OPENSSL ON CACHE BOOL "force set this option" FORCE)
-set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "force set this option" FORCE)
-set(EVENT__DISABLE_TESTS ON CACHE BOOL "force set this option" FORCE)
-set(EVENT__DISABLE_REGRESS ON CACHE BOOL "force set this option" FORCE)
-set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "force set this option" FORCE)
-add_subdirectory(rely/libevent)
-
-#hiredis option
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
-set(DISABLE_TESTS ON CACHE BOOL "force set this option"  FORCE)
-add_subdirectory(rely/hiredis)
-
-#yaml-cpp option
-set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
-set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "force set this option"  FORCE)
-add_subdirectory(rely/yaml-cpp)
-
-#json
-set(JSON_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/rely/json/include")
-
-#spdlog
-set(SPDLOG_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/rely/spdlog/include")
-
-#rtklib
-add_subdirectory(rely/rtklib)
-
-
-
-option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
-option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
-if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-else()
-    set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
-endif()
-add_subdirectory(rely/FluentUI-Pro/FluentUI)
-
-
-message("---------------------------- FluentUI ----------------------------")
-message("Build FluentUI static library: ${FLUENTUI_BUILD_STATIC_LIB}")
-message("Universal build FluentUI for macOS: ${FLUENTUI_UNIVERSAL_BUILD_MACOS}")
-message("------------------------------------------------------------------")
-
-option(HOTLOAD_ENABLED "Enable hot reload" OFF)
-message("---------------------------- NavTool ----------------------------")
-message("Enable hot reload: ${HOTLOAD_ENABLED}")
-message("------------------------------------------------------------------")
-
-
-add_subdirectory(app)
-add_subdirectory(lib)
-add_subdirectory(dev)
-
-#基于version.h.in 生成 version.h
-configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
 
 
 
