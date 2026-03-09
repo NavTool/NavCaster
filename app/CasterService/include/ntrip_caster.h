@@ -3,7 +3,7 @@
 #include "ntrip_global.h"
 
 #include "Connector/ntrip_compat_listener.h"
-#include "Connector/ntrip_relay_connector.h"
+// #include "Connector/ntrip_relay_connector.h"
 #include "Carrier/client_ntrip.h"
 #include "Carrier/server_ntrip.h"
 // #include "Carrier/server_relay.h"
@@ -79,14 +79,14 @@ private:
     int extra_stop();
 
 private:
-    int request_process(std::shared_ptr<ReqBase> req);
+    int request_process(ConnectInfo req);
 
-    int operate_client_ntrip(std::shared_ptr<ReqBase> req);
-    int operate_server_ntrip(std::shared_ptr<ReqBase> req);
-    int operate_source_ntrip(std::shared_ptr<ReqBase> req);
-    int operate_client_near(std::shared_ptr<ReqBase> req);
-    int operate_client_proxy(std::shared_ptr<ReqBase> req);
-    int operate_client_alias(std::shared_ptr<ReqBase> req);
+    int operate_client_ntrip(ConnectInfo req);
+    int operate_server_ntrip(ConnectInfo req);
+    int operate_source_ntrip(ConnectInfo req);
+    int operate_client_near(ConnectInfo req);
+    int operate_client_proxy(ConnectInfo req);
+    int operate_client_alias(ConnectInfo req);
 
     // // 任务处理函数
     // int request_process(json req);
@@ -124,8 +124,7 @@ private:
     // 连接-对象索引
 public:
     std::unordered_map<std::string, bufferevent *> _connect_map; // Connect_Key,bev
-
-    std::unordered_map<std::string, std::shared_ptr<ConnectInfo>> _connect_info_map;
+    std::unordered_map<std::string, ConnectInfo> _connect_info_map;
 
 private:
     std::unordered_map<std::string, std::shared_ptr<server_ntrip>> _server_map; // Connect_Key,server_ntrip

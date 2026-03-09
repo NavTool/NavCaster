@@ -4,19 +4,13 @@
 
 #define __class__ "client_ntrip"
 
-client_ntrip::client_ntrip(json req, bufferevent *bev)
+client_ntrip::client_ntrip(ConnectInfo req, bufferevent *bev)
 {
     _info = req;
-    _connect_key = _info["connect_key"];
-    _login_mpt = _info["mount_point"];
-    _user_name = _info["user_name"];
-    int fd = bufferevent_getfd(bev);
-    _ip = util_get_user_ip(fd);
-    _port = util_get_user_port(fd);
-    if (_info["ntrip_version"] == "Ntrip/2.0")
+    if (_info.ntrip_version() == "Ntrip/2.0")
     {
         _NtripVersion2 = true;
-        if (_info["http_chunked"] == "chunked")
+        if (_info.http_chunked() == "chunked")
         {
             _transfer_with_chunked = true;
         }

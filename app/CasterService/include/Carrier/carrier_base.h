@@ -10,6 +10,8 @@
 
 #include <spdlog/spdlog.h>
 
+// 这个本质应当是内部封装了基本的bev连接和操作函数以及基本的Auth和Caster交互逻辑，提供一些虚函数让不同类型的carrier去重写实现不同的功能
+
 class carrier_base
 {
 
@@ -46,23 +48,40 @@ class carrier_base
 
     */
 
+public:
+    // 需要实现的虚函数
+    void process_recv_data(const char *data, size_t length); // 处理接收数据的函数， 这个函数的实现会根据不同的类型有不同的处理逻辑，所以是虚函数
+    void process_send_data(const char *data, size_t length); // 处理发送数据的函数， 这个函数的实现会根据不同的类型有不同的处理逻辑，所以是虚函数
+    void process_event(int type);                            // 处理事件的函数， 这个函数的实现会根据不同的类型有不同的处理逻辑，所以是虚函数
+    void process_timeout();                                  // 处理定时器超时的函数， 这个函数的实现会根据不同的类型有不同的处理逻辑，所以是虚函数
+
+public:
+    carrier_base();
+    ~carrier_base();
+
+    // init bev连接(外部传入的Bev)
+    int init_bev(bufferevent *bev);
+    // 创建Bev连接
+    int create_bev(std::string ip, int port); // 创建bev连接，并连接到指定ip和端
+    // 设置Bev事件
+    int set_bev(bool enable_read, time_t read_timeout_ms, bool enable_write, time_t write_timeout_ms, bool enable_event); // 设置BEV事件的启动状态  读写事件定时器
+    // 释放Bev连接
+    int free_bev(); // 释放bev连接
+
+    // 启动定时器函数
+    int set_timeout(time_t time_ms);
+
+
+public:
+    // 请求和回复的函数
+    int bev_send_reply(ConnectType type, bool version2, bool chuncked);                                         //  有些类型需要 有些类型不需要
+    int bev_send_request(ConnectType type, bool version2, std::string mpt, std::string host, std::string auth); // 虚函数  有些类型需要 有些类型不需要
+
+    int bev_send_data(const char *data, size_t length); // 发送数据的函数， 这个函数的实现会根据不同的类型有不同的处理逻辑，所以是虚函数
+
+    int update_tcp_delay_info();
+
 protected:
-    ConnectInfo _info;
-
-    ConnectType _type;
-
-    // 调试查看的变量
-    std::string _mount_point;
-    std::string _mount_para;
-    std::string _connect_key;
-    std::string _user_name;
-    std::string _user_pwd;
-    std::string _ip;
-    int _port = 0;
-    bool _ntrip_version2 = false;        // 这个决定回复的消息是按照1.0还是2.0
-    bool _transfer_with_chunked = false; // 这个决定数据传输是否使用chunked编码，以及回复消息中是否包含Transfer-Encoding:chunked头(只有Ntrip2.0才会使用chunked编码)
-
-    // 连接的bev
     bufferevent *_bev;
 
     // bev的超时定时器
@@ -77,50 +96,17 @@ protected:
     timeval _timeout_tv;
 
 public:
-    carrier_base(ConnectInfo info, bufferevent *bev);
-    ~carrier_base();
-
-    virtual int start(); // 启动    // 如果还未创建Bev，那么要创建Bev  根据要不同的类型创建对应的函数
-    virtual int stop();  // 停止
-
-
-    // 主要流程
-    //      已有bev  那么是被动建立的连接， 进入Auth流程，  Auth连接完成，发送回应    进行running
-
-    //      没有bev  需要主动建立连接，不需要进入Auth流程，  TCP连接建立成功，发送请求  接收回应  进行running
-
-
-
-private:
-    virtual int runing(); // 运行
-
-    virtual int retry();  // 重试连接  清理连接 创建定时器 重新执行start
-
-public:
-    // 需要重写的纯虚函数
-    virtual int timeout() = 0;       // 定期超时函数
-    virtual int event(int type) = 0; // 事件函数
-
-public:
     // 重复逻辑
 
     static void Auth_Login_Callback(const char *request, void *arg, auth_reply *reply);
     static void Caster_Register_Callback(const char *request, void *arg, catser_reply *reply);
     static void Caster_Sub_Callback(const char *request, void *arg, catser_reply *reply);
 
-    static void ReadCallback(struct bufferevent *bev, void *arg);
-    static void EventCallback(struct bufferevent *bev, short events, void *arg);
-    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
-
     virtual int publish_recv_raw_data() = 0;
 
     virtual int transfer_sub_raw_data(const char *data, size_t length) = 0;
 
-private:
-    int update_tcp_delay_info();
-
-public:
-    int bev_send_reply();  // 虚函数  有些类型需要 有些类型不需要
-
-    int bev_send_request(std::string mpt,std::string host,std::string auth);  // 虚函数  有些类型需要 有些类型不需要
+    static void ReadCallback(struct bufferevent *bev, void *arg);
+    static void EventCallback(struct bufferevent *bev, short events, void *arg);
+    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
 };

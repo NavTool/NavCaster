@@ -42,7 +42,8 @@
 
 #include <regex>
 
-class ntrip_compat_listener
+
+class ntrip_listener
 {
 private:
     // 配置
@@ -70,10 +71,10 @@ private:
     std::set<std::string> _support_virtual_mount;
 
 public:
-    ntrip_compat_listener();
-    ~ntrip_compat_listener();
+    ntrip_listener();
+    ~ntrip_listener();
 
-    static ntrip_compat_listener *getInstance();
+    static ntrip_listener *getInstance();
 
     int init(ListenerOpt opt, event_base *base);
 
@@ -102,7 +103,7 @@ public:
 private:
     // 内部函数
     // std::string get_conncet_key(bufferevent *bev);
-    std::shared_ptr<CommonReq> decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url);
+    ConnectInfo decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url);
     std::string extract_path(std::string path);
     std::string extract_para(std::string path);
     std::string decode_basic_authentication(std::string authentication);

@@ -1,0 +1,10 @@
+syntax = "proto3";
+package caster.service;
+
+// 监听器的配置  改为protobuf形式是为了能够远程下发配置
+// 接入配置
+
+message NtripServerOpt {
+    
+
+}

@@ -19,7 +19,7 @@ class client_ntrip
 {
 private:
     // 基本上下文 在构造函数的时候传入
-    json _info;                          // 原始请求
+    ConnectInfo _info;                   // 原始请求
     std::string _connect_key;            // 连接唯一标识
     std::string _login_mpt;              // 登录的挂载点
     std::string _user_name;              // 用户名
@@ -51,7 +51,7 @@ private:
     decode_nmea _str_decoder;
 
 public:
-    client_ntrip(json req, bufferevent *bev);
+    client_ntrip(ConnectInfo req, bufferevent *bev);
     ~client_ntrip();
 
     int start(); // 绑定回调，然后去AUTH添加登录记录（是否允许多用户登录由auth判断并处理），如果添加成功，那就发送reply给用户，然后通知CASTER上线，如果不成功，就进入关闭流程

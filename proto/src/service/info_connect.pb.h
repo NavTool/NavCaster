@@ -132,6 +132,8 @@ enum OperateType : int {
   OPERATE_TYPE_UNKNOWN = 0,
   OPERATE_TYPE_CREATE = 1,
   OPERATE_TYPE_DESTORY = 2,
+  OPERATE_TYPE_PAUSE = 3,
+  OPERATE_TYPE_UPDATE = 4,
   OperateType_INT_MIN_SENTINEL_DO_NOT_USE_ =
       ::std::numeric_limits<::int32_t>::min(),
   OperateType_INT_MAX_SENTINEL_DO_NOT_USE_ =
@@ -142,11 +144,11 @@ extern const uint32_t OperateType_internal_data_[];
 inline constexpr OperateType OperateType_MIN =
     static_cast<OperateType>(0);
 inline constexpr OperateType OperateType_MAX =
-    static_cast<OperateType>(2);
+    static_cast<OperateType>(4);
 [[nodiscard]] inline bool OperateType_IsValid(int value) {
-  return 0 <= value && value <= 2;
+  return 0 <= value && value <= 4;
 }
-inline constexpr int OperateType_ARRAYSIZE = 2 + 1;
+inline constexpr int OperateType_ARRAYSIZE = 4 + 1;
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
 OperateType_descriptor();
 [[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(OperateType) {
@@ -161,7 +163,7 @@ template <typename T>
 }
 template <>
 [[nodiscard]] inline const ::std::string& OperateType_Name(OperateType value) {
-  return ::google::protobuf::internal::NameOfDenseEnum<OperateType_descriptor, 0, 2>(
+  return ::google::protobuf::internal::NameOfDenseEnum<OperateType_descriptor, 0, 4>(
       static_cast<int>(value));
 }
 [[nodiscard]] inline bool OperateType_Parse(

@@ -8,10 +8,10 @@
 #include "Caster_Core.h"
 #include "Auth_Verify.h"
 
-// #include "service/opt_listener.pb.h"
-// #include "service/info_connect.pb.h"
-// using namespace caster::service;
-
+#include "google/protobuf/json/json.h"
+#include "service/opt_listener.pb.h"
+#include "service/info_connect.pb.h"
+using namespace caster::service;
 
 // #define SOFTWARE_NAME "KORO_Caster"
 // #define SOFTWARE_VERSION "0.0.2"
@@ -43,26 +43,22 @@
 #define REQUEST_NEAREST_LOGIN 304 // 最近挂载点
 #define CLOSE_NEAREST_CLIENT 305
 
-
 #define REQUEST_SERVER_LOGIN 308 // 基站
 #define CLOSE_NTRIP_SERVER 309
-
 
 #define REQUEST_ALIAS_LOGIN 304 // 最近挂载点
 #define CLOSE_ALIAS_CLIENT 305
 
-
 // RELAY请求
 #define REQUEST_RELAY_PULL 601 // 数据拉取
 #define STOP_RELAY_PULL 602    // 停止数据拉取
-#define UPDATE_RELAY_PULL 603    // 停止数据拉取
+#define UPDATE_RELAY_PULL 603  // 停止数据拉取
 #define CLOSE_RELAY_PULL 604   // 删除这个任务
 
 #define REQUEST_RELAY_PUSH 701 // 数据拉取
 #define STOP_RELAY_PUSH 702    // 停止数据拉取
-#define UPDATE_RELAY_PUSH 703    // 停止数据拉取
+#define UPDATE_RELAY_PUSH 703  // 停止数据拉取
 #define CLOSE_RELAY_PUSH 704   // 删除这个任务
-
 
 // 连接操作请求
 // #define CLOSE_NTRIP_SERVER 307
@@ -80,6 +76,38 @@
 #define NO_IDEL_RELAY_ACCOUNT_CLOSE_CONNCET 503
 #define CREATE_RELAY_CONNECT_FAIL_CLOSE_CONNCET 504
 #define ALREADY_SEND_SOURCELIST_CLOSE_CONNCET 505
+
+template <typename T>
+bool JsonToProto(const std::string &json, T &msg)
+{
+    google::protobuf::json::ParseOptions opt;
+    opt.ignore_unknown_fields = true; // 关键：向前 / 向后兼容
+
+    auto status = google::protobuf::json::JsonStringToMessage(json, &msg, opt);
+    return status.ok();
+}
+
+template <typename T>
+std::string ProtoToJson(const T &msg)
+{
+    google::protobuf::json::PrintOptions opt;
+    opt.add_whitespace = true;                       // 转换成json是否添加空格、换行和缩进
+    opt.always_print_fields_with_no_presence = true; // 打印不支持存在的字段
+    opt.always_print_enums_as_ints = false;          // 将枚举类型打印为int
+    opt.preserve_proto_field_names = true;           // 是否保留原型字段名
+    opt.unquote_int64_if_possible = true;            // 关键
+    std::string json_str;
+    auto res = google::protobuf::json::MessageToJsonString(msg, &json_str, opt);
+
+    if (res.ok())
+    {
+        return json_str;
+    }
+    else
+    {
+        return std::string();
+    }
+}
 
 // // 时间
 // #define EVENT_TIMEOUT_SEC 5

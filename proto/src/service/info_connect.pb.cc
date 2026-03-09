@@ -172,15 +172,17 @@ const char descriptor_table_protodef_service_2finfo_5fconnect_2eproto[] ABSL_ATT
     "ONNECT_TYPE_PROXY\020\005\022\026\n\022CONNECT_TYPE_ALIA"
     "S\020\006\022\025\n\021CONNECT_TYPE_PULL\020\007\022\025\n\021CONNECT_TY"
     "PE_PUSH\020\010\022\025\n\021CONNECT_TYPE_GRID\020\t\022\024\n\020CONN"
-    "ECT_TYPE_VRS\020\n*Z\n\013OperateType\022\030\n\024OPERATE"
-    "_TYPE_UNKNOWN\020\000\022\027\n\023OPERATE_TYPE_CREATE\020\001"
-    "\022\030\n\024OPERATE_TYPE_DESTORY\020\002b\006proto3"
+    "ECT_TYPE_VRS\020\n*\213\001\n\013OperateType\022\030\n\024OPERAT"
+    "E_TYPE_UNKNOWN\020\000\022\027\n\023OPERATE_TYPE_CREATE\020"
+    "\001\022\030\n\024OPERATE_TYPE_DESTORY\020\002\022\026\n\022OPERATE_T"
+    "YPE_PAUSE\020\003\022\027\n\023OPERATE_TYPE_UPDATE\020\004b\006pr"
+    "oto3"
 };
 static ::absl::once_flag descriptor_table_service_2finfo_5fconnect_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_service_2finfo_5fconnect_2eproto = {
     false,
     false,
-    794,
+    844,
     descriptor_table_protodef_service_2finfo_5fconnect_2eproto,
     "service/info_connect.proto",
     &descriptor_table_service_2finfo_5fconnect_2eproto_once,
@@ -208,7 +210,7 @@ OperateType_descriptor() {
   return file_level_enum_descriptors_service_2finfo_5fconnect_2eproto[1];
 }
 PROTOBUF_CONSTINIT const uint32_t OperateType_internal_data_[] = {
-    196608u, 0u, };
+    327680u, 0u, };
 // ===================================================================
 
 class ConnectInfo::_Internal {

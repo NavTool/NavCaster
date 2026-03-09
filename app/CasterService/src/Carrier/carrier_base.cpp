@@ -4,10 +4,10 @@
 
 #define __class__ "carrier_base"
 
-carrier_base::carrier_base(ConnectInfo info, bufferevent *bev)
+carrier_base::carrier_base()
 {
-    _info = info;
-    _bev = bev;
+    // _info = info;
+    // _bev = bev;
 }
 
 carrier_base::~carrier_base()
@@ -25,10 +25,12 @@ int carrier_base::start()
 
 int carrier_base::stop()
 {
+    return 0;
 }
 
 int carrier_base::runing()
 {
+    return 0;
 }
 
 int carrier_base::retry()
@@ -117,6 +119,10 @@ void carrier_base::EventCallback(bufferevent *bev, short events, void *arg)
     svr->stop();
 }
 
+void carrier_base::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
+{
+}
+
 void carrier_base::TimeoutCallback(intptr_t fd, short events, void *arg)
 {
     auto *svr = static_cast<carrier_base *>(arg);
@@ -134,17 +140,17 @@ int carrier_base::update_tcp_delay_info()
     return CASTER::Set_Rover_Delay_Info(_user_name.c_str(), _connect_key.c_str(), util_get_tcp_delay(bufferevent_getfd(_bev)));
 }
 
-int carrier_base::bev_send_reply()
+int carrier_base::bev_send_reply(ConnectType type, bool version2, bool chuncked)
 {
-    if (_type == CONNECT_TYPE_SERVER)
+    if (type == CONNECT_TYPE_SERVER)
     {
-        if (_ntrip_version2)
+        if (version2)
         {
             evbuffer_add_printf(_send_evbuf, "HTTP/1.1 200 OK\r\n");
             evbuffer_add_printf(_send_evbuf, "Ntrip-Version: Ntrip/2.0\r\n");
             evbuffer_add_printf(_send_evbuf, "Server: Ntrip %s_%s/2.0\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
             evbuffer_add_printf(_send_evbuf, "Date: %s\r\n", util_get_http_date().c_str());
-            if (_transfer_with_chunked)
+            if (chuncked)
             {
                 evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
             }
@@ -157,10 +163,9 @@ int carrier_base::bev_send_reply()
             evbuffer_add_printf(_send_evbuf, "\r\n");
         }
     }
-
-    if (_type == CONNECT_TYPE_CLIENT)
+    else if (type == CONNECT_TYPE_CLIENT)
     {
-        if (_ntrip_version2)
+        if (version2)
         {
             evbuffer_add_printf(_send_evbuf, "HTTP/1.1 200 OK\r\n");
             evbuffer_add_printf(_send_evbuf, "Ntrip-Version: Ntrip/2.0\r\n");
@@ -169,7 +174,7 @@ int carrier_base::bev_send_reply()
             evbuffer_add_printf(_send_evbuf, "Cache-Control: no-store, no-cache, max-age=0\r\n");
             evbuffer_add_printf(_send_evbuf, "Pragma: no-cache\r\n");
             evbuffer_add_printf(_send_evbuf, "Connection: close\r\n");
-            if (_transfer_with_chunked)
+            if (chuncked)
             {
                 evbuffer_add_printf(_send_evbuf, "Transfer-Encoding: chunked\r\n");
             }
@@ -182,20 +187,23 @@ int carrier_base::bev_send_reply()
             evbuffer_add_printf(_send_evbuf, "\r\n");
         }
     }
-
-    if (_type == CONNECT_TYPE_SOURCE)
+    else
     {
+        return 1;
     }
+    // if (type == CONNECT_TYPE_SOURCE)
+    // {
+    // }
 
     bufferevent_write_buffer(_bev, _send_evbuf);
     return 0;
 }
 
-int carrier_base::bev_send_request(std::string mpt, std::string auth, std::string host)
+int carrier_base::bev_send_request(ConnectType type, bool version2, std::string mpt, std::string host, std::string auth)
 {
-    if (_type == CONNECT_TYPE_PULL)
+    if (type == CONNECT_TYPE_PULL)
     {
-        if (_ntrip_version2) // Ntrip/2.0
+        if (version2) // Ntrip/2.0
         {
             evbuffer_add_printf(_send_evbuf, "GET %s HTTP/1.1\r\n", mpt.c_str());
             evbuffer_add_printf(_send_evbuf, "Host: %s\r\n", host.c_str());
@@ -213,10 +221,9 @@ int carrier_base::bev_send_request(std::string mpt, std::string auth, std::strin
             evbuffer_add_printf(_send_evbuf, "\r\n");
         }
     }
-
-    if (_type == CONNECT_TYPE_PUSH)
+    else if (type == CONNECT_TYPE_PUSH)
     {
-        if (_ntrip_version2) // Ntrip/2.0
+        if (version2) // Ntrip/2.0
         {
             evbuffer_add_printf(_send_evbuf, "POST /%s HTTP/1.1\r\n", mpt.c_str());
             evbuffer_add_printf(_send_evbuf, "Host: %s\r\n", host.c_str());
@@ -234,8 +241,53 @@ int carrier_base::bev_send_request(std::string mpt, std::string auth, std::strin
             evbuffer_add_printf(_send_evbuf, "\r\n");
         }
     }
+    else
+    {
+        return 1;
+    }
 
     bufferevent_write_buffer(_bev, _send_evbuf);
 
     return 0;
+}
+
+int carrier_base::create_bev(std::string ip, int port)
+{
+    return 0;
+}
+
+int carrier_base::init_bev(bufferevent *bev)
+{
+    return 0;
+}
+
+int carrier_base::set_bev(bool enable_read, time_t read_timeout_ms, bool enable_write, time_t write_timeout_ms, bool enable_event)
+{
+    return 0;
+}
+
+int carrier_base::free_bev()
+{
+    return 0;
+}
+
+bool carrier_base::set_timeout(time_t time_ms)
+{
+    return false;
+}
+
+void carrier_base::process_recv_data(const char *data, size_t length)
+{
+}
+
+void carrier_base::process_send_data(const char *data, size_t length)
+{
+}
+
+void carrier_base::process_event(int type)
+{
+}
+
+void carrier_base::process_timeout()
+{
 }

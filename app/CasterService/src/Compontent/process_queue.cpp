@@ -7,7 +7,7 @@
 class process_queue_intenal
 {
 private:
-    std::queue<std::shared_ptr<ReqBase>> _queue;
+    std::queue<ConnectInfo> _queue;
     event *_processer;
 
 public:
@@ -16,13 +16,13 @@ public:
 
     int add_processer(event *processer);
 
-    int push(std::shared_ptr<ReqBase> req);
+    int push(ConnectInfo req);
 
     int active_prrocesser();
 
-    int push_and_active(std::shared_ptr<ReqBase> req);
+    int push_and_active(ConnectInfo req);
 
-    std::shared_ptr<ReqBase> pop();
+    ConnectInfo pop();
 
     bool not_null();
 
@@ -37,13 +37,13 @@ process_queue_intenal::~process_queue_intenal()
 {
 }
 
-int process_queue_intenal::push(std::shared_ptr<ReqBase> req)
+int process_queue_intenal::push(ConnectInfo req)
 {
     _queue.push(req);
     return 0;
 }
 
-std::shared_ptr<ReqBase> process_queue_intenal::pop()
+ConnectInfo process_queue_intenal::pop()
 {
     auto req = _queue.front();
     _queue.pop();
@@ -65,7 +65,7 @@ int process_queue_intenal::active_prrocesser()
     return 0;
 }
 
-int process_queue_intenal::push_and_active(std::shared_ptr<ReqBase> req)
+int process_queue_intenal::push_and_active(ConnectInfo req)
 {
     push(req);
     return active_prrocesser();
@@ -92,12 +92,12 @@ int QUEUE::Free()
     return 0;
 }
 
-int QUEUE::Push(std::shared_ptr<ReqBase> req)
+int QUEUE::Push(ConnectInfo req)
 {
     return queue_svr->push_and_active(req);
 }
 
-std::shared_ptr<ReqBase> QUEUE::Pop()
+ConnectInfo QUEUE::Pop()
 {
     return queue_svr->pop();
 }
