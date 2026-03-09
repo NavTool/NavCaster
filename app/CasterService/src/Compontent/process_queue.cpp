@@ -2,14 +2,12 @@
 // #include "spdlog/spdlog.h"
 // #include "knt/knt.h"
 
-#inc    
-
 #define __class__ "process_queue"
 
 class process_queue_intenal
 {
 private:
-    std::queue<ConnectInfo> _queue;
+    std::queue<std::shared_ptr<ReqBase>> _queue;
     event *_processer;
 
 public:
@@ -18,13 +16,13 @@ public:
 
     int add_processer(event *processer);
 
-    int push(json ConnectInfo);
+    int push(std::shared_ptr<ReqBase> req);
 
     int active_prrocesser();
 
-    int push_and_active(json ConnectInfo);
+    int push_and_active(std::shared_ptr<ReqBase> req);
 
-    ConnectInfo pop();
+    std::shared_ptr<ReqBase> pop();
 
     bool not_null();
 
@@ -39,15 +37,15 @@ process_queue_intenal::~process_queue_intenal()
 {
 }
 
-int process_queue_intenal::push(ConnectInfo req)
+int process_queue_intenal::push(std::shared_ptr<ReqBase> req)
 {
     _queue.push(req);
     return 0;
 }
 
-json process_queue_intenal::pop()
+std::shared_ptr<ReqBase> process_queue_intenal::pop()
 {
-    json req = _queue.front();
+    auto req = _queue.front();
     _queue.pop();
     return req;
 }
@@ -67,7 +65,7 @@ int process_queue_intenal::active_prrocesser()
     return 0;
 }
 
-int process_queue_intenal::push_and_active(json req)
+int process_queue_intenal::push_and_active(std::shared_ptr<ReqBase> req)
 {
     push(req);
     return active_prrocesser();
@@ -79,7 +77,6 @@ int process_queue_intenal::add_processer(event *processer)
     return 0;
 }
 
-//
 process_queue_intenal *queue_svr = nullptr;
 
 int QUEUE::Init(event *process_event)
@@ -95,12 +92,12 @@ int QUEUE::Free()
     return 0;
 }
 
-int QUEUE::Push(ConnectInfo req)
+int QUEUE::Push(std::shared_ptr<ReqBase> req)
 {
     return queue_svr->push_and_active(req);
 }
 
-ConnectInfo QUEUE::Pop()
+std::shared_ptr<ReqBase> QUEUE::Pop()
 {
     return queue_svr->pop();
 }

@@ -348,7 +348,7 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
             erase_and_free_bev(bev, connect_key);
             return 1;
         }
-        req.set_type(CONNECT_TYPE_SOURCE);
+        req->type(CONNECT_TYPE_SOURCE);
     }
     else
     {
@@ -362,15 +362,15 @@ int ntrip_compat_listener::Process_GET_Request(bufferevent *bev, std::string con
         //  查找是否是最近挂载点
         if (CASTER::Check_Nearest_Mpt(mount.c_str()))
         {
-            req.set_type(CONNECT_TYPE_NEAREST);
+            req->type(CONNECT_TYPE_NEAREST);
         }
         else if (CASTER::Check_Alias_Mpt(mount.c_str()))
         {
-            req.set_type(CONNECT_TYPE_ALIAS);
+            req->type(CONNECT_TYPE_ALIAS);
         }
         else
         {
-            req.set_type(CONNECT_TYPE_CLIENT);
+            req->type(CONNECT_TYPE_CLIENT);
         }
     }
 
@@ -416,12 +416,12 @@ int ntrip_compat_listener::Process_POST_Request(bufferevent *bev, std::string co
     }
     else
     {
-        req.set_type(CONNECT_TYPE_SERVER);
+        req->type(CONNECT_TYPE_SERVER);
     }
 
-    std::string userID = req.user_base64();
-    std::string user_name = req.user_name();
-    std::string user_pwd = req.user_pwd();
+    std::string userID = req.user_base64;
+    std::string user_name = req.user_name;
+    std::string user_pwd = req.user_pwd;
     auto ctx = new std::pair<ntrip_compat_listener *, ConnectInfo>(this, req);
     AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
@@ -452,21 +452,21 @@ int ntrip_compat_listener::Process_SOURCE_Request(bufferevent *bev, std::string 
     }
     else
     {
-        req.set_type(CONNECT_TYPE_SERVER);
+        req->type = CONNECT_TYPE_SERVER;
     }
 
     std::string pwd = secret;
     if (pwd != "")
     {
-        req.set_user_base64(pwd + ":" + pwd);
-        req.set_user_name(pwd);
-        req.set_user_pwd(pwd);
+        req->user_base64 = pwd + ":" + pwd;
+        req->user_name = pwd;
+        req->user_pwd = pwd;
     }
 
-    std::string userID = req.user_base64();
-    std::string user_name = req.user_name();
-    std::string user_pwd = req.user_pwd();
-    auto ctx = new std::pair<ntrip_compat_listener *, ConnectInfo>(this, req);
+    std::string userID = req.user_base64;
+    std::string user_name = req.user_name;
+    std::string user_pwd = req.user_pwd;
+    auto ctx = new std::pair<ntrip_compat_listener *, std::shared_ptr<CommonReq>>(this, req);
     AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
     return 0;
 }
@@ -479,7 +479,7 @@ int ntrip_compat_listener::Process_Unsupport_Request(bufferevent *bev, std::stri
 
 void ntrip_compat_listener::Auth_Verify_Cb(const char *request, void *arg, auth_reply *reply)
 {
-    auto ctx = static_cast<std::pair<ntrip_compat_listener *, ConnectInfo> *>(arg);
+    auto ctx = static_cast<std::pair<ntrip_compat_listener *, std::shared_ptr<CommonReq>> *>(arg);
 
     auto svr = ctx->first;
     auto req = ctx->second;
@@ -505,7 +505,7 @@ void ntrip_compat_listener::Auth_Verify_Cb(const char *request, void *arg, auth_
 //     return util_cal_connect_key(bufferevent_getfd(bev));
 // }
 
-ConnectInfo ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url)
+std::shared_ptr<CommonReq> ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url)
 {
     /*
         connect_key
@@ -524,10 +524,10 @@ ConnectInfo ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std:
 
     */
 
-    ConnectInfo con_info;
-    con_info.set_connect_key(connect_key);
-    con_info.set_mount_point(extract_path(url)); // 提取请求的?前的内容
-    con_info.set_mount_para(extract_para(url));  // 提取请求的?后的内容
+    auto con_info = std::make_shared<CommonReq>();
+    con_info->connect_key = connect_key;
+    con_info->mount_point = extract_path(url); // 提取请求的?前的内容
+    con_info->mount_para = extract_para(url);  // 提取请求的?后的内容
 
     evbuffer *evbuf = bufferevent_get_input(bev);
     json item;
@@ -576,31 +576,31 @@ ConnectInfo ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std:
 
     if (item["Host"].is_string())
     {
-        con_info.set_http_host(std::string(item["Host"]));
+        con_info->http_host = std::string(item["Host"]);
     }
     if (item["Transfer-Encoding"].is_string())
     {
-        con_info.set_http_chunked(std::string(item["Transfer-Encoding"]));
+        con_info->http_chunked = std::string(item["Transfer-Encoding"]);
     }
     if (item["User-Agent"].is_string())
     {
-        con_info.set_user_agent(std::string(item["User-Agent"]));
+        con_info->user_agent = std::string(item["User-Agent"]);
     }
     else if (item["Source-Agent"].is_string())
     {
-        con_info.set_user_agent(std::string(item["Source-Agent"]));
+        con_info->user_agent = std::string(item["Source-Agent"]);
     }
     if (item["STR"].is_string())
     {
-        con_info.set_mount_info(std::string(item["STR"]));
+        con_info->mount_info = std::string(item["STR"]);
     }
     if (item["Ntrip-Version"].is_string())
     {
-        con_info.set_ntrip_version(std::string(item["Ntrip-Version"]));
+        con_info->ntrip_version = std::string(item["Ntrip-Version"]);
     }
     if (item["Ntrip-GGA"].is_string())
     {
-        con_info.set_ntrip_gga(std::string(item["Ntrip-GGA"]));
+        con_info->ntrip_gga = std::string(item["Ntrip-GGA"]);
     }
     if (item["Authorization"].is_string())
     {
@@ -613,10 +613,10 @@ ConnectInfo ntrip_compat_listener::decode_bufferevent_req(bufferevent *bev, std:
         }
         else
         {
-            con_info.set_ntrip_auth(auth);
-            con_info.set_user_base64(decodeID);
-            con_info.set_user_name(decodeID.substr(0, x));
-            con_info.set_user_pwd(decodeID.substr(x + 1));
+            con_info->ntrip_auth = auth;
+            con_info->user_base64 = decodeID;
+            con_info->user_name = decodeID.substr(0, x);
+            con_info->user_pwd = decodeID.substr(x + 1);
         }
     }
 

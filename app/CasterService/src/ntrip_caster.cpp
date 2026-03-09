@@ -278,12 +278,12 @@ int ntrip_caster::extra_stop()
     return 0;
 }
 
-int ntrip_caster::request_process(ConnectInfo req)
+int ntrip_caster::request_process(std::shared_ptr<ReqBase> req)
 {
     try
     {
         // 根据请求的类型，执行对应的操作
-        switch (req.type())
+        switch (req.type)
         {
         // 一般ntrip请求-------------------------------------
         case CONNECT_TYPE_SOURCE:
@@ -325,7 +325,7 @@ int ntrip_caster::request_process(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::operate_client_ntrip(ConnectInfo req)
+int ntrip_caster::operate_client_ntrip(std::shared_ptr<ReqBase> req)
 {
     switch (req.operate())
     {
@@ -354,7 +354,7 @@ int ntrip_caster::operate_client_ntrip(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::operate_server_ntrip(ConnectInfo req)
+int ntrip_caster::operate_server_ntrip(std::shared_ptr<ReqBase> req)
 {
     switch (req.operate())
     {
@@ -371,7 +371,31 @@ int ntrip_caster::operate_server_ntrip(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::operate_source_ntrip(ConnectInfo req)
+int ntrip_caster::operate_source_ntrip(std::shared_ptr<ReqBase> req)
+{
+    auto info = std::dynamic_pointer_cast<CommonReq>(req);
+    if (!info)
+    {
+        spdlog::warn("[{}:{}]: req is not CommonReq", __class__, __func__);
+        return 1;
+    }
+
+    switch (req.operate)
+    {
+    case OPERATE_TYPE_CREATE:
+        /* code */
+        break;
+    case OPERATE_TYPE_DESTORY:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
+int ntrip_caster::operate_client_near(std::shared_ptr<ReqBase> req)
 {
     switch (req.operate())
     {
@@ -388,7 +412,7 @@ int ntrip_caster::operate_source_ntrip(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::operate_client_near(ConnectInfo req)
+int ntrip_caster::operate_client_proxy(std::shared_ptr<ReqBase> req)
 {
     switch (req.operate())
     {
@@ -405,7 +429,7 @@ int ntrip_caster::operate_client_near(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::operate_client_proxy(ConnectInfo req)
+int ntrip_caster::operate_client_alias(std::shared_ptr<ReqBase> req)
 {
     switch (req.operate())
     {
@@ -422,110 +446,7 @@ int ntrip_caster::operate_client_proxy(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::operate_client_alias(ConnectInfo req)
-{
-    switch (req.operate())
-    {
-    case OPERATE_TYPE_CREATE:
-        /* code */
-        break;
-    case OPERATE_TYPE_DESTORY:
-        /* code */
-        break;
-    default:
-        break;
-    }
-
-    return 0;
-}
-
-int ntrip_caster::request_process(json req)
-{
-    try
-    {
-        // 根据请求的类型，执行对应的操作
-        int REQ_TYPE = req["req_type"];
-
-        spdlog::debug("[{}:{}]: \n\r {}", __class__, __func__, req.dump(2));
-        // spdlog::info("[{}:{}]: REQ_TYPE: {}", __class__, __func__,REQ_TYPE);
-
-        switch (REQ_TYPE)
-        {
-        // 一般ntrip请求-------------------------------------
-        case REQUEST_SOURCE_LOGIN:
-            create_source_ntrip(req);
-            break;
-        case CLOSE_NTRIP_SOURCE:
-            close_source_ntrip(req);
-            break;
-        case REQUEST_CLIENT_LOGIN:
-            create_client_ntrip(req);
-            break;
-        case CLOSE_NTRIP_CLIENT:
-            close_client_ntrip(req);
-            break;
-        case REQUEST_SERVER_LOGIN:
-            create_server_ntrip(req);
-            break;
-        case CLOSE_NTRIP_SERVER:
-            close_server_ntrip(req);
-            break;
-        case REQUEST_NEAREST_LOGIN:
-            create_client_near(req);
-            break;
-        case CLOSE_NEAREST_CLIENT:
-            close_client_near(req);
-            break;
-        case REQUEST_RELAY_PULL:
-            create_relay_pull(req);
-            break;
-        case STOP_RELAY_PULL:
-            stop_relay_pull(req);
-            break;
-        case UPDATE_RELAY_PULL:
-            update_relay_pull(req);
-            break;
-        case CLOSE_RELAY_PULL:
-            close_relay_pull(req);
-            break;
-        case REQUEST_RELAY_PUSH:
-            create_relay_push(req);
-            break;
-        case STOP_RELAY_PUSH:
-            stop_relay_push(req);
-            break;
-        case UPDATE_RELAY_PUSH:
-            update_relay_push(req);
-            break;
-        case CLOSE_RELAY_PUSH:
-            close_relay_push(req);
-            break;
-        // 虚拟挂载点  //Nearest/Relay/Cors
-        // case REQUEST_VIRTUAL_LOGIN:
-        //     create_client_virtual(req);
-        //     break;
-        default:
-            spdlog::warn("undefined req_type: {}", REQ_TYPE);
-            break;
-        }
-    }
-    catch (std::exception &e)
-    {
-        std::string dump_safe = "[[dump failed]]";
-        try
-        {
-            dump_safe = req.dump(2);
-        }
-        catch (...)
-        {
-            // 忽略二次异常，保留默认提示
-        }
-        spdlog::warn("[{}:{}]: request_process error, from: [req_dump: {}] ,what: {}", __class__, __func__, dump_safe, e.what());
-    }
-    return 0;
-}
-
-int ntrip_caster::create_source_ntrip(json req)
+int ntrip_caster::create_source_ntrip(std::shared_ptr<ReqBase> req)
 {
     std::string connect_key = req["connect_key"];
     auto con = _connect_map.find(connect_key);
@@ -542,7 +463,7 @@ int ntrip_caster::create_source_ntrip(json req)
     return 0;
 }
 
-int ntrip_caster::close_source_ntrip(json req)
+int ntrip_caster::close_source_ntrip(std::shared_ptr<ReqBase> req)
 {
     json origin_req = req["origin_req"];
     std::string connect_key = origin_req["connect_key"];
@@ -849,7 +770,7 @@ void ntrip_caster::Request_Process_Cb(evutil_socket_t fd, short what, void *arg)
     ntrip_caster *svr = static_cast<ntrip_caster *>(arg);
     if (QUEUE::Not_Null())
     {
-        json req = QUEUE::Pop();
+        auto req = QUEUE::Pop();
         svr->request_process(req);
     }
 

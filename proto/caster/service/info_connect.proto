@@ -15,7 +15,6 @@ enum ConnectType
   CONNECT_TYPE_PUSH    = 8; // Push
   CONNECT_TYPE_GRID    = 9; // Grid
   CONNECT_TYPE_VRS    = 10; // 虚拟参考站
-
 }
 
 enum OperateType

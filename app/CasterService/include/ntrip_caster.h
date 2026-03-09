@@ -34,8 +34,6 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-
-
 class ntrip_caster
 {
 private:
@@ -81,39 +79,39 @@ private:
     int extra_stop();
 
 private:
-    int request_process(ConnectInfo req);
+    int request_process(std::shared_ptr<ReqBase> req);
 
-    int operate_client_ntrip(ConnectInfo req);
-    int operate_server_ntrip(ConnectInfo req);
-    int operate_source_ntrip(ConnectInfo req);
-    int operate_client_near(ConnectInfo req);
-    int operate_client_proxy(ConnectInfo req);
-    int operate_client_alias(ConnectInfo req);
+    int operate_client_ntrip(std::shared_ptr<ReqBase> req);
+    int operate_server_ntrip(std::shared_ptr<ReqBase> req);
+    int operate_source_ntrip(std::shared_ptr<ReqBase> req);
+    int operate_client_near(std::shared_ptr<ReqBase> req);
+    int operate_client_proxy(std::shared_ptr<ReqBase> req);
+    int operate_client_alias(std::shared_ptr<ReqBase> req);
 
-    // 任务处理函数
-    int request_process(json req);
+    // // 任务处理函数
+    // int request_process(json req);
 
-    int create_client_ntrip(json req); // 用Ntrip协议登录的用户(一个挂载点一个)
-    int close_client_ntrip(json req);
+    // int create_client_ntrip(std::shared_ptr<ReqBase> req); // 用Ntrip协议登录的用户(一个挂载点一个)
+    // int close_client_ntrip(std::shared_ptr<ReqBase> req);
 
-    int create_server_ntrip(json req); // 基站主动接入产生的数据源
-    int close_server_ntrip(json req);
+    // int create_server_ntrip(std::shared_ptr<ReqBase> req); // 基站主动接入产生的数据源
+    // int close_server_ntrip(std::shared_ptr<ReqBase> req);
 
-    int create_source_ntrip(json req); // 用Ntrip协议获取源列表
-    int close_source_ntrip(json req);  // 用Ntrip协议获取源列表
+    // int create_source_ntrip(std::shared_ptr<ReqBase> req); // 用Ntrip协议获取源列表
+    // int close_source_ntrip(std::shared_ptr<ReqBase> req);  // 用Ntrip协议获取源列表
 
-    int create_client_near(json req); // 用Ntrip协议登录的用户(最近挂载点)
-    int close_client_near(json req);
+    // int create_client_near(std::shared_ptr<ReqBase> req); // 用Ntrip协议登录的用户(最近挂载点)
+    // int close_client_near(std::shared_ptr<ReqBase> req);
 
-    int create_relay_pull(json req); // 用Ntrip协议登录的用户(最近挂载点)
-    int stop_relay_pull(json req);   // 用Ntrip协议登录的用户(最近挂载点)
-    int update_relay_pull(json req);
-    int close_relay_pull(json req);
+    // int create_relay_pull(std::shared_ptr<ReqBase> req); // 用Ntrip协议登录的用户(最近挂载点)
+    // int stop_relay_pull(std::shared_ptr<ReqBase> req);   // 用Ntrip协议登录的用户(最近挂载点)
+    // int update_relay_pull(std::shared_ptr<ReqBase> req);
+    // int close_relay_pull(std::shared_ptr<ReqBase> req);
 
-    int create_relay_push(json req); // 用Ntrip协议登录的用户(最近挂载点)
-    int stop_relay_push(json req);   // 用Ntrip协议登录的用户(最近挂载点)
-    int update_relay_push(json req);
-    int close_relay_push(json req);
+    // int create_relay_push(std::shared_ptr<ReqBase> req); // 用Ntrip协议登录的用户(最近挂载点)
+    // int stop_relay_push(std::shared_ptr<ReqBase> req);   // 用Ntrip协议登录的用户(最近挂载点)
+    // int update_relay_push(std::shared_ptr<ReqBase> req);
+    // int close_relay_push(std::shared_ptr<ReqBase> req);
 
     // 请求处理失败，关闭连接
     int close_unsuccess_req_connect(json req);

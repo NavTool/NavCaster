@@ -42,8 +42,6 @@
 
 #include <regex>
 
-
-
 class ntrip_compat_listener
 {
 private:
@@ -79,7 +77,6 @@ public:
 
     int init(ListenerOpt opt, event_base *base);
 
-
     int start();
     int stop();
 
@@ -105,7 +102,7 @@ public:
 private:
     // 内部函数
     // std::string get_conncet_key(bufferevent *bev);
-    ConnectInfo decode_bufferevent_req(bufferevent *bev, std::string connect_key,const char *url);
+    std::shared_ptr<CommonReq> decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url);
     std::string extract_path(std::string path);
     std::string extract_para(std::string path);
     std::string decode_basic_authentication(std::string authentication);
