@@ -318,11 +318,12 @@ int ntrip_caster::request_process(ConnectInfo req)
 
 int ntrip_caster::operate_client_ntrip(ConnectInfo req)
 {
+    std::string connect_key = req.connect_key();
     switch (req.operate())
     {
     case OPERATE_TYPE_CREATE:
     {
-        auto con = _connect_map.find(req.connect_key());
+        auto con = _connect_map.find(connect_key);
         if (con == _connect_map.end())
         {
             spdlog::warn("[{}:{}]: Create_Ntrip_Client fail, con not in connect_map", __class__, __func__);
@@ -334,8 +335,29 @@ int ntrip_caster::operate_client_ntrip(ConnectInfo req)
     }
     break;
     case OPERATE_TYPE_DESTORY:
-        /* code */
-        break;
+    {
+        auto con = _connect_map.find(req.connect_key());
+        if (con == _connect_map.end())
+        {
+            spdlog::warn("[{}:{}]: con not in connect_map", __class__, __func__);
+        }
+        else
+        {
+            _connect_map.erase(con);
+        }
+
+        auto obj = _client_map.find(req.connect_key());
+        if (obj == _client_map.end())
+        {
+            spdlog::warn("[{}:{}]: obj not in client_map", __class__, __func__);
+        }
+        else
+        {
+            _client_map.erase(obj);
+        }
+        return 0;
+    }
+    break;
     case OPERATE_TYPE_PAUSE:
         /* code */
         break;

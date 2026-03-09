@@ -8,6 +8,8 @@
 #include "Caster_Core.h"
 #include "Auth_Verify.h"
 
+#include "Compontent/connect_bev.h"
+
 #include "google/protobuf/json/json.h"
 #include "service/opt_listener.pb.h"
 #include "service/opt_service.pb.h"
@@ -114,6 +116,46 @@ std::string ProtoToJson(const T &msg)
         return std::string();
     }
 }
+
+template <typename T>
+class Carrier
+{
+    std::unordered_map<std::string, std::shared_ptr<T>> m_obj_map;
+
+public:
+    int createObject(ConnectInfo req)
+    {
+        std::string connect_key = req.connect_key();
+        auto bev = connect_bev::getInstance()->find(connect_key);
+        if (bev == nullptr)
+        {
+            // spdlog::warn("[{}:{}]: Create_Ntrip_Client fail, con not in connect_map", __class__, __func__);
+            return 1;
+        }
+        auto item = std::make_shared<client_ntrip>(req, bev);
+        m_obj_map.insert(std::pair<std::string, std::shared_ptr<client_ntrip>>(connect_key, item));
+        item->start();
+    }
+
+    int destoryObject(ConnectInfo req)
+    {
+        std::string connect_key = req.connect_key();
+        connect_bev::getInstance()->free(connect_key);
+
+        auto item = m_obj_map.find(connect_key);
+        if (item == m_obj_map.end())
+        {
+            return 1; // 在map中不存在
+        }
+        m_obj_map.erase(UID);
+        return 0;
+    }
+
+    int updateObject(ConnectInfo req)
+    {
+        return 0;
+    }
+};
 
 // // 时间
 // #define EVENT_TIMEOUT_SEC 5

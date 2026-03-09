@@ -59,6 +59,15 @@ public:
     carrier_base();
     ~carrier_base();
 
+    virtual int start(); // 启动函数，注册Auth和Caster的回调函数，初始化bev连接等
+    virtual int stop();  // 停止函数，取消注册Auth和Caster的回调函数，释放bev连接等
+    virtual int update();
+    virtual int pause();
+    virtual int unpause();
+    
+    virtual int running();
+    virtual int retry();
+
     // init bev连接(外部传入的Bev)
     int init_bev(bufferevent *bev);
     // 创建Bev连接
@@ -70,7 +79,6 @@ public:
 
     // 启动定时器函数
     int set_timeout(time_t time_ms);
-
 
 public:
     // 请求和回复的函数

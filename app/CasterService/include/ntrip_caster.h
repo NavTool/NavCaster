@@ -11,6 +11,7 @@
 #include "Carrier/client_near.h"
 #include "Carrier/relay_pull.h"
 #include "Carrier/relay_push.h"
+#include "Carrier/carrier_base.h"
 
 // #include "../extra/heart_beat/heart_beat.h"
 #include "../extra/license_check/license_check.h"
@@ -47,8 +48,7 @@ public:
     int stop();
 
 private:
-
-        bool _output_state;
+    bool _output_state;
     int _refresh_state_interval;
 
     // 状态数据
@@ -122,6 +122,8 @@ private:
     std::unordered_map<std::string, std::shared_ptr<client_near>> _near_map; // Connect_Key,client_near
     std::unordered_map<std::string, std::shared_ptr<relay_pull>> _pull_map;  // Connect_Key,relay_pull
     std::unordered_map<std::string, std::shared_ptr<relay_push>> _push_map;  // Connect_Key,relay_pull
+
+    Carrier<carrier_base> _carrier_bases;
 
 private:
     event_base *_base;

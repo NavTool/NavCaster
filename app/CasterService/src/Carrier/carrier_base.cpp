@@ -16,10 +16,6 @@ carrier_base::~carrier_base()
 
 int carrier_base::start()
 {
-    bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
-
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this, AuthType::CLIENT);
-
     return 0;
 }
 
@@ -28,10 +24,26 @@ int carrier_base::stop()
     return 0;
 }
 
-int carrier_base::runing()
+int carrier_base::update()
 {
     return 0;
 }
+
+int carrier_base::pause()
+{
+    return 0;
+}
+
+int carrier_base::unpause()
+{
+    return 0;
+}
+
+int carrier_base::running()
+{
+    return 0;
+}
+
 
 int carrier_base::retry()
 {

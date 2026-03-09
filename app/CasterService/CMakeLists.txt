@@ -89,8 +89,8 @@ include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/extra/license_chec
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)
 
 set(COMPONTENT_TYPE_SOURCE
-    include/Compontent/process_queue.h
-    src/Compontent/process_queue.cpp
+    include/Compontent/process_queue.h src/Compontent/process_queue.cpp
+    include/connect_bev.h  src/connect_bev.cpp
 )
 
 set(CARRIER_TYPE_SOURCE
