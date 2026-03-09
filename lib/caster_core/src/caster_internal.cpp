@@ -106,9 +106,9 @@ std::string caster_internal::get_status_str()
     std::string str = "Connection: " +
                       std::to_string(_server_connection_count + _client_connection_count) +
                       ", Server: " +
-                      std::to_string(_server_connection_count - _pull_connection_count) +
+                      std::to_string(_server_connection_count) +
                       ", Client: " +
-                      std::to_string(_client_connection_count - _push_connection_count) +
+                      std::to_string(_client_connection_count) +
                       ", Pull: " +
                       std::to_string(_pull_connection_count) +
                       ", Push: " +

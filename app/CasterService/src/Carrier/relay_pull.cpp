@@ -80,17 +80,7 @@ int relay_pull::start()
         return 2;
     }
 
-
-    _connect_key = util_cal_connect_key(fd);
-    _ip = util_get_user_ip(fd);
-    _port = util_get_user_port(fd);
-    if (_connect_key.empty())
-    {
-        bufferevent_free(_bev);
-        return 3;
-    }
-
-    _connect_timeout_tv.tv_sec = 300;
+    _connect_timeout_tv.tv_sec = 30;
     _connect_timeout_tv.tv_usec = 0;
     bufferevent_setcb(_bev, VerifyCallback, NULL, ConnectedCallback, this);
     bufferevent_set_timeouts(_bev, &_connect_timeout_tv, NULL);
@@ -308,6 +298,11 @@ void relay_pull::ConnectedCallback(bufferevent *bev, short events, void *arg)
     // 连接建立成功
     if (events == BEV_EVENT_CONNECTED)
     {
+        auto fd = bufferevent_getfd(bev);
+        svr->_connect_key = util_cal_connect_key(fd);
+        svr->_ip = util_get_user_ip(fd);
+        svr->_port = util_get_user_port(fd);
+
         svr->send_login_request();
         return;
     }

@@ -80,15 +80,6 @@ int relay_push::start()
         return 2;
     }
 
-    _connect_key = util_cal_connect_key(fd);
-    _ip = util_get_user_ip(fd);
-    _port = util_get_user_port(fd);
-    if (_connect_key.empty())
-    {
-        bufferevent_free(_bev);
-        return 3;
-    }
-
     _connect_timeout_tv.tv_sec = 300;
     _connect_timeout_tv.tv_usec = 0;
     bufferevent_setcb(_bev, VerifyCallback, NULL, ConnectedCallback, this);
@@ -188,7 +179,6 @@ int relay_push::runing()
     return 0;
 }
 
-
 int relay_push::transfer_sub_raw_data(const char *data, size_t length)
 {
     auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
@@ -254,6 +244,11 @@ void relay_push::ConnectedCallback(bufferevent *bev, short events, void *arg)
     // 连接建立成功
     if (events == BEV_EVENT_CONNECTED)
     {
+        auto fd = bufferevent_getfd(bev);
+        svr->_connect_key = util_cal_connect_key(fd);
+        svr->_ip = util_get_user_ip(fd);
+        svr->_port = util_get_user_port(fd);
+
         svr->send_login_request();
         return;
     }
