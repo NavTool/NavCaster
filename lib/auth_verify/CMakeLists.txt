@@ -30,11 +30,13 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/in
 
 target_link_libraries(${PROJECT_NAME} casterbase)
 
+target_link_libraries(${PROJECT_NAME} caster_proto)
+
+
 #libevent 
 target_link_libraries(${PROJECT_NAME} event)
 target_link_libraries(${PROJECT_NAME} event_core)
 target_link_libraries(${PROJECT_NAME} event_extra)
-
 
 #hiredis 
 target_link_libraries(${PROJECT_NAME} hiredis)

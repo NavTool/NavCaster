@@ -227,7 +227,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListenerOpt final : public ::google
     kEnableNearestLoginFieldNumber = 6,
     kEnableProxyLoginFieldNumber = 7,
     kEnableAliasLoginFieldNumber = 8,
-    kEnableHeaderNoCrlfFieldNumber = 9,
+    kEnableGridLoginFieldNumber = 9,
+    kEnableHeaderNoCrlfFieldNumber = 10,
   };
   // uint32 listen_port = 1;
   void clear_listen_port() ;
@@ -309,7 +310,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListenerOpt final : public ::google
   void _internal_set_enable_alias_login(bool value);
 
   public:
-  // bool enable_header_no_crlf = 9;
+  // bool enable_grid_login = 9;
+  void clear_enable_grid_login() ;
+  [[nodiscard]] bool enable_grid_login() const;
+  void set_enable_grid_login(bool value);
+
+  private:
+  bool _internal_enable_grid_login() const;
+  void _internal_set_enable_grid_login(bool value);
+
+  public:
+  // bool enable_header_no_crlf = 10;
   void clear_enable_header_no_crlf() ;
   [[nodiscard]] bool enable_header_no_crlf() const;
   void set_enable_header_no_crlf(bool value);
@@ -323,7 +334,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListenerOpt final : public ::google
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 9,
+  static const ::google::protobuf::internal::TcParseTable<4, 10,
                                    0, 0,
                                    2>
       _table_;
@@ -355,6 +366,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ListenerOpt final : public ::google
     bool enable_nearest_login_;
     bool enable_proxy_login_;
     bool enable_alias_login_;
+    bool enable_grid_login_;
     bool enable_header_no_crlf_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -580,12 +592,37 @@ inline void ListenerOpt::_internal_set_enable_alias_login(bool value) {
   _impl_.enable_alias_login_ = value;
 }
 
-// bool enable_header_no_crlf = 9;
+// bool enable_grid_login = 9;
+inline void ListenerOpt::clear_enable_grid_login() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enable_grid_login_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline bool ListenerOpt::enable_grid_login() const {
+  // @@protoc_insertion_point(field_get:caster.service.ListenerOpt.enable_grid_login)
+  return _internal_enable_grid_login();
+}
+inline void ListenerOpt::set_enable_grid_login(bool value) {
+  _internal_set_enable_grid_login(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  // @@protoc_insertion_point(field_set:caster.service.ListenerOpt.enable_grid_login)
+}
+inline bool ListenerOpt::_internal_enable_grid_login() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enable_grid_login_;
+}
+inline void ListenerOpt::_internal_set_enable_grid_login(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enable_grid_login_ = value;
+}
+
+// bool enable_header_no_crlf = 10;
 inline void ListenerOpt::clear_enable_header_no_crlf() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enable_header_no_crlf_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000100U);
+                  0x00000200U);
 }
 inline bool ListenerOpt::enable_header_no_crlf() const {
   // @@protoc_insertion_point(field_get:caster.service.ListenerOpt.enable_header_no_crlf)
@@ -593,7 +630,7 @@ inline bool ListenerOpt::enable_header_no_crlf() const {
 }
 inline void ListenerOpt::set_enable_header_no_crlf(bool value) {
   _internal_set_enable_header_no_crlf(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   // @@protoc_insertion_point(field_set:caster.service.ListenerOpt.enable_header_no_crlf)
 }
 inline bool ListenerOpt::_internal_enable_header_no_crlf() const {

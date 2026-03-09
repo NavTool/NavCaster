@@ -8,10 +8,10 @@ Ntrip_Listener_Setting:
   Enable_Source_Login: true      #处理获取源列表请求（允许用户以GET /请求访问）
   Enable_Server_Login: true      #处理基站连接请求（允许用户以SOURCE|POST请求访问）
   Enable_Client_Login: true      #处理移动站连接请求（允许用户以GET请求访问）
-  Enable_MPT_Online_Check: true   #在Client登录的时候就检查挂载点是否在线，用于削弱短期大量反复重连不在线挂载点带来的负载影响
-  Enable_Nearest_MPT: false      #最近挂载点模式,启动之后,会查询该挂载点是否是最近点模式的挂载点，然后以最近挂载点登录（优先级1，最先判断）
-  Enable_Virtual_MPT: false      #最近挂载点模式,启动之后,会查询该挂载点是否是最近点模式的挂载点，然后以虚拟挂载点登录（优先级2）
-  Enable_Common_MPT: true        #普通挂载点模式,启动之后,会查询该普通挂载点是否在线，然后以普通挂载点登录（优先级3）
+  Enable_Nearest_Login: true
+  Enable_Proxy_Login: true
+  Enable_Alias_Login: true
+  Enable_Grid_Login: true
   Enable_Header_No_CRLF: true    #兼容模式,允许用户仅发送Header头登录,且不必发送回车换行,但是同时由于没有回车换行,也不能携带除挂载点之外的任何信息
 
 #基站相关设置

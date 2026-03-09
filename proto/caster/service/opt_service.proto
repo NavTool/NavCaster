@@ -1,0 +1,26 @@
+syntax = "proto3";
+package caster.service;
+
+// 监听器的配置  改为protobuf形式是为了能够远程下发配置
+// 接入配置
+
+message ServiceOpt {
+
+  uint32 refresh_state_interval = 1; // 刷新状态的时间间隔，单位秒
+  bool   output_state           = 2; // 是否输出状态信息
+  bool   output_stdout          = 3; // 是否输出日志到标准输出
+  bool   output_file            = 4; // 是否输出日志到文件
+  bool   output_file_daily      = 5; //
+  bool   output_file_hourly     = 6; // 是否按小时切分日志文件，默认为按天切分
+  bool   output_file_rotate     = 7; // 是否启用日志轮转，默认为按天切分
+  int32  file_rotate_size       = 8; // 日志轮转大小，单位字节，默认为10MB
+  int32  file_rotate_quata      = 9; // 日志轮转文件数量，默认为10个
+  string file_save_path         = 10; // 日志文件保存路径，默认为当前目录下的logs文件夹
+
+  bool cord_dump         = 11; // 是否启用cord_dump功能
+  bool output_debug_info = 12; // 是否输出调试信息
+
+  string register_file_path = 13; // 注册信息文件路径，默认为当前目录下的register.lic
+  string license_file_path  = 14; // 许可证文件路径，默认为当前目录下的license.lic
+
+}

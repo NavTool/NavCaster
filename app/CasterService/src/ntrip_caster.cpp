@@ -80,52 +80,61 @@ void ntrip_caster::License_Check_Callback(evutil_socket_t fd, short events, void
 
 void ntrip_caster::Relay_Request_Callback(void *arg, CasterBroadcastType type, std::string req_str)
 {
+    ConnectInfo req;
+
+    switch (type)
+    {
+    case CasterBroadcastType::RELAY_PULL_ACTIVE:
+        /* code */
+        break;
+    case CasterBroadcastType::RELAY_PULL_INACTIVE:
+        /* code */
+        break;
+    case CasterBroadcastType::RELAY_PULL_UPDATE:
+        /* code */
+        break;
+    case CasterBroadcastType::RELAY_PULL_UPDATE:
+        /* code */
+        break;
+    case CasterBroadcastType::RELAY_PULL_INACTIVE:
+        /* code */
+        break;
+    case CasterBroadcastType::RELAY_PULL_ACTIVE:
+        /* code */
+        break;
+    case CasterBroadcastType::RELAY_PULL_ACTIVE:
+        /* code */
+        break;
+    default:
+        break;
+    }
+
     if (type == CasterBroadcastType::RELAY_PULL_ACTIVE)
     {
-        // 创建一个请求，添加到队列中去
-        json req = json::parse(req_str);
-        req["req_type"] = REQUEST_RELAY_PULL;
-        QUEUE::Push(req);
+        req.set_type(CONNECT_TYPE_PULL);
+        req.set_operate(OPERATE_TYPE_CREATE);
     }
     if (type == CasterBroadcastType::RELAY_PULL_INACTIVE)
     {
-        // 创建一个请求，添加到队列中去
-        json req = json::parse(req_str);
-        req["req_type"] = STOP_RELAY_PULL;
-        QUEUE::Push(req);
     }
     if (type == CasterBroadcastType::RELAY_PULL_UPDATE)
     {
-        // 创建一个请求，添加到队列中去
-        json req = json::parse(req_str);
-        req["req_type"] = UPDATE_RELAY_PULL;
-        QUEUE::Push(req);
     }
     if (type == CasterBroadcastType::RELAY_PUSH_ACTIVE)
     {
-        // 创建一个请求，添加到队列中去
-        json req = json::parse(req_str);
-        req["req_type"] = REQUEST_RELAY_PUSH;
-        QUEUE::Push(req);
     }
     if (type == CasterBroadcastType::RELAY_PUSH_INACTIVE)
     {
-        // 创建一个请求，添加到队列中去
-        json req = json::parse(req_str);
-        req["req_type"] = STOP_RELAY_PUSH;
-        QUEUE::Push(req);
     }
     if (type == CasterBroadcastType::RELAY_PUSH_UPDATE)
     {
-        // 创建一个请求，添加到队列中去
-        json req = json::parse(req_str);
-        req["req_type"] = UPDATE_RELAY_PUSH;
-        QUEUE::Push(req);
     }
+    QUEUE::Push(req);
 }
 
 ntrip_caster::ntrip_caster()
 {
+    _base = event_base_new();
 }
 
 ntrip_caster::~ntrip_caster()
@@ -139,35 +148,16 @@ ntrip_caster *ntrip_caster::getInstance()
     return instance;
 }
 
-int ntrip_caster::init(json cfg)
+int ntrip_caster::start()
 {
-    std::string dump_conf = cfg.dump(4);
-    spdlog::debug("load conf info:\n{}", dump_conf);
 
-    _service_setting = cfg["Service_Setting"];
-    _caster_core_setting = cfg["Core_Setting"];
-    _auth_verify_setting = cfg["Auth_Setting"];
-
-    _common_setting = _service_setting["Common_Setting"];
-
-    _listener_setting = _service_setting["Ntrip_Listener"];
-    _client_setting = _service_setting["Client_Setting"];
-    _server_setting = _service_setting["Server_Setting"];
-
-    _refresh_state_interval = _common_setting["Refresh_State_Interval"];
-    _output_state = _common_setting["Output_State"];
-
-    _base = event_base_new();
+    _refresh_state_interval = ntrip_config::getInstance()->_service_opt.refresh_state_interval();
+    _output_state = ntrip_config::getInstance()->_service_opt.output_state();
 
     _timeout_tv.tv_sec = _refresh_state_interval;
     _timeout_tv.tv_usec = 0;
     _timeout_ev = event_new(_base, -1, EV_PERSIST, TimeoutCallback, this);
 
-    return 0;
-}
-
-int ntrip_caster::start()
-{
     // 核心模块初始化（核心业务）
     compontent_init();
 
@@ -242,17 +232,17 @@ int ntrip_caster::compontent_init()
     QUEUE::Init(_process_event);
 
     // 用户验证模块
-    AUTH::Init(_auth_verify_setting.dump().c_str(), _base);
+    AUTH::Init(ntrip_config::getInstance()->_auth_verify_opt, _base);
 
     // 初始化Caster数据分发核心：当前采用的是Redis，后续开发支持脱离redis运行
-    CASTER::Init(_caster_core_setting.dump().c_str(), _base);
+    CASTER::Init(ntrip_config::getInstance()->_caster_core_opt, _base);
 
     // 注册Relay请求回调
     CASTER::Relay_Register_Callback(Relay_Request_Callback, this);
 
     // 创建listener请求
     ListenerOpt opt;
-    ntrip_listener::getInstance()->init(opt, _base);
+    ntrip_listener::getInstance()->init(ntrip_config::getInstance()->_listener_opt, _base);
     ntrip_listener::getInstance()->start();
 
     return 0;

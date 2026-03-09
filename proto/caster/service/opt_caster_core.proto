@@ -1,0 +1,26 @@
+syntax = "proto3";
+package caster.service;
+
+// 监听器的配置  改为protobuf形式是为了能够远程下发配置
+// 接入配置
+
+message CasterCoreOpt {
+
+  string redis_host     = 1; // Redis服务器地址，默认为localhost
+  int32  redis_port     = 2; // Redis服务器端口，默认为6379
+  string redis_password = 3; // Redis服务器密码，默认为空
+
+  int32 update_intv       = 4; // 内部数据更新频率
+  int32 key_expire_time   = 5; // 认证信息过期时间，单位秒
+  bool  upload_base_stat  = 6; // 是否上传基站状态信息
+  bool  upload_rover_stat = 7; // 是否上传流动站状态信息
+
+  bool base_enable_mult     = 8;
+  bool base_keep_early      = 9;
+  bool base_notify_inactive = 10;
+
+  bool rover_enable_mult    = 11;
+  bool rover_keep_early     = 12;
+  bool rover_noify_inactive = 13;
+
+}

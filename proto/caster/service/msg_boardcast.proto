@@ -1,0 +1,19 @@
+syntax = "proto3";
+package caster.service;
+
+// 监听器的配置  改为protobuf形式是为了能够远程下发配置
+// 接入配置
+
+enum BroadcastType
+{
+  BOARDCAST_TYPE_UNSPECIFIED  = 0; // 未指定的广播类型
+  BOARDCAST_TYPE_RUSH_OPERATE = 1;
+  BOARDCAST_TYPE_PULL_OPERATE = 2;
+}
+
+message BoardcastMsg {
+
+  BroadcastType type    = 1; // 广播类型
+  string        msg_str = 2; // 请求字符串，包含了请求的具体内容，可以
+
+}

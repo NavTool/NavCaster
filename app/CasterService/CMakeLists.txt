@@ -113,10 +113,7 @@ set(CARRIER_TYPE_SOURCE
 )
 
 set(CONNECTOR_TYPE_SOURCE
-    include/Connector/ntrip_compat_listener.h
-    include/Connector/ntrip_relay_connector.h
-    src/Connector/ntrip_compat_listener.cpp
-    src/Connector/ntrip_relay_connector.cpp
+    include/Connector/ntrip_listener.h  src/Connector/ntrip_listener.cpp
 )
 
 set(EXTRA_SOURCE
@@ -132,9 +129,10 @@ set(EXTRA_SOURCE
 
 set(MAIN_SOURCES
     include/ntrip_global.h
-    include/ntrip_caster.h
+    include/ntrip_config.h  src/ntrip_config.cpp
+    include/ntrip_caster.h  src/ntrip_caster.cpp
     src/main.cpp
-    src/ntrip_caster.cpp
+    
 )
 
 

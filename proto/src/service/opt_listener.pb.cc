@@ -49,6 +49,7 @@ inline constexpr ListenerOpt::Impl_::Impl_(
         enable_nearest_login_{false},
         enable_proxy_login_{false},
         enable_alias_login_{false},
+        enable_grid_login_{false},
         enable_header_no_crlf_{false} {}
 
 template <typename>
@@ -81,7 +82,7 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_._has_bits_),
-        12, // hasbit index offset
+        13, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.listen_port_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.connect_timeout_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.enable_source_login_),
@@ -90,6 +91,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.enable_nearest_login_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.enable_proxy_login_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.enable_alias_login_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.enable_grid_login_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ListenerOpt, _impl_.enable_header_no_crlf_),
         0,
         1,
@@ -100,6 +102,7 @@ const ::uint32_t
         6,
         7,
         8,
+        9,
 };
 
 static const ::_pbi::MigrationSchema
@@ -112,19 +115,20 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_service_2fopt_5flistener_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\032service/opt_listener.proto\022\016caster.ser"
-    "vice\"\207\002\n\013ListenerOpt\022\023\n\013listen_port\030\001 \001("
+    "vice\"\242\002\n\013ListenerOpt\022\023\n\013listen_port\030\001 \001("
     "\r\022\027\n\017connect_timeout\030\002 \001(\r\022\033\n\023enable_sou"
     "rce_login\030\003 \001(\010\022\033\n\023enable_server_login\030\004"
     " \001(\010\022\033\n\023enable_client_login\030\005 \001(\010\022\034\n\024ena"
     "ble_nearest_login\030\006 \001(\010\022\032\n\022enable_proxy_"
     "login\030\007 \001(\010\022\032\n\022enable_alias_login\030\010 \001(\010\022"
-    "\035\n\025enable_header_no_crlf\030\t \001(\010b\006proto3"
+    "\031\n\021enable_grid_login\030\t \001(\010\022\035\n\025enable_hea"
+    "der_no_crlf\030\n \001(\010b\006proto3"
 };
 static ::absl::once_flag descriptor_table_service_2fopt_5flistener_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_service_2fopt_5flistener_2eproto = {
     false,
     false,
-    318,
+    345,
     descriptor_table_protodef_service_2fopt_5flistener_2eproto,
     "service/opt_listener.proto",
     &descriptor_table_service_2fopt_5flistener_2eproto_once,
@@ -258,16 +262,16 @@ ListenerOpt::GetClassData() const {
   return ListenerOpt_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<4, 9, 0, 0, 2>
+const ::_pbi::TcParseTable<4, 10, 0, 0, 2>
 ListenerOpt::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_._has_bits_),
     0, // no _extensions_
-    9, 120,  // max_field_number, fast_idx_mask
+    10, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294966784,  // skipmap
+    4294966272,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    9,  // num_field_entries
+    10,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     ListenerOpt_class_data_.base(),
@@ -310,11 +314,14 @@ ListenerOpt::_table_ = {
     {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(ListenerOpt, _impl_.enable_alias_login_), 7>(),
      {64, 7, 0,
       PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_alias_login_)}},
-    // bool enable_header_no_crlf = 9;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(ListenerOpt, _impl_.enable_header_no_crlf_), 8>(),
+    // bool enable_grid_login = 9;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(ListenerOpt, _impl_.enable_grid_login_), 8>(),
      {72, 8, 0,
+      PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_grid_login_)}},
+    // bool enable_header_no_crlf = 10;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(ListenerOpt, _impl_.enable_header_no_crlf_), 9>(),
+     {80, 9, 0,
       PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_header_no_crlf_)}},
-    {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
@@ -339,8 +346,10 @@ ListenerOpt::_table_ = {
     {PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_proxy_login_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
     // bool enable_alias_login = 8;
     {PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_alias_login_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
-    // bool enable_header_no_crlf = 9;
-    {PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_header_no_crlf_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool enable_grid_login = 9;
+    {PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_grid_login_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool enable_header_no_crlf = 10;
+    {PROTOBUF_FIELD_OFFSET(ListenerOpt, _impl_.enable_header_no_crlf_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
   }},
   // no aux_entries
   {{
@@ -359,7 +368,11 @@ PROTOBUF_NOINLINE void ListenerOpt::Clear() {
         reinterpret_cast<char*>(&_impl_.enable_alias_login_) -
         reinterpret_cast<char*>(&_impl_.listen_port_)) + sizeof(_impl_.enable_alias_login_));
   }
-  _impl_.enable_header_no_crlf_ = false;
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    ::memset(&_impl_.enable_grid_login_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.enable_header_no_crlf_) -
+        reinterpret_cast<char*>(&_impl_.enable_grid_login_)) + sizeof(_impl_.enable_header_no_crlf_));
+  }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -455,12 +468,21 @@ PROTOBUF_NOINLINE void ListenerOpt::Clear() {
     }
   }
 
-  // bool enable_header_no_crlf = 9;
+  // bool enable_grid_login = 9;
   if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (this_._internal_enable_grid_login() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          9, this_._internal_enable_grid_login(), target);
+    }
+  }
+
+  // bool enable_header_no_crlf = 10;
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
     if (this_._internal_enable_header_no_crlf() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
-          9, this_._internal_enable_header_no_crlf(), target);
+          10, this_._internal_enable_header_no_crlf(), target);
     }
   }
 
@@ -541,9 +563,15 @@ PROTOBUF_NOINLINE void ListenerOpt::Clear() {
       }
     }
   }
-   {
-    // bool enable_header_no_crlf = 9;
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    // bool enable_grid_login = 9;
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (this_._internal_enable_grid_login() != 0) {
+        total_size += 2;
+      }
+    }
+    // bool enable_header_no_crlf = 10;
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (this_._internal_enable_header_no_crlf() != 0) {
         total_size += 2;
       }
@@ -609,9 +637,16 @@ void ListenerOpt::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
   }
-  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-    if (from._internal_enable_header_no_crlf() != 0) {
-      _this->_impl_.enable_header_no_crlf_ = from._impl_.enable_header_no_crlf_;
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (from._internal_enable_grid_login() != 0) {
+        _this->_impl_.enable_grid_login_ = from._impl_.enable_grid_login_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (from._internal_enable_header_no_crlf() != 0) {
+        _this->_impl_.enable_header_no_crlf_ = from._impl_.enable_header_no_crlf_;
+      }
     }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;

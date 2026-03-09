@@ -1,5 +1,7 @@
 #pragma once
 #include <event2/event.h>
+#include "service/opt_auth_verify.pb.h"
+using namespace caster::service;
 
 // #define AUTH_REPLY_ERR -1
 // #define AUTH_REPLY_OK 0
@@ -55,7 +57,7 @@ typedef void (*VerifyCallback)(const char *request, void *arg, auth_reply *reply
 namespace AUTH
 {
 
-    int Init(const char *json_conf, event_base *base);
+    int Init(AuthVerifyOpt opt, event_base *base);
     int Free();
 
     // 验证密码是否通过, 返回有效期, 或登录失败(在回调调用前, 回调对象不能被删除)

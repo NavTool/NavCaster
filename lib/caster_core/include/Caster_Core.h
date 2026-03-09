@@ -4,6 +4,9 @@
 #include <string>
 #include <set>
 
+#include "service/opt_caster_core.pb.h"
+using namespace caster::service;
+
 // #define CASTER_REPLY_ERR -1
 // #define CASTER_REPLY_OK 0
 // #define CASTER_REPLY_ACTIVE 5   // 激活，当前有用户订阅该频道（针对注册的回调）
@@ -104,7 +107,7 @@ typedef void (*RelayCallback)(void *arg, CasterBroadcastType type, std::string r
 namespace CASTER
 {
     // 基础函数
-    int Init(const char *json_conf, event_base *base);
+    int Init(CasterCoreOpt opt, event_base *base);
     int Free();
 
     std::string Get_Status();
@@ -139,12 +142,11 @@ namespace CASTER
 
     int Set_Push_Rover_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
-
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
     // 将移动站注册到Caster中（Client上线的时候主动调用）
-    int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg,CasterRegisterType type);
+    int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
     // 将移动站从Caster中注销（Client下线的时候主动调用）
     int Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布移动站数据

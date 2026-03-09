@@ -2,3 +2,9 @@ bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/*.prot
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/context/*.proto
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/mutual/*.proto
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto
+
+
+bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/*.proto
+bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/context/*.proto
+bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/mutual/*.proto
+bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto

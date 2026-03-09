@@ -10,7 +10,13 @@
 
 #include "google/protobuf/json/json.h"
 #include "service/opt_listener.pb.h"
+#include "service/opt_service.pb.h"
+#include "service/opt_auth_verify.pb.h"
+#include "service/opt_caster_core.pb.h"
+
 #include "service/info_connect.pb.h"
+#include "service/opt_carrier.pb.h"
+
 using namespace caster::service;
 
 // #define SOFTWARE_NAME "KORO_Caster"

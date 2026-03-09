@@ -6,6 +6,7 @@
 #include <async.h>
 #include <adapters/libevent.h>
 
+
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
@@ -211,7 +212,7 @@ public:
     // 返回单例实例
     static auth_internal *getInstance();
 
-    int init(json conf, event_base *base);
+    int init(AuthVerifyOpt opt, event_base *base);
 
     int start();
     int stop();

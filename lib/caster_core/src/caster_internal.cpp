@@ -48,28 +48,29 @@ caster_internal *caster_internal::getInstance()
     return instance;
 }
 
-int caster_internal::init(json conf, event_base *base)
+int caster_internal::init(CasterCoreOpt opt, event_base *base)
 {
-    _update_intv = conf["Update_Intv"];
-    _key_expire_time = conf["Key_Expire_Time"];
+    _update_intv = opt.update_intv();
+    _key_expire_time = opt.key_expire_time();
 
-    _upload_base_stat = conf["Upload_Base_Stat"];
-    _upload_rover_stat = conf["Upload_Rover_Stat"];
+    _upload_base_stat = opt.upload_base_stat();
+    _upload_rover_stat = opt.upload_rover_stat();
 
-    _base_enable_mult = conf["Base_Enable_Mult"];
-    _base_keep_early = conf["Base_Keep_Early"];
+    _base_enable_mult = opt.base_enable_mult();
+    _base_keep_early = opt.base_keep_early();
 
-    _rover_enable_mult = conf["Rover_Enable_Mult"];
-    _rover_keep_early = conf["Rover_Keep_Early"];
+    _rover_enable_mult = opt.rover_enable_mult();
+    _rover_keep_early = opt.rover_keep_early();
 
-    _notify_base_inactive = conf["Notify_Base_Inactive"];
-    _notify_rover_inactive = conf["Notify_Rover_Inactive"];
+    _notify_base_inactive = opt.base_notify_inactive();
+    _notify_rover_inactive = opt.rover_noify_inactive();
 
-    _redis_IP = conf["Redis_IP"];
-    _redis_port = conf["Redis_Port"];
-    _redis_Requirepass = conf["Redis_Requirepass"];
+    _redis_IP = opt.redis_host();
+    _redis_port = opt.redis_port();
+    _redis_Requirepass = opt.redis_password();
 
     _base = base;
+
     return 0;
 }
 
@@ -133,7 +134,6 @@ bool caster_internal::is_alias_mpt(std::string mount_point)
 {
 
     // 从alias列表中查找
-
 
     return false;
 }

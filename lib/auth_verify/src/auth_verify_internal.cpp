@@ -17,17 +17,15 @@ auth_internal *auth_internal::getInstance()
     return instance;
 }
 
-int auth_internal::init(json conf, event_base *base)
+int auth_internal::init(AuthVerifyOpt opt, event_base *base)
 {
-
-    _redis_IP = conf["Redis_IP"];
-    _redis_port = conf["Redis_Port"];
-    _redis_Requirepass = conf["Redis_Requirepass"];
+    _redis_IP = opt.redis_host();
+    _redis_port = opt.redis_port();
+    _redis_Requirepass = opt.redis_password();
 
     _base = base;
     return 0;
 }
-
 int auth_internal::start()
 {
     pubAttemptReconnect();

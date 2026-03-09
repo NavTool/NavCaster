@@ -1,8 +1,8 @@
 #pragma once
 
 #include "ntrip_global.h"
-
-#include "Connector/ntrip_compat_listener.h"
+#include "ntrip_config.h"
+#include "Connector/ntrip_listener.h"
 // #include "Connector/ntrip_relay_connector.h"
 #include "Carrier/client_ntrip.h"
 #include "Carrier/server_ntrip.h"
@@ -36,20 +36,6 @@ using json = nlohmann::json;
 
 class ntrip_caster
 {
-private:
-    json _service_setting;
-    json _caster_core_setting;
-    json _auth_verify_setting;
-
-    json _common_setting;
-
-    json _listener_setting;
-    json _client_setting;
-    json _server_setting;
-
-    bool _output_state;
-    int _refresh_state_interval;
-
 public:
     // 公开的接口
     ntrip_caster();
@@ -57,12 +43,14 @@ public:
 
     static ntrip_caster *getInstance();
 
-    int init(json cfg);
-
     int start();
     int stop();
 
 private:
+
+        bool _output_state;
+    int _refresh_state_interval;
+
     // 状态数据
     json _state_info;
     int update_state_info();
@@ -118,7 +106,7 @@ private:
 
 private:
     // 连接器
-    ntrip_compat_listener *_compat_listener; // 被动接收Ntrip连接
+    // ntrip_compat_listener *_compat_listener; // 被动接收Ntrip连接
     // ntrip_relay_connector *_relay_connetcotr; // 主动创建Ntrip连接
 
     // 连接-对象索引

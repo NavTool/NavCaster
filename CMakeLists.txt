@@ -224,8 +224,9 @@ add_subdirectory(proto)
 add_subdirectory(lib)
 add_subdirectory(dev)
 
-# add_subdirectory(app/CasterService)
-
+if(BUILD_CASTER_SERVICE)
+    add_subdirectory(app/CasterService)
+endif()
 
 
 if(BUILD_CASTER_MONITOR)

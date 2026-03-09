@@ -396,7 +396,7 @@ public:
     // 返回单例实例
     static caster_internal *getInstance();
 
-    int init(json conf, event_base *base);
+    int init(CasterCoreOpt opt, event_base *base);
 
     int start();
     int stop();

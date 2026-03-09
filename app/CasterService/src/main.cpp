@@ -38,6 +38,7 @@ using json = nlohmann::json;
 #include "yaml-cpp/yaml.h"
 
 #include "version.h"
+#include "ntrip_config.h"
 #include "ntrip_caster.h"
 
 #define CONF_PATH "conf/"
@@ -48,104 +49,6 @@ using json = nlohmann::json;
 // warn：警告级别的日志信息，表明可能发生错误或不符合预期的情况。
 // error：错误级别的日志信息，表明发生了某些错误或异常情况。
 // critical：严重错误级别的日志信息，表示一个致命的或不可恢复的错误。
-
-json load_Caster_Conf(const char *conf_directory)
-{
-    json conf;
-
-    std::string Path = conf_directory;
-    YAML::Node Conf = YAML::LoadFile(Path + "Service_Setting.yml");
-    // std::cout << Conf << std::endl;
-
-    // 配置转json
-    auto Ntrip_Listener_Setting = Conf["Ntrip_Listener_Setting"];
-    conf["Ntrip_Listener"]["Listen_Port"] = Ntrip_Listener_Setting["Listen_Port"].as<int>();
-    conf["Ntrip_Listener"]["Connect_Timeout"] = Ntrip_Listener_Setting["Connect_Timeout"].as<int>();
-    conf["Ntrip_Listener"]["Enable_Source_Login"] = Ntrip_Listener_Setting["Enable_Source_Login"].as<bool>();
-    conf["Ntrip_Listener"]["Enable_Server_Login"] = Ntrip_Listener_Setting["Enable_Server_Login"].as<bool>();
-    conf["Ntrip_Listener"]["Enable_Client_Login"] = Ntrip_Listener_Setting["Enable_Client_Login"].as<bool>();
-    conf["Ntrip_Listener"]["Enable_Nearest_MPT"] = Ntrip_Listener_Setting["Enable_Nearest_MPT"].as<bool>();
-    conf["Ntrip_Listener"]["Enable_Virtual_MPT"] = Ntrip_Listener_Setting["Enable_Virtual_MPT"].as<bool>();
-    conf["Ntrip_Listener"]["Enable_Common_MPT"] = Ntrip_Listener_Setting["Enable_Common_MPT"].as<bool>();
-    conf["Ntrip_Listener"]["Enable_Header_No_CRLF"] = Ntrip_Listener_Setting["Enable_Header_No_CRLF"].as<bool>();
-
-    auto Server_Setting = Conf["Server_Setting"];
-    conf["Server_Setting"]["Connect_Timeout"] = Server_Setting["Connect_Timeout"].as<int>();
-    conf["Server_Setting"]["Unsend_Byte_Limit"] = Server_Setting["Unsend_Byte_Limit"].as<int>();
-    conf["Server_Setting"]["Heart_Beat_Interval"] = Server_Setting["Heart_Beat_Interval"].as<int>();
-    conf["Server_Setting"]["Heart_Beat_Msg"] = Server_Setting["Heart_Beat_Msg"].as<std::string>();
-
-    auto Client_Setting = Conf["Client_Setting"];
-    conf["Client_Setting"]["Connect_Timeout"] = Client_Setting["Connect_Timeout"].as<int>();
-    conf["Client_Setting"]["Unsend_Byte_Limit"] = Client_Setting["Unsend_Byte_Limit"].as<int>();
-
-    auto Common_Setting = Conf["Common_Setting"];
-    conf["Common_Setting"]["Refresh_State_Interval"] = Common_Setting["Refresh_State_Interval"].as<int>();
-    conf["Common_Setting"]["Output_State"] = Common_Setting["Output_State"].as<bool>();
-
-    auto Log_Setting = Conf["Log_Setting"];
-    conf["Log_Setting"]["Output_STD"] = Log_Setting["Output_STD"].as<bool>();
-    conf["Log_Setting"]["Output_File"] = Log_Setting["Output_File"].as<bool>();
-    conf["Log_Setting"]["Output_File_Daily"] = Log_Setting["Output_File_Daily"].as<bool>();
-    conf["Log_Setting"]["Output_File_Hourly"] = Log_Setting["Output_File_Hourly"].as<bool>();
-    conf["Log_Setting"]["Output_File_Rotate"] = Log_Setting["Output_File_Rotate"].as<bool>();
-    conf["Log_Setting"]["File_Rotating_Size"] = Log_Setting["File_Rotating_Size"].as<int>();
-    conf["Log_Setting"]["File_Rotating_Quata"] = Log_Setting["File_Rotating_Quata"].as<int>();
-    conf["Log_Setting"]["File_Save_Path"] = Log_Setting["File_Save_Path"].as<std::string>();
-
-    auto Debug_Mode = Conf["Debug_Mode"];
-    conf["Debug_Mode"]["Core_Dump"] = Debug_Mode["Core_Dump"].as<bool>();
-    conf["Debug_Mode"]["Output_Debug"] = Debug_Mode["Output_Debug"].as<bool>();
-
-    return conf;
-}
-
-json load_Core_Conf(const char *conf_directory)
-{
-    json conf;
-    std::string Path = conf_directory;
-    YAML::Node Conf = YAML::LoadFile(Path + "Caster_Core.yml");
-
-    auto Caster_Setting = Conf["Caster_Setting"];
-    conf["Update_Intv"] = Caster_Setting["Update_Intv"].as<int>();
-    conf["Key_Expire_Time"] = Caster_Setting["Key_Expire_Time"].as<int>();
-
-    conf["Upload_Base_Stat"] = Caster_Setting["Upload_Base_Stat"].as<bool>();
-    conf["Upload_Rover_Stat"] = Caster_Setting["Upload_Rover_Stat"].as<bool>();
-
-    auto Base_Setting = Conf["Base_Setting"];
-    conf["Base_Enable_Mult"] = Base_Setting["Enable_Mult"].as<bool>();
-    conf["Base_Keep_Early"] = Base_Setting["Keep_Early"].as<bool>();
-
-    auto Rover_Setting = Conf["Rover_Setting"];
-    conf["Rover_Enable_Mult"] = Rover_Setting["Enable_Mult"].as<bool>();
-    conf["Rover_Keep_Early"] = Rover_Setting["Keep_Early"].as<bool>();
-
-    auto Notify_Setting = Conf["Notify_Setting"];
-    conf["Notify_Base_Inactive"] = Notify_Setting["Notify_Base_Inactive"].as<bool>();
-    conf["Notify_Rover_Inactive"] = Notify_Setting["Notify_Rover_Inactive"].as<bool>();
-
-    auto Redis_Setting = Conf["Reids_Connect_Setting"];
-    conf["Redis_IP"] = Redis_Setting["IP"].as<std::string>();
-    conf["Redis_Port"] = Redis_Setting["Port"].as<int>();
-    conf["Redis_Requirepass"] = Redis_Setting["Requirepass"].as<std::string>();
-
-    return conf;
-}
-
-json load_Auth_Conf(const char *conf_directory)
-{
-    json conf;
-    std::string Path = conf_directory;
-    YAML::Node Conf = YAML::LoadFile(Path + "Auth_Verify.yml");
-
-    auto Redis_Setting = Conf["Reids_Connect_Setting"];
-    conf["Redis_IP"] = Redis_Setting["IP"].as<std::string>();
-    conf["Redis_Port"] = Redis_Setting["Port"].as<int>();
-    conf["Redis_Requirepass"] = Redis_Setting["Requirepass"].as<std::string>();
-
-    return conf;
-}
 
 int switch_Working_Dir(std::string exe_path)
 {
@@ -239,29 +142,29 @@ int main(int argc, char **argv)
     spdlog::info("Conf Path:{}", conf_path);
     // 读取全局配置
     spdlog::info("Load Conf...");
-    json cfg;
-    cfg["Service_Setting"] = load_Caster_Conf(conf_path.c_str());
-    cfg["Core_Setting"] = load_Core_Conf(conf_path.c_str());
-    cfg["Auth_Setting"] = load_Auth_Conf(conf_path.c_str());
+
+    ntrip_config::getInstance()->load_Caster_Conf(conf_path + "Service_Setting.yml");
+    ntrip_config::getInstance()->load_Core_Conf(conf_path + "Caster_Core.yml");
+    ntrip_config::getInstance()->load_Auth_Conf(conf_path + "Auth_Verify.yml");
 
     if (listen_port > 0)
     {
-        cfg["Service_Setting"]["Ntrip_Listener"]["Listen_Port"] = listen_port;
+        ntrip_config::getInstance()->_listener_opt.set_listen_port(listen_port);
     }
 
     // 日志输出选项
-    bool log_to_std = cfg["Service_Setting"]["Log_Setting"]["Output_STD"];
-    bool log_to_file = cfg["Service_Setting"]["Log_Setting"]["Output_File"];
-    bool log_file_daily = cfg["Service_Setting"]["Log_Setting"]["Output_File_Daily"];
-    bool log_file_hourly = cfg["Service_Setting"]["Log_Setting"]["Output_File_Hourly"];
-    bool log_file_rotate = cfg["Service_Setting"]["Log_Setting"]["Output_File_Rotate"];
-    int log_rotating_size = cfg["Service_Setting"]["Log_Setting"]["File_Rotating_Size"];
-    int log_rotating_quata = cfg["Service_Setting"]["Log_Setting"]["File_Rotating_Quata"];
-    std::string log_save_path = cfg["Service_Setting"]["Log_Setting"]["File_Save_Path"];
+    bool log_to_std = ntrip_config::getInstance()->_service_opt.output_stdout();
+    bool log_to_file = ntrip_config::getInstance()->_service_opt.output_file();
+    bool log_file_daily = ntrip_config::getInstance()->_service_opt.output_file_daily();
+    bool log_file_hourly = ntrip_config::getInstance()->_service_opt.output_file_hourly();
+    bool log_file_rotate = ntrip_config::getInstance()->_service_opt.output_file_rotate();
+    int log_rotating_size = ntrip_config::getInstance()->_service_opt.file_rotate_size();
+    int log_rotating_quata = ntrip_config::getInstance()->_service_opt.file_rotate_quata();
+    std::string log_save_path = ntrip_config::getInstance()->_service_opt.file_save_path();
 
     // 开发者模式相关
-    bool Core_Dump = cfg["Service_Setting"]["Debug_Mode"]["Core_Dump"];
-    bool log_debug = cfg["Service_Setting"]["Debug_Mode"]["Output_Debug"];
+    bool Core_Dump = ntrip_config::getInstance()->_service_opt.output_stdout();
+    bool log_debug = ntrip_config::getInstance()->_service_opt.output_stdout();
 
     if (!Core_Dump) // 是否需要关闭 coredump
     {
@@ -327,9 +230,7 @@ int main(int argc, char **argv)
     // delete x;
     // x->start();
 
-    spdlog::info("Init Server...");
-
-    ntrip_caster::getInstance()->init(cfg); // 创建一个对象，传入config
+    // spdlog::info("Init Server...");
 
     // auto str1 = a._license_check.gen_register_file();
     // a._license_check.load_license_file();

@@ -3,14 +3,11 @@
 
 #include "auth_verify_internal.h"
 
-int AUTH::Init(const char *json_conf, event_base *base)
+int AUTH::Init(AuthVerifyOpt opt, event_base *base)
 {
-    json conf = json::parse(json_conf);
 
-    auth_internal::getInstance()->init(conf, base);
+    auth_internal::getInstance()->init(opt, base);
     auth_internal::getInstance()->start();
-
-    return 0;
 }
 
 int AUTH::Free()

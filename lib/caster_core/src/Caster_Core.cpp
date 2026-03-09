@@ -205,11 +205,10 @@
 //     return caster_svr->get_source_list_text();
 // }
 
-int CASTER::Init(const char *json_conf, event_base *base)
-{
-    json conf = json::parse(json_conf);
 
-    caster_internal::getInstance()->init(conf, base);
+int CASTER::Init(CasterCoreOpt opt, event_base *base)
+{
+    caster_internal::getInstance()->init(opt, base);
     caster_internal::getInstance()->start();
     return 0;
 }
@@ -270,7 +269,6 @@ int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key
     return caster_internal::getInstance()->unsub_base_channel(mount_point, connect_key);
 }
 
-
 int CASTER::Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
 {
     return caster_internal::getInstance()->register_rover_channel(mount_point, user_name, connect_key, cb, arg, type);
@@ -295,8 +293,6 @@ int CASTER::Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key)
 {
     return caster_internal::getInstance()->unsub_rover_channel(user_name, connect_key);
 }
-
-
 
 int CASTER::Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info)
 {

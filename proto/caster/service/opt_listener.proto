@@ -10,14 +10,15 @@ message ListenerOpt {
   uint32 connect_timeout = 2; // TCP连接超时限制，避免连接长时间建立但是并不进入下一个流程
 
   // 登录权限控制，限制当前节点可登录的类型
-  bool enable_source_login  = 3;
-  bool enable_server_login  = 4;
-  bool enable_client_login  = 5;
-  bool enable_nearest_login = 6;
-  bool enable_proxy_login   = 7;
-  bool enable_alias_login   = 8;
+  bool enable_source_login  = 3; // 允许获取源列表
+  bool enable_server_login  = 4; // 允许基站接入
+  bool enable_client_login  = 5; // 允许获取实体基站
+  bool enable_nearest_login = 6; // 允许以最近MPT登录
+  bool enable_proxy_login   = 7; // 允许接入转发挂载点
+  bool enable_alias_login   = 8; // 允许接入别名挂载点
+  bool enable_grid_login    = 9; // 允许以格网登录
 
   // 高级配置
-  bool enable_header_no_crlf = 9; // 允许不带回车换行的设备登录
+  bool enable_header_no_crlf = 10; // 允许不带回车换行的设备登录
 
 }
