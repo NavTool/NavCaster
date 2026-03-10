@@ -4,68 +4,75 @@
 
 #define __class__ "client_ntrip"
 
-client_ntrip::client_ntrip(ConnectInfo req, bufferevent *bev)
+client_ntrip::client_ntrip(ConnectInfo info) : carrier_base(info)
 {
-    _info = req;
-    if (_info.ntrip_version() == "Ntrip/2.0")
-    {
-        _NtripVersion2 = true;
-        if (_info.http_chunked() == "chunked")
-        {
-            _transfer_with_chunked = true;
-        }
-    }
-
-    _conf = req["Settings"];
-    _connect_timeout = _conf["Connect_Timeout"];
-    _unsend_byte_limit = _conf["Unsend_Byte_Limit"];
-
-    _bev = bev;
-
-    _send_evbuf = evbuffer_new();
-    _recv_evbuf = evbuffer_new();
-    _timeout_ev = event_new(bufferevent_get_base(_bev), -1, EV_PERSIST, TimeoutCallback, this);
 }
 
 client_ntrip::~client_ntrip()
 {
-    bufferevent_free(_bev);
-    evbuffer_free(_send_evbuf);
-    evbuffer_free(_recv_evbuf);
+}
 
-    spdlog::info("[{}]:delete user [{}], using mount [{}], addr:[{}:{}]", __class__, _user_name, _login_mpt, _ip, _port);
+int client_ntrip::init()
+{
+    return 0;
 }
 
 int client_ntrip::start()
 {
-    bufferevent_setcb(_bev, ReadCallback, NULL, EventCallback, this);
-
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), Auth_Login_Callback, this, AuthType::CLIENT);
-
+    auth_login(AuthType::CLIENT);
     return 0;
 }
 
 int client_ntrip::runing()
 {
-    bufferevent_enable(_bev, EV_READ);
+    // 启动Bev事件监听
+    start_bev(true, 0, false, 0);
 
-    if (_connect_timeout > 0)
-    {
-        _bev_read_timeout_tv.tv_sec = _connect_timeout;
-        _bev_read_timeout_tv.tv_usec = 0;
-        bufferevent_set_timeouts(_bev, &_bev_read_timeout_tv, NULL);
-    }
+    start_timeout_event(5);
 
-    if (_timeout_ev_flag == false)
-    {
-        _timeout_tv.tv_sec = 1;
-        _timeout_tv.tv_usec = 0;
-        event_add(_timeout_ev, &_timeout_tv);
-        _timeout_ev_flag = true;
-    }
+    // 构造回复消息
+    auto str = build_nrtip_reply(CONNECT_TYPE_CLIENT, _ntrip_version2, _transfer_with_chunked);
 
-    bev_send_reply();
+    // 发送回复消息
+    send_data(str.c_str(), str.size());
 
+    spdlog::info("[{}]: user [{}] is login, using mount [{}], addr:[{}:{}]", __class__, _info.user_name(), _info.mount_point(), _info.addr(), _info.port());
+
+    return 0;
+}
+
+int client_ntrip::read_cb(bufferevent *bev)
+{
+    return 0;
+}
+
+int client_ntrip::write_cb(bufferevent *bev)
+{
+    return 0;
+}
+
+int client_ntrip::event_cb(bufferevent *bev, short events)
+{
+    return 0;
+}
+
+int client_ntrip::timeout_cb()
+{
+    return 0;
+}
+
+int client_ntrip::login_cb(auth_reply *reply)
+{
+    return 0;
+}
+
+int client_ntrip::register_cb(caster_reply *reply)
+{
+    return 0;
+}
+
+int client_ntrip::subscribe_cb(caster_reply *reply)
+{
     return 0;
 }
 

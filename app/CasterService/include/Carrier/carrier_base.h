@@ -39,14 +39,16 @@ public:
     virtual int init() = 0;  // 初始化不同派生类所需要的资源，基类的资源在构造函数的时候就已经构建
     virtual int start() = 0; // 启动函数，注册Auth和Caster的回调函数，初始化bev连接等
     virtual int stop() = 0;  // 停止函数，取消注册Auth和Caster的回调函数，释放bev连接等
+    virtual int runing() = 0;
 
     virtual int read_cb(struct bufferevent *bev) = 0;                // bev读回调函数
     virtual int write_cb(struct bufferevent *bev) = 0;               // bev写回调函数
     virtual int event_cb(struct bufferevent *bev, short events) = 0; // bev事件回调函数
     virtual int timeout_cb() = 0;                                    // 定时器回调函数
 
-    virtual int login_cb(auth_reply *reply) = 0;      // Auth登录回调函数
-    virtual int register_cb(catser_reply *reply) = 0; // Caster注册回调函数
+    virtual int login_cb(auth_reply *reply) = 0;       // Auth登录回调函数
+    virtual int register_cb(catser_reply *reply) = 0;  // Caster注册回调函数
+    virtual int subscribe_cb(catser_reply *reply) = 0; // 订阅回调函数
 
 public:
     int start_bev(bool enable_read_cb, time_t read_timeout_sec, bool enable_write_cb, time_t write_timeout_sec); // 启动bev连接，注册回调函数
@@ -56,14 +58,19 @@ public:
     int stop_timeout_event();                    // 停止定时器事件
 
     int auth_login(AuthType type);
-    int auth_logout();
+    int auth_logout(AuthType type);
 
     int caster_register(CasterRegisterType type);
-    int caster_withdraw();
+    int caster_withdraw(CasterRegisterType type);
 
-    int publish_recv_raw_data();
-    int publish_data_from_chunk();
-    int publish_data_from_evbuf();
+    std::vector<uint8_t> read_data(bool chuncked); //  从bev读取数据
+
+    int send_data(const char *data, size_t len);    // 向Bev发送数据
+    int publish_data(const char *data, size_t len); // 发布数据到CASTER，数据来源于bev的读回调函数
+
+    std::vector<uint8_t> read_data_from_evbuf();
+
+    std::vector<uint8_t> read_data_from_chunk();
 
 public:
     static void ReadCallback(struct bufferevent *bev, void *arg);

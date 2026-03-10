@@ -17,33 +17,59 @@ int server_ntrip::init()
 
 int server_ntrip::start()
 {
+    auth_login(AuthType::SERVER);
+    return 0;
+}
+
+int server_ntrip::runing()
+{
+    // 启动Bev事件监听
     start_bev(true, 0, false, 0);
 
-    auth_login(AuthType::SERVER);
+    start_timeout_event(5);
+
+    // 构造回复消息
+    auto str = build_nrtip_reply(CONNECT_TYPE_SERVER, _ntrip_version2, _transfer_with_chunked);
+
+    // 发送回复消息
+    send_data(str.c_str(), str.size());
+
+    spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
 
     return 0;
 }
 
 int server_ntrip::stop()
 {
-
+    // 停止Bev事件监听
     stop_bev();
 
-    auth_logout();
+    // 用户下线
+    auth_logout(AuthType::SERVER);
 
-    caster_withdraw();
+    // caster注销
+    caster_withdraw(CasterRegisterType::NORMAL);
 
-    CASTER::Withdraw_Base_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
+    // 将销毁操作放入消息队列，执行删除此对象
+    _info.set_operate(OPERATE_TYPE_DESTORY);
+    QUEUE::Push(_info);
 
-    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), AuthType::SERVER);
-
-    spdlog::info("[{}]: mount [{}] is offline, addr:[{}:{}]", __class__, _login_mpt, _ip, _port);
+    spdlog::info("[{}]: mount [{}] is offline, addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
 
     return 0;
 }
 
 int server_ntrip::read_cb(bufferevent *bev)
 {
+    // 读取数据 如果是chunked的数据，会将数据合并成完整的一块数据
+    auto data = read_data(_transfer_with_chunked);
+
+    // 解析数据
+
+    // 发布数据
+    std::string str_data(data.begin(), data.end());
+    publish_data(str_data.c_str(), str_data.size());
+
     return 0;
 }
 
@@ -54,21 +80,31 @@ int server_ntrip::write_cb(bufferevent *bev)
 
 int server_ntrip::event_cb(bufferevent *bev, short events)
 {
+    spdlog::info("[{}:{}]: {}{}{}{}{}{} , mount [{}], addr:[{}:{}]",
+                 __class__, __func__,
+                 (events & BEV_EVENT_READING) ? "read" : "-",
+                 (events & BEV_EVENT_WRITING) ? "write" : "-",
+                 (events & BEV_EVENT_EOF) ? "eof" : "-",
+                 (events & BEV_EVENT_ERROR) ? "error" : "-",
+                 (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
+                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", _info.mount_point(), _info.addr(), _info.port());
+    stop();
     return 0;
 }
 
 int server_ntrip::timeout_cb()
 {
+    // 发送心跳包
+
     return 0;
 }
 
 int server_ntrip::login_cb(auth_reply *reply)
 {
-
     switch (reply->type)
     {
     case AuthReply::OK:
-        caster_register();
+        caster_register(CasterRegisterType::NORMAL);
         break;
     case AuthReply::ERR:
         spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
@@ -77,7 +113,6 @@ int server_ntrip::login_cb(auth_reply *reply)
     default:
         break;
     }
-
     return 0;
 }
 
@@ -101,96 +136,3 @@ int server_ntrip::register_cb(catser_reply *reply)
     }
     return 0;
 }
-
-int server_ntrip::runing()
-{
-    bufferevent_enable(_bev, EV_READ | EV_WRITE);
-
-    if (_connect_timeout > 0)
-    {
-        _bev_read_timeout_tv.tv_sec = _connect_timeout;
-        _bev_read_timeout_tv.tv_usec = 0;
-        bufferevent_set_timeouts(_bev, &_bev_read_timeout_tv, NULL);
-    }
-
-    if (_timeout_ev_flag == false)
-    {
-        _timeout_tv.tv_sec = 1;
-        _timeout_tv.tv_usec = 0;
-        event_add(_timeout_ev, &_timeout_tv);
-        _timeout_ev_flag = true;
-    }
-
-    bev_send_reply();
-
-    spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _login_mpt, _ip, _port);
-
-    return 0;
-}
-
-void server_ntrip::ReadCallback(bufferevent *bev, void *arg)
-{
-    auto svr = static_cast<server_ntrip *>(arg);
-    bufferevent_read_buffer(bev, svr->_recv_evbuf);
-    svr->publish_recv_raw_data();
-}
-
-// void server_ntrip::EventCallback(bufferevent *bev, short events, void *arg)
-// {
-//     auto svr = static_cast<server_ntrip *>(arg);
-
-//     spdlog::info("[{}:{}]: {}{}{}{}{}{} , mount [{}], addr:[{}:{}]",
-//                  __class__, __func__,
-//                  (events & BEV_EVENT_READING) ? "read" : "-",
-//                  (events & BEV_EVENT_WRITING) ? "write" : "-",
-//                  (events & BEV_EVENT_EOF) ? "eof" : "-",
-//                  (events & BEV_EVENT_ERROR) ? "error" : "-",
-//                  (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
-//                  (events & BEV_EVENT_CONNECTED) ? "connected" : "-", svr->_login_mpt, svr->_ip, svr->_port);
-
-//     svr->stop();
-// }
-
-// void server_ntrip::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
-// {
-//     auto *svr = static_cast<server_ntrip *>(arg);
-
-//     // 定时函数已经被停止，该次调用不处理
-//     if (svr->_timeout_ev_flag == false)
-//     {
-//         return;
-//     }
-
-//     svr->send_heart_beat_to_server();
-//     svr->update_tcp_delay_info();
-// }
-
-// int server_ntrip::send_heart_beat_to_server()
-// {
-//     // 检测是否要发送心跳包
-//     if (_heart_beat_interval <= 0)
-//     {
-//         return 0;
-//     }
-
-//     // 判断距离上次发送心跳包时间间隔是否达到要求
-//     time_t now_time = util_get_now_second();
-//     if (now_time - _last_heart_beat_time < _heart_beat_interval)
-//     {
-//         return 0;
-//     }
-//     else
-//     {
-//         _last_heart_beat_time = now_time; // 更新发送时间
-
-//         // 发送心跳包
-//         auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(_bev));
-//         if (_unsend_byte_limit > 0 && UnsendBufferSize > _unsend_byte_limit)
-//         {
-//             spdlog::info("[{}:{}: send to server [{}]'s  unsend size is too large :[{}], close the connect! addr:[{}:{}]", __class__, __func__, _login_mpt, UnsendBufferSize, _ip, _port);
-//             stop();
-//         }
-//         bufferevent_write(_bev, _heart_beat_msg.data(), _heart_beat_msg.size());
-//         return 0;
-//     }
-// }

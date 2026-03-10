@@ -24,6 +24,8 @@ public:
     int start() override;
     int stop() override;
 
+    int runing() override;
+
     int read_cb(struct bufferevent *bev) override;                // bev读回调函数
     int write_cb(struct bufferevent *bev) override;               // bev写回调函数
     int event_cb(struct bufferevent *bev, short events) override; // bev事件回调函数
@@ -32,25 +34,4 @@ public:
     int login_cb(auth_reply *reply) override;      // Auth登录回调函数
     int register_cb(catser_reply *reply) override; // Caster注册回调函数
 
-
-private:
-    int runing();
-
-
-    int send_heart_beat_to_server();
-
-    int publish_recv_raw_data();
-    int publish_data_from_chunk();
-    int publish_data_from_evbuf();
-
-    int update_tcp_delay_info();
-
-    static void ReadCallback(struct bufferevent *bev, void *arg);
-    static void EventCallback(struct bufferevent *bev, short events, void *arg);
-    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
-
-    static void Auth_Login_Callback(const char *request, void *arg, auth_reply *reply);
-    static void Caster_Register_Callback(const char *request, void *arg, catser_reply *reply);
-
-private:
 };

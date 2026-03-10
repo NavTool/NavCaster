@@ -21,26 +21,21 @@ class client_ntrip : public carrier_base
     decode_nmea _str_decoder;
 
 public:
-    client_ntrip(ConnectInfo req, bufferevent *bev);
+    client_ntrip(ConnectInfo info);
     ~client_ntrip();
 
-    int start(); // 绑定回调，然后去AUTH添加登录记录（是否允许多用户登录由auth判断并处理），如果添加成功，那就发送reply给用户，然后通知CASTER上线，如果不成功，就进入关闭流程
-    int stop();
+    int init() override;
+    int start() override;
+    int stop() override;
 
-private:
-    int runing();
+    int runing() override;
 
-    int bev_send_reply();
-    int transfer_sub_raw_data(const char *data, size_t length);
-    int publish_recv_raw_data();
+    int read_cb(struct bufferevent *bev) override;                // bev读回调函数
+    int write_cb(struct bufferevent *bev) override;               // bev写回调函数
+    int event_cb(struct bufferevent *bev, short events) override; // bev事件回调函数
+    int timeout_cb() override;                                    // 定时器回调函数
 
-    int update_tcp_delay_info();
-
-    static void ReadCallback(struct bufferevent *bev, void *arg);
-    static void EventCallback(struct bufferevent *bev, short events, void *arg);
-    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
-
-    static void Auth_Login_Callback(const char *request, void *arg, auth_reply *reply);
-    static void Caster_Register_Callback(const char *request, void *arg, catser_reply *reply);
-    static void Caster_Sub_Callback(const char *request, void *arg, catser_reply *reply);
+    int login_cb(auth_reply *reply) override;      // Auth登录回调函数
+    int register_cb(caster_reply *reply) override; // Caster注册回调函数
+    int subscribe_cb(caster_reply *reply) override; // 订阅回调函数
 };

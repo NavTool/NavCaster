@@ -192,7 +192,7 @@ int carrier_base::auth_login(AuthType type)
     return 0;
 }
 
-int carrier_base::auth_logout()
+int carrier_base::auth_logout(AuthType type)
 {
     return 0;
 }
@@ -207,26 +207,52 @@ int carrier_base::caster_register(CasterRegisterType type)
     return 0;
 }
 
-int carrier_base::caster_withdraw()
+int carrier_base::caster_withdraw(CasterRegisterType type)
 {
     return 0;
 }
 
-int carrier_base::publish_recv_raw_data()
+std::vector<uint8_t> carrier_base::read_data(bool chuncked)
 {
-    if (_transfer_with_chunked)
+    if (chuncked)
     {
-        publish_data_from_chunk();
+        return read_data_from_chunk();
     }
     else
     {
-        publish_data_from_evbuf();
+        return read_data_from_evbuf();
     }
+}
+
+int carrier_base::send_data(const char *data, size_t len)
+{
     return 0;
 }
 
-int carrier_base::publish_data_from_chunk()
+int carrier_base::publish_data(const char *data, size_t len)
 {
+    return 0;
+}
+
+std::vector<uint8_t> carrier_base::read_data_from_evbuf()
+{
+    std::vector<uint8_t> datas;
+
+    size_t length = evbuffer_get_length(_recv_evbuf);
+
+    char *data = new char[length + 1];
+    data[length] = '\0';
+    evbuffer_remove(_recv_evbuf, data, length);
+
+    datas.insert(datas.end(), data, data + _chunked_size);
+    delete[] data;
+
+    return datas;
+}
+
+std::vector<uint8_t> carrier_base::read_data_from_chunk()
+{
+    std::vector<uint8_t> datas;
     if (_chunked_size == 0)
     {
         // 先读取一行
@@ -238,18 +264,14 @@ int carrier_base::publish_data_from_chunk()
         {
             spdlog::warn("[{}:{}: chunked data error,close connect! {},{},{}", __class__, __func__, _info.mount_point(), _info.addr(), _info.port());
             stop();
-            return 1;
+            return datas;
         }
         sscanf(chunk_head_data, "%zx", &chunk_head_size);
 
         _chunked_size = chunk_head_size;
-
-        // 读取一行
-        // 获取chunk长度 更新chunked_size
     }
 
     // 判断长剩余长度是否满足chunk长度（即块数据都已接收到）
-
     size_t length = evbuffer_get_length(_recv_evbuf);
 
     if (_chunked_size + 2 <= length) // 还有回车换行
@@ -258,55 +280,26 @@ int carrier_base::publish_data_from_chunk()
         data[_chunked_size + 2] = '\0';
 
         evbuffer_remove(_recv_evbuf, data, _chunked_size);
-        CASTER::Pub_Base_Raw_Data(_info.mount_point().c_str(), _info.connect_key().c_str(), data, _chunked_size);
 
-        // _str_decoder.Decode(data, _chunked_size);
-        // if (_str_decoder._has_position)
-        // {
-        //     CASTER::Set_Base_Coord_Info(_info.mount_point().c_str(), _info.connect_key().c_str(),
-        //                                 _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
-        //                                 _str_decoder._position_update_time);
-        // }
+        datas.insert(datas.end(), data, data + _chunked_size);
 
         _chunked_size = 0;
         delete[] data;
     }
     else
     {
-        return 1;
+        return datas;
         // 不满足，记录当前chunk长度，等待后续数据来了再发送
     }
 
     // 如果evbuffer中还有未发送的数据，那就再进行一次函数
     if (evbuffer_get_length(_recv_evbuf) > 0)
     {
-        publish_data_from_chunk();
+        auto next_datas = read_data_from_chunk();
+        datas.insert(datas.end(), next_datas.begin(), next_datas.end());
     }
 
-    return 0;
-}
-
-int carrier_base::publish_data_from_evbuf()
-{
-    // util_get_tcp_delay(bufferevent_getfd(_bev));
-
-    size_t length = evbuffer_get_length(_recv_evbuf);
-
-    char *data = new char[length + 1];
-    data[length] = '\0';
-
-    evbuffer_remove(_recv_evbuf, data, length);
-    CASTER::Pub_Base_Raw_Data(_info.mount_point().c_str(), _info.connect_key().c_str(), data, length);
-    // _str_decoder.Decode(data, length);
-    // if (_str_decoder._has_position)
-    // {
-    //     CASTER::Set_Base_Coord_Info(_login_mpt.c_str(), _connect_key.c_str(),
-    //                                 _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z,
-    //                                 _str_decoder._position_update_time);
-    // }
-
-    delete[] data;
-    return 0;
+    return datas;
 }
 
 void carrier_base::ReadCallback(bufferevent *bev, void *arg)

@@ -30,7 +30,7 @@ enum class CasterReply
     NIL,
 };
 
-struct catser_reply
+struct caster_reply
 {
     CasterReply type;
     const char *str;
