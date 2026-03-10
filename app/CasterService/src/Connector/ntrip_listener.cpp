@@ -8,6 +8,9 @@
 
 #define __class__ "ntrip_listener"
 
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
+
 ntrip_listener::ntrip_listener()
 {
 }
@@ -24,20 +27,8 @@ ntrip_listener *ntrip_listener::getInstance()
 
 int ntrip_listener::init(ListenerOpt opt, event_base *base)
 {
-    _listen_port = opt.listen_port();
-    _connect_timeout = opt.connect_timeout();
-
-    _enable_source_login = opt.enable_source_login();
-    _enable_server_login = opt.enable_server_login();
-    _enable_client_login = opt.enable_client_login();
-    _enable_nearest_login = opt.enable_nearest_login();
-    _enable_proxy_login = opt.enable_proxy_login();
-    _enable_alias_login = opt.enable_alias_login();
-
-    _enable_header_no_CRLF = opt.enable_header_no_crlf();
-
+    _opt = opt;
     _base = base;
-
     return 0;
 }
 
@@ -45,19 +36,19 @@ int ntrip_listener::start()
 {
     struct sockaddr_in sin = {0};
     sin.sin_family = AF_INET;
-    sin.sin_port = htons(_listen_port);
+    sin.sin_port = htons(_opt.listen_port());
 
     _listener = evconnlistener_new_bind(_base, AcceptCallback, this, LEV_OPT_LEAVE_SOCKETS_BLOCKING | LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE, -1, (struct sockaddr *)&sin, sizeof(struct sockaddr_in));
 
     if (!_listener)
     {
-        spdlog::error("ntrip listener: couldn't bind to port {}.", _listen_port);
+        spdlog::error("ntrip listener: couldn't bind to port {}.", _opt.listen_port());
         exit(1);
     }
 
     evconnlistener_set_error_cb(_listener, AcceptErrorCallback);
 
-    spdlog::info("[{}]: bind to port {} success", __class__, _listen_port);
+    spdlog::info("[{}]: bind to port {} success", __class__, _opt.listen_port());
 
     return 0;
 }
@@ -66,7 +57,7 @@ int ntrip_listener::stop()
 {
     evconnlistener_free(_listener);
 
-    spdlog::info("ntrip listener: stop bind port %d , stop listener.", _listen_port);
+    spdlog::info("ntrip listener: stop bind port %d , stop listener.", _opt.listen_port());
     return 0;
 }
 
@@ -85,53 +76,78 @@ int ntrip_listener::enable_accept_new_connect()
 void ntrip_listener::AcceptCallback(evconnlistener *listener, evutil_socket_t fd, sockaddr *address, int socklen, void *arg)
 {
     auto svr = static_cast<ntrip_listener *>(arg);
-    event_base *base = svr->_base;
-    std::string ip = util_get_user_ip(fd);
-    int port = util_get_user_port(fd);
 
-    if (svr->_disable_new_connect)
-    {
-        // 关闭套接字
-        spdlog::warn("[{}]: don't allow new connect, close new connect, addr:[{}:{}]", __class__, ip, port); // 如果ip和port为空，则连接已经挂了，fd解析不出来
-        evutil_closesocket(fd);
-        return;
-    }
-
-    spdlog::info("[{}]: receive new connect, addr:[{}:{}]", __class__, ip, port); // 如果ip和port为空，则连接已经挂了，fd解析不出来
-
-    std::string Connect_Key = util_cal_connect_key(fd);
-    if (Connect_Key.size() == 0)
-    {
-        // 解析fd失败，则表明没有解析出ip和port，可间接表明该连接在解析fd的时候就已经挂了，没必要再进行后续的操作了
-        return;
-    }
-
-    bufferevent *bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
-
-    svr->_connect_map->insert(std::pair<std::string, bufferevent *>(Connect_Key, bev));
-
-    if (svr->_connect_timeout > 0)
-    {
-        auto timer = new timeval;
-        timer->tv_sec = svr->_connect_timeout;
-        timer->tv_usec = 0;
-        svr->_timer_map.insert(std::pair<std::string, timeval *>(Connect_Key, timer));
-        bufferevent_set_timeouts(bev, timer, NULL);
-    }
-
-    auto ctx = new std::pair<ntrip_listener *, std::string>(svr, Connect_Key);
-    bufferevent_setcb(bev, Ntrip_Decode_Request_cb, NULL, Bev_EventCallback, ctx);
-    bufferevent_enable(bev, EV_READ);
+    svr->process_accept_request(fd);
 }
 
 void ntrip_listener::AcceptErrorCallback(evconnlistener *listener, void *arg)
 {
-    spdlog::warn("[{}]: listener error!", __class__);
-
     auto svr = static_cast<ntrip_listener *>(arg);
 
-    // struct event_base *base;
-    // base = evconnlistener_get_base(listener);
+    svr->process_accept_error(listener);
+}
+
+void ntrip_listener::BevReadCallback(bufferevent *bev, void *ctx)
+{
+    auto arg = static_cast<std::pair<ntrip_listener *, std::string> *>(ctx);
+    auto svr = arg->first;
+    auto connect_key = arg->second;
+    svr->process_bev_request(bev, connect_key);
+    delete arg; // 删除arg
+}
+
+void ntrip_listener::BevEventCallback(bufferevent *bev, short events, void *ctx)
+{
+    auto arg = static_cast<std::pair<ntrip_listener *, std::string> *>(ctx);
+    auto svr = arg->first;
+    auto connect_key = arg->second;
+
+    if (events == BEV_EVENT_CONNECTED)
+    {
+        return;
+    }
+
+    svr->process_bev_event(bev, events, connect_key);
+
+    delete arg; // 发生事件之后，参数已经没有用，但是是new出来的pair，需要释放
+}
+
+int ntrip_listener::process_accept_request(evutil_socket_t fd)
+{
+    std::string ip = util_get_user_ip(fd);
+    int port = util_get_user_port(fd);
+    spdlog::info("[{}]: receive new connect, addr:[{}:{}]", __class__, ip, port); // 如果ip和port为空，则连接已经挂了，fd解析不出来
+
+    if (_disable_new_connect)
+    {
+        // 关闭套接字
+        spdlog::warn("[{}]: don't allow new connect, close new connect, addr:[{}:{}]", __class__, ip, port); // 如果ip和port为空，则连接已经挂了，fd解析不出来
+        evutil_closesocket(fd);
+        return 1;
+    }
+
+    auto connect_key = connect_bev::getInstance()->new_bev(fd); // 将bev传递到connect_bev中，后续的请求处理都在connect_bev中进行
+
+    if (connect_key.size() == 0)
+    {
+        spdlog::warn("[{}]: new connect but connect key is empty, close new connect, addr:[{}:{}]", __class__, ip, port); // 如果ip和port为空，则连接已经挂了，fd解析不出来
+        evutil_closesocket(fd);
+        return 2;
+    }
+
+    connect_bev::getInstance()->set_timer(connect_key, _opt.connect_timeout(), 0); // 连接超时只设置读超时，写超时不设置
+
+    auto bev = connect_bev::getInstance()->get_bev(connect_key);
+    auto ctx = new std::pair<ntrip_listener *, std::string>(this, connect_key);
+    bufferevent_setcb(bev, BevReadCallback, NULL, BevEventCallback, ctx);
+    bufferevent_enable(bev, EV_READ);
+
+    return 0;
+}
+
+int ntrip_listener::process_accept_error(evconnlistener *listener)
+{
+    spdlog::warn("[{}]: listener error!", __class__);
 
     //----------------等待验证功能，连接出错后重连-------------------------
     spdlog::info("[{}]:create new listener!", __class__);
@@ -140,31 +156,21 @@ void ntrip_listener::AcceptErrorCallback(evconnlistener *listener, void *arg)
         evconnlistener_free(listener); // 释放旧连接
     }
 
-    if (svr->start()) // 启动新连接
+    if (start()) // 启动新连接
     {
         // 重连失败，那就只好先退出了
-        event_base_loopexit(svr->_base, NULL); // TODO:有必要调用此函数么 进程退出么 最后一个参数的意义
+        event_base_loopexit(_base, NULL); // TODO:有必要调用此函数么 进程退出么 最后一个参数的意义
     }
+    return 0;
 }
 
-void ntrip_listener::Ntrip_Decode_Request_cb(bufferevent *bev, void *ctx)
+int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_key)
 {
-    auto arg = static_cast<std::pair<ntrip_listener *, std::string> *>(ctx);
-    auto svr = arg->first;
-    auto connect_key = arg->second;
-
     // 已经接收到请求，解析请求即可，这个请求决定了连接是进入下一步还是关闭
     bufferevent_disable(bev, EV_READ);              // 暂停/停止接收数据
     bufferevent_setcb(bev, NULL, NULL, NULL, NULL); // 清空bev绑定的回调？  如果这个时候bev event_cb已经激活怎么办?是否就不继续执行了
 
-    auto timer = svr->_timer_map.find(connect_key);
-    if (timer != svr->_timer_map.end())
-    {
-        // 已经接收到请求，也需要关闭定时器
-        bufferevent_set_timeouts(bev, NULL, NULL); // 解绑定时器
-        delete timer->second;                      // 删除定时器
-        svr->_timer_map.erase(connect_key);
-    }
+    connect_bev::getInstance()->del_timer(connect_key); // 已经接收到请求，也需要关闭定时器
 
     int fd = bufferevent_getfd(bev);
     std::string ip = util_get_user_ip(fd);
@@ -175,7 +181,7 @@ void ntrip_listener::Ntrip_Decode_Request_cb(bufferevent *bev, void *ctx)
     size_t header_len = 0;
     char *header = evbuffer_readln(evbuf, &header_len, EVBUFFER_EOL_CRLF);
 
-    if (header == NULL && svr->_enable_header_no_CRLF) // 允许不带回车换行的请求登录
+    if (header == NULL && _opt.enable_header_no_crlf()) // 允许不带回车换行的请求登录
     {
         auto len = evbuffer_get_length(evbuf);
         if (len < 255)
@@ -227,7 +233,7 @@ void ntrip_listener::Ntrip_Decode_Request_cb(bufferevent *bev, void *ctx)
             {
                 if (strcmp(ele[3], "HTTP/1.1") == 0 | strcmp(ele[3], "HTTP/1.0") == 0)
                 {
-                    svr->Process_SOURCE_Request(bev, connect_key, ele[2], ele[1]);
+                    Process_SOURCE_Request(bev, connect_key, ele[2], ele[1]);
                 }
                 else
                 {
@@ -238,11 +244,11 @@ void ntrip_listener::Ntrip_Decode_Request_cb(bufferevent *bev, void *ctx)
             {
                 if (strcmp(ele[2], "HTTP/1.1") == 0 | strcmp(ele[2], "HTTP/1.0") == 0) //  SOURCE  MTP HTTP/1.1
                 {
-                    svr->Process_SOURCE_Request(bev, connect_key, ele[1], "");
+                    Process_SOURCE_Request(bev, connect_key, ele[1], "");
                 }
                 else //  SOURCE password MPT
                 {
-                    svr->Process_SOURCE_Request(bev, connect_key, ele[2], ele[1]);
+                    Process_SOURCE_Request(bev, connect_key, ele[2], ele[1]);
                 }
             }
             else if (ele[1][0] != '\0') // 处理两个参数的情况  SOURCE  MPT   SOURCE  HTTP/1.1
@@ -253,7 +259,7 @@ void ntrip_listener::Ntrip_Decode_Request_cb(bufferevent *bev, void *ctx)
                 }
                 else //  SOURCE  MPT
                 {
-                    svr->Process_SOURCE_Request(bev, connect_key, ele[1], "");
+                    Process_SOURCE_Request(bev, connect_key, ele[1], "");
                 }
             }
             else // 处理一个参数的情况  如：SOURCE后面跟了很多个空格
@@ -266,11 +272,11 @@ void ntrip_listener::Ntrip_Decode_Request_cb(bufferevent *bev, void *ctx)
         {
             if (strcmp(ele[0], "GET") == 0)
             {
-                svr->Process_GET_Request(bev, connect_key, ele[1]);
+                Process_GET_Request(bev, connect_key, ele[1]);
             }
             else if (strcmp(ele[0], "POST") == 0)
             {
-                svr->Process_POST_Request(bev, connect_key, ele[1]);
+                Process_POST_Request(bev, connect_key, ele[1]);
             }
             else
             {
@@ -287,30 +293,23 @@ void ntrip_listener::Ntrip_Decode_Request_cb(bufferevent *bev, void *ctx)
     catch (int i)
     {
         spdlog::warn("[{}:{}]: process error request, from: [ip: {} port: {}] ", __class__, __func__, ip, port);
-        svr->Process_Unsupport_Request(bev, connect_key);
+        Process_Unsupport_Request(bev, connect_key);
     }
     catch (std::exception &e)
     {
         spdlog::warn("[{}:{}]: process error request, from: [ip: {} port: {}] ,what: {}", __class__, __func__, ip, port, e.what());
-        svr->Process_Unsupport_Request(bev, connect_key);
+        Process_Unsupport_Request(bev, connect_key);
     }
 
     // 清理
-    delete arg;   // 删除arg
+
     free(header); // 删除读取的文件头
+
+    return 0;
 }
 
-void ntrip_listener::Bev_EventCallback(bufferevent *bev, short events, void *ctx)
+int ntrip_listener::process_bev_event(bufferevent *bev, short events, std::string connect_key)
 {
-    auto arg = static_cast<std::pair<ntrip_listener *, std::string> *>(ctx);
-    auto svr = arg->first;
-    auto key = arg->second;
-
-    if (events == BEV_EVENT_CONNECTED)
-    {
-        return;
-    }
-
     spdlog::info("[{}:{}]: {}{}{}{}{}{}",
                  __class__, __func__,
                  (events & BEV_EVENT_READING) ? "read" : "-",
@@ -320,19 +319,26 @@ void ntrip_listener::Bev_EventCallback(bufferevent *bev, short events, void *ctx
                  (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
                  (events & BEV_EVENT_CONNECTED) ? "connected" : "-");
 
-    // 删除连接bev
-    bufferevent_free(bev);
-    svr->_connect_map.erase(key);
+    connect_bev::getInstance()->del_bev(connect_key); // 连接发生事件之后，直接删除连接，后续的请求处理都在connect_bev中进行
+    return 0;
+}
 
-    // 删除定时器
-    auto timer = svr->_timer_map.find(key);
-    if (timer != svr->_timer_map.end())
+int ntrip_listener::create_request(auth_reply *reply, ConnectInfo req)
+{
+    if (reply->type == AuthReply::OK)
     {
-        delete timer->second;
-        svr->_timer_map.erase(key);
+        QUEUE::Push(req);
+    }
+    else
+    {
+        spdlog::info("[{}:{}]: Auth Verify Failed: {}", __class__, __func__, reply->str); // 验证失败，关闭连接
+        // 验证失败，关闭当前连接
+        std::string connect_key = req.connect_key();
+        // 从connect_map中删除该连接
+        connect_bev::getInstance()->del_bev(connect_key);
     }
 
-    delete arg; // 发生事件之后，参数已经没有用，但是是new出来的pair，需要释放
+    return 0;
 }
 
 int ntrip_listener::Process_GET_Request(bufferevent *bev, std::string connect_key, const char *url)
@@ -342,20 +348,20 @@ int ntrip_listener::Process_GET_Request(bufferevent *bev, std::string connect_ke
     std::string mount = req.mount_point();
     if (mount.empty()) // 相当于"/"
     {
-        if (!_enable_source_login)
+        if (!_opt.enable_source_login())
         {
             spdlog::info("[{}:{}]: Accept Source Request, but enable_source_login is false, reject request", __class__, __func__); // 接收到了源列表获取请求，但不进行处理
-            erase_and_free_bev(bev, connect_key);
+            connect_bev::getInstance()->del_bev(connect_key);
             return 1;
         }
         req.set_type(CONNECT_TYPE_SOURCE);
     }
     else
     {
-        if (!_enable_client_login)
+        if (!_opt.enable_client_login())
         {
             spdlog::info("[{}:{}]: Accept Client Request, but enable_client_login is false, reject request", __class__, __func__); // 接收到了源列表获取请求，但不进行处理
-            erase_and_free_bev(bev, connect_key);
+            connect_bev::getInstance()->del_bev(connect_key);
             return 1;
         }
 
@@ -392,10 +398,10 @@ int ntrip_listener::Process_GET_Request(bufferevent *bev, std::string connect_ke
 
 int ntrip_listener::Process_POST_Request(bufferevent *bev, std::string connect_key, const char *url)
 {
-    if (!_enable_server_login)
+    if (!_opt.enable_server_login())
     {
         spdlog::info("[{}:{}]: Accept Server Request, but enable_server_login is false, reject request", __class__, __func__); // 接收到了基站登录请求，但不进行处理
-        erase_and_free_bev(bev, connect_key);
+        connect_bev::getInstance()->del_bev(connect_key);
         return 1;
     }
 
@@ -405,13 +411,13 @@ int ntrip_listener::Process_POST_Request(bufferevent *bev, std::string connect_k
     if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为最近挂载点，不允许实体基站以该挂载点登录
-        erase_and_free_bev(nullptr, connect_key);
+        connect_bev::getInstance()->del_bev(connect_key);
         return 2;
     }
     else if (CASTER::Check_Alias_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为别名挂载点，不允许实体基站以该挂载点登录
-        erase_and_free_bev(nullptr, connect_key);
+        connect_bev::getInstance()->del_bev(connect_key);
         return 3;
     }
     else
@@ -429,10 +435,10 @@ int ntrip_listener::Process_POST_Request(bufferevent *bev, std::string connect_k
 
 int ntrip_listener::Process_SOURCE_Request(bufferevent *bev, std::string connect_key, const char *url, const char *secret)
 {
-    if (!_enable_server_login)
+    if (!_opt.enable_server_login())
     {
         spdlog::info("[{}:{}]: Accept Server Request, but enable_server_login is false, reject request", __class__, __func__); // 接收到了基站登录请求，但不进行处理
-        erase_and_free_bev(bev, connect_key);
+        connect_bev::getInstance()->del_bev(connect_key);
         return 1;
     }
 
@@ -441,13 +447,13 @@ int ntrip_listener::Process_SOURCE_Request(bufferevent *bev, std::string connect
     if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为最近挂载点，不允许实体基站以该挂载点登录
-        erase_and_free_bev(nullptr, connect_key);
+        connect_bev::getInstance()->del_bev(connect_key);
         return 2;
     }
     else if (CASTER::Check_Alias_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为别名挂载点，不允许实体基站以该挂载点登录
-        erase_and_free_bev(nullptr, connect_key);
+        connect_bev::getInstance()->del_bev(connect_key);
         return 3;
     }
     else
@@ -473,7 +479,7 @@ int ntrip_listener::Process_SOURCE_Request(bufferevent *bev, std::string connect
 
 int ntrip_listener::Process_Unsupport_Request(bufferevent *bev, std::string connect_key)
 {
-    erase_and_free_bev(bev, connect_key);
+    connect_bev::getInstance()->del_bev(connect_key); // 直接删除连接，拒绝请求
     return 0;
 }
 
@@ -484,18 +490,7 @@ void ntrip_listener::Auth_Verify_Cb(const char *request, void *arg, auth_reply *
     auto svr = ctx->first;
     auto req = ctx->second;
 
-    if (reply->type == AuthReply::OK)
-    {
-        QUEUE::Push(req); // 如果连接已经关闭了
-    }
-    else
-    {
-        spdlog::info("[{}:{}]: Auth Verify Failed: {}", __class__, __func__, reply->str); // 验证失败，关闭连接
-        // 验证失败，关闭当前连接
-        std::string connect_key = req.connect_key();
-        // 从connect_map中删除该连接
-        svr->erase_and_free_bev(nullptr, connect_key);
-    }
+    svr->create_request(reply, req);
 
     delete ctx;
 }
@@ -505,7 +500,7 @@ void ntrip_listener::Auth_Verify_Cb(const char *request, void *arg, auth_reply *
 //     return util_cal_connect_key(bufferevent_getfd(bev));
 // }
 
-ConnectInfo ntrip_listener::decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url)
+ConnectInfo ntrip_listener::decode_bufferevent_req(bufferevent *bev, std::string connect_key, std::string url, std::string proxy_prorocol)
 {
     /*
         connect_key
@@ -528,6 +523,15 @@ ConnectInfo ntrip_listener::decode_bufferevent_req(bufferevent *bev, std::string
     con_info.set_connect_key(connect_key);
     con_info.set_mount_point(extract_path(url)); // 提取请求的?前的内容
     con_info.set_mount_para(extract_para(url));  // 提取请求的?后的内容
+
+    if (proxy_prorocol.size() == 0)
+    {
+        int fd = bufferevent_getfd(bev);
+        std::string ip = util_get_user_ip(fd);
+        int port = util_get_user_port(fd);
+        con_info.set_addr(ip);
+        con_info.set_port(port);
+    }
 
     evbuffer *evbuf = bufferevent_get_input(bev);
     json item;
@@ -681,28 +685,6 @@ std::string ntrip_listener::decode_basic_authentication(std::string authenticati
     }
 
     return util_base64_decode(auth);
-}
-
-int ntrip_listener::erase_and_free_bev(bufferevent *bev, std::string Connect_Key)
-{
-    auto con = _connect_map->find(Connect_Key);
-
-    if (con != _connect_map->end())
-    {
-        bufferevent_free(con->second);
-        _connect_map->erase(con);
-        // spdlog::warn("[{}:{}]: free conect, connect key: {}", __class__, __func__, Connect_Key);
-    }
-    else
-    {
-        spdlog::warn("[{}:{}]: con't find bev in connect_map, connect key: {}", __class__, __func__, Connect_Key);
-        if (bev != nullptr)
-        {
-            bufferevent_free(bev);
-        }
-    }
-
-    return 0;
 }
 
 bool ntrip_listener::check_mount_is_valid(const std::string &str)

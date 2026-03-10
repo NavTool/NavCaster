@@ -14,7 +14,7 @@ enum ConnectType
   CONNECT_TYPE_PULL    = 7; // Pull
   CONNECT_TYPE_PUSH    = 8; // Push
   CONNECT_TYPE_GRID    = 9; // Grid
-  CONNECT_TYPE_VRS    = 10; // 虚拟参考站
+  CONNECT_TYPE_VRS     = 10; // 虚拟参考站
 }
 
 enum OperateType
@@ -50,4 +50,7 @@ message ConnectInfo {
   string ntrip_version = 13; // Ntrip-Version
   string ntrip_gga     = 14; // Ntrip-GGA
   string ntrip_auth    = 15; //Authorization
+
+  string addr = 16; // IP地址
+  int32  port = 17; // 端口号
 }

@@ -50,41 +50,11 @@ using json = nlohmann::json;
 // error：错误级别的日志信息，表明发生了某些错误或异常情况。
 // critical：严重错误级别的日志信息，表示一个致命的或不可恢复的错误。
 
-int switch_Working_Dir(std::string exe_path)
+
+int init_core_dump()
 {
-    std::string exepath = exe_path;
-
-    // 找到路径中最后一个斜杠的位置
-    size_t lastSlashPos = exepath.find_last_of("/\\");
-    if (lastSlashPos == std::string::npos)
-    {
-        spdlog::error("Unable to extract directory from executable path.");
-        return 1;
-    }
-    // 提取路径
-    std::string exeDir = exepath.substr(0, lastSlashPos);
-
-    // 切换工作目录
-#if defined(_MSC_VER)
-    if (_chdir(exeDir.c_str()) != 0)
-    {
-        spdlog::error("Failed to change working directory.");
-        return 1;
-    }
-#else
-    if (chdir(exeDir.c_str()) != 0)
-    {
-        spdlog::error("Failed to change working directory.");
-        return 1;
-    }
-#endif
-
-    spdlog::info("Switch Working directory: {}", exeDir);
-    return 0;
-}
-
-int main(int argc, char **argv)
-{
+    // 开发者模式相关
+    bool Core_Dump = ntrip_config::getInstance()->_service_opt.output_stdout();
 #ifdef WIN32
 
 #else
@@ -96,61 +66,15 @@ int main(int argc, char **argv)
     rlimit_core.rlim_cur = RLIM_INFINITY; // 设置大小为无限
     rlimit_core.rlim_max = RLIM_INFINITY;
     setrlimit(RLIMIT_CORE, &rlimit_core);
+
+    if (!Core_Dump) // 是否需要关闭 coredump
+    {
+        prctl(PR_SET_DUMPABLE, 0);
+    }
 #endif
-
-    // 程序启动
-    spdlog::info("Software: {}-{}", PROJECT_SET_NAME, PROJECT_SET_VERSION);
-    spdlog::info("Tag Version: {}", PROJECT_TAG_VERSION);
-    spdlog::info("Git Version: {}", PROJECT_GIT_VERSION);
-
-    // 解析输入：
-    std::string conf_path = CONF_PATH;
-    int listen_port = -1;
-
-    if (argc < 1)
-    {
-        return 1;
-    }
-
-    if (argc == 2)
-    {
-        if (!strcmp(argv[1], "-info")) // 监听端口
-        {
-            exit(0);
-        }
-    }
-    if (argc > 2)
-    {
-        for (int i = 1; i < argc; i += 2)
-        {
-            if (!strcmp(argv[i], "-port")) // 监听端口
-            {
-                listen_port = atoi(argv[i + 1]);
-                spdlog::info("set listen port: {}", listen_port);
-            }
-            else if (!strcmp(argv[i], "-conf")) // 配置文件路径
-            {
-                conf_path = argv[i + 1];
-                spdlog::info("set conf path: {}", conf_path);
-            }
-        }
-    }
-
-    switch_Working_Dir(argv[0]); // 切换工作路径到可执行目录下
-
-    // 打开配置文件
-    spdlog::info("Conf Path:{}", conf_path);
-    // 读取全局配置
-    spdlog::info("Load Conf...");
-
-    ntrip_config::getInstance()->load_Caster_Conf(conf_path + "Service_Setting.yml");
-    ntrip_config::getInstance()->load_Core_Conf(conf_path + "Caster_Core.yml");
-    ntrip_config::getInstance()->load_Auth_Conf(conf_path + "Auth_Verify.yml");
-
-    if (listen_port > 0)
-    {
-        ntrip_config::getInstance()->_listener_opt.set_listen_port(listen_port);
-    }
+}
+int init_log_system()
+{
 
     // 日志输出选项
     bool log_to_std = ntrip_config::getInstance()->_service_opt.output_stdout();
@@ -162,18 +86,7 @@ int main(int argc, char **argv)
     int log_rotating_quata = ntrip_config::getInstance()->_service_opt.file_rotate_quata();
     std::string log_save_path = ntrip_config::getInstance()->_service_opt.file_save_path();
 
-    // 开发者模式相关
-    bool Core_Dump = ntrip_config::getInstance()->_service_opt.output_stdout();
-    bool log_debug = ntrip_config::getInstance()->_service_opt.output_stdout();
-
-    if (!Core_Dump) // 是否需要关闭 coredump
-    {
-#ifdef WIN32
-
-#else
-        prctl(PR_SET_DUMPABLE, 0);
-#endif
-    }
+    bool log_debug = ntrip_config::getInstance()->_service_opt.output_debug_info();
 
     // 初始化日志系统
     std::vector<spdlog::sink_ptr> sinks;
@@ -211,6 +124,39 @@ int main(int argc, char **argv)
         spdlog::set_level(spdlog::level::debug);
         spdlog::flush_on(spdlog::level::debug);
     }
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    // 解析传入的参数
+
+    // 读取配置文件（从数据库/从配置文件）
+
+    // 创建Caster实例
+
+    // 依次启动服务
+    // 初始化日志系统（配置日志的输出形式和日志级别）
+    // 初始化鉴权中心连接
+    // 初始化Caster连接
+    // 初始化消息队列
+    // 启动监听器，开始接受连接请求
+    // 连接请求处理->生成连接信息->鉴权->鉴权成功后放入消息队列
+    // 触发任务处理->从消息队列中取出连接信息->根据连接信息创建连接->连接成功后进行数据转发
+    // 连接断开/异常->创建关闭连接请求->放入消息队列
+    // 触发任务处理->从消息队列中取出关闭连接请求->根据连接信息关闭连接->进行资源清理
+
+    // 程序启动
+    spdlog::info("Software: {}-{}", PROJECT_SET_NAME, PROJECT_SET_VERSION);
+    spdlog::info("Tag Version: {}", PROJECT_TAG_VERSION);
+    spdlog::info("Git Version: {}", PROJECT_GIT_VERSION);
+
+    // 传入配置获取地址，从远程配置中心获取配置后启动
+    ntrip_config::getInstance()->Init(argc, argv, CONF_PATH); // 初始化配置
+
+    init_core_dump(); // 初始化coredump
+
+    init_log_system(); // 初始化日志系统
 
     // 初始化完成，开始进入正式流程
     spdlog::info("Software: {}-{}", PROJECT_SET_NAME, PROJECT_SET_VERSION);
@@ -225,16 +171,6 @@ int main(int argc, char **argv)
         return 1;
     }
 #endif
-
-    // auto x = new ntrip_caster(cfg);
-    // delete x;
-    // x->start();
-
-    // spdlog::info("Init Server...");
-
-    // auto str1 = a._license_check.gen_register_file();
-    // a._license_check.load_license_file();
-    // a._license_check.fresh_license_file();
 
     spdlog::info("Start Server...");
     ntrip_caster::getInstance()->start();

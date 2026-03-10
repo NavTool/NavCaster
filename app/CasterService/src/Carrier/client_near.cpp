@@ -92,7 +92,7 @@ int client_near::stop()
     json close_req;
     close_req["origin_req"] = _info;
     close_req["req_type"] = CLOSE_NEAREST_CLIENT;
-    QUEUE::Push(close_req);
+    // QUEUE::Push(close_req);
 
     CASTER::Unsub_Base_Raw_Data(_alias_mpt.c_str(), _connect_key.c_str());
     CASTER::Withdraw_Rover_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());

@@ -83,7 +83,7 @@ int client_ntrip::stop()
     json close_req;
     close_req["origin_req"] = _info;
     close_req["req_type"] = CLOSE_NTRIP_CLIENT;
-    QUEUE::Push(close_req);
+    // QUEUE::Push(close_req);
 
     CASTER::Withdraw_Rover_Record(_login_mpt.c_str(), _user_name.c_str(), _connect_key.c_str());
     CASTER::Unsub_Base_Raw_Data(_login_mpt.c_str(), _connect_key.c_str());

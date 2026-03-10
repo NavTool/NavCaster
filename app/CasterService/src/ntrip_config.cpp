@@ -1,6 +1,40 @@
+#include <spdlog/spdlog.h>
 #include "ntrip_config.h"
 
 #include "yaml-cpp/yaml.h"
+
+int switch_Working_Dir(std::string exe_path)
+{
+    std::string exepath = exe_path;
+
+    // 找到路径中最后一个斜杠的位置
+    size_t lastSlashPos = exepath.find_last_of("/\\");
+    if (lastSlashPos == std::string::npos)
+    {
+        spdlog::error("Unable to extract directory from executable path.");
+        return 1;
+    }
+    // 提取路径
+    std::string exeDir = exepath.substr(0, lastSlashPos);
+
+    // 切换工作目录
+#if defined(_MSC_VER)
+    if (_chdir(exeDir.c_str()) != 0)
+    {
+        spdlog::error("Failed to change working directory.");
+        return 1;
+    }
+#else
+    if (chdir(exeDir.c_str()) != 0)
+    {
+        spdlog::error("Failed to change working directory.");
+        return 1;
+    }
+#endif
+
+    spdlog::info("Switch Working directory: {}", exeDir);
+    return 0;
+}
 
 ntrip_config::ntrip_config(/* args */)
 {
@@ -14,6 +48,62 @@ ntrip_config *ntrip_config::getInstance()
 {
     static ntrip_config *instance = new ntrip_config();
     return instance;
+}
+
+int ntrip_config::Init(int argc, char **argv, std::string conf_path)
+{
+    // 解析输入：
+
+    int listen_port = -1;
+
+    if (argc < 1)
+    {
+        return 1;
+    }
+
+    if (argc == 2)
+    {
+        if (!strcmp(argv[1], "-info")) // 监听端口
+        {
+            exit(0);
+        }
+    }
+    if (argc > 2)
+    {
+        for (int i = 1; i < argc; i += 2)
+        {
+            if (!strcmp(argv[i], "-port")) // 监听端口
+            {
+                listen_port = atoi(argv[i + 1]);
+                spdlog::info("set listen port: {}", listen_port);
+            }
+            else if (!strcmp(argv[i], "-conf")) // 配置文件路径
+            {
+                conf_path = argv[i + 1];
+                spdlog::info("set conf path: {}", conf_path);
+            }
+        }
+    }
+
+    // 根据传入的参数决定启动形式：
+
+    switch_Working_Dir(argv[0]); // 切换工作路径到可执行目录下
+
+    // 打开配置文件
+    spdlog::info("Conf Path:{}", conf_path);
+    // 读取全局配置
+    spdlog::info("Load Conf...");
+
+    // 没有传入参数，读取本地配置文件启动
+
+    load_Caster_Conf(conf_path + "Service_Setting.yml");
+    load_Core_Conf(conf_path + "Caster_Core.yml");
+    load_Auth_Conf(conf_path + "Auth_Verify.yml");
+
+    if (listen_port > 0)
+    {
+        ntrip_config::getInstance()->_listener_opt.set_listen_port(listen_port);
+    }
 }
 
 int ntrip_config::load_Caster_Conf(std::string conf_file_path)
@@ -103,5 +193,10 @@ int ntrip_config::load_Auth_Conf(std::string conf_file_path)
     _auth_verify_opt.set_redis_host(Redis_Setting["IP"].as<std::string>());
     _auth_verify_opt.set_redis_port(Redis_Setting["Port"].as<int>());
     _auth_verify_opt.set_redis_password(Redis_Setting["Requirepass"].as<std::string>());
+    return 0;
+}
+
+int ntrip_config::load_Conf_from_Center(std::string conf_center_addr, int port, std::string conf_center_auth)
+{
     return 0;
 }

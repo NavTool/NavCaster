@@ -186,9 +186,9 @@ int ntrip_caster::stop()
 
 int ntrip_caster::update_state_info()
 {
-    _state_info["connect_num"] = _connect_map.size();
-    _state_info["client_num"] = _client_map.size();
-    _state_info["server_num"] = _server_map.size();
+    // _state_info["connect_num"] = _connect_map.size();
+    // _state_info["client_num"] = _client_map.size();
+    // _state_info["server_num"] = _server_map.size();
 
     return 0;
 }
@@ -197,14 +197,14 @@ int ntrip_caster::periodic_task()
 {
     if (_output_state) // 输出状态信息
     {
-        spdlog::info("[Service Statistic]: Connection: {}, Server: {}, Client: {}, Pull: {}, Push: {}, Nearest: {}, Memory: {} BYTE.",
-                     _connect_map.size() + _pull_map.size() + _push_map.size(),
-                     _server_map.size(),
-                     _client_map.size(),
-                     _pull_map.size(),
-                     _push_map.size(),
-                     _near_map.size(),
-                     util_get_use_memory());
+        // spdlog::info("[Service Statistic]: Connection: {}, Server: {}, Client: {}, Pull: {}, Push: {}, Nearest: {}, Memory: {} BYTE.",
+        //              _connect_map.size() + _pull_map.size() + _push_map.size(),
+        //              _server_map.size(),
+        //              _client_map.size(),
+        //              _pull_map.size(),
+        //              _push_map.size(),
+        //              _near_map.size(),
+        //              util_get_use_memory());
         spdlog::info("[CasterCore Status]: {}", CASTER::Get_Status());
 
         // double cpu = SysUsage::getInstance()->getProcessCPU();
@@ -241,7 +241,6 @@ int ntrip_caster::compontent_init()
     CASTER::Relay_Register_Callback(Relay_Request_Callback, this);
 
     // 创建listener请求
-    ListenerOpt opt;
     ntrip_listener::getInstance()->init(ntrip_config::getInstance()->_listener_opt, _base);
     ntrip_listener::getInstance()->start();
 
@@ -269,7 +268,7 @@ int ntrip_caster::extra_stop()
     return 0;
 }
 
-int ntrip_caster::request_process(ConnectInfo req)
+int ntrip_caster::process_request(ConnectInfo req)
 {
     try
     {
@@ -278,22 +277,28 @@ int ntrip_caster::request_process(ConnectInfo req)
         {
         // 一般ntrip请求-------------------------------------
         case CONNECT_TYPE_SOURCE:
-            operate_source_ntrip(req);
+            Sources.operateObject(req);
             break;
         case CONNECT_TYPE_SERVER:
-            operate_server_ntrip(req);
+            Servers.operateObject(req);
             break;
         case CONNECT_TYPE_CLIENT:
-            operate_client_ntrip(req);
+            Clients.operateObject(req);
             break;
         case CONNECT_TYPE_NEAREST:
-            operate_client_near(req);
+            Nears.operateObject(req);
             break;
         case CONNECT_TYPE_PROXY:
-            operate_client_proxy(req);
+            // operate_client_proxy(req);
             break;
         case CONNECT_TYPE_ALIAS:
-            operate_client_alias(req);
+            // operate_client_alias(req);
+            break;
+        case CONNECT_TYPE_PULL:
+            Pulls.operateObject(req);
+            break;
+        case CONNECT_TYPE_PUSH:
+            Pushs.operateObject(req);
             break;
         default:
             spdlog::warn("undefined req_type: {}", req.type());
@@ -316,452 +321,10 @@ int ntrip_caster::request_process(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::operate_client_ntrip(ConnectInfo req)
+int ntrip_caster::build_relay_request(CasterBroadcastType type, std::string req_str)
 {
-    std::string connect_key = req.connect_key();
-    switch (req.operate())
-    {
-    case OPERATE_TYPE_CREATE:
-    {
-        auto con = _connect_map.find(connect_key);
-        if (con == _connect_map.end())
-        {
-            spdlog::warn("[{}:{}]: Create_Ntrip_Client fail, con not in connect_map", __class__, __func__);
-            return 1;
-        }
-        auto item = std::make_shared<client_ntrip>(req, con->second);
-        _client_map.insert(std::pair<std::string, std::shared_ptr<client_ntrip>>(connect_key, item));
-        item->start();
-    }
-    break;
-    case OPERATE_TYPE_DESTORY:
-    {
-        auto con = _connect_map.find(req.connect_key());
-        if (con == _connect_map.end())
-        {
-            spdlog::warn("[{}:{}]: con not in connect_map", __class__, __func__);
-        }
-        else
-        {
-            _connect_map.erase(con);
-        }
-
-        auto obj = _client_map.find(req.connect_key());
-        if (obj == _client_map.end())
-        {
-            spdlog::warn("[{}:{}]: obj not in client_map", __class__, __func__);
-        }
-        else
-        {
-            _client_map.erase(obj);
-        }
-        return 0;
-    }
-    break;
-    case OPERATE_TYPE_PAUSE:
-        /* code */
-        break;
-    case OPERATE_TYPE_UPDATE:
-        /* code */
-        break;
-    default:
-        break;
-    }
-
     return 0;
 }
-
-int ntrip_caster::operate_server_ntrip(ConnectInfo req)
-{
-    switch (req.operate())
-    {
-    case OPERATE_TYPE_CREATE:
-        /* code */
-        break;
-    case OPERATE_TYPE_DESTORY:
-        /* code */
-        break;
-    case OPERATE_TYPE_PAUSE:
-        /* code */
-        break;
-    case OPERATE_TYPE_UPDATE:
-        /* code */
-        break;
-    default:
-        break;
-    }
-
-    return 0;
-}
-
-int ntrip_caster::operate_source_ntrip(ConnectInfo req)
-{
-    switch (req.operate())
-    {
-    case OPERATE_TYPE_CREATE:
-        /* code */
-        break;
-    case OPERATE_TYPE_DESTORY:
-        /* code */
-        break;
-    case OPERATE_TYPE_PAUSE:
-        /* code */
-        break;
-    case OPERATE_TYPE_UPDATE:
-        /* code */
-        break;
-    default:
-        break;
-    }
-
-    return 0;
-}
-
-int ntrip_caster::operate_client_near(ConnectInfo req)
-{
-    switch (req.operate())
-    {
-    case OPERATE_TYPE_CREATE:
-        /* code */
-        break;
-    case OPERATE_TYPE_DESTORY:
-        /* code */
-        break;
-    case OPERATE_TYPE_PAUSE:
-        /* code */
-        break;
-    case OPERATE_TYPE_UPDATE:
-        /* code */
-        break;
-    default:
-        break;
-    }
-
-    return 0;
-}
-
-int ntrip_caster::operate_client_proxy(ConnectInfo req)
-{
-    switch (req.operate())
-    {
-    case OPERATE_TYPE_CREATE:
-        /* code */
-        break;
-    case OPERATE_TYPE_DESTORY:
-        /* code */
-        break;
-    case OPERATE_TYPE_PAUSE:
-        /* code */
-        break;
-    case OPERATE_TYPE_UPDATE:
-        /* code */
-        break;
-    default:
-        break;
-    }
-
-    return 0;
-}
-
-int ntrip_caster::operate_client_alias(ConnectInfo req)
-{
-    switch (req.operate())
-    {
-    case OPERATE_TYPE_CREATE:
-        /* code */
-        break;
-    case OPERATE_TYPE_DESTORY:
-        /* code */
-        break;
-    case OPERATE_TYPE_PAUSE:
-        /* code */
-        break;
-    case OPERATE_TYPE_UPDATE:
-        /* code */
-        break;
-    default:
-        break;
-    }
-
-    return 0;
-}
-
-// int ntrip_caster::create_source_ntrip(ConnectInfo req)
-// {
-//     std::string connect_key = req["connect_key"];
-//     auto con = _connect_map.find(connect_key);
-//     if (con == _connect_map.end())
-//     {
-//         spdlog::warn("[{}:{}]: Create Source_Ntrip fail, con not in connect_map,connect_key: {}", __class__, __func__, connect_key);
-//         return 1;
-//     }
-
-//     auto *source = new source_ntrip(req, con->second);
-//     _source_map.insert(std::pair<std::string, source_ntrip *>(connect_key, source));
-//     source->start();
-
-//     return 0;
-// }
-
-// int ntrip_caster::close_source_ntrip(ConnectInfo req)
-// {
-//     json origin_req = req["origin_req"];
-//     std::string connect_key = origin_req["connect_key"];
-
-//     auto con = _connect_map.find(connect_key);
-//     if (con == _connect_map.end())
-//     {
-//     }
-//     else
-//     {
-//         _connect_map.erase(con);
-//     }
-
-//     auto obj = _source_map.find(connect_key);
-//     if (obj == _source_map.end())
-//     {
-//     }
-//     else
-//     {
-//         delete obj->second;
-//         _source_map.erase(obj);
-//     }
-//     return 0;
-// }
-
-// int ntrip_caster::create_client_ntrip(json req)
-// {
-//     std::string connect_key = req["connect_key"];
-//     auto con = _connect_map.find(connect_key);
-//     if (con == _connect_map.end())
-//     {
-//         spdlog::warn("[{}:{}]: Create_Ntrip_Client fail, con not in connect_map", __class__, __func__);
-//         return 1;
-//     }
-//     req["Settings"] = _client_setting;
-//     client_ntrip *ntripc = new client_ntrip(req, con->second);
-//     _client_map.insert(std::pair<std::string, client_ntrip *>(connect_key, ntripc));
-//     ntripc->start();
-
-//     return 0;
-// }
-
-// int ntrip_caster::close_client_ntrip(json req)
-// {
-//     json origin_req = req["origin_req"];
-//     std::string connect_key = origin_req["connect_key"];
-//     std::string mount_point = origin_req["mount_point"];
-//     int req_type = origin_req["req_type"];
-//     auto con = _connect_map.find(connect_key);
-
-//     if (con == _connect_map.end())
-//     {
-//     }
-//     else
-//     {
-//         _connect_map.erase(con);
-//     }
-
-//     auto obj = _client_map.find(connect_key);
-//     if (obj == _client_map.end())
-//     {
-//     }
-//     else
-//     {
-//         delete obj->second;
-//         _client_map.erase(obj);
-//     }
-//     return 0;
-// }
-
-// int ntrip_caster::create_client_near(json req)
-// {
-//     std::string connect_key = req["connect_key"];
-//     auto con = _connect_map.find(connect_key);
-//     if (con == _connect_map.end())
-//     {
-//         spdlog::warn("[{}:{}]: Create_Ntrip_Client fail, con not in connect_map", __class__, __func__);
-//         return 1;
-//     }
-//     req["Settings"] = _client_setting;
-//     client_near *ntripc = new client_near(req, con->second);
-//     _near_map.insert(std::pair<std::string, client_near *>(connect_key, ntripc));
-//     ntripc->start();
-
-//     return 0;
-// }
-
-// int ntrip_caster::close_client_near(json req)
-// {
-//     json origin_req = req["origin_req"];
-//     std::string connect_key = origin_req["connect_key"];
-//     std::string mount_point = origin_req["mount_point"];
-//     int req_type = origin_req["req_type"];
-//     auto con = _connect_map.find(connect_key);
-
-//     if (con == _connect_map.end())
-//     {
-//     }
-//     else
-//     {
-//         _connect_map.erase(con);
-//     }
-
-//     auto obj = _near_map.find(connect_key);
-//     if (obj == _near_map.end())
-//     {
-//     }
-//     else
-//     {
-//         delete obj->second;
-//         _near_map.erase(obj);
-//     }
-
-//     return 0;
-// }
-
-// int ntrip_caster::create_relay_pull(json req)
-// {
-//     std::string UID = req["UID"];
-
-//     auto item = _pull_map.find(UID);
-//     if (item != _pull_map.end())
-//     {
-//         return 1; // 已经存在
-//     }
-//     relay_pull *obj = new relay_pull(req, _base);
-//     _pull_map.insert(std::pair<std::string, relay_pull *>(UID, obj));
-//     obj->start();
-//     return 0;
-// }
-
-// int ntrip_caster::stop_relay_pull(json req)
-// {
-//     // 找到已经运行的实例
-//     auto item = _pull_map.find(req["UID"]);
-//     if (item == _pull_map.end())
-//     {
-//         return 1; // 不存在
-//     }
-//     // 停止服务
-//     item->second->stop();
-//     return 0;
-// }
-
-// int ntrip_caster::update_relay_pull(json req)
-// {
-//     return 0;
-// }
-
-// int ntrip_caster::close_relay_pull(json req)
-// {
-//     json origin_req = req["origin_req"];
-//     auto obj = _pull_map.find(origin_req["login_mpt"]);
-//     if (obj == _pull_map.end())
-//     {
-//     }
-//     else
-//     {
-//         delete obj->second;
-//         _pull_map.erase(obj);
-//     }
-//     return 0;
-// }
-
-// int ntrip_caster::create_relay_push(json req)
-// {
-//     std::string UID = req["UID"];
-
-//     auto item = _push_map.find(UID);
-//     if (item != _push_map.end())
-//     {
-//         return 1; // 已经存在
-//     }
-//     relay_push *obj = new relay_push(req, _base);
-//     _push_map.insert(std::pair<std::string, relay_push *>(UID, obj));
-//     obj->start();
-//     return 0;
-// }
-
-// int ntrip_caster::stop_relay_push(json req)
-// {
-//     // 找到已经运行的实例
-//     auto item = _push_map.find(req["UID"]);
-//     if (item == _push_map.end())
-//     {
-//         return 1; // 不存在
-//     }
-//     // 停止服务
-//     item->second->stop();
-//     return 0;
-// }
-
-// int ntrip_caster::update_relay_push(json req)
-// {
-//     return 0;
-// }
-
-// int ntrip_caster::close_relay_push(json req)
-// {
-//     json origin_req = req["origin_req"];
-//     auto obj = _push_map.find(origin_req["login_mpt"]);
-//     if (obj == _push_map.end())
-//     {
-//     }
-//     else
-//     {
-//         delete obj->second;
-//         _push_map.erase(obj);
-//     }
-//     return 0;
-// }
-
-// int ntrip_caster::create_server_ntrip(json req)
-// {
-//     std::string connect_key = req["connect_key"];
-
-//     auto con = _connect_map.find(connect_key);
-//     if (con == _connect_map.end())
-//     {
-//         spdlog::warn("[{}:{}]: Create_Ntrip_Server fail, con not in connect_map", __class__, __func__);
-//         return 1; // 找不到连接
-//     }
-//     req["Settings"] = _server_setting;
-//     server_ntrip *ntrips = new server_ntrip(req, con->second);
-//     // 加入挂载点表中
-//     _server_map.insert(std::pair<std::string, server_ntrip *>(connect_key, ntrips));
-
-//     // 一切准备就绪，启动server
-//     ntrips->start();
-//     return 0;
-// }
-
-// int ntrip_caster::close_server_ntrip(json req)
-// {
-//     json origin_req = req["origin_req"];
-//     std::string connect_key = origin_req["connect_key"];
-//     std::string mount_point = origin_req["mount_point"];
-//     auto con = _connect_map.find(connect_key);
-//     if (con == _connect_map.end())
-//     {
-//     }
-//     else
-//     {
-//         _connect_map.erase(con);
-//     }
-
-//     auto obj = _server_map.find(connect_key);
-//     if (obj == _server_map.end())
-//     {
-//     }
-//     else
-//     {
-//         delete obj->second;
-//         _server_map.erase(obj);
-//     }
-
-//     return 0;
-// }
 
 int ntrip_caster::close_unsuccess_req_connect(json req)
 {

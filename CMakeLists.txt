@@ -1,15 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 project(NavCaster)
 
-
-
 option(BUILD_CASTER_MONITOR "Build Caster Monitor." OFF)
 option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
-
-
-
-
-
+option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 
 #版本14以下可能会导致abseil不支持
 set(CMAKE_CXX_STANDARD 17)
@@ -185,6 +179,9 @@ if(MSVC)
     target_compile_options(libupb PRIVATE /wd5287)    # 忽略编译libupb时候的警告
 endif()
 
+include_directories(${CMAKE_SOURCE_DIR}/proto/src)
+add_subdirectory(proto)
+
 
 #libevent option
 # set(EVENT_LIBRARY_TYPE STATIC)
@@ -214,11 +211,6 @@ set(SPDLOG_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/rely/spdlog/include")
 
 #rtklib
 add_subdirectory(rely/rtklib)
-
-
-
-include_directories(${CMAKE_SOURCE_DIR}/proto/src)
-add_subdirectory(proto)
 
 
 add_subdirectory(lib)
@@ -273,7 +265,7 @@ message("Build FluentUI static library: ${FLUENTUI_BUILD_STATIC_LIB}")
 message("Universal build FluentUI for macOS: ${FLUENTUI_UNIVERSAL_BUILD_MACOS}")
 message("------------------------------------------------------------------")
 
-option(HOTLOAD_ENABLED "Enable hot reload" OFF)
+
 message("---------------------------- NavTool ----------------------------")
 message("Enable hot reload   : ${HOTLOAD_ENABLED}")
 message("Build Caster Service: ${BUILD_CASTER_SERVICE}")

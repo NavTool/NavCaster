@@ -42,33 +42,18 @@
 
 #include <regex>
 
-
 class ntrip_listener
 {
 private:
     // 配置
-    int _listen_port;
-    int _connect_timeout = 0;
-
-    bool _enable_source_login = true;
-    bool _enable_server_login = true;
-    bool _enable_client_login = true;
-    bool _enable_nearest_login = false;
-    bool _enable_proxy_login = false;
-    bool _enable_alias_login = true;
-
-    bool _enable_header_no_CRLF = false;
+    ListenerOpt _opt;
 
     // 内部
     bool _disable_new_connect = false;
 
+private:
     event_base *_base;
     evconnlistener *_listener;
-
-    std::unordered_map<std::string, bufferevent *> _connect_map;
-    std::unordered_map<std::string, timeval *> _timer_map;
-
-    std::set<std::string> _support_virtual_mount;
 
 public:
     ntrip_listener();
@@ -85,11 +70,12 @@ public:
     int enable_accept_new_connect();  // 启动接收新的连接
 
 public:
-    // 新建连接相关
-    static void AcceptCallback(evconnlistener *listener, evutil_socket_t fd, sockaddr *address, int socklen, void *arg);
-    static void AcceptErrorCallback(struct evconnlistener *listener, void *ctx);
-    static void Ntrip_Decode_Request_cb(bufferevent *bev, void *arg);
-    static void Bev_EventCallback(bufferevent *bev, short what, void *arg);
+    int process_accept_request(evutil_socket_t fd);
+    int process_accept_error(evconnlistener *listener);
+    int process_bev_request(bufferevent *bev, std::string connect_key);
+    int process_bev_event(bufferevent *bev, short events, std::string connect_key);
+
+    int create_request(auth_reply *reply, ConnectInfo req);
 
     // 解析请求相关（在解析完请求后，向AUTH验证用户名密码是否合法，只要合法就允许进入下一步（不判断是否已经登录，是否是重复登录，由后续步骤进行检查））
     int Process_GET_Request(bufferevent *bev, std::string connect_key, const char *path);
@@ -97,17 +83,23 @@ public:
     int Process_SOURCE_Request(bufferevent *bev, std::string connect_key, const char *path, const char *secret);
     int Process_Unsupport_Request(bufferevent *bev, std::string connect_key);
 
-    // Auth验证回调
-    static void Auth_Verify_Cb(const char *request, void *arg, auth_reply *reply);
-
 private:
     // 内部函数
     // std::string get_conncet_key(bufferevent *bev);
-    ConnectInfo decode_bufferevent_req(bufferevent *bev, std::string connect_key, const char *url);
+    ConnectInfo decode_bufferevent_req(bufferevent *bev, std::string connect_key, std::string url,std::string proxy_prorocol="");
     std::string extract_path(std::string path);
     std::string extract_para(std::string path);
     std::string decode_basic_authentication(std::string authentication);
-    int erase_and_free_bev(bufferevent *bev, std::string Connect_Key);
 
     bool check_mount_is_valid(const std::string &str);
+
+public:
+    // 新建连接相关
+    static void AcceptCallback(evconnlistener *listener, evutil_socket_t fd, sockaddr *address, int socklen, void *arg);
+    static void AcceptErrorCallback(struct evconnlistener *listener, void *ctx);
+    static void BevReadCallback(bufferevent *bev, void *arg);
+    static void BevEventCallback(bufferevent *bev, short what, void *arg);
+
+    // Auth验证回调
+    static void Auth_Verify_Cb(const char *request, void *arg, auth_reply *reply);
 };

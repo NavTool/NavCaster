@@ -19,9 +19,12 @@ public:
 
     static ntrip_config *getInstance();
 
+
+    int Init(int argc, char **argv,std::string conf_file_path);
+
     int load_Caster_Conf(std::string conf_file_path);
-
     int load_Core_Conf(std::string conf_file_path);
-
     int load_Auth_Conf(std::string conf_file_path);
+
+    int load_Conf_from_Center(std::string conf_center_addr, int port, std::string conf_center_auth);
 };

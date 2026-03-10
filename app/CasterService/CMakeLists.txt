@@ -1,67 +1,5 @@
 project(CasterService LANGUAGES CXX)
 
-# 默认版本号
-set(VERSION_MAJOR 1)
-set(VERSION_MINOR 0)
-set(VERSION_PATCH 0)
-set(VERSION_EXTRA 0)
-
-find_package(Git)
-
-if(GIT_FOUND)
-    execute_process(
-      COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-      OUTPUT_VARIABLE PROJECT_GIT_VERSION
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-else()
-    set(PROJECT_GIT_VERSION "unknown")
-endif()
-
-# 使用git describe命令获取标签版本号
-execute_process(
-    COMMAND git describe --tags --dirty=-dev
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE PROJECT_TAG_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# 检查是否成功获取了标签版本
-if(NOT PROJECT_TAG_VERSION)
-    message(WARNING "Failed to get Git tag.")
-else()
-    # 使用正则表达式提取标签中的版本号和更新次数
-    string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" VERSION_REGEX "${PROJECT_TAG_VERSION}")
-    set(VERSION_MAJOR ${CMAKE_MATCH_1})
-    set(VERSION_MINOR ${CMAKE_MATCH_2})
-    set(VERSION_PATCH ${CMAKE_MATCH_3})
-endif()
-
-# 使用git describe命令获取更新次数
-execute_process(
-    COMMAND git describe --tags --abbrev=0
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE LATEST_TAG
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-if(NOT LATEST_TAG)
-    message(WARNING "Failed to get latest tag.")
-else()
-    # 使用git describe命令获取距离最近标签的更新次数
-    execute_process(
-        COMMAND git rev-list ${LATEST_TAG}..HEAD --count
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE UPDATE_COUNT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    set(VERSION_EXTRA ${UPDATE_COUNT})
-endif()
-
-
-# 设置项目的版本号
-set(PROJECT_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${VERSION_EXTRA}")
 
 message(STATUS "")
 message(STATUS "------- ${PROJECT_NAME} -------")
@@ -81,67 +19,37 @@ include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Carrier)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Compontent)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Connector)
-include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/DB)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/extra)
-include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/extra/heart_beat)
-include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/extra/license_check)
-
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)
 
-set(COMPONTENT_TYPE_SOURCE
-    include/Compontent/process_queue.h src/Compontent/process_queue.cpp
-    include/connect_bev.h  src/connect_bev.cpp
-)
+# 遍历目录自动添加所有源文件
+file(GLOB_RECURSE CPP_SOURCE_FILES
+    CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/extra/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/extra/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extra/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extra/**/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/extra/**/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/extra/**/*.cpp
 
-set(CARRIER_TYPE_SOURCE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/**/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/**/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/**/*.cpp
 
-    include/Carrier/carrier_base.h      src/Carrier/carrier_base.cpp
-
-    include/Carrier/client_ntrip.h      src/Carrier/client_ntrip.cpp
-    include/Carrier/server_ntrip.h      src/Carrier/server_ntrip.cpp
-    include/Carrier/source_ntrip.h      src/Carrier/source_ntrip.cpp
-
-    include/Carrier/client_near.h      src/Carrier/client_near.cpp
-    include/Carrier/client_alias.h      src/Carrier/client_alias.cpp
-
-    include/Carrier/relay_pull.h      src/Carrier/relay_pull.cpp
-    include/Carrier/relay_push.h      src/Carrier/relay_push.cpp
-
-    include/Carrier/server_grid.h      src/Carrier/server_grid.cpp
-    include/Carrier/client_grid.h      src/Carrier/client_grid.cpp
-
-)
-
-set(CONNECTOR_TYPE_SOURCE
-    include/Connector/ntrip_listener.h  src/Connector/ntrip_listener.cpp
-)
-
-set(EXTRA_SOURCE
-    #心跳模块
-    # extra/heart_beat/heart_beat.h
-    # extra/heart_beat/heart_beat.cpp
-    #注册码模块
-    extra/license_check/license_check.h
-    extra/license_check/license_check.cpp
-    extra/license_check/register.h
-    extra/license_check/register.cpp
-)
-
-set(MAIN_SOURCES
-    include/ntrip_global.h
-    include/ntrip_config.h  src/ntrip_config.cpp
-    include/ntrip_caster.h  src/ntrip_caster.cpp
-    src/main.cpp
-    
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.cpp
 )
 
 
 add_executable(${PROJECT_NAME} 
-                ${MAIN_SOURCES} 
-                ${CARRIER_TYPE_SOURCE}  
-                ${CONNECTOR_TYPE_SOURCE}
-                ${COMPONTENT_TYPE_SOURCE}    
-                ${EXTRA_SOURCE}
+                ${CPP_SOURCE_FILES}
                 ${VERSION_SOURCES})
 
 #生成的可执行文件名称和包含的文件

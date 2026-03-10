@@ -3,81 +3,62 @@
 
 #define __class__ "source_ntrip"
 
-source_ntrip::source_ntrip(json req, bufferevent *bev)
+source_ntrip::source_ntrip(ConnectInfo info) : carrier_base(info)
 {
-    _info = req;
-    _connect_key = _info["connect_key"];
-    _user_name = req["user_name"];
-    int fd = bufferevent_getfd(bev);
-    _ip = util_get_user_ip(fd);
-    _port = util_get_user_port(fd);
-    if (req["ntrip_version"] == "Ntrip/2.0")
-    {
-        _NtripVersion2 = true;
-    }
-
-    _bev = bev;
-
-    _send_evbuf = evbuffer_new();
 }
 
 source_ntrip::~source_ntrip()
 {
-    bufferevent_free(_bev);
-    evbuffer_free(_send_evbuf);
+}
 
-    spdlog::info("[{}]: delete connect , user [{}],  addr:[{}:{}]", __class__, _user_name, _ip, _port);
+int source_ntrip::init()
+{
+    return 0;
 }
 
 int source_ntrip::start()
 {
-    bufferevent_setcb(_bev, NULL, WriteCallback, EventCallback, this);
+    start_bev(false, 0, true, 0);
 
     _source_list = CASTER::Get_Source_Table_Text();
-
     build_source_table();
-    bufferevent_enable(_bev, EV_WRITE);
 
     return 0;
 }
 
 int source_ntrip::stop()
 {
-    bufferevent_disable(_bev, EV_WRITE);
+    stop_bev();
 
-    json close_req;
-    close_req["origin_req"] = _info;
-    close_req["req_type"] = CLOSE_NTRIP_SOURCE;
-    QUEUE::Push(close_req);
+    _info.set_operate(OPERATE_TYPE_DESTORY);
+    QUEUE::Push(_info);
 
-    spdlog::info("[{}]: close connect , user [{}],  addr:[{}:{}]", __class__, _user_name, _ip, _port);
+    spdlog::info("[{}]: close connect , user [{}],  addr:[{}:{}]", __class__, _info.user_name(), _info.addr(), _info.port());
     return 0;
 }
 
-void source_ntrip::WriteCallback(bufferevent *bev, void *arg)
+int source_ntrip::write_cb(bufferevent *bev)
 {
-    auto svr = static_cast<source_ntrip *>(arg);
-
-    auto length = evbuffer_get_length(svr->_send_evbuf);
+    auto length = evbuffer_get_length(_send_evbuf);
     if (length == 0)
     {
         auto UnsendBufferSize = evbuffer_get_length(bufferevent_get_output(bev));
         if (UnsendBufferSize == 0)
         {
-            spdlog::info("[{}]: Send SourceTable Finished, user [{}] ,  addr:[{}:{}]", __class__, svr->_user_name, svr->_ip, svr->_port);
-            svr->stop();
+            spdlog::info("[{}]: Send SourceTable Finished, user [{}] ,  addr:[{}:{}]", __class__, _info.user_name(), _info.addr(), _info.port());
+            stop();
         }
     }
     else
     {
-        bufferevent_write_buffer(bev, svr->_send_evbuf);
+        bufferevent_write_buffer(bev, _send_evbuf);
     }
+    return 0;
 }
 
-void source_ntrip::EventCallback(bufferevent *bev, short events, void *arg)
+int source_ntrip::event_cb(bufferevent *bev, short events)
 {
-    auto svr = static_cast<source_ntrip *>(arg);
-
+    return 0;
     spdlog::info("[{}:{}]: {}{}{}{}{}{} , user [{}], , addr:[{}:{}]",
                  __class__, __func__,
                  (events & BEV_EVENT_READING) ? "read" : "-",
@@ -85,14 +66,14 @@ void source_ntrip::EventCallback(bufferevent *bev, short events, void *arg)
                  (events & BEV_EVENT_EOF) ? "eof" : "-",
                  (events & BEV_EVENT_ERROR) ? "error" : "-",
                  (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
-                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", svr->_user_name, svr->_ip, svr->_port);
+                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", _info.user_name(), _info.addr(), _info.port());
 
-    svr->stop();
+    stop();
 }
 
 int source_ntrip::build_source_table()
 {
-    if (_NtripVersion2)
+    if (_ntrip_version2)
     {
         evbuffer_add_printf(_send_evbuf, "HTTP/1.1 200 OK\r\n");
         evbuffer_add_printf(_send_evbuf, "Ntrip-Version: Ntrip/2.0\r\n");

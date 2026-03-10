@@ -11,6 +11,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include "service/info_connect.pb.h"
+using namespace caster::service;
+
 namespace QUEUE
 {
     int Init(event *process_event);
