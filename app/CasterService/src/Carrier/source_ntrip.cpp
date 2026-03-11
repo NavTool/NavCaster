@@ -1,10 +1,9 @@
 #include "source_ntrip.h"
 #include "knt.h"
 
-#define __class__ "source_ntrip"
-
 source_ntrip::source_ntrip(ConnectInfo info) : carrier_base(info)
 {
+    __class__ = "source_ntrip";
 }
 
 source_ntrip::~source_ntrip()
@@ -58,17 +57,8 @@ int source_ntrip::write_cb(bufferevent *bev)
 
 int source_ntrip::event_cb(bufferevent *bev, short events)
 {
-    return 0;
-    spdlog::info("[{}:{}]: {}{}{}{}{}{} , user [{}], , addr:[{}:{}]",
-                 __class__, __func__,
-                 (events & BEV_EVENT_READING) ? "read" : "-",
-                 (events & BEV_EVENT_WRITING) ? "write" : "-",
-                 (events & BEV_EVENT_EOF) ? "eof" : "-",
-                 (events & BEV_EVENT_ERROR) ? "error" : "-",
-                 (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
-                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", _info.user_name(), _info.addr(), _info.port());
-
     stop();
+    return 0;
 }
 
 int source_ntrip::build_source_table()

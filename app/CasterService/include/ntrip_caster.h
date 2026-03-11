@@ -77,9 +77,9 @@ private:
     Carrier<server_ntrip> Servers;
     Carrier<client_ntrip> Clients;
     Carrier<source_ntrip> Sources;
-    Carrier<client_near> Nears;
-    Carrier<relay_pull> Pulls;
-    Carrier<relay_push> Pushs;
+    // Carrier<client_near> Nears;
+    // Carrier<relay_pull> Pulls;
+    // Carrier<relay_push> Pushs;
 
 private:
     event_base *_base;

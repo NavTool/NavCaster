@@ -3,14 +3,16 @@
 
 
 # 注册相关配置
-Auth_Setting:
-  COMMON_Setting:
-    Anonymous_Login: true     #匿名登录模式
-    Repeated_Login: true      #允许重复登录
-    Online_Protection: true   #在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
-  STATION_Setting:
 
-  CLIENT_Setting:
+Base_Setting:
+  Anonymous_Login: true     #匿名登录模式
+  Online_Protection: true   #在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
+Rover_Setting:
+  Anonymous_Login: true     #匿名登录模式
+  Online_Protection: true   #在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
+Source_Setting:
+  Anonymous_Login: true     #匿名登录模式
+
 
 # Redis连接
 Reids_Connect_Setting:

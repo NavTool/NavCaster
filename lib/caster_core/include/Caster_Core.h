@@ -59,11 +59,13 @@ enum class CasterBroadcastType
 
 enum class CasterRegisterType
 {
-    NORMAL = 1,
-    NEAREST_MPT, // 最近挂载点模式
-    ALIAS_MPT,   // 别名挂载点模式
-    PULL_MPT,    // 拉取模式
-    PUSH_USR     // 推送模式
+    UNKNOWN = 0,
+    SERVER = 1, // 基站模式
+    CLIENT,     // 移动站模式
+    NEAREST,    // 最近挂载点模式
+    ALIAS,      // 别名挂载点模式
+    PULL,       // 拉取模式
+    PUSH        // 推送模式
 };
 
 struct mount_info
@@ -118,6 +120,13 @@ namespace CASTER
     bool Check_Nearest_Mpt(const char *mount_point);
 
     bool Check_Alias_Mpt(const char *mount_point);
+
+    int Register_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type);
+    int Withdraw_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type);
+
+    int Pub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, const char *data, size_t data_length, CasterRegisterType type);
+    int Sub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type);
+    int Unsub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type);
 
     // 将基站注册到Caster中（Server上线的时候主动调用）
     int Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);

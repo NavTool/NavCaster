@@ -48,9 +48,11 @@ inline constexpr AuthVerifyOpt::Impl_::Impl_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         redis_port_{0},
-        anonymous_login_{false},
-        repeated_login_{false},
-        online_protection_{false} {}
+        base_anonymous_login_{false},
+        base_online_protection_{false},
+        rover_anonymous_login_{false},
+        rover_online_protection_{false},
+        source_anonymous_login_{false} {}
 
 template <typename>
 constexpr AuthVerifyOpt::AuthVerifyOpt(::_pbi::ConstantInitialized)
@@ -82,19 +84,23 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_._has_bits_),
-        9, // hasbit index offset
+        11, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.redis_host_),
         PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.redis_port_),
         PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.redis_password_),
-        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.anonymous_login_),
-        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.repeated_login_),
-        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.online_protection_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.base_anonymous_login_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.base_online_protection_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.rover_anonymous_login_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.rover_online_protection_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::AuthVerifyOpt, _impl_.source_anonymous_login_),
         0,
         2,
         1,
         3,
         4,
         5,
+        6,
+        7,
 };
 
 static const ::_pbi::MigrationSchema
@@ -107,17 +113,19 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_service_2fopt_5fauth_5fverify_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\035service/opt_auth_verify.proto\022\016caster."
-    "service\"\233\001\n\rAuthVerifyOpt\022\022\n\nredis_host\030"
+    "service\"\355\001\n\rAuthVerifyOpt\022\022\n\nredis_host\030"
     "\001 \001(\t\022\022\n\nredis_port\030\002 \001(\005\022\026\n\016redis_passw"
-    "ord\030\003 \001(\t\022\027\n\017anonymous_login\030\004 \001(\010\022\026\n\016re"
-    "peated_login\030\005 \001(\010\022\031\n\021online_protection\030"
-    "\006 \001(\010b\006proto3"
+    "ord\030\003 \001(\t\022\034\n\024base_anonymous_login\030\004 \001(\010\022"
+    "\036\n\026base_online_protection\030\005 \001(\010\022\035\n\025rover"
+    "_anonymous_login\030\006 \001(\010\022\037\n\027rover_online_p"
+    "rotection\030\007 \001(\010\022\036\n\026source_anonymous_logi"
+    "n\030\010 \001(\010b\006proto3"
 };
 static ::absl::once_flag descriptor_table_service_2fopt_5fauth_5fverify_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_service_2fopt_5fauth_5fverify_2eproto = {
     false,
     false,
-    213,
+    295,
     descriptor_table_protodef_service_2fopt_5fauth_5fverify_2eproto,
     "service/opt_auth_verify.proto",
     &descriptor_table_service_2fopt_5fauth_5fverify_2eproto_once,
@@ -177,9 +185,9 @@ AuthVerifyOpt::AuthVerifyOpt(
                offsetof(Impl_, redis_port_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, redis_port_),
-           offsetof(Impl_, online_protection_) -
+           offsetof(Impl_, source_anonymous_login_) -
                offsetof(Impl_, redis_port_) +
-               sizeof(Impl_::online_protection_));
+               sizeof(Impl_::source_anonymous_login_));
 
   // @@protoc_insertion_point(copy_constructor:caster.service.AuthVerifyOpt)
 }
@@ -195,9 +203,9 @@ inline void AuthVerifyOpt::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, redis_port_),
            0,
-           offsetof(Impl_, online_protection_) -
+           offsetof(Impl_, source_anonymous_login_) -
                offsetof(Impl_, redis_port_) +
-               sizeof(Impl_::online_protection_));
+               sizeof(Impl_::source_anonymous_login_));
 }
 AuthVerifyOpt::~AuthVerifyOpt() {
   // @@protoc_insertion_point(destructor:caster.service.AuthVerifyOpt)
@@ -276,16 +284,16 @@ AuthVerifyOpt::GetClassData() const {
   return AuthVerifyOpt_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<3, 6, 0, 61, 2>
+const ::_pbi::TcParseTable<3, 8, 0, 69, 2>
 AuthVerifyOpt::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_._has_bits_),
     0, // no _extensions_
-    6, 56,  // max_field_number, fast_idx_mask
+    8, 56,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967232,  // skipmap
+    4294967040,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    6,  // num_field_entries
+    8,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     AuthVerifyOpt_class_data_.base(),
@@ -295,7 +303,10 @@ AuthVerifyOpt::_table_ = {
     ::_pbi::TcParser::GetTable<::caster::service::AuthVerifyOpt>(),  // to_prefetch
     #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
   }, {{
-    {::_pbi::TcParser::MiniParse, {}},
+    // bool source_anonymous_login = 8;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.source_anonymous_login_), 7>(),
+     {64, 7, 0,
+      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.source_anonymous_login_)}},
     // string redis_host = 1;
     {::_pbi::TcParser::FastUS1,
      {10, 0, 0,
@@ -308,19 +319,22 @@ AuthVerifyOpt::_table_ = {
     {::_pbi::TcParser::FastUS1,
      {26, 1, 0,
       PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.redis_password_)}},
-    // bool anonymous_login = 4;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.anonymous_login_), 3>(),
+    // bool base_anonymous_login = 4;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.base_anonymous_login_), 3>(),
      {32, 3, 0,
-      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.anonymous_login_)}},
-    // bool repeated_login = 5;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.repeated_login_), 4>(),
+      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.base_anonymous_login_)}},
+    // bool base_online_protection = 5;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.base_online_protection_), 4>(),
      {40, 4, 0,
-      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.repeated_login_)}},
-    // bool online_protection = 6;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.online_protection_), 5>(),
+      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.base_online_protection_)}},
+    // bool rover_anonymous_login = 6;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.rover_anonymous_login_), 5>(),
      {48, 5, 0,
-      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.online_protection_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.rover_anonymous_login_)}},
+    // bool rover_online_protection = 7;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AuthVerifyOpt, _impl_.rover_online_protection_), 6>(),
+     {56, 6, 0,
+      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.rover_online_protection_)}},
   }}, {{
     65535, 65535
   }}, {{
@@ -330,16 +344,20 @@ AuthVerifyOpt::_table_ = {
     {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.redis_port_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
     // string redis_password = 3;
     {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.redis_password_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // bool anonymous_login = 4;
-    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.anonymous_login_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
-    // bool repeated_login = 5;
-    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.repeated_login_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
-    // bool online_protection = 6;
-    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.online_protection_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool base_anonymous_login = 4;
+    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.base_anonymous_login_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool base_online_protection = 5;
+    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.base_online_protection_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool rover_anonymous_login = 6;
+    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.rover_anonymous_login_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool rover_online_protection = 7;
+    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.rover_online_protection_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool source_anonymous_login = 8;
+    {PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.source_anonymous_login_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
   }},
   // no aux_entries
   {{
-    "\34\12\0\16\0\0\0\0"
+    "\34\12\0\16\0\0\0\0\0\0\0\0\0\0\0\0"
     "caster.service.AuthVerifyOpt"
     "redis_host"
     "redis_password"
@@ -361,10 +379,10 @@ PROTOBUF_NOINLINE void AuthVerifyOpt::Clear() {
       _impl_.redis_password_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003cU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000fcU)) {
     ::memset(&_impl_.redis_port_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.online_protection_) -
-        reinterpret_cast<char*>(&_impl_.redis_port_)) + sizeof(_impl_.online_protection_));
+        reinterpret_cast<char*>(&_impl_.source_anonymous_login_) -
+        reinterpret_cast<char*>(&_impl_.redis_port_)) + sizeof(_impl_.source_anonymous_login_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -418,30 +436,48 @@ PROTOBUF_NOINLINE void AuthVerifyOpt::Clear() {
     }
   }
 
-  // bool anonymous_login = 4;
+  // bool base_anonymous_login = 4;
   if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-    if (this_._internal_anonymous_login() != 0) {
+    if (this_._internal_base_anonymous_login() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
-          4, this_._internal_anonymous_login(), target);
+          4, this_._internal_base_anonymous_login(), target);
     }
   }
 
-  // bool repeated_login = 5;
+  // bool base_online_protection = 5;
   if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-    if (this_._internal_repeated_login() != 0) {
+    if (this_._internal_base_online_protection() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
-          5, this_._internal_repeated_login(), target);
+          5, this_._internal_base_online_protection(), target);
     }
   }
 
-  // bool online_protection = 6;
+  // bool rover_anonymous_login = 6;
   if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-    if (this_._internal_online_protection() != 0) {
+    if (this_._internal_rover_anonymous_login() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
-          6, this_._internal_online_protection(), target);
+          6, this_._internal_rover_anonymous_login(), target);
+    }
+  }
+
+  // bool rover_online_protection = 7;
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_rover_online_protection() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          7, this_._internal_rover_online_protection(), target);
+    }
+  }
+
+  // bool source_anonymous_login = 8;
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_source_anonymous_login() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          8, this_._internal_source_anonymous_login(), target);
     }
   }
 
@@ -470,7 +506,7 @@ PROTOBUF_NOINLINE void AuthVerifyOpt::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // string redis_host = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_redis_host().empty()) {
@@ -492,21 +528,33 @@ PROTOBUF_NOINLINE void AuthVerifyOpt::Clear() {
             this_._internal_redis_port());
       }
     }
-    // bool anonymous_login = 4;
+    // bool base_anonymous_login = 4;
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (this_._internal_anonymous_login() != 0) {
+      if (this_._internal_base_anonymous_login() != 0) {
         total_size += 2;
       }
     }
-    // bool repeated_login = 5;
+    // bool base_online_protection = 5;
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (this_._internal_repeated_login() != 0) {
+      if (this_._internal_base_online_protection() != 0) {
         total_size += 2;
       }
     }
-    // bool online_protection = 6;
+    // bool rover_anonymous_login = 6;
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (this_._internal_online_protection() != 0) {
+      if (this_._internal_rover_anonymous_login() != 0) {
+        total_size += 2;
+      }
+    }
+    // bool rover_online_protection = 7;
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_rover_online_protection() != 0) {
+        total_size += 2;
+      }
+    }
+    // bool source_anonymous_login = 8;
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (this_._internal_source_anonymous_login() != 0) {
         total_size += 2;
       }
     }
@@ -529,7 +577,7 @@ void AuthVerifyOpt::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_redis_host().empty()) {
         _this->_internal_set_redis_host(from._internal_redis_host());
@@ -554,18 +602,28 @@ void AuthVerifyOpt::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (from._internal_anonymous_login() != 0) {
-        _this->_impl_.anonymous_login_ = from._impl_.anonymous_login_;
+      if (from._internal_base_anonymous_login() != 0) {
+        _this->_impl_.base_anonymous_login_ = from._impl_.base_anonymous_login_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (from._internal_repeated_login() != 0) {
-        _this->_impl_.repeated_login_ = from._impl_.repeated_login_;
+      if (from._internal_base_online_protection() != 0) {
+        _this->_impl_.base_online_protection_ = from._impl_.base_online_protection_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (from._internal_online_protection() != 0) {
-        _this->_impl_.online_protection_ = from._impl_.online_protection_;
+      if (from._internal_rover_anonymous_login() != 0) {
+        _this->_impl_.rover_anonymous_login_ = from._impl_.rover_anonymous_login_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_rover_online_protection() != 0) {
+        _this->_impl_.rover_online_protection_ = from._impl_.rover_online_protection_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (from._internal_source_anonymous_login() != 0) {
+        _this->_impl_.source_anonymous_login_ = from._impl_.source_anonymous_login_;
       }
     }
   }
@@ -591,8 +649,8 @@ void AuthVerifyOpt::InternalSwap(AuthVerifyOpt* PROTOBUF_RESTRICT PROTOBUF_NONNU
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.redis_host_, &other->_impl_.redis_host_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.redis_password_, &other->_impl_.redis_password_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.online_protection_)
-      + sizeof(AuthVerifyOpt::_impl_.online_protection_)
+      PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.source_anonymous_login_)
+      + sizeof(AuthVerifyOpt::_impl_.source_anonymous_login_)
       - PROTOBUF_FIELD_OFFSET(AuthVerifyOpt, _impl_.redis_port_)>(
           reinterpret_cast<char*>(&_impl_.redis_port_),
           reinterpret_cast<char*>(&other->_impl_.redis_port_));

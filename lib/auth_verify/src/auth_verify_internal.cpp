@@ -3,22 +3,29 @@
 #include <spdlog/spdlog.h>
 #include "knt.h"
 
-auth_internal::auth_internal(/* args */)
+verify_internal::verify_internal(/* args */)
 {
 }
 
-auth_internal::~auth_internal()
+verify_internal::~verify_internal()
 {
 }
 
-auth_internal *auth_internal::getInstance()
+verify_internal *verify_internal::getInstance()
 {
-    static auth_internal *instance = new auth_internal();
+    static verify_internal *instance = new verify_internal();
     return instance;
 }
 
-int auth_internal::init(AuthVerifyOpt opt, event_base *base)
+int verify_internal::init(AuthVerifyOpt opt, event_base *base)
 {
+
+    _base_anonymous_login = opt.base_anonymous_login();
+    _base_online_protection = opt.base_online_protection();
+    _rover_anonymous_login = opt.rover_anonymous_login();
+    _rover_online_protection = opt.rover_online_protection();
+    _source_anonymous_login = opt.source_anonymous_login();
+
     _redis_IP = opt.redis_host();
     _redis_port = opt.redis_port();
     _redis_Requirepass = opt.redis_password();
@@ -26,7 +33,7 @@ int auth_internal::init(AuthVerifyOpt opt, event_base *base)
     _base = base;
     return 0;
 }
-int auth_internal::start()
+int verify_internal::start()
 {
     pubAttemptReconnect();
     subAttemptReconnect();
@@ -39,7 +46,7 @@ int auth_internal::start()
     return 0;
 }
 
-int auth_internal::stop()
+int verify_internal::stop()
 {
     redisAsyncDisconnect(_sub_context);
     redisAsyncFree(_sub_context);
@@ -48,7 +55,7 @@ int auth_internal::stop()
     return 0;
 }
 
-int auth_internal::verify(const char *user_name, const char *user_pwd, VerifyCallback cb, void *arg, AuthType type)
+int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyCallback cb, void *arg, AuthType type)
 {
     auto ctx = new auth_ctx;
     ctx->type = type;
@@ -57,32 +64,39 @@ int auth_internal::verify(const char *user_name, const char *user_pwd, VerifyCal
     ctx->cb = cb;
     ctx->arg = arg;
 
-    // 如果是匿名模式，那么账户系统就完全失效，只会生效ACT:UNNAMED
-    if ((type == AuthType::SERVER && _anonymous_server_login) || (type == AuthType::CLIENT && _anonymous_client_login))
+    if ((type == AuthType::SERVER && _base_anonymous_login) ||
+        (type == AuthType::CLIENT && _anonymous_client_login) ||
+        (type == AuthType::SOURCE && _source_anonymous_login))
     {
-        // 基站匿名登录 || 用户匿名登录
-        // 自动注册一个匿名账户
+        //     如果是匿名模式，那么账户系统就完全失效，只会生效ACT:UNNAMED
+        //     基站匿名登录 || 用户匿名登录
+        //     自动注册一个匿名账户
         redisAsyncCommand(_pub_context, Redis_Add_Temp_Callback, ctx, "HSET ACT:UNNAMED %s %s", user_name, util_get_time_stamp_str().c_str());
-    }
-    else if (type == AuthType::SOURCE)
-    {
-        // 数据源登录，不验证密码，直接返回成功
-        auth_reply Reply;
-        Reply.type = AuthReply::OK;
-        Reply.str = "Source Anonymous Login OK";
-        Reply.len = strlen(Reply.str);
-        cb("", arg, &Reply);
-        delete ctx;
     }
     else
     {
-        // 查询这个账户的相关信息，等待回调
         redisAsyncCommand(_pub_context, Redis_Verify_Callback, ctx, "HGET ACT:ACTIVE %s", user_name);
     }
+
+    // //
+    // if ((type == AuthType::SERVER && _anonymous_server_login) || (type == AuthType::CLIENT && _anonymous_client_login))
+    // {
+    //     // 基站匿名登录 || 用户匿名登录
+    //     // 自动注册一个匿名账户
+    //
+    // }
+    // else if (type == AuthType::SOURCE)
+    // {
+    // }
+    // else
+    // {
+    // 查询这个账户的相关信息，等待回调
+
+    // }
     return 0;
 }
 
-int auth_internal::add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type)
+int verify_internal::add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type)
 {
 
     if ((type == AuthType::SERVER && _anonymous_server_login) || (type == AuthType::CLIENT && _anonymous_client_login))
@@ -188,7 +202,7 @@ int auth_internal::add_login_record(const char *user_name, const char *connect_k
     return 0;
 }
 
-int auth_internal::add_logout_record(const char *user_name, const char *connect_key, AuthType type)
+int verify_internal::add_logout_record(const char *user_name, const char *connect_key, AuthType type)
 {
 
     if ((type == AuthType::SERVER && _anonymous_server_login) || (type == AuthType::CLIENT && _anonymous_client_login))
@@ -255,20 +269,20 @@ int auth_internal::add_logout_record(const char *user_name, const char *connect_
     return 0;
 }
 
-int auth_internal::init_sub_context()
+int verify_internal::init_sub_context()
 {
     redisAsyncCommand(_sub_context, Redis_Broadcast_Callback, this, "SUBSCRIBE AUTH:BROADCAST");
     return 0;
 }
 
-int auth_internal::init_pub_context()
+int verify_internal::init_pub_context()
 {
     redisAsyncCommand(_pub_context, NULL, NULL, "DEL MPT:STAT");
     redisAsyncCommand(_pub_context, NULL, NULL, "DEL USR:STAT");
     return 0;
 }
 
-int auth_internal::subAttemptReconnect()
+int verify_internal::subAttemptReconnect()
 {
     if (_is_sub_connected)
     {
@@ -303,7 +317,7 @@ int auth_internal::subAttemptReconnect()
     return 0;
 }
 
-int auth_internal::pubAttemptReconnect()
+int verify_internal::pubAttemptReconnect()
 {
     if (_is_pub_connected)
     {
@@ -338,7 +352,7 @@ int auth_internal::pubAttemptReconnect()
     return 0;
 }
 
-int auth_internal::upload_record_item()
+int verify_internal::upload_record_item()
 {
     for (auto iter : _register_map)
     {
@@ -360,7 +374,7 @@ int auth_internal::upload_record_item()
     return 0;
 }
 
-int auth_internal::send_change_auth_status(const char *user_name, const char *connect_key, AuthReply status, const char *reason)
+int verify_internal::send_change_auth_status(const char *user_name, const char *connect_key, AuthReply status, const char *reason)
 {
     // 向redis发布广播
     auth_broadcast_item item;
@@ -377,7 +391,7 @@ int auth_internal::send_change_auth_status(const char *user_name, const char *co
     return 0;
 }
 
-int auth_internal::broadcast_response(std::string req_str)
+int verify_internal::broadcast_response(std::string req_str)
 {
     // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
     auth_broadcast_item req;
@@ -439,9 +453,9 @@ int auth_internal::broadcast_response(std::string req_str)
     return 0;
 }
 
-void auth_internal::Redis_Pub_Connect_Cb(const redisAsyncContext *c, int status)
+void verify_internal::Redis_Pub_Connect_Cb(const redisAsyncContext *c, int status)
 {
-    auto svr = static_cast<auth_internal *>(c->data);
+    auto svr = static_cast<verify_internal *>(c->data);
 
     if (status == REDIS_OK)
     {
@@ -461,9 +475,9 @@ void auth_internal::Redis_Pub_Connect_Cb(const redisAsyncContext *c, int status)
     svr->pubAttemptReconnect();
 }
 
-void auth_internal::Redis_Sub_Connect_Cb(const redisAsyncContext *c, int status)
+void verify_internal::Redis_Sub_Connect_Cb(const redisAsyncContext *c, int status)
 {
-    auto svr = static_cast<auth_internal *>(c->data);
+    auto svr = static_cast<verify_internal *>(c->data);
 
     if (status == REDIS_OK)
     {
@@ -483,9 +497,9 @@ void auth_internal::Redis_Sub_Connect_Cb(const redisAsyncContext *c, int status)
     svr->subAttemptReconnect();
 }
 
-void auth_internal::Redis_Pub_Disconnect_Cb(const redisAsyncContext *c, int status)
+void verify_internal::Redis_Pub_Disconnect_Cb(const redisAsyncContext *c, int status)
 {
-    auto svr = static_cast<auth_internal *>(c->data);
+    auto svr = static_cast<verify_internal *>(c->data);
 
     svr->_is_pub_connected = false;
     svr->_pub_context_errstr = c->err;
@@ -501,9 +515,9 @@ void auth_internal::Redis_Pub_Disconnect_Cb(const redisAsyncContext *c, int stat
     }
 }
 
-void auth_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int status)
+void verify_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int status)
 {
-    auto svr = static_cast<auth_internal *>(c->data);
+    auto svr = static_cast<verify_internal *>(c->data);
 
     svr->_is_sub_connected = false;
     svr->_sub_context_errstr = c->err;
@@ -519,13 +533,13 @@ void auth_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int stat
     }
 }
 
-void auth_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata)
+void verify_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     // 接收广播信息，触发回调执行任务
     // 订阅到的是一个Json字符串
 
     auto reply = static_cast<redisReply *>(r);
-    auto svr = static_cast<auth_internal *>(privdata);
+    auto svr = static_cast<verify_internal *>(privdata);
 
     if (!reply)
     {
@@ -548,9 +562,9 @@ void auth_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void
     svr->broadcast_response(re3->str);
 }
 
-void auth_internal::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
+void verify_internal::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
-    auto svr = static_cast<auth_internal *>(arg);
+    auto svr = static_cast<verify_internal *>(arg);
 
     // 判断过期用户
 
@@ -558,7 +572,7 @@ void auth_internal::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
     svr->upload_record_item();
 }
 
-void auth_internal::Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, void *privdata)
+void verify_internal::Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     auto reply = static_cast<redisReply *>(r);
     auto ctx = static_cast<auth_ctx *>(privdata);
@@ -570,7 +584,7 @@ void auth_internal::Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, void 
     auth_limit active_info;
     active_info._connect_limit = 9999; // 匿名用户默认允许非常多的连接
 
-    auth_internal::getInstance()->_unnamed_limit_map.insert(std::pair<std::string, auth_limit>(ctx->user_name, active_info));
+    verify_internal::getInstance()->_unnamed_limit_map.insert(std::pair<std::string, auth_limit>(ctx->user_name, active_info));
 
     auth_reply Reply;
     Reply.type = AuthReply::OK;
@@ -579,7 +593,7 @@ void auth_internal::Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, void 
     delete ctx;
 }
 
-void auth_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *privdata)
+void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     auto reply = static_cast<redisReply *>(r);
     auto ctx = static_cast<auth_ctx *>(privdata);
@@ -622,12 +636,12 @@ void auth_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *p
     }
 
     // 为了避免已经写入记录，这里需要先删除原有的记录
-    auto find = auth_internal::getInstance()->_register_limit_map.find(ctx->user_name);
-    if (find != auth_internal::getInstance()->_register_limit_map.end())
+    auto find = verify_internal::getInstance()->_register_limit_map.find(ctx->user_name);
+    if (find != verify_internal::getInstance()->_register_limit_map.end())
     {
-        auth_internal::getInstance()->_register_limit_map.erase(find);
+        verify_internal::getInstance()->_register_limit_map.erase(find);
     }
-    auth_internal::getInstance()->_register_limit_map.insert(std::pair<std::string, auth_limit>(ctx->user_name, active_info));
+    verify_internal::getInstance()->_register_limit_map.insert(std::pair<std::string, auth_limit>(ctx->user_name, active_info));
     // 解析查询到的信息,存储到本地
 
     // 如果不存在，那么就不允许登录
@@ -638,7 +652,7 @@ void auth_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *p
     delete ctx;
 }
 
-void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void *privdata)
+void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     auto reply = static_cast<redisReply *>(r);
     auto ctx = static_cast<auth_ctx *>(privdata);
@@ -668,15 +682,16 @@ void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void
 
         //_check通过的话，records.size()必定大于等于1         // 查询当前账户允许在线的数量
 
-        auto limit_item = auth_internal::getInstance()->_register_limit_map.find(ctx->user_name);
-        if (limit_item == auth_internal::getInstance()->_register_limit_map.end())
+        auto limit_item = verify_internal::getInstance()->_register_limit_map.find(ctx->user_name);
+        if (limit_item == verify_internal::getInstance()->_register_limit_map.end())
         {
             throw std::logic_error("Can't Find User Active Info"); // 找不到用户的登录限制信息
         }
 
         while (records.size() > limit_item->second._connect_limit) // 有多个连接记录且设置不允许多个记录
         {
-            if (auth_internal::getInstance()->_keep_early) // 已在线的优先级高，踢出当前
+            if ((ctx->type == AuthType::SERVER && verify_internal::getInstance()->_base_online_protection) ||
+                (ctx->type == AuthType::CLIENT && verify_internal::getInstance()->_rover_online_protection)) // 已在线的优先级高，踢出当前
             {
                 // 发送广播切换这个连接被踢出的连接的状态
                 if (records.rbegin()->second == ctx->connect_key)
@@ -685,7 +700,7 @@ void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void
                 }
                 else
                 {
-                    auth_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.rbegin()->second.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!"); // 用户连接数已经到达上线，此连接被踢出
+                    verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.rbegin()->second.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!"); // 用户连接数已经到达上线，此连接被踢出
                 }
                 // 从records中删除最后一条记录(使用rbegin是为了保证切换状态和删除的是同一个连接)
                 records.erase(records.rbegin()->first);
@@ -701,7 +716,7 @@ void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void
                 }
                 else
                 {
-                    auth_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.begin()->second.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!"); // 用户连接数已经到达上线，此连接被踢出
+                    verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.begin()->second.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!"); // 用户连接数已经到达上线，此连接被踢出
                 }
             }
         }
@@ -720,13 +735,13 @@ void auth_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void
     }
     catch (const std::exception &e)
     {
-        auth_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), ctx->connect_key.c_str(), AuthReply::ERR, e.what()); //
+        verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), ctx->connect_key.c_str(), AuthReply::ERR, e.what()); //
     }
 
     delete ctx;
 }
 
-void auth_internal::Redis_Add_Unname_Callback(redisAsyncContext *c, void *r, void *privdata)
+void verify_internal::Redis_Add_Unname_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
 
     auto reply = static_cast<redisReply *>(r);
@@ -763,13 +778,13 @@ void auth_internal::Redis_Add_Unname_Callback(redisAsyncContext *c, void *r, voi
     }
     catch (const std::exception &e)
     {
-        auth_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.begin()->second.c_str(), AuthReply::ERR, e.what()); //
+        verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.begin()->second.c_str(), AuthReply::ERR, e.what()); //
     }
 
     delete ctx;
 }
 
-void auth_internal::Redis_Update_Active_Callback(redisAsyncContext *c, void *r, void *privdata)
+void verify_internal::Redis_Update_Active_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
 }
 

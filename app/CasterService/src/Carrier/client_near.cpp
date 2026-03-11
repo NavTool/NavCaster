@@ -2,10 +2,9 @@
 #include "knt.h"
 #include <iostream>
 
-#define __class__ "client_near"
-
 client_near::client_near(ConnectInfo info) : carrier_base(info)
 {
+    __class__ = "client_near";
 }
 
 client_near::~client_near()
@@ -47,13 +46,13 @@ int client_near::stop()
     stop_bev();
 
     // 用户下线
-    auth_logout(AuthType::CLIENT);
+    auth_logout();
 
     // 取消订阅
     unsubscribe();
 
     // caster注销
-    caster_withdraw(CasterRegisterType::NORMAL);
+    caster_withdraw();
 
     // 将销毁操作放入消息队列，执行删除此对象
     _info.set_operate(OPERATE_TYPE_DESTORY);
@@ -96,7 +95,7 @@ int client_near::login_cb(auth_reply *reply)
     switch (reply->type)
     {
     case AuthReply::OK:
-        caster_register(CasterRegisterType::NEAREST_MPT);
+        caster_register(CasterRegisterType::NEAREST);
         break;
     case AuthReply::ERR:
         stop();

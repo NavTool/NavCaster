@@ -2,8 +2,6 @@
 #include "knt.h"
 #include "base64.h"
 
-#define __class__ "carrier_base"
-
 std::string build_nrtip_reply(ConnectType type, bool version2, bool chuncked)
 {
     std::string str;
@@ -111,8 +109,12 @@ bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &c
 
 carrier_base::carrier_base(ConnectInfo info)
 {
+
     _info = info;
     _connect_key = info.connect_key();
+    _mount_point = info.mount_point();
+    _user_name = info.user_name();
+
     if (info.http_chunked() == "chunked")
     {
         _transfer_with_chunked = true;
@@ -141,6 +143,67 @@ carrier_base::~carrier_base()
 
 int carrier_base::init()
 {
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::start()
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::stop()
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::runing()
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::read_cb(bufferevent *bev)
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::write_cb(bufferevent *bev)
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::event_cb(bufferevent *bev, short events)
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::timeout_cb()
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::login_cb(auth_reply *reply)
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::register_cb(caster_reply *reply)
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
+    return 0;
+}
+
+int carrier_base::subscribe_cb(caster_reply *reply)
+{
+    spdlog::warn("The derived class does not implement the function, called {}:{}", __class__, __func__);
     return 0;
 }
 
@@ -203,31 +266,43 @@ int carrier_base::stop_timeout_event()
 
 int carrier_base::auth_login(AuthType type)
 {
-
-    AUTH::Add_Login_Record(_info.user_name().c_str(),
-                           _info.connect_key().c_str(),
-                           AuthLoginCallback, this, type);
-
+    _auth_type = type;
+    if (_auth_type == AuthType::UNKNOWN)
+    {
+        return 1; // 无效的AuthType
+    }
+    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), AuthLoginCallback, this, type);
     return 0;
 }
 
-int carrier_base::auth_logout(AuthType type)
+int carrier_base::auth_logout()
 {
+    if (_auth_type == AuthType::UNKNOWN)
+    {
+        return 1; // 无效的AuthType，无法执行登出操作
+    }
+    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), _auth_type);
     return 0;
 }
 
 int carrier_base::caster_register(CasterRegisterType type)
 {
-    CASTER::Register_Base_Record(_info.mount_point().c_str(),
-                                 _info.user_name().c_str(),
-                                 _info.connect_key().c_str(),
-                                 CasterRegisterCallback, this, type);
-
+    _register_type = type;
+    if (_register_type == CasterRegisterType::UNKNOWN)
+    {
+        return 1; // 无效的Type，无法执行
+    }
+    CASTER::Register_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), CasterRegisterCallback, this, _register_type);
     return 0;
 }
 
-int carrier_base::caster_withdraw(CasterRegisterType type)
+int carrier_base::caster_withdraw()
 {
+    if (_auth_type == AuthType::UNKNOWN)
+    {
+        return 1; // 无效的Type，无法执行
+    }
+    CASTER::Withdraw_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), _register_type);
     return 0;
 }
 
@@ -253,25 +328,38 @@ int carrier_base::send_data(const char *data, size_t len, bool chuncked)
 
     evbuffer_add(_send_evbuf, data, len);
     bufferevent_write_buffer(_bev, _send_evbuf);
+
+    return 0;
 }
 
 int carrier_base::publish_data(const char *data, size_t len)
 {
+    CASTER::Pub_Raw_Data(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), data, len, _register_type);
     return 0;
 }
 
-int carrier_base::subscribe(std::string channel)
+int carrier_base::subscribe()
 {
+    if (_register_type == CasterRegisterType::UNKNOWN)
+    {
+        return 1; // 无效的Type，无法执行
+    }
+    CASTER::Sub_Raw_Data(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), CasterSubscribeCallback, this, _register_type);
     return 0;
 }
 
-int carrier_base::subscribe(double lon, double lat, std::string channel)
+int carrier_base::subscribe(double lon, double lat)
 {
     return 0;
 }
 
 int carrier_base::unsubscribe()
 {
+    if (_register_type == CasterRegisterType::UNKNOWN)
+    {
+        return 1; // 无效的Type，无法执行
+    }
+    CASTER::Unsub_Raw_Data(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), _register_type);
     return 0;
 }
 
@@ -285,7 +373,7 @@ std::vector<uint8_t> carrier_base::read_data_from_evbuf()
     data[length] = '\0';
     evbuffer_remove(_recv_evbuf, data, length);
 
-    datas.insert(datas.end(), data, data + _chunked_size);
+    datas.insert(datas.end(), data, data + length);
     delete[] data;
 
     return datas;
@@ -359,6 +447,16 @@ void carrier_base::WriteCallback(bufferevent *bev, void *arg)
 void carrier_base::EventCallback(bufferevent *bev, short events, void *arg)
 {
     auto svr = static_cast<carrier_base *>(arg);
+
+    spdlog::info("[{}:{}]: {}{}{}{}{}{}",
+                 svr->__class__, __func__,
+                 (events & BEV_EVENT_READING) ? "read" : "-",
+                 (events & BEV_EVENT_WRITING) ? "write" : "-",
+                 (events & BEV_EVENT_EOF) ? "eof" : "-",
+                 (events & BEV_EVENT_ERROR) ? "error" : "-",
+                 (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
+                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-");
+
     svr->event_cb(bev, events);
 }
 
@@ -378,4 +476,10 @@ void carrier_base::CasterRegisterCallback(const char *request, void *arg, caster
 {
     auto *svr = static_cast<carrier_base *>(arg);
     svr->register_cb(reply);
+}
+
+void carrier_base::CasterSubscribeCallback(const char *request, void *arg, caster_reply *reply)
+{
+    auto *svr = static_cast<carrier_base *>(arg);
+    svr->subscribe_cb(reply);
 }

@@ -205,7 +205,6 @@
 //     return caster_svr->get_source_list_text();
 // }
 
-
 int CASTER::Init(CasterCoreOpt opt, event_base *base)
 {
     caster_internal::getInstance()->init(opt, base);
@@ -232,6 +231,101 @@ bool CASTER::Check_Nearest_Mpt(const char *mount_point)
 bool CASTER::Check_Alias_Mpt(const char *mount_point)
 {
     return caster_internal::getInstance()->is_alias_mpt(mount_point);
+}
+
+int CASTER::Register_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type)
+{
+    switch (type)
+    {
+    case CasterRegisterType::SERVER:
+    case CasterRegisterType::PULL:
+        Register_Base_Record(mount_point, user_name, connect_key, cb, arg, type);
+        break;
+    case CasterRegisterType::CLIENT:
+    case CasterRegisterType::NEAREST:
+    case CasterRegisterType::PUSH:
+        Register_Rover_Record(mount_point, user_name, connect_key, cb, arg, type);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+int CASTER::Withdraw_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type)
+{
+    switch (type)
+    {
+    case CasterRegisterType::SERVER:
+    case CasterRegisterType::PULL:
+        Withdraw_Base_Record(mount_point, user_name, connect_key);
+        break;
+    case CasterRegisterType::CLIENT:
+    case CasterRegisterType::NEAREST:
+    case CasterRegisterType::PUSH:
+        Withdraw_Rover_Record(mount_point, user_name, connect_key);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+int CASTER::Pub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, const char *data, size_t data_length, CasterRegisterType type)
+{
+    switch (type)
+    {
+    case CasterRegisterType::SERVER:
+    case CasterRegisterType::PULL:
+        Pub_Base_Raw_Data(mount_point, connect_key, data, data_length);
+        break;
+    case CasterRegisterType::CLIENT:
+    case CasterRegisterType::NEAREST:
+    case CasterRegisterType::PUSH:
+        Pub_Rover_Raw_Data(user_name, connect_key, data, data_length);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+int CASTER::Sub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type)
+{
+    switch (type)
+    {
+    case CasterRegisterType::SERVER:
+    case CasterRegisterType::PULL:
+        Sub_Rover_Raw_Data(mount_point, user_name, connect_key, cb, arg);
+        break;
+    case CasterRegisterType::CLIENT:
+    case CasterRegisterType::NEAREST:
+    case CasterRegisterType::PUSH:
+        Sub_Base_Raw_Data(mount_point, user_name, connect_key, cb, arg);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+int CASTER::Unsub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type)
+{
+    switch (type)
+    {
+    case CasterRegisterType::SERVER:
+    case CasterRegisterType::PULL:
+        Unsub_Rover_Raw_Data(user_name, connect_key);
+        break;
+    case CasterRegisterType::CLIENT:
+    case CasterRegisterType::NEAREST:
+    case CasterRegisterType::PUSH:
+        Unsub_Base_Raw_Data(mount_point, connect_key);
+        break;
+    default:
+        break;
+    }
+    return 0;
 }
 
 int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)

@@ -104,6 +104,8 @@ int ntrip_config::Init(int argc, char **argv, std::string conf_path)
     {
         ntrip_config::getInstance()->_listener_opt.set_listen_port(listen_port);
     }
+
+    return 0;
 }
 
 int ntrip_config::load_Caster_Conf(std::string conf_file_path)
@@ -118,7 +120,7 @@ int ntrip_config::load_Caster_Conf(std::string conf_file_path)
     _listener_opt.set_enable_source_login(Ntrip_Listener_Setting["Enable_Source_Login"].as<bool>());
     _listener_opt.set_enable_server_login(Ntrip_Listener_Setting["Enable_Server_Login"].as<bool>());
     _listener_opt.set_enable_client_login(Ntrip_Listener_Setting["Enable_Client_Login"].as<bool>());
-    _listener_opt.set_enable_nearest_login(Ntrip_Listener_Setting["Enable_Nearest_MPT"].as<bool>());
+    _listener_opt.set_enable_nearest_login(Ntrip_Listener_Setting["Enable_Nearest_Login"].as<bool>());
     _listener_opt.set_enable_proxy_login(Ntrip_Listener_Setting["Enable_Proxy_Login"].as<bool>());
     _listener_opt.set_enable_alias_login(Ntrip_Listener_Setting["Enable_Alias_Login"].as<bool>());
     _listener_opt.set_enable_grid_login(Ntrip_Listener_Setting["Enable_Grid_Login"].as<bool>());
@@ -189,6 +191,18 @@ int ntrip_config::load_Core_Conf(std::string conf_file_path)
 int ntrip_config::load_Auth_Conf(std::string conf_file_path)
 {
     YAML::Node Conf = YAML::LoadFile(conf_file_path);
+
+    auto Base_Setting = Conf["Base_Setting"];
+    _auth_verify_opt.set_base_anonymous_login(Base_Setting["Anonymous_Login"].as<bool>());
+    _auth_verify_opt.set_base_online_protection(Base_Setting["Online_Protection"].as<bool>());
+
+    auto Rover_Setting = Conf["Rover_Setting"];
+    _auth_verify_opt.set_rover_anonymous_login(Rover_Setting["Anonymous_Login"].as<bool>());
+    _auth_verify_opt.set_rover_anonymous_login(Rover_Setting["Online_Protection"].as<bool>());
+
+    auto Source_Setting = Conf["Source_Setting"];
+    _auth_verify_opt.set_source_anonymous_login(Source_Setting["Anonymous_Login"].as<bool>());
+
     auto Redis_Setting = Conf["Reids_Connect_Setting"];
     _auth_verify_opt.set_redis_host(Redis_Setting["IP"].as<std::string>());
     _auth_verify_opt.set_redis_port(Redis_Setting["Port"].as<int>());

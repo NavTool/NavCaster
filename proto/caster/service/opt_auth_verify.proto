@@ -10,9 +10,12 @@ message AuthVerifyOpt {
   int32  redis_port     = 2; // Redis服务器端口，默认为6379
   string redis_password = 3; // Redis服务器密码，默认为空
 
-  bool anonymous_login   = 4; // 是否允许匿名登录
-  bool repeated_login    = 5; // 是否允许重复登录
-  bool online_protection = 6; // 是否启用在线保护，限制同一账号的在线设备数量
+  bool base_anonymous_login   = 4; // 是否允许匿名登录
+  bool base_online_protection = 5; // 是否启用在线保护，限制同一账号的在线设备数量
 
+  bool rover_anonymous_login   = 6; // 是否允许匿名登录
+  bool rover_online_protection = 7; // 是否启用在线保护，限制同一账号的在线设备数量
+
+  bool source_anonymous_login   = 8; // 是否允许匿名登录
 
 }

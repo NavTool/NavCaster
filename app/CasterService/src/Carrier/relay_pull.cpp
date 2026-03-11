@@ -2,10 +2,9 @@
 #include "knt.h"
 #include "base64.h"
 
-#define __class__ "relay_pull"
-
 relay_pull::relay_pull(ConnectInfo info) : carrier_base(info)
 {
+    __class__ = "relay_pull";
 }
 
 relay_pull::~relay_pull()
@@ -47,7 +46,7 @@ int relay_pull::stop()
     stop_bev();
 
     // caster注销
-    caster_withdraw(CasterRegisterType::PULL_MPT);
+    caster_withdraw();
 
     // 将销毁操作放入消息队列，执行删除此对象
     _info.set_operate(OPERATE_TYPE_DESTORY);
@@ -69,7 +68,7 @@ int relay_pull::read_cb(bufferevent *bev)
 
         if (_connected)
         {
-            caster_register(CasterRegisterType::PULL_MPT);
+            caster_register(CasterRegisterType::PULL);
         }
     }
     return 0;
@@ -137,6 +136,8 @@ int relay_pull::register_cb(caster_reply *reply)
     default:
         break;
     }
+    
+    return 0;
 }
 
 // int relay_pull::send_heart_beat_to_server()

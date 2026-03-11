@@ -125,11 +125,20 @@ class Carrier
 public:
     int createObject(ConnectInfo req)
     {
+        auto obj = std::make_shared<T>(req);
+        m_obj_map.insert(std::pair(req.connect_key(), obj));
+        obj->init();
+        obj->start();
         return 0;
     }
 
     int destoryObject(ConnectInfo req)
     {
+        auto iter = m_obj_map.find(req.connect_key());
+        if (iter != m_obj_map.end())
+        {
+            m_obj_map.erase(iter);
+        }
         return 0;
     }
 

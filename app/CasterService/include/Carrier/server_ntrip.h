@@ -27,7 +27,6 @@ public:
     int runing() override;
 
     int read_cb(struct bufferevent *bev) override;                // bev读回调函数
-    int write_cb(struct bufferevent *bev) override;               // bev写回调函数
     int event_cb(struct bufferevent *bev, short events) override; // bev事件回调函数
     int timeout_cb() override;                                    // 定时器回调函数
 

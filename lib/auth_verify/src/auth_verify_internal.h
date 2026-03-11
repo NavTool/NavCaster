@@ -1,11 +1,10 @@
-#define __class__ "redis_msg_internal"
+#define __class__ "verify_internal"
 #include "Auth_Verify.h"
 #include <string>
 #include <set>
 #include <hiredis.h>
 #include <async.h>
 #include <adapters/libevent.h>
-
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -160,13 +159,15 @@ public:
     std::string toString();
 };
 
-class auth_internal
+class verify_internal
 {
-
 private:
-    bool _keep_early = true; // 已在线的优先级高，踢出当前登录的连接
+    bool _base_anonymous_login = false;    // 是否允许匿名登录
+    bool _base_online_protection = false;  // 在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
+    bool _rover_anonymous_login = false;   // 是否允许匿名登录
+    bool _rover_online_protection = false; // 在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
+    bool _source_anonymous_login = false;  // 是否允许匿名登录
 
-private:
     std::string _redis_IP;
     int _redis_port;
     std::string _redis_Requirepass;
@@ -206,11 +207,11 @@ public:
     redisAsyncContext *_sub_context = nullptr;
 
 public:
-    auth_internal(/* args */);
-    ~auth_internal();
+    verify_internal(/* args */);
+    ~verify_internal();
 
     // 返回单例实例
-    static auth_internal *getInstance();
+    static verify_internal *getInstance();
 
     int init(AuthVerifyOpt opt, event_base *base);
 

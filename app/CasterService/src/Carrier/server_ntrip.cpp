@@ -1,9 +1,9 @@
 #include "server_ntrip.h"
 #include "knt.h"
-#define __class__ "server_ntrip"
 
 server_ntrip::server_ntrip(ConnectInfo info) : carrier_base(info)
 {
+    __class__ = "server_ntrip";
 }
 
 server_ntrip::~server_ntrip()
@@ -45,10 +45,10 @@ int server_ntrip::stop()
     stop_bev();
 
     // 用户下线
-    auth_logout(AuthType::SERVER);
+    auth_logout();
 
     // caster注销
-    caster_withdraw(CasterRegisterType::NORMAL);
+    caster_withdraw();
 
     // 将销毁操作放入消息队列，执行删除此对象
     _info.set_operate(OPERATE_TYPE_DESTORY);
@@ -67,26 +67,15 @@ int server_ntrip::read_cb(bufferevent *bev)
     // 解析数据
 
     // 发布数据
-    publish_data(reinterpret_cast<const char*>(data.data()), data.size());
+    std::string str_data(data.begin(), data.end());
+    publish_data(str_data.c_str(), str_data.size());
 
-    return 0;
-}
-
-int server_ntrip::write_cb(bufferevent *bev)
-{
     return 0;
 }
 
 int server_ntrip::event_cb(bufferevent *bev, short events)
 {
-    spdlog::info("[{}:{}]: {}{}{}{}{}{} , mount [{}], addr:[{}:{}]",
-                 __class__, __func__,
-                 (events & BEV_EVENT_READING) ? "read" : "-",
-                 (events & BEV_EVENT_WRITING) ? "write" : "-",
-                 (events & BEV_EVENT_EOF) ? "eof" : "-",
-                 (events & BEV_EVENT_ERROR) ? "error" : "-",
-                 (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
-                 (events & BEV_EVENT_CONNECTED) ? "connected" : "-", _info.mount_point(), _info.addr(), _info.port());
+    spdlog::info("[{}:{}]: stop mount [{}], addr:[{}:{}]", __class__, __func__, _info.mount_point(), _info.addr(), _info.port());
     stop();
     return 0;
 }
@@ -103,7 +92,7 @@ int server_ntrip::login_cb(auth_reply *reply)
     switch (reply->type)
     {
     case AuthReply::OK:
-        caster_register(CasterRegisterType::NORMAL);
+        caster_register(CasterRegisterType::SERVER);
         break;
     case AuthReply::ERR:
         // spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);

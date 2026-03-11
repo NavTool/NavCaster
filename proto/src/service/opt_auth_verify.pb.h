@@ -222,9 +222,11 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AuthVerifyOpt final : public ::goog
     kRedisHostFieldNumber = 1,
     kRedisPasswordFieldNumber = 3,
     kRedisPortFieldNumber = 2,
-    kAnonymousLoginFieldNumber = 4,
-    kRepeatedLoginFieldNumber = 5,
-    kOnlineProtectionFieldNumber = 6,
+    kBaseAnonymousLoginFieldNumber = 4,
+    kBaseOnlineProtectionFieldNumber = 5,
+    kRoverAnonymousLoginFieldNumber = 6,
+    kRoverOnlineProtectionFieldNumber = 7,
+    kSourceAnonymousLoginFieldNumber = 8,
   };
   // string redis_host = 1;
   void clear_redis_host() ;
@@ -266,42 +268,62 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AuthVerifyOpt final : public ::goog
   void _internal_set_redis_port(::int32_t value);
 
   public:
-  // bool anonymous_login = 4;
-  void clear_anonymous_login() ;
-  [[nodiscard]] bool anonymous_login() const;
-  void set_anonymous_login(bool value);
+  // bool base_anonymous_login = 4;
+  void clear_base_anonymous_login() ;
+  [[nodiscard]] bool base_anonymous_login() const;
+  void set_base_anonymous_login(bool value);
 
   private:
-  bool _internal_anonymous_login() const;
-  void _internal_set_anonymous_login(bool value);
+  bool _internal_base_anonymous_login() const;
+  void _internal_set_base_anonymous_login(bool value);
 
   public:
-  // bool repeated_login = 5;
-  void clear_repeated_login() ;
-  [[nodiscard]] bool repeated_login() const;
-  void set_repeated_login(bool value);
+  // bool base_online_protection = 5;
+  void clear_base_online_protection() ;
+  [[nodiscard]] bool base_online_protection() const;
+  void set_base_online_protection(bool value);
 
   private:
-  bool _internal_repeated_login() const;
-  void _internal_set_repeated_login(bool value);
+  bool _internal_base_online_protection() const;
+  void _internal_set_base_online_protection(bool value);
 
   public:
-  // bool online_protection = 6;
-  void clear_online_protection() ;
-  [[nodiscard]] bool online_protection() const;
-  void set_online_protection(bool value);
+  // bool rover_anonymous_login = 6;
+  void clear_rover_anonymous_login() ;
+  [[nodiscard]] bool rover_anonymous_login() const;
+  void set_rover_anonymous_login(bool value);
 
   private:
-  bool _internal_online_protection() const;
-  void _internal_set_online_protection(bool value);
+  bool _internal_rover_anonymous_login() const;
+  void _internal_set_rover_anonymous_login(bool value);
+
+  public:
+  // bool rover_online_protection = 7;
+  void clear_rover_online_protection() ;
+  [[nodiscard]] bool rover_online_protection() const;
+  void set_rover_online_protection(bool value);
+
+  private:
+  bool _internal_rover_online_protection() const;
+  void _internal_set_rover_online_protection(bool value);
+
+  public:
+  // bool source_anonymous_login = 8;
+  void clear_source_anonymous_login() ;
+  [[nodiscard]] bool source_anonymous_login() const;
+  void set_source_anonymous_login(bool value);
+
+  private:
+  bool _internal_source_anonymous_login() const;
+  void _internal_set_source_anonymous_login(bool value);
 
   public:
   // @@protoc_insertion_point(class_scope:caster.service.AuthVerifyOpt)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<3, 6,
-                                   0, 61,
+  static const ::google::protobuf::internal::TcParseTable<3, 8,
+                                   0, 69,
                                    2>
       _table_;
 
@@ -327,9 +349,11 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AuthVerifyOpt final : public ::goog
     ::google::protobuf::internal::ArenaStringPtr redis_host_;
     ::google::protobuf::internal::ArenaStringPtr redis_password_;
     ::int32_t redis_port_;
-    bool anonymous_login_;
-    bool repeated_login_;
-    bool online_protection_;
+    bool base_anonymous_login_;
+    bool base_online_protection_;
+    bool rover_anonymous_login_;
+    bool rover_online_protection_;
+    bool source_anonymous_login_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -509,79 +533,129 @@ inline void AuthVerifyOpt::set_allocated_redis_password(::std::string* PROTOBUF_
   // @@protoc_insertion_point(field_set_allocated:caster.service.AuthVerifyOpt.redis_password)
 }
 
-// bool anonymous_login = 4;
-inline void AuthVerifyOpt::clear_anonymous_login() {
+// bool base_anonymous_login = 4;
+inline void AuthVerifyOpt::clear_base_anonymous_login() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.anonymous_login_ = false;
+  _impl_.base_anonymous_login_ = false;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000008U);
 }
-inline bool AuthVerifyOpt::anonymous_login() const {
-  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.anonymous_login)
-  return _internal_anonymous_login();
+inline bool AuthVerifyOpt::base_anonymous_login() const {
+  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.base_anonymous_login)
+  return _internal_base_anonymous_login();
 }
-inline void AuthVerifyOpt::set_anonymous_login(bool value) {
-  _internal_set_anonymous_login(value);
+inline void AuthVerifyOpt::set_base_anonymous_login(bool value) {
+  _internal_set_base_anonymous_login(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000008U);
-  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.anonymous_login)
+  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.base_anonymous_login)
 }
-inline bool AuthVerifyOpt::_internal_anonymous_login() const {
+inline bool AuthVerifyOpt::_internal_base_anonymous_login() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.anonymous_login_;
+  return _impl_.base_anonymous_login_;
 }
-inline void AuthVerifyOpt::_internal_set_anonymous_login(bool value) {
+inline void AuthVerifyOpt::_internal_set_base_anonymous_login(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.anonymous_login_ = value;
+  _impl_.base_anonymous_login_ = value;
 }
 
-// bool repeated_login = 5;
-inline void AuthVerifyOpt::clear_repeated_login() {
+// bool base_online_protection = 5;
+inline void AuthVerifyOpt::clear_base_online_protection() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.repeated_login_ = false;
+  _impl_.base_online_protection_ = false;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000010U);
 }
-inline bool AuthVerifyOpt::repeated_login() const {
-  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.repeated_login)
-  return _internal_repeated_login();
+inline bool AuthVerifyOpt::base_online_protection() const {
+  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.base_online_protection)
+  return _internal_base_online_protection();
 }
-inline void AuthVerifyOpt::set_repeated_login(bool value) {
-  _internal_set_repeated_login(value);
+inline void AuthVerifyOpt::set_base_online_protection(bool value) {
+  _internal_set_base_online_protection(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000010U);
-  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.repeated_login)
+  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.base_online_protection)
 }
-inline bool AuthVerifyOpt::_internal_repeated_login() const {
+inline bool AuthVerifyOpt::_internal_base_online_protection() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.repeated_login_;
+  return _impl_.base_online_protection_;
 }
-inline void AuthVerifyOpt::_internal_set_repeated_login(bool value) {
+inline void AuthVerifyOpt::_internal_set_base_online_protection(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.repeated_login_ = value;
+  _impl_.base_online_protection_ = value;
 }
 
-// bool online_protection = 6;
-inline void AuthVerifyOpt::clear_online_protection() {
+// bool rover_anonymous_login = 6;
+inline void AuthVerifyOpt::clear_rover_anonymous_login() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.online_protection_ = false;
+  _impl_.rover_anonymous_login_ = false;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000020U);
 }
-inline bool AuthVerifyOpt::online_protection() const {
-  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.online_protection)
-  return _internal_online_protection();
+inline bool AuthVerifyOpt::rover_anonymous_login() const {
+  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.rover_anonymous_login)
+  return _internal_rover_anonymous_login();
 }
-inline void AuthVerifyOpt::set_online_protection(bool value) {
-  _internal_set_online_protection(value);
+inline void AuthVerifyOpt::set_rover_anonymous_login(bool value) {
+  _internal_set_rover_anonymous_login(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000020U);
-  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.online_protection)
+  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.rover_anonymous_login)
 }
-inline bool AuthVerifyOpt::_internal_online_protection() const {
+inline bool AuthVerifyOpt::_internal_rover_anonymous_login() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.online_protection_;
+  return _impl_.rover_anonymous_login_;
 }
-inline void AuthVerifyOpt::_internal_set_online_protection(bool value) {
+inline void AuthVerifyOpt::_internal_set_rover_anonymous_login(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.online_protection_ = value;
+  _impl_.rover_anonymous_login_ = value;
+}
+
+// bool rover_online_protection = 7;
+inline void AuthVerifyOpt::clear_rover_online_protection() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.rover_online_protection_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000040U);
+}
+inline bool AuthVerifyOpt::rover_online_protection() const {
+  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.rover_online_protection)
+  return _internal_rover_online_protection();
+}
+inline void AuthVerifyOpt::set_rover_online_protection(bool value) {
+  _internal_set_rover_online_protection(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.rover_online_protection)
+}
+inline bool AuthVerifyOpt::_internal_rover_online_protection() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.rover_online_protection_;
+}
+inline void AuthVerifyOpt::_internal_set_rover_online_protection(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.rover_online_protection_ = value;
+}
+
+// bool source_anonymous_login = 8;
+inline void AuthVerifyOpt::clear_source_anonymous_login() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.source_anonymous_login_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline bool AuthVerifyOpt::source_anonymous_login() const {
+  // @@protoc_insertion_point(field_get:caster.service.AuthVerifyOpt.source_anonymous_login)
+  return _internal_source_anonymous_login();
+}
+inline void AuthVerifyOpt::set_source_anonymous_login(bool value) {
+  _internal_set_source_anonymous_login(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:caster.service.AuthVerifyOpt.source_anonymous_login)
+}
+inline bool AuthVerifyOpt::_internal_source_anonymous_login() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.source_anonymous_login_;
+}
+inline void AuthVerifyOpt::_internal_set_source_anonymous_login(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.source_anonymous_login_ = value;
 }
 
 #ifdef __GNUC__

@@ -2,10 +2,9 @@
 #include "knt.h"
 #include <iostream>
 
-#define __class__ "client_ntrip"
-
 client_ntrip::client_ntrip(ConnectInfo info) : carrier_base(info)
 {
+    __class__ = "client_ntrip";
 }
 
 client_ntrip::~client_ntrip()
@@ -47,13 +46,13 @@ int client_ntrip::stop()
     stop_bev();
 
     // 用户下线
-    auth_logout(AuthType::CLIENT);
+    auth_logout();
 
     // 取消订阅
     unsubscribe();
 
     // caster注销
-    caster_withdraw(CasterRegisterType::NORMAL);
+    caster_withdraw();
 
     // 将销毁操作放入消息队列，执行删除此对象
     _info.set_operate(OPERATE_TYPE_DESTORY);
@@ -68,13 +67,9 @@ int client_ntrip::read_cb(bufferevent *bev)
     return 0;
 }
 
-int client_ntrip::write_cb(bufferevent *bev)
-{
-    return 0;
-}
-
 int client_ntrip::event_cb(bufferevent *bev, short events)
 {
+    stop();
     return 0;
 }
 
@@ -88,7 +83,7 @@ int client_ntrip::login_cb(auth_reply *reply)
     switch (reply->type)
     {
     case AuthReply::OK:
-        caster_register(CasterRegisterType::NORMAL);
+        caster_register(CasterRegisterType::CLIENT);
         break;
     case AuthReply::ERR:
         // spdlog::info("[{}:{}]: AUTH_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);

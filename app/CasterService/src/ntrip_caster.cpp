@@ -218,6 +218,9 @@ int ntrip_caster::compontent_init()
     // 注册Relay请求回调
     CASTER::Relay_Register_Callback(Relay_Request_Callback, this);
 
+    // 初始化connect_bev模块，管理连接相关的bufferevent
+    connect_bev::getInstance()->init(_base);
+
     // 创建listener请求
     ntrip_listener::getInstance()->init(ntrip_config::getInstance()->_listener_opt, _base);
     ntrip_listener::getInstance()->start();
@@ -251,6 +254,8 @@ int ntrip_caster::process_request(ConnectInfo req)
     try
     {
         // 根据请求的类型，执行对应的操作
+
+        // spdlog::info("[{}:{}]: {} {}", __class__, __func__, ConnectType_Name(req.type()), OperateType_Name(req.operate()));
         switch (req.type())
         {
         // 一般ntrip请求-------------------------------------
@@ -263,23 +268,23 @@ int ntrip_caster::process_request(ConnectInfo req)
         case CONNECT_TYPE_CLIENT:
             Clients.operateObject(req);
             break;
-        case CONNECT_TYPE_NEAREST:
-            Nears.operateObject(req);
-            break;
-        case CONNECT_TYPE_PROXY:
-            // operate_client_proxy(req);
-            break;
-        case CONNECT_TYPE_ALIAS:
-            // operate_client_alias(req);
-            break;
-        case CONNECT_TYPE_PULL:
-            Pulls.operateObject(req);
-            break;
-        case CONNECT_TYPE_PUSH:
-            Pushs.operateObject(req);
-            break;
+        // case CONNECT_TYPE_NEAREST:
+        //     Nears.operateObject(req);
+        //     break;
+        // case CONNECT_TYPE_PROXY:
+        //     // operate_client_proxy(req);
+        //     break;
+        // case CONNECT_TYPE_ALIAS:
+        //     // operate_client_alias(req);
+        //     break;
+        // case CONNECT_TYPE_PULL:
+        //     Pulls.operateObject(req);
+        //     break;
+        // case CONNECT_TYPE_PUSH:
+        //     Pushs.operateObject(req);
+        //     break;
         default:
-            spdlog::warn("undefined req_type: {}", ConnectType_Name(req.type()));
+            spdlog::warn("Not supported req type: {}:{}", ConnectType_Name(req.type()), OperateType_Name(req.operate()));
             break;
         }
     }

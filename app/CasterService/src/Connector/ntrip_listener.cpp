@@ -327,6 +327,7 @@ int ntrip_listener::create_request(auth_reply *reply, ConnectInfo req)
 {
     if (reply->type == AuthReply::OK)
     {
+        req.set_operate(OPERATE_TYPE_CREATE);
         QUEUE::Push(req);
     }
     else

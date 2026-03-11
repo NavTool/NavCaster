@@ -50,7 +50,6 @@ using json = nlohmann::json;
 // error：错误级别的日志信息，表明发生了某些错误或异常情况。
 // critical：严重错误级别的日志信息，表示一个致命的或不可恢复的错误。
 
-
 int init_core_dump()
 {
     // 开发者模式相关
@@ -72,6 +71,8 @@ int init_core_dump()
         prctl(PR_SET_DUMPABLE, 0);
     }
 #endif
+
+    return 0;
 }
 int init_log_system()
 {

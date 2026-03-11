@@ -107,9 +107,9 @@ std::string caster_internal::get_status_str()
     std::string str = "Connection: " +
                       std::to_string(_server_connection_count + _client_connection_count) +
                       ", Server: " +
-                      std::to_string(_server_connection_count - _pull_connection_count) +
+                      std::to_string(_server_connection_count) +
                       ", Client: " +
-                      std::to_string(_client_connection_count - _push_connection_count) +
+                      std::to_string(_client_connection_count) +
                       ", Pull: " +
                       std::to_string(_pull_connection_count) +
                       ", Push: " +
@@ -2677,19 +2677,21 @@ str_status::str_status(std::string login_mpt, CasterRegisterType type, std::stri
 
     switch (type)
     {
-    case CasterRegisterType::NORMAL:
+    case CasterRegisterType::SERVER:
+        _type = 1;
+    case CasterRegisterType::CLIENT:
         _type = 1;
         break;
-    case CasterRegisterType::NEAREST_MPT:
+    case CasterRegisterType::NEAREST:
         _type = 2;
         break;
-    case CasterRegisterType::ALIAS_MPT:
+    case CasterRegisterType::ALIAS:
         _type = 7;
         break;
-    case CasterRegisterType::PULL_MPT:
+    case CasterRegisterType::PULL:
         _type = 3;
         break;
-    case CasterRegisterType::PUSH_USR:
+    case CasterRegisterType::PUSH:
         _type = 3;
         break;
     default:

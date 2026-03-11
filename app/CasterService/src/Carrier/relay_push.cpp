@@ -2,10 +2,9 @@
 #include "knt.h"
 #include "base64.h"
 
-#define __class__ "relay_push"
-
 relay_push::relay_push(ConnectInfo info) : carrier_base(info)
 {
+    __class__ = "relay_push";
 }
 
 relay_push::~relay_push()
@@ -24,6 +23,8 @@ int relay_push::start()
 
     // 启动Bev事件监听
     start_bev(true, 0, false, 0);
+
+    return 0;
 }
 
 int relay_push::runing()
@@ -48,7 +49,7 @@ int relay_push::stop()
     stop_bev();
 
     // caster注销
-    caster_withdraw(CasterRegisterType::PULL_MPT);
+    caster_withdraw();
 
     unsubscribe();
 
@@ -72,7 +73,7 @@ int relay_push::read_cb(bufferevent *bev)
 
         if (_connected)
         {
-            caster_register(CasterRegisterType::PULL_MPT);
+            caster_register(CasterRegisterType::PULL);
         }
     }
     return 0;
@@ -113,6 +114,8 @@ int relay_push::timeout_cb()
 
         start();
     }
+    
+    return 0;
 }
 
 int relay_push::login_cb(auth_reply *reply)
@@ -137,6 +140,9 @@ int relay_push::register_cb(caster_reply *reply)
     default:
         break;
     }
+
+    
+    return 0;
 }
 
 // int relay_push::request_new_relay_server()
