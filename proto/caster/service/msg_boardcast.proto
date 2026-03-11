@@ -6,14 +6,24 @@ package caster.service;
 
 enum BroadcastType
 {
-  BOARDCAST_TYPE_UNSPECIFIED  = 0; // 未指定的广播类型
-  BOARDCAST_TYPE_RUSH_OPERATE = 1;
-  BOARDCAST_TYPE_PULL_OPERATE = 2;
+  BOARDCAST_TYPE_UNSPECIFIED    = 0; // 未指定的广播类型
+  BOARDCAST_TYPE_SERVER_OPERATE = 1; // 服务器操作相关的广播
+  BOARDCAST_TYPE_CLIENT_OPERATE = 2; // 客户端操作相关的广播
+  BOARDCAST_TYPE_RUSH_OPERATE   = 3;
+  BOARDCAST_TYPE_PULL_OPERATE   = 4;
+}
+
+enum BroadcastOperateType
+{
+  BOARDCAST_OPERATE_UNSPECIFIED = 0; // 未指定的操作类型
+  BOARDCAST_OPERATE_ADD         = 1; // 添加
+  BOARDCAST_OPERATE_UPDATE      = 2; // 更新
+  BOARDCAST_OPERATE_DELETE      = 3; // 删除
 }
 
 message BoardcastMsg {
-
-  BroadcastType type    = 1; // 广播类型
-  string        msg_str = 2; // 请求字符串，包含了请求的具体内容，可以
-
+  BroadcastType        type       = 1; // 广播类型
+  BroadcastOperateType operate    = 2; // 操作类型
+  string               msg_str    = 3; // 请求字符串，包含了请求的具体内容，可以
+  string               reason_str = 4; // 原因
 }

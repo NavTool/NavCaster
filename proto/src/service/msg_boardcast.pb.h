@@ -56,6 +56,8 @@ extern const ::google::protobuf::internal::DescriptorTable descriptor_table_serv
 }  // extern "C"
 namespace caster {
 namespace service {
+enum BroadcastOperateType : int;
+extern const uint32_t BroadcastOperateType_internal_data_[];
 enum BroadcastType : int;
 extern const uint32_t BroadcastType_internal_data_[];
 class BoardcastMsg;
@@ -67,6 +69,9 @@ extern const ::google::protobuf::internal::ClassDataFull BoardcastMsg_class_data
 namespace google {
 namespace protobuf {
 template <>
+internal::EnumTraitsT<::caster::service::BroadcastOperateType_internal_data_>
+    internal::EnumTraitsImpl::value<::caster::service::BroadcastOperateType>;
+template <>
 internal::EnumTraitsT<::caster::service::BroadcastType_internal_data_>
     internal::EnumTraitsImpl::value<::caster::service::BroadcastType>;
 }  // namespace protobuf
@@ -76,8 +81,10 @@ namespace caster {
 namespace service {
 enum BroadcastType : int {
   BOARDCAST_TYPE_UNSPECIFIED = 0,
-  BOARDCAST_TYPE_RUSH_OPERATE = 1,
-  BOARDCAST_TYPE_PULL_OPERATE = 2,
+  BOARDCAST_TYPE_SERVER_OPERATE = 1,
+  BOARDCAST_TYPE_CLIENT_OPERATE = 2,
+  BOARDCAST_TYPE_RUSH_OPERATE = 3,
+  BOARDCAST_TYPE_PULL_OPERATE = 4,
   BroadcastType_INT_MIN_SENTINEL_DO_NOT_USE_ =
       ::std::numeric_limits<::int32_t>::min(),
   BroadcastType_INT_MAX_SENTINEL_DO_NOT_USE_ =
@@ -88,11 +95,11 @@ extern const uint32_t BroadcastType_internal_data_[];
 inline constexpr BroadcastType BroadcastType_MIN =
     static_cast<BroadcastType>(0);
 inline constexpr BroadcastType BroadcastType_MAX =
-    static_cast<BroadcastType>(2);
+    static_cast<BroadcastType>(4);
 [[nodiscard]] inline bool BroadcastType_IsValid(int value) {
-  return 0 <= value && value <= 2;
+  return 0 <= value && value <= 4;
 }
-inline constexpr int BroadcastType_ARRAYSIZE = 2 + 1;
+inline constexpr int BroadcastType_ARRAYSIZE = 4 + 1;
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
 BroadcastType_descriptor();
 [[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(BroadcastType) {
@@ -107,12 +114,54 @@ template <typename T>
 }
 template <>
 [[nodiscard]] inline const ::std::string& BroadcastType_Name(BroadcastType value) {
-  return ::google::protobuf::internal::NameOfDenseEnum<BroadcastType_descriptor, 0, 2>(
+  return ::google::protobuf::internal::NameOfDenseEnum<BroadcastType_descriptor, 0, 4>(
       static_cast<int>(value));
 }
 [[nodiscard]] inline bool BroadcastType_Parse(
     ::absl::string_view name, BroadcastType* PROTOBUF_NONNULL value) {
   return ::google::protobuf::internal::ParseNamedEnum<BroadcastType>(BroadcastType_descriptor(), name,
+                                           value);
+}
+enum BroadcastOperateType : int {
+  BOARDCAST_OPERATE_UNSPECIFIED = 0,
+  BOARDCAST_OPERATE_ADD = 1,
+  BOARDCAST_OPERATE_UPDATE = 2,
+  BOARDCAST_OPERATE_DELETE = 3,
+  BroadcastOperateType_INT_MIN_SENTINEL_DO_NOT_USE_ =
+      ::std::numeric_limits<::int32_t>::min(),
+  BroadcastOperateType_INT_MAX_SENTINEL_DO_NOT_USE_ =
+      ::std::numeric_limits<::int32_t>::max(),
+};
+
+extern const uint32_t BroadcastOperateType_internal_data_[];
+inline constexpr BroadcastOperateType BroadcastOperateType_MIN =
+    static_cast<BroadcastOperateType>(0);
+inline constexpr BroadcastOperateType BroadcastOperateType_MAX =
+    static_cast<BroadcastOperateType>(3);
+[[nodiscard]] inline bool BroadcastOperateType_IsValid(int value) {
+  return 0 <= value && value <= 3;
+}
+inline constexpr int BroadcastOperateType_ARRAYSIZE = 3 + 1;
+[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
+BroadcastOperateType_descriptor();
+[[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(BroadcastOperateType) {
+  return BroadcastOperateType_descriptor();
+}
+template <typename T>
+[[nodiscard]] const ::std::string& BroadcastOperateType_Name(T value) {
+  static_assert(::std::is_same<T, BroadcastOperateType>::value ||
+                    ::std::is_integral<T>::value,
+                "Incorrect type passed to BroadcastOperateType_Name().");
+  return BroadcastOperateType_Name(static_cast<BroadcastOperateType>(value));
+}
+template <>
+[[nodiscard]] inline const ::std::string& BroadcastOperateType_Name(BroadcastOperateType value) {
+  return ::google::protobuf::internal::NameOfDenseEnum<BroadcastOperateType_descriptor, 0, 3>(
+      static_cast<int>(value));
+}
+[[nodiscard]] inline bool BroadcastOperateType_Parse(
+    ::absl::string_view name, BroadcastOperateType* PROTOBUF_NONNULL value) {
+  return ::google::protobuf::internal::ParseNamedEnum<BroadcastOperateType>(BroadcastOperateType_descriptor(), name,
                                            value);
 }
 using ::google::protobuf::internal::generated_enum::AbslParseFlag;
@@ -268,10 +317,12 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BoardcastMsg final : public ::googl
 
   // accessors -------------------------------------------------------
   enum : int {
-    kMsgStrFieldNumber = 2,
+    kMsgStrFieldNumber = 3,
+    kReasonStrFieldNumber = 4,
     kTypeFieldNumber = 1,
+    kOperateFieldNumber = 2,
   };
-  // string msg_str = 2;
+  // string msg_str = 3;
   void clear_msg_str() ;
   [[nodiscard]] const ::std::string& msg_str() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -286,6 +337,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BoardcastMsg final : public ::googl
   ::std::string* PROTOBUF_NONNULL _internal_mutable_msg_str();
 
   public:
+  // string reason_str = 4;
+  void clear_reason_str() ;
+  [[nodiscard]] const ::std::string& reason_str() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_reason_str(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_reason_str();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_reason_str();
+  void set_allocated_reason_str(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_reason_str() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_reason_str(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_reason_str();
+
+  public:
   // .caster.service.BroadcastType type = 1;
   void clear_type() ;
   [[nodiscard]] ::caster::service::BroadcastType type() const;
@@ -296,12 +362,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BoardcastMsg final : public ::googl
   void _internal_set_type(::caster::service::BroadcastType value);
 
   public:
+  // .caster.service.BroadcastOperateType operate = 2;
+  void clear_operate() ;
+  [[nodiscard]] ::caster::service::BroadcastOperateType operate() const;
+  void set_operate(::caster::service::BroadcastOperateType value);
+
+  private:
+  ::caster::service::BroadcastOperateType _internal_operate() const;
+  void _internal_set_operate(::caster::service::BroadcastOperateType value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.service.BoardcastMsg)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<1, 2,
-                                   0, 43,
+  static const ::google::protobuf::internal::TcParseTable<2, 4,
+                                   0, 53,
                                    2>
       _table_;
 
@@ -325,7 +401,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BoardcastMsg final : public ::googl
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr msg_str_;
+    ::google::protobuf::internal::ArenaStringPtr reason_str_;
     int type_;
+    int operate_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -355,7 +433,7 @@ inline void BoardcastMsg::clear_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.type_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000004U);
 }
 inline ::caster::service::BroadcastType BoardcastMsg::type() const {
   // @@protoc_insertion_point(field_get:caster.service.BoardcastMsg.type)
@@ -363,7 +441,7 @@ inline ::caster::service::BroadcastType BoardcastMsg::type() const {
 }
 inline void BoardcastMsg::set_type(::caster::service::BroadcastType value) {
   _internal_set_type(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   // @@protoc_insertion_point(field_set:caster.service.BoardcastMsg.type)
 }
 inline ::caster::service::BroadcastType BoardcastMsg::_internal_type() const {
@@ -375,7 +453,32 @@ inline void BoardcastMsg::_internal_set_type(::caster::service::BroadcastType va
   _impl_.type_ = value;
 }
 
-// string msg_str = 2;
+// .caster.service.BroadcastOperateType operate = 2;
+inline void BoardcastMsg::clear_operate() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.operate_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline ::caster::service::BroadcastOperateType BoardcastMsg::operate() const {
+  // @@protoc_insertion_point(field_get:caster.service.BoardcastMsg.operate)
+  return _internal_operate();
+}
+inline void BoardcastMsg::set_operate(::caster::service::BroadcastOperateType value) {
+  _internal_set_operate(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  // @@protoc_insertion_point(field_set:caster.service.BoardcastMsg.operate)
+}
+inline ::caster::service::BroadcastOperateType BoardcastMsg::_internal_operate() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::caster::service::BroadcastOperateType>(_impl_.operate_);
+}
+inline void BoardcastMsg::_internal_set_operate(::caster::service::BroadcastOperateType value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.operate_ = value;
+}
+
+// string msg_str = 3;
 inline void BoardcastMsg::clear_msg_str() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.msg_str_.ClearToEmpty();
@@ -440,6 +543,71 @@ inline void BoardcastMsg::set_allocated_msg_str(::std::string* PROTOBUF_NULLABLE
   // @@protoc_insertion_point(field_set_allocated:caster.service.BoardcastMsg.msg_str)
 }
 
+// string reason_str = 4;
+inline void BoardcastMsg::clear_reason_str() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.reason_str_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& BoardcastMsg::reason_str() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.service.BoardcastMsg.reason_str)
+  return _internal_reason_str();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void BoardcastMsg::set_reason_str(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.reason_str_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.service.BoardcastMsg.reason_str)
+}
+inline ::std::string* PROTOBUF_NONNULL BoardcastMsg::mutable_reason_str()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_reason_str();
+  // @@protoc_insertion_point(field_mutable:caster.service.BoardcastMsg.reason_str)
+  return _s;
+}
+inline const ::std::string& BoardcastMsg::_internal_reason_str() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.reason_str_.Get();
+}
+inline void BoardcastMsg::_internal_set_reason_str(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.reason_str_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL BoardcastMsg::_internal_mutable_reason_str() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.reason_str_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE BoardcastMsg::release_reason_str() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.service.BoardcastMsg.reason_str)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.reason_str_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.reason_str_.Set("", GetArena());
+  }
+  return released;
+}
+inline void BoardcastMsg::set_allocated_reason_str(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.reason_str_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.reason_str_.IsDefault()) {
+    _impl_.reason_str_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.service.BoardcastMsg.reason_str)
+}
+
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif  // __GNUC__
@@ -457,6 +625,12 @@ struct is_proto_enum<::caster::service::BroadcastType> : std::true_type {};
 template <>
 inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::caster::service::BroadcastType>() {
   return ::caster::service::BroadcastType_descriptor();
+}
+template <>
+struct is_proto_enum<::caster::service::BroadcastOperateType> : std::true_type {};
+template <>
+inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::caster::service::BroadcastOperateType>() {
+  return ::caster::service::BroadcastOperateType_descriptor();
 }
 
 }  // namespace protobuf

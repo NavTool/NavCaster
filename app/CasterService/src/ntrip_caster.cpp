@@ -268,21 +268,15 @@ int ntrip_caster::process_request(ConnectInfo req)
         case CONNECT_TYPE_CLIENT:
             Clients.operateObject(req);
             break;
-        // case CONNECT_TYPE_NEAREST:
-        //     Nears.operateObject(req);
-        //     break;
-        // case CONNECT_TYPE_PROXY:
-        //     // operate_client_proxy(req);
-        //     break;
-        // case CONNECT_TYPE_ALIAS:
-        //     // operate_client_alias(req);
-        //     break;
-        // case CONNECT_TYPE_PULL:
-        //     Pulls.operateObject(req);
-        //     break;
-        // case CONNECT_TYPE_PUSH:
-        //     Pushs.operateObject(req);
-        //     break;
+        case CONNECT_TYPE_NEAREST:
+            Nears.operateObject(req);
+            break;
+        case CONNECT_TYPE_PULL:
+            Pulls.operateObject(req);
+            break;
+        case CONNECT_TYPE_PUSH:
+            Pushs.operateObject(req);
+            break;
         default:
             spdlog::warn("Not supported req type: {}:{}", ConnectType_Name(req.type()), OperateType_Name(req.operate()));
             break;
@@ -301,6 +295,11 @@ int ntrip_caster::process_request(ConnectInfo req)
         }
         spdlog::warn("[{}:{}]: request_process error, from: [req_dump: {}] ,what: {}", __class__, __func__, dump_safe, e.what());
     }
+    return 0;
+}
+
+int ntrip_caster::process_relay(CasterBroadcastType type, std::string req_str)
+{
     return 0;
 }
 

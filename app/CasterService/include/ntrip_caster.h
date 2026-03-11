@@ -68,18 +68,15 @@ private:
 
 private:
     int process_request(ConnectInfo req);
-    int build_relay_request(CasterBroadcastType type, std::string req_str);
-
-    // 请求处理失败，关闭连接
-    int close_unsuccess_req_connect(json req);
+    int process_relay(CasterBroadcastType type, std::string req_str);
 
 private:
     Carrier<server_ntrip> Servers;
     Carrier<client_ntrip> Clients;
     Carrier<source_ntrip> Sources;
-    // Carrier<client_near> Nears;
-    // Carrier<relay_pull> Pulls;
-    // Carrier<relay_push> Pushs;
+    Carrier<client_near> Nears;
+    Carrier<relay_pull> Pulls;
+    Carrier<relay_push> Pushs;
 
 private:
     event_base *_base;
@@ -110,8 +107,6 @@ private:
 
 private:
     // 扩展模块，Relay请求处理
-
-
 
     // private:
     //     // 扩展模块 心跳上传功能--------------------------------------------------------------------------

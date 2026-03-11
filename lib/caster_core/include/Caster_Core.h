@@ -54,7 +54,6 @@ enum class CasterBroadcastType
     RELAY_PUSH_ACTIVE,   // 激活数据推送任务
     RELAY_PUSH_UPDATE,   // 更新任务的参数
     RELAY_PUSH_INACTIVE  // 关闭数据推送任务
-
 };
 
 enum class CasterRegisterType
