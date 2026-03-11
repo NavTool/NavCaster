@@ -152,6 +152,8 @@ public:
         case OPERATE_TYPE_UPDATE:
             return updateObject(req);
         }
+
+        return 0;
     }
 };
 

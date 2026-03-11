@@ -94,7 +94,7 @@ include_directories(${PROJECT_NAME} ${SPDLOG_INCLUDE_PATH})
 
 
 set(REG_SOURCES
-    src/reg_check.cpp
+    test/reg_check.cpp
     extra/license_check/register.h
     extra/license_check/register.cpp
 )

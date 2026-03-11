@@ -32,7 +32,7 @@ int server_ntrip::runing()
     auto str = build_nrtip_reply(CONNECT_TYPE_SERVER, _ntrip_version2, _transfer_with_chunked);
 
     // 发送回复消息
-    send_data(str.c_str(), str.size());
+    send_data(str.c_str(), str.size(), false);
 
     spdlog::info("[{}]: mount [{}] is online, addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
 
@@ -67,8 +67,7 @@ int server_ntrip::read_cb(bufferevent *bev)
     // 解析数据
 
     // 发布数据
-    std::string str_data(data.begin(), data.end());
-    publish_data(str_data.c_str(), str_data.size());
+    publish_data(reinterpret_cast<const char*>(data.data()), data.size());
 
     return 0;
 }
@@ -107,7 +106,7 @@ int server_ntrip::login_cb(auth_reply *reply)
         caster_register(CasterRegisterType::NORMAL);
         break;
     case AuthReply::ERR:
-        spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
+        // spdlog::info("[{}]: AUTH_REPLY_ERROR user [{}] , using mount [{}], addr:[{}:{}]", __class__, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         stop();
         break;
     default:
@@ -116,7 +115,7 @@ int server_ntrip::login_cb(auth_reply *reply)
     return 0;
 }
 
-int server_ntrip::register_cb(catser_reply *reply)
+int server_ntrip::register_cb(caster_reply *reply)
 {
     switch (reply->type)
     {
@@ -124,7 +123,7 @@ int server_ntrip::register_cb(catser_reply *reply)
         runing();
         break;
     case CasterReply::ERR:
-        spdlog::info("[{}:{}]: CASTER_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
+        // spdlog::info("[{}:{}]: CASTER_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
         stop();
         break;
     case CasterReply::ACTIVE:

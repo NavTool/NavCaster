@@ -103,9 +103,16 @@ std::string build_ntrip_request(ConnectType type, bool version2, std::string mpt
     return str;
 }
 
+bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &chuncked)
+{
+
+    return false;
+}
+
 carrier_base::carrier_base(ConnectInfo info)
 {
     _info = info;
+    _connect_key = info.connect_key();
     if (info.http_chunked() == "chunked")
     {
         _transfer_with_chunked = true;
@@ -118,6 +125,8 @@ carrier_base::carrier_base(ConnectInfo info)
     _send_evbuf = evbuffer_new();
     _recv_evbuf = evbuffer_new();
     _timeout_ev = event_new(connect_bev::getInstance()->get_base(), -1, EV_PERSIST, TimeoutCallback, this);
+
+    _bev = connect_bev::getInstance()->get_bev(info.connect_key()); // 如果是还没有建立的连接，那么这个返回的是空指针
 }
 
 carrier_base::~carrier_base()
@@ -135,17 +144,27 @@ int carrier_base::init()
     return 0;
 }
 
+std::string carrier_base::create_bev(std::string addr, int port)
+{
+    return connect_bev::getInstance()->new_bev(addr, port);
+}
+
+int carrier_base::destory_bev(std::string connect_key)
+{
+    return connect_bev::getInstance()->del_bev(connect_key);
+}
+
 int carrier_base::start_bev(bool enable_read_cb, time_t read_timeout_sec, bool enable_write_cb, time_t write_timeout_sec)
 {
-    connect_bev::getInstance()->set_bev(_info.connect_key(), enable_read_cb ? ReadCallback : nullptr, enable_write_cb ? WriteCallback : nullptr, EventCallback, this);
-    connect_bev::getInstance()->set_timer(_info.connect_key(), read_timeout_sec, write_timeout_sec);
+    connect_bev::getInstance()->set_bev(_connect_key, enable_read_cb ? ReadCallback : nullptr, enable_write_cb ? WriteCallback : nullptr, EventCallback, this);
+    connect_bev::getInstance()->set_timer(_connect_key, read_timeout_sec, write_timeout_sec);
     return 0;
 }
 
 int carrier_base::stop_bev()
 {
-    connect_bev::getInstance()->set_bev(_info.connect_key(), nullptr, nullptr, nullptr, nullptr);
-    connect_bev::getInstance()->set_timer(_info.connect_key());
+    connect_bev::getInstance()->set_bev(_connect_key, nullptr, nullptr, nullptr, nullptr);
+    connect_bev::getInstance()->del_timer(_connect_key);
     return 0;
 }
 
@@ -224,12 +243,34 @@ std::vector<uint8_t> carrier_base::read_data(bool chuncked)
     }
 }
 
-int carrier_base::send_data(const char *data, size_t len)
+int carrier_base::send_data(const char *data, size_t len, bool chuncked)
+{
+    if (chuncked)
+    {
+        evbuffer_add_printf(_send_evbuf, "%lx\r\n", len);
+        evbuffer_add(_send_evbuf, data, len);
+    }
+
+    evbuffer_add(_send_evbuf, data, len);
+    bufferevent_write_buffer(_bev, _send_evbuf);
+}
+
+int carrier_base::publish_data(const char *data, size_t len)
 {
     return 0;
 }
 
-int carrier_base::publish_data(const char *data, size_t len)
+int carrier_base::subscribe(std::string channel)
+{
+    return 0;
+}
+
+int carrier_base::subscribe(double lon, double lat, std::string channel)
+{
+    return 0;
+}
+
+int carrier_base::unsubscribe()
 {
     return 0;
 }
@@ -333,7 +374,7 @@ void carrier_base::AuthLoginCallback(const char *request, void *arg, auth_reply 
     svr->login_cb(reply);
 }
 
-void carrier_base::CasterRegisterCallback(const char *request, void *arg, catser_reply *reply)
+void carrier_base::CasterRegisterCallback(const char *request, void *arg, caster_reply *reply)
 {
     auto *svr = static_cast<carrier_base *>(arg);
     svr->register_cb(reply);

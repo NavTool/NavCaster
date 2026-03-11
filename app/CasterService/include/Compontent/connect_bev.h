@@ -23,6 +23,7 @@ public:
     event_base *get_base();
 
     int add_bev(std::string connect_key, bufferevent *bev);
+    std::string new_bev(std::string addr, int port);
     std::string new_bev(evutil_socket_t fd);
     bufferevent *get_bev(std::string connect_key);
     int set_bev(std::string connect_key, bufferevent_data_cb readcb, bufferevent_data_cb writecb,

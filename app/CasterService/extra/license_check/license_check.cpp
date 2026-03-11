@@ -21,7 +21,7 @@
 #include <fstream>
 
 // 将日期字符串（格式：YYYY-MM-DD）转换为 UTC 时间戳（秒）
-std::time_t convertStringToUTCSeconds(const std::string &dateStr)
+static std::time_t convertStringToUTCSeconds(const std::string &dateStr)
 {
     // 创建 tm 结构体
     std::tm timeStruct = {};

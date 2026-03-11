@@ -89,7 +89,7 @@ struct mount_info
     std::string misc;
 };
 
-typedef void (*CasterCallback)(const char *request, void *arg, catser_reply *reply);
+typedef void (*CasterCallback)(const char *request, void *arg, caster_reply *reply);
 
 // struct relay_request
 // {

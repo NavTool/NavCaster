@@ -44,6 +44,50 @@ int connect_bev::add_bev(std::string connect_key, bufferevent *bev)
     return 0;
 }
 
+std::string connect_bev::new_bev(std::string addr, int port)
+{
+    evutil_addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_flags = 0;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = 0;
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+
+    evutil_getaddrinfo(addr.c_str(), std::to_string(port).c_str(), &hints, &res);
+
+    // 创建一个绑定在base上的buffevent，并建立socket连接
+    auto bev = bufferevent_socket_new(_base, -1, BEV_OPT_CLOSE_ON_FREE); //-1表示自动创建fd
+    if (bufferevent_socket_connect(bev, res->ai_addr, res->ai_addrlen))
+    {
+        // 连接建立失败
+        bufferevent_free(bev);
+        return std::string();
+    }
+
+    // 连接建立成功。返回port，连接建立失败，返回0
+    auto fd = bufferevent_getfd(bev);
+    struct sockaddr_in sa;
+    socklen_t len = sizeof(sa);
+    if (getsockname(fd, (struct sockaddr *)&sa, &len))
+    {
+        // 获取本地连接信息失败
+        bufferevent_free(bev);
+        return std::string();
+    }
+
+    auto connect_key = util_cal_connect_key(fd);
+    if (connect_key.empty())
+    {
+        // 这个时候连接还没有建立成功，所以可能还解析不出来
+        connect_key = util_generate_random_key(16);
+    }
+    _connect_map.insert(std::pair<std::string, bufferevent *>(connect_key, bev));
+    return connect_key;
+}
+
 std::string connect_bev::new_bev(evutil_socket_t fd)
 {
     auto connect_key = util_cal_connect_key(fd);

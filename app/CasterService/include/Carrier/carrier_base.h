@@ -13,16 +13,23 @@
 std::string build_nrtip_reply(ConnectType type, bool version2, bool chuncked);                                         //  有些类型需要 有些类型不需要
 std::string build_ntrip_request(ConnectType type, bool version2, std::string mpt, std::string host, std::string auth); // 虚函数  有些类型需要 有些类型不需要
 
+bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &chuncked);
+
 class carrier_base
 {
 public:
     ConnectInfo _info;
 
+    std::string _connect_key; // 连接的唯一标识，格式为 type:addr:port
     bool _ntrip_version2 = false;        // 这个决定回复的消息是按照1.0还是2.0
     bool _transfer_with_chunked = false; // 这个决定数据传输是否使用chunk
     size_t _chunked_size = 0;
 
+    std::string _subscribe_channel; // 当前正在订阅的频道
+
 public:
+    bufferevent *_bev;
+
     evbuffer *_send_evbuf; // 发送缓冲区
     evbuffer *_recv_evbuf; // 接收缓冲区
 
@@ -47,10 +54,12 @@ public:
     virtual int timeout_cb() = 0;                                    // 定时器回调函数
 
     virtual int login_cb(auth_reply *reply) = 0;       // Auth登录回调函数
-    virtual int register_cb(catser_reply *reply) = 0;  // Caster注册回调函数
-    virtual int subscribe_cb(catser_reply *reply) = 0; // 订阅回调函数
+    virtual int register_cb(caster_reply *reply) = 0;  // Caster注册回调函数
+    virtual int subscribe_cb(caster_reply *reply) = 0; // 订阅回调函数
 
 public:
+    std::string create_bev(std::string addr, int port);
+    int destory_bev(std::string connect_key); 
     int start_bev(bool enable_read_cb, time_t read_timeout_sec, bool enable_write_cb, time_t write_timeout_sec); // 启动bev连接，注册回调函数
     int stop_bev();                                                                                              // 停止bev连接，取消注册回调函数
 
@@ -65,11 +74,14 @@ public:
 
     std::vector<uint8_t> read_data(bool chuncked); //  从bev读取数据
 
-    int send_data(const char *data, size_t len);    // 向Bev发送数据
-    int publish_data(const char *data, size_t len); // 发布数据到CASTER，数据来源于bev的读回调函数
+    int send_data(const char *data, size_t len, bool chuncked); // 向Bev发送数据
+    int publish_data(const char *data, size_t len);             // 发布数据到CASTER，数据来源于bev的读回调函数
+    int subscribe(std::string channel = "");
+    int subscribe(double lon, double lat, std::string channel = "");
+    int unsubscribe();
 
+private:
     std::vector<uint8_t> read_data_from_evbuf();
-
     std::vector<uint8_t> read_data_from_chunk();
 
 public:
@@ -79,5 +91,5 @@ public:
     static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
 
     static void AuthLoginCallback(const char *request, void *arg, auth_reply *reply);
-    static void CasterRegisterCallback(const char *request, void *arg, catser_reply *reply);
+    static void CasterRegisterCallback(const char *request, void *arg, caster_reply *reply);
 };

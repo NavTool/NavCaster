@@ -32,6 +32,6 @@ public:
     int timeout_cb() override;                                    // 定时器回调函数
 
     int login_cb(auth_reply *reply) override;      // Auth登录回调函数
-    int register_cb(catser_reply *reply) override; // Caster注册回调函数
+    int register_cb(caster_reply *reply) override; // Caster注册回调函数
 
 };

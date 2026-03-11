@@ -1,8 +1,6 @@
-///用来实现NEAREST RELAY VIRTUAL 功能
+/// 用来实现NEAREST RELAY VIRTUAL 功能
 
-
-
-//通用逻辑 
+// 通用逻辑
 
 /*
     通用逻辑
@@ -20,7 +18,6 @@
 
 */
 
-
 /*
     虚拟站点挂载逻辑：
 
@@ -29,16 +26,14 @@
 
     发送的消息中不包含GGA，
         等待GGA来，触发订阅逻辑
-    
+
     用户名验证成功就可以发送ICY 200 OK了，看是Ntrip1.0还是2.0
 
-    
+
 
 
 
 */
-
-
 
 /*
     用户已经上线的情况下，向redis写入用户登录信息
@@ -58,39 +53,10 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-class client_grid : public carrier_base
-{
-public:
-    client_grid(json req, bufferevent *bev);
-    ~client_grid();
+// class client_grid : public carrier_base
+// {
+// public:
+//     client_grid(ConnectInfo info);
+//     ~client_grid();
 
-//     int start(); // 绑定回调，然后去AUTH添加登录记录（是否允许多用户登录由auth判断并处理），如果添加成功，那就发送reply给用户，然后通知CASTER上线，如果不成功，就进入关闭流程
-//     int stop();
-
-// private:
-//     int runing();
-
-//     int bev_send_reply();
-//     int transfer_sub_raw_data(const char *data, size_t length);
-//     int publish_recv_raw_data();
-
-//     static void ReadCallback(struct bufferevent *bev, void *arg);
-//     static void EventCallback(struct bufferevent *bev, short events, void *arg);
-
-//     static void Auth_Login_Callback(const char *request, void *arg, AuthReply *reply);
-//     static void Caster_Register_Callback(const char *request, void *arg, catser_reply *reply);
-//     static void Caster_Sub_Callback(const char *request, void *arg, catser_reply *reply);
-
-// private:
-
-//     int decode_GGA();
-
-
-//     //添加新的订阅条件
-
-//     int Geo_Search_Callback(const char *request, void *arg, catser_reply *reply); //查询指定半径挂载点
-//     int Grid_Search_Callback(const char *request, void *arg, catser_reply *reply); //获取指定半径挂载点是否在线
-
-
-
-};
+// };

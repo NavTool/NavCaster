@@ -144,7 +144,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
     {
         if (_active_mount_map.find(channel) == _active_mount_map.end()) // 不是活跃频道
         {
-            catser_reply Reply;
+            caster_reply Reply;
             Reply.type = CasterReply::ERR;
             Reply.str = "Can't Find Sub Base Recored";
             cb(NULL, arg, &Reply);
@@ -186,14 +186,14 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
             item->second.set_alias_mpt(channel);
         }
 
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::OK;
         Reply.str = channel;
         cb(NULL, arg, &Reply);
     }
     catch (const std::exception &e)
     {
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::ERR;
         Reply.str = e.what();
         cb(NULL, arg, &Reply);
@@ -240,7 +240,7 @@ int caster_internal::sub_alias_channel(const char *channel, const char *user_nam
     auto alias_rule = _alias_rule_map.find(channel);
     if (alias_rule == _alias_rule_map.end())
     {
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::ERR;
         Reply.str = "Can't Find Alias Mount Point";
         cb(NULL, arg, &Reply);
@@ -288,7 +288,7 @@ int caster_internal::sub_alias_channel(const char *channel, const char *user_nam
         }
     }
 
-    catser_reply Reply;
+    caster_reply Reply;
     Reply.type = CasterReply::ERR;
     Reply.str = "Can't Find Useful Alias Mount Point"; // 实际使用的挂载点
     Reply.dval = 0.0;                                  // 距离
@@ -356,14 +356,14 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
         cb_item.arg = arg;
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
 
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::OK;
         Reply.str = "";
         cb(NULL, arg, &Reply);
     }
     catch (const std::exception &e)
     {
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::ERR;
         Reply.str = e.what();
         cb(NULL, arg, &Reply);
@@ -1230,7 +1230,7 @@ int caster_internal::check_active_base_channel()
         {
             for (auto item = channel_subs->second.begin(); item != channel_subs->second.end(); item++) // 关闭所有订阅者
             {
-                catser_reply Reply;
+                caster_reply Reply;
                 Reply.type = CasterReply::ERR;
                 Reply.str = "Subscribe Base is not active";
                 auto cb_arg = item->second;
@@ -1259,7 +1259,7 @@ int caster_internal::check_active_rover_channel()
         {
             for (auto item = channel_subs->second.begin(); item != channel_subs->second.end(); item++)
             {
-                catser_reply Reply;
+                caster_reply Reply;
                 Reply.type = CasterReply::ERR;
                 Reply.str = "Subscribe Rover is not active";
                 auto cb_arg = item->second;
@@ -1892,7 +1892,7 @@ void caster_internal::Redis_Register_Base_Callback(redisAsyncContext *c, void *r
         }
         // else 有1个或者多个连接，但是允许多个记录
         // 正常，返回一个成功回调
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::OK;
         Reply.str = "";
         cb_item.cb(NULL, cb_item.arg, &Reply);
@@ -1955,7 +1955,7 @@ void caster_internal::Redis_Register_Rover_Callback(redisAsyncContext *c, void *
         }
         // else 有1个或者多个连接，但是允许多个记录
         // 正常，返回一个成功回调
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::OK;
         Reply.str = "";
         cb_item.cb(NULL, cb_item.arg, &Reply);
@@ -1986,7 +1986,7 @@ void caster_internal::Redis_SUB_Base_Callback(redisAsyncContext *c, void *r, voi
         auto re2 = reply->element[1];
         auto re3 = reply->element[2];
 
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::STRING;
         Reply.str = re3->str;
         Reply.len = re3->len;
@@ -2041,7 +2041,7 @@ void caster_internal::Redis_SUB_Rover_Callback(redisAsyncContext *c, void *r, vo
         auto re2 = reply->element[1];
         auto re3 = reply->element[2];
 
-        catser_reply Reply;
+        caster_reply Reply;
         Reply.type = CasterReply::STRING;
         Reply.str = re3->str;
         Reply.len = re3->len;
@@ -2329,7 +2329,7 @@ int caster_internal::broadcast_response(std::string req_str)
     }
 
     // 复制字符串
-    catser_reply Reply;
+    caster_reply Reply;
     Reply.type = req.status;
     Reply.str = req.reason.c_str();
 
@@ -2615,7 +2615,7 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
         }
     }
 
-    catser_reply Reply;
+    caster_reply Reply;
     Reply.type = CasterReply::ERR;
     Reply.str = "Can't Find Useful Nearest Mount Point"; // 实际使用的挂载点
     Reply.dval = 0.0;                                    // 距离
