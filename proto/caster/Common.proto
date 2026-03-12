@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package caster;
+
+enum PullType {
+  PULL_TYPE_UNKNOWN    = 0;
+  PULL_TYPE_NTRIP_1_0  = 1;
+  PULL_TYPE_NTRIP_2_0  = 2;
+  PULL_TYPE_TCP_CLIENT = 3;
+  PULL_TYPE_TCP_SERVER = 4;
+}
+
+enum PushType {
+  PUSH_TYPE_UNKNOWN    = 0;
+  PUSH_TYPE_NTRIP_1_0  = 1;
+  PUSH_TYPE_NTRIP_2_0  = 2;
+  PUSH_TYPE_TCP_CLIENT = 3;
+  PUSH_TYPE_TCP_SERVER = 4;
+}

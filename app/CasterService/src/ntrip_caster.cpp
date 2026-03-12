@@ -303,10 +303,10 @@ int ntrip_caster::process_relay(CasterBroadcastType type, std::string req_str)
     return 0;
 }
 
-int ntrip_caster::build_relay_request(CasterBroadcastType type, std::string req_str)
-{
-    return 0;
-}
+// int ntrip_caster::build_relay_request(CasterBroadcastType type, std::string req_str)
+// {
+//     return 0;
+// }
 
 // int ntrip_caster::close_unsuccess_req_connect(json req)
 // {

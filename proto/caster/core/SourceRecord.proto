@@ -1,0 +1,52 @@
+syntax = "proto3";
+package caster.core;
+
+// 自建源列表信息，由主节点维护到source info中去
+
+enum SourceDecordType
+{
+  SOURCE_DECODE_TYPE_UNKNOWN = 0;
+  SOURCE_DECODE_TYPE_AUTO    = 1; // 自动解析 根据数据流自动解析出挂载点信息
+  SOURCE_DECODE_TYPE_MANUAL  = 2; // 手动输入 自定义挂载点信息
+}
+
+enum SourceDisplayType
+{
+  SOURCE_DISP_TYPE_UNKNOWN          = 0;
+  SOURCE_DISP_TYPE_ALWAYS_SHOW      = 1; // 总是显示
+  SOURCE_DISP_TYPE_ALWAYS_HIDE      = 2; // 总是隐藏
+  SOURCE_DISP_TYPE_SHOW_WHEN_ONLINE = 3; // 上线后显示
+}
+
+message SourceRecord {
+
+  string uid = 1; //挂载点名称
+
+  uint64 create_time = 2; // 创建日期,初次记录日期
+  uint64 update_time = 3; // 最后更新日期
+
+  string source_group_uid = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
+
+  SourceDecordType  decode_type  = 23; // 挂载点记录类型  手动配置信息，自动解析信息
+  SourceDisplayType display_type = 24; // 挂载点显示类型  总是显示，总是隐藏，上线后显示
+
+  string mountpoint     = 5; // 挂载点名称
+  string identufier     = 6; // 观测站标识符
+  string format         = 7; // 数据格式
+  string format_details = 8; // 数据格式详情
+  string carrier        = 9; // 载波
+  string nav_system     = 10; // 导航系统
+  string network        = 11; // 网络
+  string country        = 12; // 国家
+  string latitude       = 13; // 纬度
+  string longitude      = 14; // 经度
+  string nmea           = 15; // NMEA语句
+  string solution       = 16; // 解决方案
+  string generator      = 17; // 生成器
+  string compr_encrryp  = 18; // 压缩加密
+  string authentication = 19; // 认证
+  string fee            = 20; // 费用
+  string bitrate        = 21; // 比特率
+  string misc           = 22; // 其他信息
+
+}

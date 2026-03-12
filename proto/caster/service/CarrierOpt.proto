@@ -1,0 +1,27 @@
+syntax = "proto3";
+package caster.service;
+
+// 监听器的配置  改为protobuf形式是为了能够远程下发配置
+// 接入配置
+
+message NtripServerOpt {
+  int32  connect_timeout    = 1; // 连接超时时间，单位秒
+  int32  unsend_byte_limit  = 2; // 发送缓冲区未发送数据的限制，单位字节
+  int32  heartbeat_interval = 3; // 心跳间隔，单位秒
+  string heartbeat_msg      = 4; // 心跳数据
+  bool   decode_raw_data    = 5; // 是否解码原始数据
+}
+
+message NtripClientOpt {
+  int32 connect_timeout   = 1; // 连接超时时间，单位秒
+  int32 unsend_byte_limit = 2; // 发送缓冲区未发送数据的限制，单位字节
+  bool  decode_nmea       = 3; // 是否解码原始数据
+}
+
+message RelayPullOpt {
+  int32 reconnect_interval = 1; // 重连间隔，单位秒
+}
+
+message RelayPushOpt {
+  int32 reconnect_interval = 1; // 重连间隔，单位秒
+}

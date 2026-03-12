@@ -1,0 +1,20 @@
+syntax = "proto3";
+package caster.core;
+
+// 账号分组表
+enum AccessState {
+  ACCESS_STATE_DEFALT  = 0; // 默认状态   如果是默认状态，则按照分组的设置进行访问控制
+  ACCESS_STATE_ENABLE  = 1; // 启用状态
+  ACCESS_STATE_DISABLE = 2; // 禁用状态
+}
+
+message AccessItem {
+  string uid = 1;
+
+  string mount_point_name = 2; // 挂载点名称
+
+  AccessState allow_visible = 3; // 是否允许可见组内数据   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)
+  AccessState allow_access  = 4; // 是否允许组内数据可获取   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)可获取
+  AccessState allow_nearby  = 5; // 是否允许组内数据参与最近基站检索   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)参与最近基站检索
+
+}

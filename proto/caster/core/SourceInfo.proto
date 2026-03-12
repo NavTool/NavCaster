@@ -1,0 +1,38 @@
+syntax = "proto3";
+package caster.core;
+
+// 实时的挂载点信息，构造的源列表由这个表来提供数据源
+
+enum SourceFromType {
+  SOURCE_FROM_UNKNOWN = 0;
+  SOURCE_FROM_DECODE  = 1; // 来自数据解析
+  SOURCE_FROM_SOURCE  = 2; // 来自数据源（比如建立连接的时候上传，比如目标Caster的源列表拉取）
+}
+
+message SourceInfo {
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+
+  string source_group_uid = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
+
+  string mountpoint     = 5; // 挂载点名称
+  string identufier     = 6; // 观测站标识符
+  string format         = 7; // 数据格式
+  string format_details = 8; // 数据格式详情
+  string carrier        = 9; // 载波
+  string nav_system     = 10; // 导航系统
+  string network        = 11; // 网络
+  string country        = 12; // 国家
+  string latitude       = 13; // 纬度
+  string longitude      = 14; // 经度
+  string nmea           = 15; // NMEA语句
+  string solution       = 16; // 解决方案
+  string generator      = 17; // 生成器
+  string compr_encrryp  = 18; // 压缩加密
+  string authentication = 19; // 认证
+  string fee            = 20; // 费用
+  string bitrate        = 21; // 比特率
+  string misc           = 22; // 其他信息
+
+}

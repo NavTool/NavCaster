@@ -1,0 +1,57 @@
+syntax = "proto3";
+package caster.auth;
+
+// 账号类型
+enum AccountType {
+  ACCOUNT_TYPE_UNKNOWN         = 0;
+  ACCOUNT_TYPE_LONG_TERM       = 1; // 长期账号
+  ACCOUNT_TYPE_EXPIRE_BY_DATE  = 2; // 按日期到期账号
+  ACCOUNT_TYPE_EXPIRE_BY_USAGE = 3; // 按使用时间账号
+}
+
+// 账号状态
+enum AccountStateType {
+  ACCOUNT_STATE_TYPE_UNKNOWN = 0;
+  ACCOUNT_STATE_TYPE_NORMAL  = 1; // 正常
+  ACCOUNT_STATE_TYPE_FROZEN  = 2; // 冻结
+  ACCOUNT_STATE_TYPE_EXPIRED = 3; // 已过期
+}
+
+// 激活状态
+enum AccountActiveState {
+  ACCOUNT_ACTIVE_STATE_UNKNOWN  = 0;
+  ACCOUNT_ACTIVE_STATE_ACTIVE   = 1; // 激活
+  ACCOUNT_ACTIVE_STATE_INACTIVE = 2; // 未激活
+}
+
+message AccountRecord {
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+
+  string account  = 4; // 账号名称
+  string password = 5; // 密码
+
+  string group_uid = 20; // 账号所属的分组ID，分组ID可以用来区分不同类型的账号，例如管理员账号、普通用户账号等
+
+  AccountType        type   = 6; // 账号类型
+  AccountStateType   state  = 7; // 账号状态
+  AccountActiveState active = 8; // 激活状态
+
+  int32 connection_limit = 9; //  连接数限制，0表示不限制
+
+  double register_time = 12; // 注册时间，单位为秒，0表示未知
+  double expire_time   = 10; // 过期时间，单位为秒，0表示不过期  超过过期时间后，账号状态将变为过期，无法使用
+  double active_time   = 11; // 激活时间，单位为秒，0表示未激活
+  double inactive_time = 15; // 失效时间，在账号激活后才会更新这个字段，表示账号失效的时间，超过这个时间后，账号状态将变为已过期
+
+  int32 available_days = 13; //  按日期到期账号的可用时长，如果账号是第一次激活，那么时间会进行顺延，设定失效日期  （失效以过期和失效时间较早的一个为准）
+  // 可用在线时长
+  int32 available_seconds = 14; // 按使用时间账号 时限可用在线时长，单位为秒，0表示未知或不适用
+
+  string contact_name   = 16; // 联系人姓名/公司名称
+  string contact_person = 17; // 联系人
+  string contact_info   = 18; // 联系方式
+  string remark         = 19; // 备注信息
+
+}
