@@ -1,5 +1,5 @@
 syntax = "proto3";
-package caster.service;
+package caster.core;
 
 // 监听器的配置  改为protobuf形式是为了能够远程下发配置
 // 接入配置
@@ -16,9 +16,11 @@ enum BroadcastType
 enum BroadcastOperateType
 {
   BOARDCAST_OPERATE_UNSPECIFIED = 0; // 未指定的操作类型
-  BOARDCAST_OPERATE_ADD         = 1; // 添加
+  BOARDCAST_OPERATE_CREATE      = 1; // 添加
   BOARDCAST_OPERATE_UPDATE      = 2; // 更新
   BOARDCAST_OPERATE_DELETE      = 3; // 删除
+  BOARDCAST_OPERATR_ACTIVE      = 4; // 激活
+  BOARDCAST_OPERATR_INACTIVE    = 5; // 取消激活
 }
 
 message BoardcastMsg {

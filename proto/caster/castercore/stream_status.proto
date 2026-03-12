@@ -1,0 +1,16 @@
+syntax = "proto3";
+package caster.core;
+
+message StreamState {
+
+  string uid = 1; //UID
+
+  uint64 online_time = 2;
+  uint64 update_time = 3;
+
+  uint64 send_total = 4;
+  double send_speed = 5;
+  uint64 recv_total = 6;
+  double recv_speed = 7;
+
+}

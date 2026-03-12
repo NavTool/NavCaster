@@ -1,0 +1,28 @@
+// 数据拉取信息
+syntax = "proto3";
+package caster.context;
+
+enum PullType {
+  PULL_TYPE_UNKNOWN    = 0;
+  PULL_TYPE_NTRIP_1_0  = 1;
+  PULL_TYPE_NTRIP_2_0  = 2;
+  PULL_TYPE_TCP_CLIENT = 3;
+  PULL_TYPE_TCP_SERVER = 4;
+}
+
+message PullInfo {
+  string uid = 1;
+
+  string   login_mpt = 4; // 接入的挂载点
+  PullType type      = 5;
+
+  string target_ip       = 6;
+  string target_port     = 7;
+  string target_mpt      = 8;
+  string target_account  = 9;
+  string target_password = 10;
+
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+
+}

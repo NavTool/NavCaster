@@ -1,0 +1,11 @@
+syntax = "proto3";
+package caster.core;
+
+
+// 实时的挂载点信息，构造的源列表由这个表来提供数据源
+
+message SourceInfo {
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+}

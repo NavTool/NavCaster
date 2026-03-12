@@ -1,0 +1,15 @@
+syntax = "proto3";
+package caster.core;
+
+// 自建源列表信息，由主节点维护到source info中去
+
+enum SourceRecordType
+{
+  SOURCE_RECODE_TYPE_UNKNOWN = 0;    
+}
+
+message SourceRecord {
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+}

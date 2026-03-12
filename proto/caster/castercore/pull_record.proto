@@ -1,0 +1,8 @@
+syntax = "proto3";
+package caster.core;
+
+message PullRecord {
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+}
