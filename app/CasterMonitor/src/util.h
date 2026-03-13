@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <string>
 #include <iostream>
 #include <type_traits>
@@ -6,74 +7,6 @@
 #include <QtQml/qqml.h>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
-
-
-
-
-
-enum class StationType
-{
-    UNKNOWN = 0,
-    Static = 1,
-    Dynamic = 2
-};
-
-
-
-enum class SolveMode
-{
-    UNKNOWN=0,
-    SPP=1,
-    PVT=2,
-    PPP=3,
-    SBAS=4,
-    RTK=5,
-    STATIC=6
-};
-
-//坐标类型（适用于静态站点）
-enum class CoordType
-{
-    UNKNOWN = 0,
-    File_Header=1, // 从文件头获取的坐标
-    Sacn=2,        // 快速获取的坐标（最后一百个历元的单点定位平均值）
-    SPP_AVERAGE=3, // 单点定位坐标平均值
-    PPP_AVERAGE=4, // PPP坐标
-    STATIC=5,      // 静态基线解算
-    Adjust=6,      // 平差后的坐标
-    FreeAdjust=7,  // 秩亏自由网平差
-    Custom=8,      // 用户输入
-    Saved=9       // 保存的坐标
-};
-
-
-
-enum class SolveConfig
-{
-    UNKNOWN=0,
-    SINO_PVT0=1001,
-    SINO_PVT1=1002,
-    SINO_PVT2=1003,
-    SINO_PVT3=1004,
-    SINO_PVT4=1005,
-
-    PENA_PVT0=1101,
-    PENA_PVT1=1102,
-    PENA_PVT2=1103,
-    PENA_PVT3=1104,
-    PENA_PVT4=1105,
-
-    XW_PVT0=1201,
-
-
-    SINO_PPP0=1301,
-    SINO_PPP1=1302,
-    SINO_PPP2=1303,
-    SINO_PPP3=1304,
-
-    SPP_MODE=2001
-
-};
 
 
 

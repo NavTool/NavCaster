@@ -17,3 +17,31 @@ enum PushType {
   PUSH_TYPE_TCP_CLIENT = 3;
   PUSH_TYPE_TCP_SERVER = 4;
 }
+
+
+
+
+enum SourceRecordType
+{
+  SOURCE_RECORD_TYPE_UNKNOWN = 0;
+  SOURCE_RECORD_TYPE_REAL    = 1; // 实际挂载点
+  SOURCE_RECORD_TYPE_NEAREST = 2; // 最近挂载点
+  SOURCE_RECORD_TYPE_ALIAS   = 3; // 别名
+  SOURCE_RECORD_TYPE_PROXY   = 4; // 代理挂载点
+  SOURCE_RECORD_TYPE_GRID    = 5; // 网格挂载点
+}
+
+enum SourceDecordType
+{
+  SOURCE_DECODE_TYPE_UNKNOWN = 0;
+  SOURCE_DECODE_TYPE_AUTO    = 1; // 自动解析 根据数据流自动解析出挂载点信息
+  SOURCE_DECODE_TYPE_MANUAL  = 2; // 手动输入 自定义挂载点信息
+}
+
+enum SourceDisplayType
+{
+  SOURCE_DISP_TYPE_UNKNOWN          = 0;
+  SOURCE_DISP_TYPE_ALWAYS_SHOW      = 1; // 总是显示
+  SOURCE_DISP_TYPE_ALWAYS_HIDE      = 2; // 总是隐藏
+  SOURCE_DISP_TYPE_SHOW_WHEN_ONLINE = 3; // 上线后显示
+}

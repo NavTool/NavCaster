@@ -49,7 +49,9 @@ inline constexpr AccessItem::Impl_::Impl_(
             ::_pbi::ConstantInitialized()),
         allow_visible_{static_cast< ::caster::core::AccessState >(0)},
         allow_access_{static_cast< ::caster::core::AccessState >(0)},
-        allow_nearby_{static_cast< ::caster::core::AccessState >(0)} {}
+        allow_nearby_{static_cast< ::caster::core::AccessState >(0)},
+        decode_type_{static_cast< ::caster::SourceDecordType >(0)},
+        display_type_{static_cast< ::caster::SourceDisplayType >(0)} {}
 
 template <typename>
 constexpr AccessItem::AccessItem(::_pbi::ConstantInitialized)
@@ -81,17 +83,21 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_._has_bits_),
-        8, // hasbit index offset
+        10, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_.mount_point_name_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_.allow_visible_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_.allow_access_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_.allow_nearby_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_.decode_type_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::AccessItem, _impl_.display_type_),
         0,
         1,
         2,
         3,
         4,
+        5,
+        6,
 };
 
 static const ::_pbi::MigrationSchema
@@ -103,26 +109,33 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_core_2fAccessItem_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\025core/AccessItem.proto\022\013caster.core\"\304\001\n"
-    "\nAccessItem\022\013\n\003uid\030\001 \001(\t\022\030\n\020mount_point_"
-    "name\030\002 \001(\t\022/\n\rallow_visible\030\003 \001(\0162\030.cast"
-    "er.core.AccessState\022.\n\014allow_access\030\004 \001("
-    "\0162\030.caster.core.AccessState\022.\n\014allow_nea"
-    "rby\030\005 \001(\0162\030.caster.core.AccessState*Y\n\013A"
-    "ccessState\022\027\n\023ACCESS_STATE_DEFALT\020\000\022\027\n\023A"
-    "CCESS_STATE_ENABLE\020\001\022\030\n\024ACCESS_STATE_DIS"
-    "ABLE\020\002b\006proto3"
+    "\n\025core/AccessItem.proto\022\013caster.core\032\014Co"
+    "mmon.proto\"\244\002\n\nAccessItem\022\013\n\003uid\030\001 \001(\t\022\030"
+    "\n\020mount_point_name\030\002 \001(\t\022/\n\rallow_visibl"
+    "e\030\003 \001(\0162\030.caster.core.AccessState\022.\n\014all"
+    "ow_access\030\004 \001(\0162\030.caster.core.AccessStat"
+    "e\022.\n\014allow_nearby\030\005 \001(\0162\030.caster.core.Ac"
+    "cessState\022-\n\013decode_type\030\006 \001(\0162\030.caster."
+    "SourceDecordType\022/\n\014display_type\030\007 \001(\0162\031"
+    ".caster.SourceDisplayType*Y\n\013AccessState"
+    "\022\027\n\023ACCESS_STATE_DEFALT\020\000\022\027\n\023ACCESS_STAT"
+    "E_ENABLE\020\001\022\030\n\024ACCESS_STATE_DISABLE\020\002b\006pr"
+    "oto3"
+};
+static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
+    descriptor_table_core_2fAccessItem_2eproto_deps[1] = {
+        &::descriptor_table_Common_2eproto,
 };
 static ::absl::once_flag descriptor_table_core_2fAccessItem_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fAccessItem_2eproto = {
     false,
     false,
-    334,
+    444,
     descriptor_table_protodef_core_2fAccessItem_2eproto,
     "core/AccessItem.proto",
     &descriptor_table_core_2fAccessItem_2eproto_once,
-    nullptr,
-    0,
+    descriptor_table_core_2fAccessItem_2eproto_deps,
+    1,
     1,
     schemas,
     file_default_instances,
@@ -184,9 +197,9 @@ AccessItem::AccessItem(
                offsetof(Impl_, allow_visible_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, allow_visible_),
-           offsetof(Impl_, allow_nearby_) -
+           offsetof(Impl_, display_type_) -
                offsetof(Impl_, allow_visible_) +
-               sizeof(Impl_::allow_nearby_));
+               sizeof(Impl_::display_type_));
 
   // @@protoc_insertion_point(copy_constructor:caster.core.AccessItem)
 }
@@ -202,9 +215,9 @@ inline void AccessItem::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, allow_visible_),
            0,
-           offsetof(Impl_, allow_nearby_) -
+           offsetof(Impl_, display_type_) -
                offsetof(Impl_, allow_visible_) +
-               sizeof(Impl_::allow_nearby_));
+               sizeof(Impl_::display_type_));
 }
 AccessItem::~AccessItem() {
   // @@protoc_insertion_point(destructor:caster.core.AccessItem)
@@ -283,16 +296,16 @@ AccessItem::GetClassData() const {
   return AccessItem_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<3, 5, 0, 50, 2>
+const ::_pbi::TcParseTable<3, 7, 0, 50, 2>
 AccessItem::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(AccessItem, _impl_._has_bits_),
     0, // no _extensions_
-    5, 56,  // max_field_number, fast_idx_mask
+    7, 56,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967264,  // skipmap
+    4294967168,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    5,  // num_field_entries
+    7,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     AccessItem_class_data_.base(),
@@ -323,8 +336,14 @@ AccessItem::_table_ = {
     {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(AccessItem, _impl_.allow_nearby_), 4>(),
      {40, 4, 0,
       PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.allow_nearby_)}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // .caster.SourceDecordType decode_type = 6;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(AccessItem, _impl_.decode_type_), 5>(),
+     {48, 5, 0,
+      PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.decode_type_)}},
+    // .caster.SourceDisplayType display_type = 7;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(AccessItem, _impl_.display_type_), 6>(),
+     {56, 6, 0,
+      PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.display_type_)}},
   }}, {{
     65535, 65535
   }}, {{
@@ -338,6 +357,10 @@ AccessItem::_table_ = {
     {PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.allow_access_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     // .caster.core.AccessState allow_nearby = 5;
     {PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.allow_nearby_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    // .caster.SourceDecordType decode_type = 6;
+    {PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.decode_type_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    // .caster.SourceDisplayType display_type = 7;
+    {PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.display_type_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
   }},
   // no aux_entries
   {{
@@ -363,10 +386,10 @@ PROTOBUF_NOINLINE void AccessItem::Clear() {
       _impl_.mount_point_name_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001cU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007cU)) {
     ::memset(&_impl_.allow_visible_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.allow_nearby_) -
-        reinterpret_cast<char*>(&_impl_.allow_visible_)) + sizeof(_impl_.allow_nearby_));
+        reinterpret_cast<char*>(&_impl_.display_type_) -
+        reinterpret_cast<char*>(&_impl_.allow_visible_)) + sizeof(_impl_.display_type_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -438,6 +461,24 @@ PROTOBUF_NOINLINE void AccessItem::Clear() {
     }
   }
 
+  // .caster.SourceDecordType decode_type = 6;
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (this_._internal_decode_type() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          6, this_._internal_decode_type(), target);
+    }
+  }
+
+  // .caster.SourceDisplayType display_type = 7;
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_display_type() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          7, this_._internal_display_type(), target);
+    }
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -463,7 +504,7 @@ PROTOBUF_NOINLINE void AccessItem::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
     // string uid = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_uid().empty()) {
@@ -499,6 +540,20 @@ PROTOBUF_NOINLINE void AccessItem::Clear() {
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_allow_nearby());
       }
     }
+    // .caster.SourceDecordType decode_type = 6;
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (this_._internal_decode_type() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_decode_type());
+      }
+    }
+    // .caster.SourceDisplayType display_type = 7;
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_display_type() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_display_type());
+      }
+    }
   }
   return this_.MaybeComputeUnknownFieldsSize(total_size,
                                              &this_._impl_._cached_size_);
@@ -518,7 +573,7 @@ void AccessItem::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_uid().empty()) {
         _this->_internal_set_uid(from._internal_uid());
@@ -552,6 +607,16 @@ void AccessItem::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.allow_nearby_ = from._impl_.allow_nearby_;
       }
     }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (from._internal_decode_type() != 0) {
+        _this->_impl_.decode_type_ = from._impl_.decode_type_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_display_type() != 0) {
+        _this->_impl_.display_type_ = from._impl_.display_type_;
+      }
+    }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
@@ -575,8 +640,8 @@ void AccessItem::InternalSwap(AccessItem* PROTOBUF_RESTRICT PROTOBUF_NONNULL oth
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uid_, &other->_impl_.uid_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.mount_point_name_, &other->_impl_.mount_point_name_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.allow_nearby_)
-      + sizeof(AccessItem::_impl_.allow_nearby_)
+      PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.display_type_)
+      + sizeof(AccessItem::_impl_.display_type_)
       - PROTOBUF_FIELD_OFFSET(AccessItem, _impl_.allow_visible_)>(
           reinterpret_cast<char*>(&_impl_.allow_visible_),
           reinterpret_cast<char*>(&other->_impl_.allow_visible_));

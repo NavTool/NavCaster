@@ -3,18 +3,18 @@ package caster.core;
 
 // 实时的挂载点信息，构造的源列表由这个表来提供数据源
 
-enum SourceFromType {
-  SOURCE_FROM_UNKNOWN = 0;
-  SOURCE_FROM_DECODE  = 1; // 来自数据解析
-  SOURCE_FROM_SOURCE  = 2; // 来自数据源（比如建立连接的时候上传，比如目标Caster的源列表拉取）
+enum ServerInfoFromType {
+  SERVER_INFO_FROM_UNKNOWN = 0;
+  SERVER_INFO_FROM_DECODE  = 1; // 来自数据解析
+  SERVER_INFO_FROM_SOURCE  = 2; // 来自数据源（比如建立连接的时候上传，比如目标Caster的源列表拉取）
 }
 
-message SourceInfo {
+message ServerState {
   string uid         = 1;
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
 
-  string source_group_uid = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
+  ServerInfoFromType type = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
 
   string mountpoint     = 5; // 挂载点名称
   string identufier     = 6; // 观测站标识符

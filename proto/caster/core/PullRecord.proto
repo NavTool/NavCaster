@@ -1,6 +1,6 @@
 // 数据拉取信息
 syntax = "proto3";
-package caster.monitor;
+package caster.core;
 import "Common.proto";
 // 账号表
 

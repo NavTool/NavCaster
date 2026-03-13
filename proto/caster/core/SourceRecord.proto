@@ -1,22 +1,8 @@
 syntax = "proto3";
 package caster.core;
-
+import "Common.proto";
 // 自建源列表信息，由主节点维护到source info中去
 
-enum SourceDecordType
-{
-  SOURCE_DECODE_TYPE_UNKNOWN = 0;
-  SOURCE_DECODE_TYPE_AUTO    = 1; // 自动解析 根据数据流自动解析出挂载点信息
-  SOURCE_DECODE_TYPE_MANUAL  = 2; // 手动输入 自定义挂载点信息
-}
-
-enum SourceDisplayType
-{
-  SOURCE_DISP_TYPE_UNKNOWN          = 0;
-  SOURCE_DISP_TYPE_ALWAYS_SHOW      = 1; // 总是显示
-  SOURCE_DISP_TYPE_ALWAYS_HIDE      = 2; // 总是隐藏
-  SOURCE_DISP_TYPE_SHOW_WHEN_ONLINE = 3; // 上线后显示
-}
 
 message SourceRecord {
 
@@ -25,10 +11,10 @@ message SourceRecord {
   uint64 create_time = 2; // 创建日期,初次记录日期
   uint64 update_time = 3; // 最后更新日期
 
-  string source_group_uid = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
-
-  SourceDecordType  decode_type  = 23; // 挂载点记录类型  手动配置信息，自动解析信息
-  SourceDisplayType display_type = 24; // 挂载点显示类型  总是显示，总是隐藏，上线后显示
+  string            source_group_uid = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
+  SourceRecordType  record_type      = 25; // 挂载点记录类型  实际挂载点，手动输入的自定义挂载点，别名
+  SourceDecordType  decode_type      = 23; // 挂载点记录类型  手动配置信息，自动解析信息（这个是默认选项，即添加的分组后的默认值，但最终是否生效取决于组内的配置（这个也可以说是组外的配置）
+  SourceDisplayType display_type     = 24; // 挂载点显示类型  总是显示，总是隐藏，上线后显示（这个是默认选项，即添加的分组后的默认值，但最终是否生效取决于组内的配置（这个也可以说是组外的配置）
 
   string mountpoint     = 5; // 挂载点名称
   string identufier     = 6; // 观测站标识符

@@ -16,3 +16,4 @@ bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/auth/*
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/core/*.proto
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/monitor/*.proto
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto
+bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/*.proto

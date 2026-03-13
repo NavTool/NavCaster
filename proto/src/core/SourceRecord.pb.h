@@ -29,8 +29,8 @@
 #include "google/protobuf/message_lite.h"
 #include "google/protobuf/repeated_field.h"  // IWYU pragma: export
 #include "google/protobuf/extension_set.h"  // IWYU pragma: export
-#include "google/protobuf/generated_enum_reflection.h"
 #include "google/protobuf/unknown_field_set.h"
+#include "Common.pb.h"
 // @@protoc_insertion_point(includes)
 
 // Must be included last.
@@ -56,10 +56,6 @@ extern const ::google::protobuf::internal::DescriptorTable descriptor_table_core
 }  // extern "C"
 namespace caster {
 namespace core {
-enum SourceDecordType : int;
-extern const uint32_t SourceDecordType_internal_data_[];
-enum SourceDisplayType : int;
-extern const uint32_t SourceDisplayType_internal_data_[];
 class SourceRecord;
 struct SourceRecordGlobalsTypeInternal;
 extern SourceRecordGlobalsTypeInternal _SourceRecord_globals_;
@@ -68,102 +64,11 @@ extern const ::google::protobuf::internal::ClassDataFull SourceRecord_class_data
 }  // namespace caster
 namespace google {
 namespace protobuf {
-template <>
-internal::EnumTraitsT<::caster::core::SourceDecordType_internal_data_>
-    internal::EnumTraitsImpl::value<::caster::core::SourceDecordType>;
-template <>
-internal::EnumTraitsT<::caster::core::SourceDisplayType_internal_data_>
-    internal::EnumTraitsImpl::value<::caster::core::SourceDisplayType>;
 }  // namespace protobuf
 }  // namespace google
 
 namespace caster {
 namespace core {
-enum SourceDecordType : int {
-  SOURCE_DECODE_TYPE_UNKNOWN = 0,
-  SOURCE_DECODE_TYPE_AUTO = 1,
-  SOURCE_DECODE_TYPE_MANUAL = 2,
-  SourceDecordType_INT_MIN_SENTINEL_DO_NOT_USE_ =
-      ::std::numeric_limits<::int32_t>::min(),
-  SourceDecordType_INT_MAX_SENTINEL_DO_NOT_USE_ =
-      ::std::numeric_limits<::int32_t>::max(),
-};
-
-extern const uint32_t SourceDecordType_internal_data_[];
-inline constexpr SourceDecordType SourceDecordType_MIN =
-    static_cast<SourceDecordType>(0);
-inline constexpr SourceDecordType SourceDecordType_MAX =
-    static_cast<SourceDecordType>(2);
-[[nodiscard]] inline bool SourceDecordType_IsValid(int value) {
-  return 0 <= value && value <= 2;
-}
-inline constexpr int SourceDecordType_ARRAYSIZE = 2 + 1;
-[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-SourceDecordType_descriptor();
-[[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(SourceDecordType) {
-  return SourceDecordType_descriptor();
-}
-template <typename T>
-[[nodiscard]] const ::std::string& SourceDecordType_Name(T value) {
-  static_assert(::std::is_same<T, SourceDecordType>::value ||
-                    ::std::is_integral<T>::value,
-                "Incorrect type passed to SourceDecordType_Name().");
-  return SourceDecordType_Name(static_cast<SourceDecordType>(value));
-}
-template <>
-[[nodiscard]] inline const ::std::string& SourceDecordType_Name(SourceDecordType value) {
-  return ::google::protobuf::internal::NameOfDenseEnum<SourceDecordType_descriptor, 0, 2>(
-      static_cast<int>(value));
-}
-[[nodiscard]] inline bool SourceDecordType_Parse(
-    ::absl::string_view name, SourceDecordType* PROTOBUF_NONNULL value) {
-  return ::google::protobuf::internal::ParseNamedEnum<SourceDecordType>(SourceDecordType_descriptor(), name,
-                                           value);
-}
-enum SourceDisplayType : int {
-  SOURCE_DISP_TYPE_UNKNOWN = 0,
-  SOURCE_DISP_TYPE_ALWAYS_SHOW = 1,
-  SOURCE_DISP_TYPE_ALWAYS_HIDE = 2,
-  SOURCE_DISP_TYPE_SHOW_WHEN_ONLINE = 3,
-  SourceDisplayType_INT_MIN_SENTINEL_DO_NOT_USE_ =
-      ::std::numeric_limits<::int32_t>::min(),
-  SourceDisplayType_INT_MAX_SENTINEL_DO_NOT_USE_ =
-      ::std::numeric_limits<::int32_t>::max(),
-};
-
-extern const uint32_t SourceDisplayType_internal_data_[];
-inline constexpr SourceDisplayType SourceDisplayType_MIN =
-    static_cast<SourceDisplayType>(0);
-inline constexpr SourceDisplayType SourceDisplayType_MAX =
-    static_cast<SourceDisplayType>(3);
-[[nodiscard]] inline bool SourceDisplayType_IsValid(int value) {
-  return 0 <= value && value <= 3;
-}
-inline constexpr int SourceDisplayType_ARRAYSIZE = 3 + 1;
-[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-SourceDisplayType_descriptor();
-[[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(SourceDisplayType) {
-  return SourceDisplayType_descriptor();
-}
-template <typename T>
-[[nodiscard]] const ::std::string& SourceDisplayType_Name(T value) {
-  static_assert(::std::is_same<T, SourceDisplayType>::value ||
-                    ::std::is_integral<T>::value,
-                "Incorrect type passed to SourceDisplayType_Name().");
-  return SourceDisplayType_Name(static_cast<SourceDisplayType>(value));
-}
-template <>
-[[nodiscard]] inline const ::std::string& SourceDisplayType_Name(SourceDisplayType value) {
-  return ::google::protobuf::internal::NameOfDenseEnum<SourceDisplayType_descriptor, 0, 3>(
-      static_cast<int>(value));
-}
-[[nodiscard]] inline bool SourceDisplayType_Parse(
-    ::absl::string_view name, SourceDisplayType* PROTOBUF_NONNULL value) {
-  return ::google::protobuf::internal::ParseNamedEnum<SourceDisplayType>(SourceDisplayType_descriptor(), name,
-                                           value);
-}
-using ::google::protobuf::internal::generated_enum::AbslParseFlag;
-using ::google::protobuf::internal::generated_enum::AbslUnparseFlag;
 
 // ===================================================================
 
@@ -339,6 +244,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceRecord final : public ::googl
     kUpdateTimeFieldNumber = 3,
     kDecodeTypeFieldNumber = 23,
     kDisplayTypeFieldNumber = 24,
+    kRecordTypeFieldNumber = 25,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -660,31 +566,41 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceRecord final : public ::googl
   void _internal_set_update_time(::uint64_t value);
 
   public:
-  // .caster.core.SourceDecordType decode_type = 23;
+  // .caster.SourceDecordType decode_type = 23;
   void clear_decode_type() ;
-  [[nodiscard]] ::caster::core::SourceDecordType decode_type() const;
-  void set_decode_type(::caster::core::SourceDecordType value);
+  [[nodiscard]] ::caster::SourceDecordType decode_type() const;
+  void set_decode_type(::caster::SourceDecordType value);
 
   private:
-  ::caster::core::SourceDecordType _internal_decode_type() const;
-  void _internal_set_decode_type(::caster::core::SourceDecordType value);
+  ::caster::SourceDecordType _internal_decode_type() const;
+  void _internal_set_decode_type(::caster::SourceDecordType value);
 
   public:
-  // .caster.core.SourceDisplayType display_type = 24;
+  // .caster.SourceDisplayType display_type = 24;
   void clear_display_type() ;
-  [[nodiscard]] ::caster::core::SourceDisplayType display_type() const;
-  void set_display_type(::caster::core::SourceDisplayType value);
+  [[nodiscard]] ::caster::SourceDisplayType display_type() const;
+  void set_display_type(::caster::SourceDisplayType value);
 
   private:
-  ::caster::core::SourceDisplayType _internal_display_type() const;
-  void _internal_set_display_type(::caster::core::SourceDisplayType value);
+  ::caster::SourceDisplayType _internal_display_type() const;
+  void _internal_set_display_type(::caster::SourceDisplayType value);
+
+  public:
+  // .caster.SourceRecordType record_type = 25;
+  void clear_record_type() ;
+  [[nodiscard]] ::caster::SourceRecordType record_type() const;
+  void set_record_type(::caster::SourceRecordType value);
+
+  private:
+  ::caster::SourceRecordType _internal_record_type() const;
+  void _internal_set_record_type(::caster::SourceRecordType value);
 
   public:
   // @@protoc_insertion_point(class_scope:caster.core.SourceRecord)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<5, 24,
+  static const ::google::protobuf::internal::TcParseTable<5, 25,
                                    0, 226,
                                    2>
       _table_;
@@ -732,6 +648,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceRecord final : public ::googl
     ::uint64_t update_time_;
     int decode_type_;
     int display_type_;
+    int record_type_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -936,52 +853,77 @@ inline void SourceRecord::set_allocated_source_group_uid(::std::string* PROTOBUF
   // @@protoc_insertion_point(field_set_allocated:caster.core.SourceRecord.source_group_uid)
 }
 
-// .caster.core.SourceDecordType decode_type = 23;
+// .caster.SourceRecordType record_type = 25;
+inline void SourceRecord::clear_record_type() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.record_type_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x01000000U);
+}
+inline ::caster::SourceRecordType SourceRecord::record_type() const {
+  // @@protoc_insertion_point(field_get:caster.core.SourceRecord.record_type)
+  return _internal_record_type();
+}
+inline void SourceRecord::set_record_type(::caster::SourceRecordType value) {
+  _internal_set_record_type(value);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  // @@protoc_insertion_point(field_set:caster.core.SourceRecord.record_type)
+}
+inline ::caster::SourceRecordType SourceRecord::_internal_record_type() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::caster::SourceRecordType>(_impl_.record_type_);
+}
+inline void SourceRecord::_internal_set_record_type(::caster::SourceRecordType value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.record_type_ = value;
+}
+
+// .caster.SourceDecordType decode_type = 23;
 inline void SourceRecord::clear_decode_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.decode_type_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00400000U);
 }
-inline ::caster::core::SourceDecordType SourceRecord::decode_type() const {
+inline ::caster::SourceDecordType SourceRecord::decode_type() const {
   // @@protoc_insertion_point(field_get:caster.core.SourceRecord.decode_type)
   return _internal_decode_type();
 }
-inline void SourceRecord::set_decode_type(::caster::core::SourceDecordType value) {
+inline void SourceRecord::set_decode_type(::caster::SourceDecordType value) {
   _internal_set_decode_type(value);
   SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   // @@protoc_insertion_point(field_set:caster.core.SourceRecord.decode_type)
 }
-inline ::caster::core::SourceDecordType SourceRecord::_internal_decode_type() const {
+inline ::caster::SourceDecordType SourceRecord::_internal_decode_type() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return static_cast<::caster::core::SourceDecordType>(_impl_.decode_type_);
+  return static_cast<::caster::SourceDecordType>(_impl_.decode_type_);
 }
-inline void SourceRecord::_internal_set_decode_type(::caster::core::SourceDecordType value) {
+inline void SourceRecord::_internal_set_decode_type(::caster::SourceDecordType value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.decode_type_ = value;
 }
 
-// .caster.core.SourceDisplayType display_type = 24;
+// .caster.SourceDisplayType display_type = 24;
 inline void SourceRecord::clear_display_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.display_type_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00800000U);
 }
-inline ::caster::core::SourceDisplayType SourceRecord::display_type() const {
+inline ::caster::SourceDisplayType SourceRecord::display_type() const {
   // @@protoc_insertion_point(field_get:caster.core.SourceRecord.display_type)
   return _internal_display_type();
 }
-inline void SourceRecord::set_display_type(::caster::core::SourceDisplayType value) {
+inline void SourceRecord::set_display_type(::caster::SourceDisplayType value) {
   _internal_set_display_type(value);
   SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   // @@protoc_insertion_point(field_set:caster.core.SourceRecord.display_type)
 }
-inline ::caster::core::SourceDisplayType SourceRecord::_internal_display_type() const {
+inline ::caster::SourceDisplayType SourceRecord::_internal_display_type() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return static_cast<::caster::core::SourceDisplayType>(_impl_.display_type_);
+  return static_cast<::caster::SourceDisplayType>(_impl_.display_type_);
 }
-inline void SourceRecord::_internal_set_display_type(::caster::core::SourceDisplayType value) {
+inline void SourceRecord::_internal_set_display_type(::caster::SourceDisplayType value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.display_type_ = value;
 }
@@ -2164,25 +2106,6 @@ inline void SourceRecord::set_allocated_misc(::std::string* PROTOBUF_NULLABLE va
 }  // namespace core
 }  // namespace caster
 
-
-namespace google {
-namespace protobuf {
-
-template <>
-struct is_proto_enum<::caster::core::SourceDecordType> : std::true_type {};
-template <>
-inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::caster::core::SourceDecordType>() {
-  return ::caster::core::SourceDecordType_descriptor();
-}
-template <>
-struct is_proto_enum<::caster::core::SourceDisplayType> : std::true_type {};
-template <>
-inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::caster::core::SourceDisplayType>() {
-  return ::caster::core::SourceDisplayType_descriptor();
-}
-
-}  // namespace protobuf
-}  // namespace google
 
 // @@protoc_insertion_point(global_scope)
 

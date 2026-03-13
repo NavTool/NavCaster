@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 project(NavCaster)
 
-option(BUILD_CASTER_MONITOR "Build Caster Monitor." OFF)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.21)
+
+option(BUILD_CASTER_MONITOR "Build Caster Monitor." ON)
 option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
 option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 

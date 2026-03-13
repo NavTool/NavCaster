@@ -25,7 +25,7 @@ class EventAddAccount : public RedisOperationBase
 public:
     explicit EventAddAccount(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override {
 
@@ -188,7 +188,7 @@ class EventSetAccount : public RedisOperationBase
 public:
     explicit EventSetAccount(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
@@ -218,7 +218,7 @@ class EventGetAccount : public RedisOperationBase
 public:
     explicit EventGetAccount(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
@@ -248,7 +248,7 @@ class EventDelAccount : public RedisOperationBase
 public:
     explicit EventDelAccount(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
         void execute(redisAsyncContext *ctx) override {
         auto UID= m_account_info["UID"].toString();

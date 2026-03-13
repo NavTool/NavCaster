@@ -31,6 +31,7 @@
 #include "google/protobuf/extension_set.h"  // IWYU pragma: export
 #include "google/protobuf/generated_enum_reflection.h"
 #include "google/protobuf/unknown_field_set.h"
+#include "Common.pb.h"
 // @@protoc_insertion_point(includes)
 
 // Must be included last.
@@ -273,6 +274,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AccessItem final : public ::google:
     kAllowVisibleFieldNumber = 3,
     kAllowAccessFieldNumber = 4,
     kAllowNearbyFieldNumber = 5,
+    kDecodeTypeFieldNumber = 6,
+    kDisplayTypeFieldNumber = 7,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -334,11 +337,31 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AccessItem final : public ::google:
   void _internal_set_allow_nearby(::caster::core::AccessState value);
 
   public:
+  // .caster.SourceDecordType decode_type = 6;
+  void clear_decode_type() ;
+  [[nodiscard]] ::caster::SourceDecordType decode_type() const;
+  void set_decode_type(::caster::SourceDecordType value);
+
+  private:
+  ::caster::SourceDecordType _internal_decode_type() const;
+  void _internal_set_decode_type(::caster::SourceDecordType value);
+
+  public:
+  // .caster.SourceDisplayType display_type = 7;
+  void clear_display_type() ;
+  [[nodiscard]] ::caster::SourceDisplayType display_type() const;
+  void set_display_type(::caster::SourceDisplayType value);
+
+  private:
+  ::caster::SourceDisplayType _internal_display_type() const;
+  void _internal_set_display_type(::caster::SourceDisplayType value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.core.AccessItem)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<3, 5,
+  static const ::google::protobuf::internal::TcParseTable<3, 7,
                                    0, 50,
                                    2>
       _table_;
@@ -367,6 +390,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AccessItem final : public ::google:
     int allow_visible_;
     int allow_access_;
     int allow_nearby_;
+    int decode_type_;
+    int display_type_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -594,6 +619,56 @@ inline ::caster::core::AccessState AccessItem::_internal_allow_nearby() const {
 inline void AccessItem::_internal_set_allow_nearby(::caster::core::AccessState value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.allow_nearby_ = value;
+}
+
+// .caster.SourceDecordType decode_type = 6;
+inline void AccessItem::clear_decode_type() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.decode_type_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000020U);
+}
+inline ::caster::SourceDecordType AccessItem::decode_type() const {
+  // @@protoc_insertion_point(field_get:caster.core.AccessItem.decode_type)
+  return _internal_decode_type();
+}
+inline void AccessItem::set_decode_type(::caster::SourceDecordType value) {
+  _internal_set_decode_type(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  // @@protoc_insertion_point(field_set:caster.core.AccessItem.decode_type)
+}
+inline ::caster::SourceDecordType AccessItem::_internal_decode_type() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::caster::SourceDecordType>(_impl_.decode_type_);
+}
+inline void AccessItem::_internal_set_decode_type(::caster::SourceDecordType value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.decode_type_ = value;
+}
+
+// .caster.SourceDisplayType display_type = 7;
+inline void AccessItem::clear_display_type() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.display_type_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000040U);
+}
+inline ::caster::SourceDisplayType AccessItem::display_type() const {
+  // @@protoc_insertion_point(field_get:caster.core.AccessItem.display_type)
+  return _internal_display_type();
+}
+inline void AccessItem::set_display_type(::caster::SourceDisplayType value) {
+  _internal_set_display_type(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  // @@protoc_insertion_point(field_set:caster.core.AccessItem.display_type)
+}
+inline ::caster::SourceDisplayType AccessItem::_internal_display_type() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::caster::SourceDisplayType>(_impl_.display_type_);
+}
+inline void AccessItem::_internal_set_display_type(::caster::SourceDisplayType value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.display_type_ = value;
 }
 
 #ifdef __GNUC__

@@ -155,6 +155,7 @@ target_link_libraries(
     casterbase
     castercore
     authverify
+    caster_proto
 )
 if (FLUENTUI_BUILD_STATIC_LIB)
     target_link_libraries(
@@ -289,7 +290,15 @@ endif()
 
 
 
-# add_executable(test_Monitor test/test_Monitor.cpp ${SOURCE_FILES})
+# # 新集合：复制一份
+# set(CPP_SOURCE_FILES_NO_MAIN ${CPP_SOURCE_FILES})
+
+# # 过滤掉 main.cpp
+# list(FILTER CPP_SOURCE_FILES_NO_MAIN
+#     EXCLUDE REGEX ".*/main\\.cpp$"
+# )
+
+# add_executable(test_Monitor test/test_Monitor.cpp ${CPP_SOURCE_FILES_NO_MAIN})
 # target_link_libraries(
 #     test_Monitor PRIVATE
 #     Qt6::Quick
@@ -303,6 +312,7 @@ endif()
 #     casterbase
 #     castercore
 #     authverify
+#     caster_proto
 # )
 # if (LINUX)
 #     target_link_libraries(

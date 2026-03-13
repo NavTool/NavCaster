@@ -27,7 +27,7 @@ class EventConnectRedis : public EventOperationBase
 public:
     explicit EventConnectRedis(QObject *parent = nullptr): EventOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(event_base* base) override {
         // Q_UNUSED(base);
@@ -186,7 +186,7 @@ class EventDisconnectRedis : public EventOperationBase
 public:
     explicit EventDisconnectRedis(QObject *parent = nullptr): EventOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(event_base* base) override {
 

@@ -103,8 +103,9 @@ inline constexpr SourceRecord::Impl_::Impl_(
             ::_pbi::ConstantInitialized()),
         create_time_{::uint64_t{0u}},
         update_time_{::uint64_t{0u}},
-        decode_type_{static_cast< ::caster::core::SourceDecordType >(0)},
-        display_type_{static_cast< ::caster::core::SourceDisplayType >(0)} {}
+        decode_type_{static_cast< ::caster::SourceDecordType >(0)},
+        display_type_{static_cast< ::caster::SourceDisplayType >(0)},
+        record_type_{static_cast< ::caster::SourceRecordType >(0)} {}
 
 template <typename>
 constexpr SourceRecord::SourceRecord(::_pbi::ConstantInitialized)
@@ -127,8 +128,8 @@ PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 SourceRecordGlobalsTypeInternal _SourceRecord_globals_;
 }  // namespace core
 }  // namespace caster
-static const ::_pb::EnumDescriptor* PROTOBUF_NONNULL
-    file_level_enum_descriptors_core_2fSourceRecord_2eproto[2];
+static constexpr const ::_pb::EnumDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
+    file_level_enum_descriptors_core_2fSourceRecord_2eproto = nullptr;
 static constexpr const ::_pb::ServiceDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
     file_level_service_descriptors_core_2fSourceRecord_2eproto = nullptr;
 const ::uint32_t
@@ -136,11 +137,12 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_._has_bits_),
-        27, // hasbit index offset
+        28, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.update_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.source_group_uid_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.record_type_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.decode_type_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.display_type_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.mountpoint_),
@@ -165,6 +167,7 @@ const ::uint32_t
         20,
         21,
         1,
+        24,
         22,
         23,
         2,
@@ -196,39 +199,37 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_core_2fSourceRecord_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\027core/SourceRecord.proto\022\013caster.core\"\223"
-    "\004\n\014SourceRecord\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_t"
-    "ime\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004\022\030\n\020source"
-    "_group_uid\030\004 \001(\t\0222\n\013decode_type\030\027 \001(\0162\035."
-    "caster.core.SourceDecordType\0224\n\014display_"
-    "type\030\030 \001(\0162\036.caster.core.SourceDisplayTy"
-    "pe\022\022\n\nmountpoint\030\005 \001(\t\022\022\n\nidentufier\030\006 \001"
-    "(\t\022\016\n\006format\030\007 \001(\t\022\026\n\016format_details\030\010 \001"
-    "(\t\022\017\n\007carrier\030\t \001(\t\022\022\n\nnav_system\030\n \001(\t\022"
-    "\017\n\007network\030\013 \001(\t\022\017\n\007country\030\014 \001(\t\022\020\n\010lat"
-    "itude\030\r \001(\t\022\021\n\tlongitude\030\016 \001(\t\022\014\n\004nmea\030\017"
-    " \001(\t\022\020\n\010solution\030\020 \001(\t\022\021\n\tgenerator\030\021 \001("
-    "\t\022\025\n\rcompr_encrryp\030\022 \001(\t\022\026\n\016authenticati"
-    "on\030\023 \001(\t\022\013\n\003fee\030\024 \001(\t\022\017\n\007bitrate\030\025 \001(\t\022\014"
-    "\n\004misc\030\026 \001(\t*n\n\020SourceDecordType\022\036\n\032SOUR"
-    "CE_DECODE_TYPE_UNKNOWN\020\000\022\033\n\027SOURCE_DECOD"
-    "E_TYPE_AUTO\020\001\022\035\n\031SOURCE_DECODE_TYPE_MANU"
-    "AL\020\002*\234\001\n\021SourceDisplayType\022\034\n\030SOURCE_DIS"
-    "P_TYPE_UNKNOWN\020\000\022 \n\034SOURCE_DISP_TYPE_ALW"
-    "AYS_SHOW\020\001\022 \n\034SOURCE_DISP_TYPE_ALWAYS_HI"
-    "DE\020\002\022%\n!SOURCE_DISP_TYPE_SHOW_WHEN_ONLIN"
-    "E\020\003b\006proto3"
+    "\n\027core/SourceRecord.proto\022\013caster.core\032\014"
+    "Common.proto\"\270\004\n\014SourceRecord\022\013\n\003uid\030\001 \001"
+    "(\t\022\023\n\013create_time\030\002 \001(\004\022\023\n\013update_time\030\003"
+    " \001(\004\022\030\n\020source_group_uid\030\004 \001(\t\022-\n\013record"
+    "_type\030\031 \001(\0162\030.caster.SourceRecordType\022-\n"
+    "\013decode_type\030\027 \001(\0162\030.caster.SourceDecord"
+    "Type\022/\n\014display_type\030\030 \001(\0162\031.caster.Sour"
+    "ceDisplayType\022\022\n\nmountpoint\030\005 \001(\t\022\022\n\nide"
+    "ntufier\030\006 \001(\t\022\016\n\006format\030\007 \001(\t\022\026\n\016format_"
+    "details\030\010 \001(\t\022\017\n\007carrier\030\t \001(\t\022\022\n\nnav_sy"
+    "stem\030\n \001(\t\022\017\n\007network\030\013 \001(\t\022\017\n\007country\030\014"
+    " \001(\t\022\020\n\010latitude\030\r \001(\t\022\021\n\tlongitude\030\016 \001("
+    "\t\022\014\n\004nmea\030\017 \001(\t\022\020\n\010solution\030\020 \001(\t\022\021\n\tgen"
+    "erator\030\021 \001(\t\022\025\n\rcompr_encrryp\030\022 \001(\t\022\026\n\016a"
+    "uthentication\030\023 \001(\t\022\013\n\003fee\030\024 \001(\t\022\017\n\007bitr"
+    "ate\030\025 \001(\t\022\014\n\004misc\030\026 \001(\tb\006proto3"
+};
+static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
+    descriptor_table_core_2fSourceRecord_2eproto_deps[1] = {
+        &::descriptor_table_Common_2eproto,
 };
 static ::absl::once_flag descriptor_table_core_2fSourceRecord_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fSourceRecord_2eproto = {
     false,
     false,
-    851,
+    631,
     descriptor_table_protodef_core_2fSourceRecord_2eproto,
     "core/SourceRecord.proto",
     &descriptor_table_core_2fSourceRecord_2eproto_once,
-    nullptr,
-    0,
+    descriptor_table_core_2fSourceRecord_2eproto_deps,
+    1,
     1,
     schemas,
     file_default_instances,
@@ -238,20 +239,6 @@ PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fSourceR
 };
 namespace caster {
 namespace core {
-[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-SourceDecordType_descriptor() {
-  ::google::protobuf::internal::AssignDescriptors(&descriptor_table_core_2fSourceRecord_2eproto);
-  return file_level_enum_descriptors_core_2fSourceRecord_2eproto[0];
-}
-PROTOBUF_CONSTINIT const uint32_t SourceDecordType_internal_data_[] = {
-    196608u, 0u, };
-[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-SourceDisplayType_descriptor() {
-  ::google::protobuf::internal::AssignDescriptors(&descriptor_table_core_2fSourceRecord_2eproto);
-  return file_level_enum_descriptors_core_2fSourceRecord_2eproto[1];
-}
-PROTOBUF_CONSTINIT const uint32_t SourceDisplayType_internal_data_[] = {
-    262144u, 0u, };
 // ===================================================================
 
 class SourceRecord::_Internal {
@@ -315,9 +302,9 @@ SourceRecord::SourceRecord(
                offsetof(Impl_, create_time_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, create_time_),
-           offsetof(Impl_, display_type_) -
+           offsetof(Impl_, record_type_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::display_type_));
+               sizeof(Impl_::record_type_));
 
   // @@protoc_insertion_point(copy_constructor:caster.core.SourceRecord)
 }
@@ -351,9 +338,9 @@ inline void SourceRecord::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, create_time_),
            0,
-           offsetof(Impl_, display_type_) -
+           offsetof(Impl_, record_type_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::display_type_));
+               sizeof(Impl_::record_type_));
 }
 SourceRecord::~SourceRecord() {
   // @@protoc_insertion_point(destructor:caster.core.SourceRecord)
@@ -450,16 +437,16 @@ SourceRecord::GetClassData() const {
   return SourceRecord_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 24, 0, 226, 2>
+const ::_pbi::TcParseTable<5, 25, 0, 226, 2>
 SourceRecord::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_._has_bits_),
     0, // no _extensions_
-    24, 248,  // max_field_number, fast_idx_mask
+    25, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4278190080,  // skipmap
+    4261412864,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    24,  // num_field_entries
+    25,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     SourceRecord_class_data_.base(),
@@ -558,15 +545,18 @@ SourceRecord::_table_ = {
     {::_pbi::TcParser::FastUS2,
      {434, 19, 0,
       PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.misc_)}},
-    // .caster.core.SourceDecordType decode_type = 23;
+    // .caster.SourceDecordType decode_type = 23;
     {::_pbi::TcParser::FastV32S2,
      {440, 22, 0,
       PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.decode_type_)}},
-    // .caster.core.SourceDisplayType display_type = 24;
+    // .caster.SourceDisplayType display_type = 24;
     {::_pbi::TcParser::FastV32S2,
      {448, 23, 0,
       PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.display_type_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // .caster.SourceRecordType record_type = 25;
+    {::_pbi::TcParser::FastV32S2,
+     {456, 24, 0,
+      PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.record_type_)}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
@@ -620,10 +610,12 @@ SourceRecord::_table_ = {
     {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.bitrate_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // string misc = 22;
     {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.misc_), _Internal::kHasBitsOffset + 19, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // .caster.core.SourceDecordType decode_type = 23;
+    // .caster.SourceDecordType decode_type = 23;
     {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.decode_type_), _Internal::kHasBitsOffset + 22, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
-    // .caster.core.SourceDisplayType display_type = 24;
+    // .caster.SourceDisplayType display_type = 24;
     {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.display_type_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    // .caster.SourceRecordType record_type = 25;
+    {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.record_type_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
   }},
   // no aux_entries
   {{
@@ -730,6 +722,7 @@ PROTOBUF_NOINLINE void SourceRecord::Clear() {
         reinterpret_cast<char*>(&_impl_.display_type_) -
         reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.display_type_));
   }
+  _impl_.record_type_ = 0;
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -971,7 +964,7 @@ PROTOBUF_NOINLINE void SourceRecord::Clear() {
     }
   }
 
-  // .caster.core.SourceDecordType decode_type = 23;
+  // .caster.SourceDecordType decode_type = 23;
   if (CheckHasBit(cached_has_bits, 0x00400000U)) {
     if (this_._internal_decode_type() != 0) {
       target = stream->EnsureSpace(target);
@@ -980,12 +973,21 @@ PROTOBUF_NOINLINE void SourceRecord::Clear() {
     }
   }
 
-  // .caster.core.SourceDisplayType display_type = 24;
+  // .caster.SourceDisplayType display_type = 24;
   if (CheckHasBit(cached_has_bits, 0x00800000U)) {
     if (this_._internal_display_type() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
           24, this_._internal_display_type(), target);
+    }
+  }
+
+  // .caster.SourceRecordType record_type = 25;
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (this_._internal_record_type() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          25, this_._internal_record_type(), target);
     }
   }
 
@@ -1173,18 +1175,27 @@ PROTOBUF_NOINLINE void SourceRecord::Clear() {
             this_._internal_update_time());
       }
     }
-    // .caster.core.SourceDecordType decode_type = 23;
+    // .caster.SourceDecordType decode_type = 23;
     if (CheckHasBit(cached_has_bits, 0x00400000U)) {
       if (this_._internal_decode_type() != 0) {
         total_size += 2 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_decode_type());
       }
     }
-    // .caster.core.SourceDisplayType display_type = 24;
+    // .caster.SourceDisplayType display_type = 24;
     if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (this_._internal_display_type() != 0) {
         total_size += 2 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_display_type());
+      }
+    }
+  }
+   {
+    // .caster.SourceRecordType record_type = 25;
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (this_._internal_record_type() != 0) {
+        total_size += 2 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_record_type());
       }
     }
   }
@@ -1412,6 +1423,11 @@ void SourceRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
   }
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (from._internal_record_type() != 0) {
+      _this->_impl_.record_type_ = from._impl_.record_type_;
+    }
+  }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
       from._internal_metadata_);
@@ -1452,8 +1468,8 @@ void SourceRecord::InternalSwap(SourceRecord* PROTOBUF_RESTRICT PROTOBUF_NONNULL
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.bitrate_, &other->_impl_.bitrate_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.misc_, &other->_impl_.misc_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.display_type_)
-      + sizeof(SourceRecord::_impl_.display_type_)
+      PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.record_type_)
+      + sizeof(SourceRecord::_impl_.record_type_)
       - PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.create_time_)>(
           reinterpret_cast<char*>(&_impl_.create_time_),
           reinterpret_cast<char*>(&other->_impl_.create_time_));

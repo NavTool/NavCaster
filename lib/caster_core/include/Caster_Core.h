@@ -4,7 +4,7 @@
 #include <string>
 #include <set>
 
-#include "service/opt_caster_core.pb.h"
+#include "service/CasterCoreOpt.pb.h"
 using namespace caster::service;
 
 // #define CASTER_REPLY_ERR -1

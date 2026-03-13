@@ -1,6 +1,6 @@
 // 节点状态
 syntax = "proto3";
-package caster.context;
+package caster.service;
 
 message CasterNode {
 
