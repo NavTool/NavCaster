@@ -420,7 +420,7 @@ int relay_pull::send_login_request()
 
     if (_type == 2) // Ntrip/2.0
     {
-        evbuffer_add_printf(evbuf, "GET %s HTTP/1.1\r\n", _target_mpt.c_str());
+        evbuffer_add_printf(evbuf, "GET /%s HTTP/1.1\r\n", _target_mpt.c_str());
         evbuffer_add_printf(evbuf, "Host: %s:%d\r\n", _target_ip.c_str(), _target_port);
         evbuffer_add_printf(evbuf, "Ntrip-Version: Ntrip/2.0\r\n");
         evbuffer_add_printf(evbuf, "User-Agent: %s/%s\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
@@ -430,7 +430,7 @@ int relay_pull::send_login_request()
     }
     else if (_type == 1) // Ntrip/1.0
     {
-        evbuffer_add_printf(evbuf, "GET %s HTTP/1.0\r\n", _target_mpt.c_str());
+        evbuffer_add_printf(evbuf, "GET /%s HTTP/1.0\r\n", _target_mpt.c_str());
         evbuffer_add_printf(evbuf, "User-Agent: %s/%s\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
         evbuffer_add_printf(evbuf, "Authorization: Basic %s\r\n", userID.c_str());
         evbuffer_add_printf(evbuf, "\r\n");
@@ -471,7 +471,7 @@ int relay_pull::verify_login_response()
                 free(line);
                 break;
             }
-            if (strcmp(header, "Transfer-Encoding: chunked"))
+            if (strcmp(header, "Transfer-Encoding: chunked") == 0)
             {
                 _transfer_with_chunked = true;
             }
