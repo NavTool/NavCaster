@@ -1,5 +1,7 @@
 #pragma once
 #include <mutex>
+#include <qjsondocument.h>
+#include <qjsonobject.h>
 #include <string>
 #include <iostream>
 #include <type_traits>
@@ -7,8 +9,83 @@
 #include <QtQml/qqml.h>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
+#include "google/protobuf/json/json.h"
 
 
+template <typename T>
+std::string ProtoToJson(const T &msg)
+{
+    google::protobuf::json::PrintOptions opt;
+    opt.add_whitespace = true;                       // 转换成json是否添加空格、换行和缩进
+    opt.always_print_fields_with_no_presence = true; // 打印不支持存在的字段
+    opt.always_print_enums_as_ints = false;          // 将枚举类型打印为int
+    opt.preserve_proto_field_names = true;           // 是否保留原型字段名
+    opt.unquote_int64_if_possible = true;            // 关键
+    std::string json_str;
+    auto res = google::protobuf::json::MessageToJsonString(msg, &json_str, opt);
+
+    if (res.ok())
+    {
+        return json_str;
+    }
+    else
+    {
+        return std::string();
+    }
+}
+
+
+
+QVariantMap jsonStrToVariantMap(const QString &jsonStr, bool *ok = nullptr);
+
+
+QString variantMapToJsonStr(const QVariantMap &map,
+                            QJsonDocument::JsonFormat format = QJsonDocument::Compact);
+
+
+template <typename T>
+std::string genExecuteOptTemp(T opt)
+{
+    return ProtoToJson(opt);
+}
+
+template <typename T>
+QVariantMap PrototoQml(T opt)
+{
+    bool ok;
+    auto map = jsonStrToVariantMap(ProtoToJson(opt).c_str(), &ok);
+    if (ok)
+    {
+        return map;
+    }
+    else
+    {
+        return QVariantMap();
+    }
+}
+
+template <typename T>
+T QmltoProto(QVariantMap info)
+{
+    auto json_Str = variantMapToJsonStr(info);
+    T obj;                                    //
+    JsonToProto(json_Str.toStdString(), obj); // json字符串转换成proto
+    return obj;
+}
+
+
+
+
+
+template <typename T>
+bool JsonToProto(const std::string &json, T &msg)
+{
+    google::protobuf::json::ParseOptions opt;
+    opt.ignore_unknown_fields = true; // 关键：向前 / 向后兼容
+
+    auto status = google::protobuf::json::JsonStringToMessage(json, &msg, opt);
+    return status.ok();
+}
 
 
 // 判断类型对应的 is_* 函数

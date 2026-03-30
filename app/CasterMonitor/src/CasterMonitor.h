@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QtQml/qqml.h>
 #include <set>
+#include "util.h"
 
 #include "EventOperationBase.h"
 #include "EventWorker.h"
@@ -58,6 +59,35 @@ using namespace caster::monitor;
 
 
 
+#define CONCAT2(a, b) a##b
+#define CONCAT3(a, b, c) a##b##c
+
+
+
+#define Q_REDIS_CONTEXT_API(OBJ, OBJS, RES)                                                                                \
+Q_INVOKABLE QVariantMap CONCAT3(generate, OBJ, Temp)(QString UID = "")                                            \
+{                                                                                                                 \
+    return PrototoQml(OBJ());                                                                                     \
+}                                                                                                                 \
+Q_INVOKABLE QString CONCAT2(add, OBJ)(const QString &UID, const QVariantMap &info)                                \
+{                                                                                                                 \
+    std::string op_uid = CasterMonitor::getInstance()->OBJS.addObject(UID.toStdString(), variantMapToJsonStr(info).toStdString()); \
+    return QString::fromStdString(op_uid);                                                                        \
+}                                                                                                                 \
+// Q_INVOKABLE int CONCAT2(del, OBJ)(const QString &UID)                                                             \
+// {                                                                                                                 \
+//     int res = CasterMonitor::getInstance()->OBJS.delObject(UID.toStdString());                                          \
+//     return res;                                                                                                   \
+// }                                                                                                                 \
+// Q_INVOKABLE int CONCAT2(set, OBJ)(const QString &UID, const QVariantMap &info)                                    \
+// {                                                                                                                 \
+//     int res = CasterMonitor::getInstance()->OBJS.setObject(UID.toStdString(), variantMapToJsonStr(info).toStdString()); \
+//     return res;                                                                                                   \
+// }                                                                                                                 \
+// Q_INVOKABLE QVariantMap CONCAT2(get, OBJ)(const QString &UID)                                                     \
+// {                                                                                                                 \
+//     return jsonStrToVariantMap(CasterMonitor::getInstance()->OBJS.getObject(UID.toStdString()).c_str());                \
+// }
 
 
 
@@ -291,6 +321,32 @@ public:
     Context<AccountInfo> AccountInfos;
     Context<GroupInfo> GroupInfos;
     Context<NodeInfo> NodeInfos;
+
+
+public:
+
+    Q_REDIS_CONTEXT_API(AccountRecord, AccountRecords, AccountRecord)                         //
+    Q_REDIS_CONTEXT_API(AccountActive, AccountActives, AccountActive)                         //
+
+private slots:
+    // redis异步更新后，更新内部的上下文
+    void onAccountRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onAccountActivesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+
+    void onAccessGroupsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onAccessItemsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onSourceRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onSourceStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onClientStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onStreamStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onAliasRulesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+
+    void onPullRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onPullStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onPushRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onPushStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+    void onCasterNodesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info);
+
 
 public:
     QString generate_UniqueKey(int key_length = 8);

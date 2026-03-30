@@ -3,11 +3,12 @@
 #include <event2/util.h>
 #include <QObject>
 #include <QtQml/qqml.h>
-#include <QRandomGenerator>
+#include <QUuid>
 #include "EventOperationBase.h"
 #include "OperateMap.h"
 #include <functional>
 #include <list>
+#include <mutex>
 #include <string>
 
 enum class HashOperateType
@@ -20,8 +21,11 @@ enum class HashOperateType
     GET_ALL = 5
 };
 
+// ============================================================================
+//  RedisHash —— 单次 Redis HASH 命令的异步操作封装
+// ============================================================================
 template <const char *Table>
-class RedisHash: public RedisOperationBase
+class RedisHash : public RedisOperationBase
 {
 private:
     std::string _key = Table;
@@ -29,12 +33,12 @@ private:
     std::string _value;
 
     QVariantMap m_data;
-
     HashOperateType _type = HashOperateType::UNKNOWN;
 
 public:
     int init(std::string operate_name)
     {
+        id(QUuid::createUuid().toString(QUuid::WithoutBraces));
         name(operate_name.c_str());
         return 0;
     }
@@ -75,434 +79,352 @@ public:
         return 0;
     }
 
-    int get(std::string key, std::list<std::string> fileds)
-    {
-        return 0;
-    }
-
     void execute(redisAsyncContext *ctx)
     {
-
         switch (_type)
         {
         case HashOperateType::ADD:
-            redisAsyncCommand(ctx, Redis_Add_Callback, this, "HSETNX %s %s %s", _key.c_str(), _field.c_str(), _value.c_str());
+            redisAsyncCommand(ctx, Redis_Add_Callback, this,
+                              "HSETNX %s %s %s", _key.c_str(), _field.c_str(), _value.c_str());
             break;
         case HashOperateType::DEL:
-            redisAsyncCommand(ctx, Redis_Del_Callback, this, "HDEL %s %s", _key.c_str(), _field.c_str());
+            redisAsyncCommand(ctx, Redis_Del_Callback, this,
+                              "HDEL %s %s", _key.c_str(), _field.c_str());
             break;
         case HashOperateType::SET:
-            redisAsyncCommand(ctx, Redis_Set_Callback, this, "HSETEX %s %s %s", _key.c_str(), _field.c_str(), _value.c_str());
+            redisAsyncCommand(ctx, Redis_Set_Callback, this,
+                              "HSET %s %s %s", _key.c_str(), _field.c_str(), _value.c_str());
             break;
         case HashOperateType::GET:
-            redisAsyncCommand(ctx, Redis_Get_Callback, this, "HGET %s %s", _key.c_str(), _field.c_str());
+            redisAsyncCommand(ctx, Redis_Get_Callback, this,
+                              "HGET %s %s", _key.c_str(), _field.c_str());
             break;
         case HashOperateType::GET_ALL:
-            redisAsyncCommand(ctx, Redis_Get_Callback, this, "HGETALL %s", _key.c_str());
+            redisAsyncCommand(ctx, Redis_GetAll_Callback, this,
+                              "HGETALL %s", _key.c_str());
             break;
         default:
             break;
         }
     }
 
+    // HSETNX → INTEGER: 1=新增成功, 0=字段已存在
     static void Redis_Add_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
-        // 解析数据
         auto reply = static_cast<redisReply *>(r);
         auto svr = static_cast<RedisHash<Table> *>(privdata);
-
         if (!reply)
-        {
             return;
-        }
+
         if (reply->type != REDIS_REPLY_INTEGER)
         {
-            // 回应不对
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(), false, QVariantMap());
+            return;
         }
-
-        if (reply->integer == 1)
-        {
-            // 添加成功
-            Q_EMIT svr->operateFinished(svr->uid(), true, QVariantMap());
-        }
-        else
-        {
-            // 添加失败
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
-        }
+        Q_EMIT svr->operateFinished(svr->id(), reply->integer == 1, QVariantMap());
     }
 
+    // HDEL → INTEGER: 被删除的字段数
     static void Redis_Del_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
-        // 解析数据
         auto reply = static_cast<redisReply *>(r);
         auto svr = static_cast<RedisHash<Table> *>(privdata);
-
         if (!reply)
-        {
             return;
-        }
+
         if (reply->type != REDIS_REPLY_INTEGER)
         {
-            // 回应不对
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(), false, QVariantMap());
+            return;
         }
-
-        if (reply->integer == 1)
-        {
-            // 添加成功
-            Q_EMIT svr->operateFinished(svr->uid(), true, QVariantMap());
-        }
-        else
-        {
-            // 添加失败
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
-        }
+        Q_EMIT svr->operateFinished(svr->id(), reply->integer >= 1, QVariantMap());
     }
 
+    // HSET → INTEGER: 1=新字段, 0=已有字段被更新; 两者均为写入成功
     static void Redis_Set_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
-        // 解析数据
         auto reply = static_cast<redisReply *>(r);
         auto svr = static_cast<RedisHash<Table> *>(privdata);
-
         if (!reply)
-        {
             return;
-        }
+
         if (reply->type != REDIS_REPLY_INTEGER)
         {
-            // 回应不对
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
+            Q_EMIT svr->operateFinished(svr->id(), false, QVariantMap());
+            return;
         }
-
-        if (reply->integer == 1)
-        {
-            // 添加成功
-            Q_EMIT svr->operateFinished(svr->uid(), true, QVariantMap());
-        }
-        else
-        {
-            // 添加失败
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
-        }
+        Q_EMIT svr->operateFinished(svr->id(), true, QVariantMap());
     }
 
+    // HGET → BULK STRING / NIL
     static void Redis_Get_Callback(redisAsyncContext *c, void *r, void *privdata)
     {
-        // 解析数据
         auto reply = static_cast<redisReply *>(r);
         auto svr = static_cast<RedisHash<Table> *>(privdata);
-
         if (!reply)
-        {
             return;
-        }
-        if (reply->type != REDIS_REPLY_INTEGER)
-        {
-            // 回应不对
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
-        }
 
-        if (reply->integer == 1)
-        {
-            // 添加成功
-            Q_EMIT svr->operateFinished(svr->uid(), true, QVariantMap());
-        }
-        else
-        {
-            // 添加失败
-            Q_EMIT svr->operateFinished(svr->uid(), false, QVariantMap());
-        }
-    }
-
-    static void Redis_GetAll_Callback(redisAsyncContext *c, void *r, void *privdata)
-    {
-        // 解析数据
-        auto reply = static_cast<redisReply *>(r);
-        auto svr = static_cast<RedisHash<Table> *>(privdata);
-
-        auto &data = svr->m_data;
-
-        data.clear();
-
-        if (!reply)
-        {
-            return;
-        }
         if (reply->type == REDIS_REPLY_NIL)
         {
+            Q_EMIT svr->operateFinished(svr->id(), false, QVariantMap());
+            return;
+        }
+        if (reply->type == REDIS_REPLY_STRING && reply->str)
+        {
+            QVariantMap data;
+            data[QString::fromStdString(svr->_field)] =
+                QString::fromUtf8(reply->str, static_cast<int>(reply->len));
+            Q_EMIT svr->operateFinished(svr->id(), true, data);
+            return;
+        }
+        Q_EMIT svr->operateFinished(svr->id(), false, QVariantMap());
+    }
+
+    // HGETALL → ARRAY (field, value 交替排列)
+    static void Redis_GetAll_Callback(redisAsyncContext *c, void *r, void *privdata)
+    {
+        auto reply = static_cast<redisReply *>(r);
+        auto svr = static_cast<RedisHash<Table> *>(privdata);
+        if (!reply)
+            return;
+
+        if (reply->type == REDIS_REPLY_NIL)
+        {
+            Q_EMIT svr->operateFinished(svr->id(), true, QVariantMap());
             return;
         }
         if (reply->type != REDIS_REPLY_ARRAY)
         {
+            Q_EMIT svr->operateFinished(svr->id(), false, QVariantMap());
             return;
         }
 
-        // 更新data
-        for (int i = 0; i < reply->elements; i += 2)
+        QVariantMap data;
+        for (size_t i = 0; i + 1 < reply->elements; i += 2)
         {
-            QString field = reply->element[i]->str;
-            QString value = reply->element[i + 1]->str;
-
+            if (!reply->element[i]->str || !reply->element[i + 1]->str)
+                continue;
+            QString field = QString::fromUtf8(reply->element[i]->str,
+                                              static_cast<int>(reply->element[i]->len));
+            QString value = QString::fromUtf8(reply->element[i + 1]->str,
+                                              static_cast<int>(reply->element[i + 1]->len));
             data[field] = value;
         }
-
-        // 更新数据
-        Q_EMIT svr->operateFinished(svr->uid(), true, data);
+        Q_EMIT svr->operateFinished(svr->id(), true, data);
     }
 };
 
-
+// ============================================================================
+//  HashConetxt —— Redis Hash 表的本地上下文管理（模板类，非 QObject）
+//  T     : protobuf 消息类型
+//  Table : 编译期 Redis Hash key 名
+// ============================================================================
 template <typename T, const char *Table>
 class HashConetxt
 {
+public:
+    using HashOperateFinishedHandler = std::function<void(HashOperateType, QString, bool, QVariantMap)>;
+
+private:
     std::unordered_map<std::string, std::shared_ptr<T>> m_obj_map;
     std::recursive_mutex m_map_lock;
+    HashOperateFinishedHandler m_hash_operate_finished_handler;
 
 public:
+    // ==================== 异步操作接口 ====================
+
     std::string addObject(const std::string &field, std::string json_str)
     {
-        // 生成一个唯一的UID
-
-
-        // 创建一个HashOperate对象
-        auto hash_operate = std::make_shared<RedisHash<Table>>();
-        hash_operate->init("add");
-        hash_operate->add(field, json_str);
-
-        // 连接信号和槽
-        connect(hash_operate.get(), &RedisHash<Table>::operateFinished, this, &HashConetxt::onAddObjectFinished);
-
-        // 添加到MAP中，等待任务执行
-        return Operaters::getInstance()->addRedisOperate(hash_operate);
+        return submitOperation(HashOperateType::ADD, field, json_str);
     }
 
     std::string delObject(const std::string &field)
     {
-        // 创建一个HashOperate对象
-        auto hash_operate = std::make_shared<RedisHash<Table>>();
-        hash_operate->init("del");
-        hash_operate->del(field);
-
-        // 连接信号和槽
-        connect(hash_operate.get(), &RedisHash<Table>::operateFinished, this, &HashConetxt::onDelObjectFinished);
-
-        // 添加到MAP中，等待任务执行
-        return Operaters::getInstance()->addRedisOperate(hash_operate);
+        return submitOperation(HashOperateType::DEL, field);
     }
 
     std::string setObject(const std::string &field, std::string json_str)
     {
-        // 创建一个HashOperate对象
-        auto hash_operate = std::make_shared<RedisHash<Table>>();
-        hash_operate->init("set");
-        hash_operate->set(field, json_str);
-
-        // 连接信号和槽
-        connect(hash_operate.get(), &RedisHash<Table>::operateFinished, this, &HashConetxt::onSetObjectFinished);
-
-        // 添加到MAP中，等待任务执行
-        return Operaters::getInstance()->addRedisOperate(hash_operate);
+        return submitOperation(HashOperateType::SET, field, json_str);
     }
 
     std::string getObject(const std::string &field)
     {
-        // 创建一个HashOperate对象
-        auto hash_operate = std::make_shared<RedisHash<Table>>();
-        hash_operate->init("get");
-        hash_operate->get(field);
-
-        // 连接信号和槽
-        connect(hash_operate.get(), &RedisHash<Table>::operateFinished, this, &HashConetxt::onGetObjectFinished);
-
-        // 添加到MAP中，等待任务执行
-        return Operaters::getInstance()->addRedisOperate(hash_operate);
+        return submitOperation(HashOperateType::GET, field);
     }
 
     std::string getAllObjects()
     {
-
-        // 创建一个HashOperate对象
-        auto hash_operate = std::make_shared<RedisHash<Table>>();
-        hash_operate->init("get_all");
-        hash_operate->get_all();
-
-        // 连接信号和槽
-        connect(hash_operate.get(), &RedisHash<Table>::operateFinished, this, &HashConetxt::onGetObjectFinished);
-
-        // 添加到MAP中，等待任务执行
-        return Operaters::getInstance()->addRedisOperate(hash_operate);
-
+        return submitOperation(HashOperateType::GET_ALL, "");
     }
 
-    std::string getObjectInfo(const std::string &UID)
+    // ==================== 本地缓存查询 ====================
+
+    std::string getObjectInfo(const std::string &key)
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        auto item = m_obj_map.find(UID);
-        if (item == m_obj_map.end())
-        {
-            return std::string(); // 找不到
-        }
-        return ProtoToJson(*item->second);
+        auto it = m_obj_map.find(key);
+        if (it == m_obj_map.end())
+            return std::string();
+        return ProtoToJson(*it->second);
+    }
+
+    std::shared_ptr<T> getLocalObject(const std::string &key)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+        auto it = m_obj_map.find(key);
+        return (it != m_obj_map.end()) ? it->second : nullptr;
+    }
+
+    bool contains(const std::string &key)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+        return m_obj_map.find(key) != m_obj_map.end();
+    }
+
+    size_t size()
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+        return m_obj_map.size();
     }
 
     void forEach(const std::function<void(const std::string &, const std::shared_ptr<T> &)> &callback)
     {
-        // std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        // for (const auto &[key, st] : m_obj_map)
-        // {
-        //     callback(key, st);
-        // }
+        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+        for (const auto &[key, obj] : m_obj_map)
+        {
+            callback(key, obj);
+        }
     }
 
     std::unordered_map<std::string, std::shared_ptr<T>> *getObjs()
     {
-        // std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        // return &m_obj_map;
+        return &m_obj_map;
     }
 
-    void setUnpdateFlagFalse()
+    void clear()
     {
-        // std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        // for (auto iter : m_obj_map)
-        // {
-        //     iter.second->set_update_flag(false);
-        // }
+        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+        m_obj_map.clear();
     }
 
-    void clearUnpdateFlagFalse()
+    // ==================== 回调注册 ====================
+
+    void setNoticeHashOperateFinishedHandler(HashOperateFinishedHandler handler)
     {
-        // std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        // auto it = m_obj_map.begin();
-        // while (it != m_obj_map.end())
-        // {
-        //     if (it->second->update_flag() == false)
-        //     {
-        //         it = m_obj_map.erase(it); // 删除元素，并更新迭代器
-        //     }
-        //     else
-        //     {
-        //         ++it; // 仅在未删除时前进迭代器
-        //     }
-        // }
+        m_hash_operate_finished_handler = std::move(handler);
     }
 
-private slots:
+private:
+    // ==================== 操作提交（内部） ====================
 
-    void onAddObjectFinished(QString OP_UID, bool success, QVariantMap info)
+    std::string submitOperation(HashOperateType type,
+                                const std::string &field,
+                                const std::string &json_str = "")
     {
-        // 根据OP_UID找到对应的操作对象
-        auto op =  Operaters::getInstance()->getRedisOperate(OP_UID.toStdString());
-        if (op)        {
-            return; // 没有找到对应的操作对象
+        auto hash_operate = std::make_shared<RedisHash<Table>>();
+
+        switch (type)
+        {
+        case HashOperateType::ADD:
+            hash_operate->init("add");
+            hash_operate->add(field, json_str);
+            break;
+        case HashOperateType::DEL:
+            hash_operate->init("del");
+            hash_operate->del(field);
+            break;
+        case HashOperateType::SET:
+            hash_operate->init("set");
+            hash_operate->set(field, json_str);
+            break;
+        case HashOperateType::GET:
+            hash_operate->init("get");
+            hash_operate->get(field);
+            break;
+        case HashOperateType::GET_ALL:
+            hash_operate->init("get_all");
+            hash_operate->get_all();
+            break;
+        default:
+            return {};
         }
+
+        QObject::connect(hash_operate.get(), &RedisHash<Table>::operateFinished,
+                         [this, type, field, json_str](QString OP_UID, bool success, QVariantMap info) {
+                             onOperateFinished(type, field, json_str, OP_UID, success, info);
+                         });
+
+        return Operaters::getInstance()->addRedisOperate(hash_operate);
+    }
+
+    // ==================== 统一回调处理 ====================
+
+    void onOperateFinished(HashOperateType type,
+                           const std::string &field,
+                           const std::string &json_str,
+                           QString OP_UID, bool success, QVariantMap info)
+    {
+        Operaters::getInstance()->deleteRedisOperate(OP_UID.toStdString());
 
         if (success)
         {
-            // 添加成功，更新context上下文
-            // 解析info，获取添加的对象信息
-            // 创建一个对象，并添加到context上下文中
-            // 这里需要根据具体的业务逻辑来解析info并创建对象
-        }
-        else
-        {
-            // 添加失败，记录日志或者进行其他处理
+            std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+            switch (type)
+            {
+            case HashOperateType::ADD:
+            case HashOperateType::SET:
+            {
+                auto obj = std::make_shared<T>();
+                if (JsonToProto(json_str, *obj))
+                {
+                    m_obj_map[field] = obj;
+                }
+                break;
+            }
+            case HashOperateType::DEL:
+            {
+                m_obj_map.erase(field);
+                break;
+            }
+            case HashOperateType::GET:
+            {
+                for (auto it = info.begin(); it != info.end(); ++it)
+                {
+                    auto obj = std::make_shared<T>();
+                    if (JsonToProto(it.value().toString().toStdString(), *obj))
+                    {
+                        m_obj_map[it.key().toStdString()] = obj;
+                    }
+                }
+                break;
+            }
+            case HashOperateType::GET_ALL:
+            {
+                m_obj_map.clear();
+                for (auto it = info.begin(); it != info.end(); ++it)
+                {
+                    auto obj = std::make_shared<T>();
+                    if (JsonToProto(it.value().toString().toStdString(), *obj))
+                    {
+                        m_obj_map[it.key().toStdString()] = obj;
+                    }
+                }
+                break;
+            }
+            default:
+                break;
+            }
         }
 
-        // 无论成功还是失败，都可以选择是否从map中删除这个操作对象
-        Operaters::getInstance()->deleteRedisOperate(OP_UID.toStdString());
+        noticeHashOperateFinished(type, OP_UID, success, info);
     }
 
-    void onDelObjectFinished(QString OP_UID, bool success, QVariantMap info)
+    void noticeHashOperateFinished(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
     {
-        auto op =  Operaters::getInstance()->getRedisOperate(OP_UID.toStdString());
-        if (op == nullptr)        {
-            return; // 没有找到对应的操作对象
-        }
-
-        if (success)
+        if (m_hash_operate_finished_handler)
         {
-            // 删除成功，更新context上下文
-            // 解析info，获取删除的对象信息
-            // 从context上下文中删除对应的对象
-            // 这里需要根据具体的业务逻辑来解析info并删除对象
+            m_hash_operate_finished_handler(type, OP_UID, success, info);
         }
-        else
-        {
-            // 删除失败，记录日志或者进行其他处理
-        }
-
-        // 无论成功还是失败，都可以选择是否从map中删除这个操作对象
-        Operaters::getInstance()->deleteRedisOperate(OP_UID.toStdString());
-    }
-
-    void onSetObjectFinished(QString OP_UID, bool success, QVariantMap info)
-    {
-        auto op =  Operaters::getInstance()->getRedisOperate(OP_UID.toStdString());
-        if (op == nullptr)        {
-            return; // 没有找到对应的操作对象
-        }
-        if (success)
-        {
-            // 设置成功，更新context上下文
-            // 解析info，获取设置的对象信息
-            // 更新context上下文中的对应对象
-            // 这里需要根据具体的业务逻辑来解析info并更新对象
-        }
-        else
-        {
-            // 设置失败，记录日志或者进行其他处理
-        }
-
-        // 无论成功还是失败，都可以选择是否从map中删除这个操作对象
-        Operaters::getInstance()->deleteRedisOperate(OP_UID.toStdString());
-    }
-
-    void onGetObjectFinished(QString OP_UID, bool success, QVariantMap info)
-    {
-        auto op =  Operaters::getInstance()->getRedisOperate(OP_UID.toStdString());
-        if (op == nullptr)        {
-            return; // 没有找到对应的操作对象
-        }
-        if (success)
-        {
-            // 获取成功，处理获取到的信息
-            // 解析info，获取对象信息
-            // 这里需要根据具体的业务逻辑来解析info并处理对象信息
-        }
-        else
-        {
-            // 获取失败，记录日志或者进行其他处理
-        }
-
-        // 无论成功还是失败，都可以选择是否从map中删除这个操作对象
-        Operaters::getInstance()->deleteRedisOperate(OP_UID.toStdString());
-
-        // 完成后通知主线程更新UI或者进行其他操作
-    }
-
-    void onGetAllObjectsFinished(QString OP_UID, bool success, QVariantMap info)
-    {
-       
-        auto op =  Operaters::getInstance()->getRedisOperate(OP_UID.toStdString());
-        if (op == nullptr)        {
-            return; // 没有找到对应的操作对象
-        }
-        if (success)
-        {
-            // 获取成功，处理获取到的信息
-            // 解析info，获取所有对象信息
-            // 这里需要根据具体的业务逻辑来解析info并处理对象信息
-        }
-        else
-        {
-            // 获取失败，记录日志或者进行其他处理
-        }
-
-        // 无论成功还是失败，都可以选择是否从map中删除这个操作对象
-        Operaters::getInstance()->deleteRedisOperate(OP_UID.toStdString());
-        // 完成后通知主线程更新UI或者进行其他操作
     }
 };

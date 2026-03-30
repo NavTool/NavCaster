@@ -142,3 +142,47 @@ QVariant JsonToQVariant(const nlohmann::json &jsonValue)
     return QVariant(); // 默认返回空 QVariant
 }
 
+
+QVariantMap jsonStrToVariantMap(const QString &jsonStr, bool *ok)
+{
+    if (ok)
+    {
+        *ok = false;
+    }
+
+    if (jsonStr.trimmed().isEmpty())
+    {
+        qWarning() << "jsonStringToVariantMap: empty json string";
+        return {};
+    }
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8(), &parseError);
+
+    if (parseError.error != QJsonParseError::NoError)
+    {
+        qWarning() << "jsonStringToVariantMap: parse error:"
+                   << parseError.errorString();
+        return {};
+    }
+
+    if (!doc.isObject())
+    {
+        qWarning() << "jsonStringToVariantMap: json root is not object";
+        return {};
+    }
+
+    if (ok)
+    {
+        *ok = true;
+    }
+
+    return doc.object().toVariantMap();
+}
+
+QString variantMapToJsonStr(const QVariantMap &map, QJsonDocument::JsonFormat format)
+{
+    QJsonObject obj = QJsonObject::fromVariantMap(map);
+    QJsonDocument doc(obj);
+    return QString::fromUtf8(doc.toJson(format));
+}
