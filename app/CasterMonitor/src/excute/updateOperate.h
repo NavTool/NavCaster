@@ -12,7 +12,7 @@ class EventUpdateNodeData : public RedisOperationBase
 public:
     explicit EventUpdateNodeData(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override
     {
@@ -68,7 +68,7 @@ class EventUpdateAccountData : public RedisOperationBase
 public:
     explicit EventUpdateAccountData(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override
     {
@@ -124,7 +124,7 @@ class EventUpdateClientData : public RedisOperationBase
 public:
     explicit EventUpdateClientData(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override
     {
@@ -180,7 +180,7 @@ class EventUpdateServerData : public RedisOperationBase
 public:
     explicit EventUpdateServerData(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override
     {
@@ -236,7 +236,7 @@ class EventUpdateRelayPullData : public RedisOperationBase
 public:
     explicit EventUpdateRelayPullData(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override
     {
@@ -337,7 +337,7 @@ class EventUpdateRelayPushData : public RedisOperationBase
 public:
     explicit EventUpdateRelayPushData(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override
     {
@@ -436,7 +436,7 @@ class EventUpdateAliasRuleData : public RedisOperationBase
 public:
     explicit EventUpdateAliasRuleData(QObject *parent = nullptr): RedisOperationBase(parent) {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
     void execute(redisAsyncContext *ctx) override
     {

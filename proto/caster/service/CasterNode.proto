@@ -1,0 +1,36 @@
+// 节点状态
+syntax = "proto3";
+package caster.service;
+
+message CasterNode {
+
+  string uid = 1;
+
+  uint64 online_time = 2;
+  uint64 update_time = 3;
+
+  string node_name   = 4;
+  string set_version = 5;
+  string tag_version = 6;
+
+  double cpu_usage      = 7;
+  uint64 mem_usage      = 8;
+  uint64 queue_delay    = 9;
+  uint64 sub_ping_delay = 10;
+  uint64 sub_tcp_delay  = 11;
+  uint64 pub_ping_delay = 12;
+  uint64 pub_tcp_delay  = 13;
+
+  uint64 send_total = 14;
+  double send_speel = 15;
+  uint64 recv_total = 16;
+  double recv_speed = 17;
+
+  uint32 connect_count = 18;
+  uint32 server_count  = 19;
+  uint32 client_count  = 20;
+  uint32 pull_count    = 21;
+  uint32 push_count    = 22;
+  uint32 proxy_counnt  = 23;
+
+}

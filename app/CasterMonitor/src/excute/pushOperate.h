@@ -27,9 +27,9 @@ class EventAddPush : public RedisOperationBase
 public:
     explicit EventAddPush(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }
 
-        void execute(redisAsyncContext *ctx) override {
+    void execute(redisAsyncContext *ctx) override {
 
         auto UID= m_relay_info["UID"].toString();
         auto info= JsonToQString(variantMapToJson(m_relay_info)) ;
@@ -81,7 +81,7 @@ class EventSetPush : public RedisOperationBase
 public:
     explicit EventSetPush(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
         void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
@@ -111,7 +111,7 @@ class EventGetPush : public RedisOperationBase
 public:
     explicit EventGetPush(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
         void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
@@ -141,7 +141,7 @@ class EventDelPush : public RedisOperationBase
 public:
     explicit EventDelPush(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
         void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);

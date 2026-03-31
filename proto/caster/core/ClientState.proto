@@ -1,0 +1,23 @@
+syntax = "proto3";
+package caster.core;
+
+// 实时的挂载点信息，构造的源列表由这个表来提供数据源
+
+
+message ClientState {
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+
+  string source_group_uid = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
+
+  double ecef_x               = 5;
+  double ecef_y               = 6;
+  double ecef_z               = 7;
+  int32  quality              = 8;
+  int32  sat_num              = 9;
+  double diff                 = 10;
+  double distance             = 11;
+  double position_update_time = 12;
+
+}

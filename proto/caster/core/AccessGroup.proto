@@ -1,0 +1,26 @@
+syntax = "proto3";
+package caster.core;
+
+// 账号分组表
+
+message AccessGroup {
+  string uid = 1;
+
+  string group_name = 2; // 分组名称
+
+  uint64 create_time = 3; // 创建日期
+  uint64 update_time = 4; // 修改日期
+
+  // 挂载点组
+  bool   nearest_mpt_enable      = 5 ; // 是否启动最近点
+  string nearest_mpt_source_name = 6; // 最近点使用的源挂载点名称
+
+  bool allow_visible_inside_group = 7; // 是否允许可见组内数据   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)
+  bool allow_access_inside_group  = 8; // 是否允许组内数据可获取   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)可获取
+  bool allow_nearby_inside_group  = 9; // 是否允许组内数据参与最近基站检索   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)参与最近基站检索
+
+  bool allow_visible_outside_group = 10; // 是否允许可见组外数据   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)
+  bool allow_access_outside_group  = 11; // 是否允许组外数据可获取   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)
+  bool allow_nearby_outside_group  = 12; // 是否允许组外数据参与最近基站检索   只有开启后，才能获取到这个源列表的挂载点以外的挂载点(即在record中，但是info中没有的挂载点未记录的挂载点)参与最近基站检索
+
+}

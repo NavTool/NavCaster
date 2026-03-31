@@ -28,67 +28,17 @@ find_package(Qt6 COMPONENTS Quick REQUIRED)
 set(QT_SDK_DIR "${Qt6_DIR}/../../..")
 cmake_path(SET QT_SDK_DIR NORMALIZE ${QT_SDK_DIR})
 
-set(QML_FILES
-# component
-
-# dialog
-    qml/dialog/Monitor/Dialog_Account_AddAccount.qml
-    qml/dialog/Monitor/Dialog_Alias_AddAlias.qml
-    qml/dialog/Monitor/Dialog_Relay_AddPull.qml
-    qml/dialog/Monitor/Dialog_Relay_AddPush.qml
-
-# extra
-# 扩展样式组件    
-    qml/extra/DataGridEx.qml
-    qml/extra/ExpanderEx.qml
-    qml/extra/NavigationViewEx.qml
-    qml/extra/PageRouterEx.qml
-    qml/extra/PageRouterViewEx.qml
-    qml/extra/TabViewEx.qml
-    qml/extra/TreeDataGridEx.qml
-# page
-    qml/page/Page_Test.qml
-# 初始页面
-    qml/page/Init/Page_About.qml
-    qml/page/Init/Page_Home.qml
-    qml/page/Init/Page_Setting.qml
-    qml/page/Init/Page_Start.qml
-# Mointor页面
-    qml/page/Monitor/Page_Account.qml
-    qml/page/Monitor/Page_Client.qml
-    qml/page/Monitor/Page_Event.qml
-    qml/page/Monitor/Page_Exit.qml
-    qml/page/Monitor/Page_Map.qml
-    qml/page/Monitor/Page_Mpt_Alias.qml
-    qml/page/Monitor/Page_Mpt_Nearest.qml
-    qml/page/Monitor/Page_Mpt_Proxy.qml
-    qml/page/Monitor/Page_Mpt_Pull.qml
-    qml/page/Monitor/Page_Mpt_Push.qml
-    qml/page/Monitor/Page_Mpt_Source.qml
-    qml/page/Monitor/Page_Mpt_Access.qml
-    qml/page/Monitor/Page_Mpt.qml
-    qml/page/Monitor/Page_Option.qml
-    qml/page/Monitor/Page_Server.qml
-    qml/page/Monitor/Page_Status.qml
-
-
-# plot
-
-#reuse
-
-# screen 页面框架
-    qml/screen/Screen_Init.qml
-    qml/screen/Screen_Main.qml
-    qml/screen/Screen_Root.qml
-# window 窗口框架
-    qml/window/MainWindow.qml
-    qml/window/PageWindow.qml
-    qml/window/SingleInstanceWindow.qml
-    qml/window/SingleTaskWindow.qml
-    qml/window/StandardWindow.qml
-
-    qml/App.qml
+# 遍历和添加指定路径下的所有qml文件
+file(GLOB_RECURSE QML_FILES
+    CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/qml/**/*.qml
+    ${CMAKE_CURRENT_SOURCE_DIR}/qml/App.qml
 )
+# 设置 QT_RESOURCE_ALIAS，转换为相对路径
+foreach(_qml ${QML_FILES})
+    file(RELATIVE_PATH _alias ${CMAKE_CURRENT_SOURCE_DIR} ${_qml})
+    set_property(SOURCE ${_qml} PROPERTY QT_RESOURCE_ALIAS ${_alias})
+endforeach()
 
 set(QML_SINGLETONS
     qml/Global.qml
@@ -120,47 +70,15 @@ set(RESOURCES_FILES
     res/NavTool_ICON/icon-6.png
 )
 
-set(SOURCE_FILES
-    src/stdafx.h
-    src/frame.hpp
-    src/util.h  src/util.cpp
-    src/CasterMonitor.h src/CasterMonitor.cpp
-
-    src/component/AppInfo.h src/component/AppInfo.cpp
-    src/component/CircularReveal.h src/component/CircularReveal.cpp
-    src/component/DataGridModelEx.h src/component/DataGridModelEx.cpp
-    src/component/Log.h src/component/Log.cpp
-    src/component/PerformanceMonitor.h src/component/PerformanceMonitor.cpp
-    src/component/SettingsHelper.h src/component/SettingsHelper.cpp
-
-    src/context/user_account.h
-    src/context/caster_node.h
-    src/context/ntrip_client.h
-    src/context/ntrip_server.h
-    src/context/relay_pull.h
-    src/context/relay_push.h
-    src/context/alias_rule.h
-
-    src/controller/CasterResourceController.h 
-    src/controller/ClientDataController.h 
-    src/controller/EventDataController.h 
-    src/controller/ServerDataController.h 
-    src/controller/AccountDataController.h 
-    src/controller/PullDataController.h 
-    src/controller/PushDataController.h 
-    src/controller/AliasDataController.h
-
-    src/core/EventWorker.h src/core/EventWorker.cpp
-    src/core/EventOperationBase.h 
-
-    src/excute/AccountOperate.h
-    src/excute/AliasOperate.h
-    src/excute/connectOperate.h
-    src/excute/pullOperate.h
-    src/excute/pushOperate.h
-    src/excute/updateOperate.h
-    )
-set(MAIN_FILES src/main.cpp)
+file(GLOB_RECURSE CPP_SOURCE_FILES
+    CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.cpp
+)
 
 set_source_files_properties(${QML_SINGLETONS} PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
@@ -172,7 +90,7 @@ if (WIN32)
     # set(APP_ICON_RESOURCE_WINDOWS ${CMAKE_CURRENT_BINARY_DIR}/win_app.rc)
     # qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${APP_ICON_RESOURCE_WINDOWS})
     set(APP_ICON_RESOURCE_WINDOWS ${CMAKE_CURRENT_SOURCE_DIR}/deploy/windows/info.rc)
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES} ${APP_ICON_RESOURCE_WINDOWS})
+    qt_add_executable(${PROJECT_NAME} ${CPP_SOURCE_FILES} ${MAIN_FILES} ${APP_ICON_RESOURCE_WINDOWS})
 elseif(APPLE)
     set(MACOSX_BUNDLE_GUI_IDENTIFIER ${PROJECT_DOMAIN})
     set(MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION})
@@ -185,15 +103,15 @@ elseif(APPLE)
     set(MACOSX_BUNDLE_ICON_FILE favicon)
     configure_file(${CMAKE_SOURCE_DIR}/.cmake/MacOSXBundleInfo.plist.in ${CMAKE_CURRENT_BINARY_DIR}/Info.plist)
     set_source_files_properties(${APP_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES} ${APP_ICON})
+    qt_add_executable(${PROJECT_NAME} ${CPP_SOURCE_FILES} ${MAIN_FILES} ${APP_ICON})
 elseif(UNIX)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux_control.in ${CMAKE_SOURCE_DIR}/package/DEBIAN/control)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux_postinst.in ${CMAKE_SOURCE_DIR}/package/DEBIAN/postinst)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux_postrm.in ${CMAKE_SOURCE_DIR}/package/DEBIAN/postrm)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/.cmake/linux.desktop.in ${CMAKE_SOURCE_DIR}/package/opt/${PROJECT_NAME}/${PROJECT_NAME}.desktop)
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES} )
+    qt_add_executable(${PROJECT_NAME} ${CPP_SOURCE_FILES} ${MAIN_FILES} )
 else()
-    qt_add_executable(${PROJECT_NAME} ${SOURCE_FILES} ${MAIN_FILES})
+    qt_add_executable(${PROJECT_NAME} ${CPP_SOURCE_FILES} ${MAIN_FILES})
 endif()
 
 set(QT_QML_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/imports/)
@@ -237,6 +155,7 @@ target_link_libraries(
     casterbase
     castercore
     authverify
+    caster_proto
 )
 if (FLUENTUI_BUILD_STATIC_LIB)
     target_link_libraries(
@@ -371,43 +290,52 @@ endif()
 
 
 
-add_executable(test_Monitor test/test_Monitor.cpp ${SOURCE_FILES})
-target_link_libraries(
-    test_Monitor PRIVATE
-    Qt6::Quick
-    FluentUI
-    FluentUIImpl
-    FluentUIControls
-    event
-    event_core
-    event_extra
-    hiredis
-    casterbase
-    castercore
-    authverify
-)
-if (LINUX)
-    target_link_libraries(
-        test_Monitor PRIVATE
-        event_pthreads_static
-    )
-endif()
-target_include_directories(test_Monitor PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/component
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/context
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/controller
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/excute
-    ${CMAKE_BINARY_DIR}
-    )
-target_compile_definitions(test_Monitor PRIVATE
-    QT_MESSAGELOGCONTEXT
-    PROJECT_NAME="${PROJECT_NAME}"
-    PROJECT_COMPANY="${PROJECT_COMPANY}"
-    PROJECT_DOMAIN="${PROJECT_DOMAIN}"
-    PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION}"
-    PROJECT_VERSION="${PROJECT_VERSION}"
-    PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-    PROJECT_HOTLOAD_ENABLED="${HOTLOAD_ENABLED}"
-)
+# # 新集合：复制一份
+# set(CPP_SOURCE_FILES_NO_MAIN ${CPP_SOURCE_FILES})
+
+# # 过滤掉 main.cpp
+# list(FILTER CPP_SOURCE_FILES_NO_MAIN
+#     EXCLUDE REGEX ".*/main\\.cpp$"
+# )
+
+# add_executable(test_Monitor test/test_Monitor.cpp ${CPP_SOURCE_FILES_NO_MAIN})
+# target_link_libraries(
+#     test_Monitor PRIVATE
+#     Qt6::Quick
+#     FluentUI
+#     FluentUIImpl
+#     FluentUIControls
+#     event
+#     event_core
+#     event_extra
+#     hiredis
+#     casterbase
+#     castercore
+#     authverify
+#     caster_proto
+# )
+# if (LINUX)
+#     target_link_libraries(
+#         test_Monitor PRIVATE
+#         event_pthreads_static
+#     )
+# endif()
+# target_include_directories(test_Monitor PRIVATE
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/component
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/context
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/controller
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+#     ${CMAKE_CURRENT_SOURCE_DIR}/src/excute
+#     ${CMAKE_BINARY_DIR}
+#     )
+# target_compile_definitions(test_Monitor PRIVATE
+#     QT_MESSAGELOGCONTEXT
+#     PROJECT_NAME="${PROJECT_NAME}"
+#     PROJECT_COMPANY="${PROJECT_COMPANY}"
+#     PROJECT_DOMAIN="${PROJECT_DOMAIN}"
+#     PROJECT_DESCRIPTION="${PROJECT_DESCRIPTION}"
+#     PROJECT_VERSION="${PROJECT_VERSION}"
+#     PROJECT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+#     PROJECT_HOTLOAD_ENABLED="${HOTLOAD_ENABLED}"
+# )

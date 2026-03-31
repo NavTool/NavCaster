@@ -1,6 +1,6 @@
 #pragma once
 #include <event2/event.h>
-#include "service/opt_auth_verify.pb.h"
+#include "service/AuthVerifyOpt.pb.h"
 using namespace caster::service;
 
 // #define AUTH_REPLY_ERR -1

@@ -11,7 +11,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "service/info_connect.pb.h"
+#include "service/ConnectInfo.pb.h"
 using namespace caster::service;
 
 namespace QUEUE

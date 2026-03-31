@@ -12,12 +12,13 @@ class EventOperationBase : public QObject {
     Q_OBJECT
     Q_PROPERTY_AUTO(QString, id)
     Q_PROPERTY_AUTO(int, type)
+    Q_PROPERTY_AUTO(QString, name)
 public:
     explicit EventOperationBase(QObject* parent = nullptr) : QObject(parent) {}
     virtual ~EventOperationBase() {}
 
     // 操作名称（可用于日志、调试）
-    virtual QString name() const = 0;
+    // virtual QString name() const = 0;
 
     // 1️执行函数：发起 libevent 相关操作
     virtual void execute(event_base* base) = 0;
@@ -29,18 +30,18 @@ signals:
 
 
 
+
+
 /**
  * 基础 Redis 异步操作类
  */
 class RedisOperationBase : public QObject {
     Q_OBJECT
     Q_PROPERTY_AUTO(QString, id)
+    Q_PROPERTY_AUTO(QString, name)
 public:
     explicit RedisOperationBase(QObject* parent = nullptr) : QObject(parent) {}
     virtual ~RedisOperationBase() {}
-
-    // 操作名称（可用于日志、调试）
-    virtual QString name() const = 0;
 
     // 1执行函数：发起 Redis 命令
     virtual void execute(redisAsyncContext *ctx) = 0;

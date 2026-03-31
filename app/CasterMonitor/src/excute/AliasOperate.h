@@ -27,7 +27,7 @@ class EventAddAlias : public RedisOperationBase
 public:
     explicit EventAddAlias(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
     void execute(redisAsyncContext *ctx) override {
 
@@ -81,7 +81,7 @@ class EventSetAlias : public RedisOperationBase
 public:
     explicit EventSetAlias(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
     void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
@@ -111,7 +111,7 @@ class EventGetAlias : public RedisOperationBase
 public:
     explicit EventGetAlias(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
     void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);
@@ -141,7 +141,7 @@ class EventDelAlias : public RedisOperationBase
 public:
     explicit EventDelAlias(): RedisOperationBase() {};
 
-    Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
+    // Q_INVOKABLE QString name() const override { return typeid(this).name(); }\
 
     void execute(redisAsyncContext *ctx) override {
         // Q_UNUSED(base);

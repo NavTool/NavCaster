@@ -1,0 +1,16 @@
+syntax = "proto3";
+package caster.auth;
+
+
+message AccountActive {
+  string uid         = 1;
+  uint64 create_time = 2; // 创建日期
+  uint64 update_time = 3; // 修改日期
+
+  string account     = 4; // 使用的账号
+  double online_time = 5; // 上线时刻
+
+  string addr = 6; // 连接地址
+  string port = 7; // 连接端口
+
+}

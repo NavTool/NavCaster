@@ -14,6 +14,36 @@ CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
 
     _caster_mgr->start();
     _auth_mgr->start();
+
+    // 注册 HashConetxt 回调 -> 转发到对应的槽函数
+    AccountRecords.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAccountRecordsUpdated(t, uid, ok, info); });
+    AccountActives.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAccountActivesUpdated(t, uid, ok, info); });
+    AccessGroups.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAccessGroupsUpdated(t, uid, ok, info); });
+    AccessItems.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAccessItemsUpdated(t, uid, ok, info); });
+    SourceRecords.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onSourceRecordsUpdated(t, uid, ok, info); });
+    SourceStates.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onSourceStatesUpdated(t, uid, ok, info); });
+    ClientStates.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onClientStatesUpdated(t, uid, ok, info); });
+    StreamStates.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onStreamStatesUpdated(t, uid, ok, info); });
+    AliasRules.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAliasRulesUpdated(t, uid, ok, info); });
+    PullRecords.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onPullRecordsUpdated(t, uid, ok, info); });
+    PullStates.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onPullStatesUpdated(t, uid, ok, info); });
+    PushRecords.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onPushRecordsUpdated(t, uid, ok, info); });
+    PushStates.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onPushStatesUpdated(t, uid, ok, info); });
+    CasterNodes.setNoticeHashOperateFinishedHandler(
+        [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onCasterNodesUpdated(t, uid, ok, info); });
 }
 
 
@@ -1152,6 +1182,76 @@ std::shared_ptr<ntrip_server> CasterMonitor::get_ntrip_server_by_mpt(QString Mpt
     }
 
     return item->second;
+}
+
+void CasterMonitor::onAccountRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onAccountActivesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onAccessGroupsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onAccessItemsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onSourceRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onSourceStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onClientStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onStreamStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onAliasRulesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onPullRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onPullStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onPushRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onPushStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
+}
+
+void CasterMonitor::onCasterNodesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
+{
+
 }
 
 QString CasterMonitor::generate_UniqueKey(int key_length)

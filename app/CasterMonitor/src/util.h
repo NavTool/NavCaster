@@ -1,4 +1,7 @@
 #pragma once
+#include <mutex>
+#include <qjsondocument.h>
+#include <qjsonobject.h>
 #include <string>
 #include <iostream>
 #include <type_traits>
@@ -6,76 +9,83 @@
 #include <QtQml/qqml.h>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
+#include "google/protobuf/json/json.h"
 
 
-
-
-
-enum class StationType
+template <typename T>
+std::string ProtoToJson(const T &msg)
 {
-    UNKNOWN = 0,
-    Static = 1,
-    Dynamic = 2
-};
+    google::protobuf::json::PrintOptions opt;
+    opt.add_whitespace = true;                       // 转换成json是否添加空格、换行和缩进
+    opt.always_print_fields_with_no_presence = true; // 打印不支持存在的字段
+    opt.always_print_enums_as_ints = false;          // 将枚举类型打印为int
+    opt.preserve_proto_field_names = true;           // 是否保留原型字段名
+    opt.unquote_int64_if_possible = true;            // 关键
+    std::string json_str;
+    auto res = google::protobuf::json::MessageToJsonString(msg, &json_str, opt);
+
+    if (res.ok())
+    {
+        return json_str;
+    }
+    else
+    {
+        return std::string();
+    }
+}
 
 
 
-enum class SolveMode
+QVariantMap jsonStrToVariantMap(const QString &jsonStr, bool *ok = nullptr);
+
+
+QString variantMapToJsonStr(const QVariantMap &map,
+                            QJsonDocument::JsonFormat format = QJsonDocument::Compact);
+
+
+template <typename T>
+std::string genExecuteOptTemp(T opt)
 {
-    UNKNOWN=0,
-    SPP=1,
-    PVT=2,
-    PPP=3,
-    SBAS=4,
-    RTK=5,
-    STATIC=6
-};
+    return ProtoToJson(opt);
+}
 
-//坐标类型（适用于静态站点）
-enum class CoordType
+template <typename T>
+QVariantMap PrototoQml(T opt)
 {
-    UNKNOWN = 0,
-    File_Header=1, // 从文件头获取的坐标
-    Sacn=2,        // 快速获取的坐标（最后一百个历元的单点定位平均值）
-    SPP_AVERAGE=3, // 单点定位坐标平均值
-    PPP_AVERAGE=4, // PPP坐标
-    STATIC=5,      // 静态基线解算
-    Adjust=6,      // 平差后的坐标
-    FreeAdjust=7,  // 秩亏自由网平差
-    Custom=8,      // 用户输入
-    Saved=9       // 保存的坐标
-};
+    bool ok;
+    auto map = jsonStrToVariantMap(ProtoToJson(opt).c_str(), &ok);
+    if (ok)
+    {
+        return map;
+    }
+    else
+    {
+        return QVariantMap();
+    }
+}
 
-
-
-enum class SolveConfig
+template <typename T>
+T QmltoProto(QVariantMap info)
 {
-    UNKNOWN=0,
-    SINO_PVT0=1001,
-    SINO_PVT1=1002,
-    SINO_PVT2=1003,
-    SINO_PVT3=1004,
-    SINO_PVT4=1005,
-
-    PENA_PVT0=1101,
-    PENA_PVT1=1102,
-    PENA_PVT2=1103,
-    PENA_PVT3=1104,
-    PENA_PVT4=1105,
-
-    XW_PVT0=1201,
+    auto json_Str = variantMapToJsonStr(info);
+    T obj;                                    //
+    JsonToProto(json_Str.toStdString(), obj); // json字符串转换成proto
+    return obj;
+}
 
 
-    SINO_PPP0=1301,
-    SINO_PPP1=1302,
-    SINO_PPP2=1303,
-    SINO_PPP3=1304,
-
-    SPP_MODE=2001
-
-};
 
 
+
+template <typename T>
+bool JsonToProto(const std::string &json, T &msg)
+{
+    google::protobuf::json::ParseOptions opt;
+    opt.ignore_unknown_fields = true; // 关键：向前 / 向后兼容
+
+    auto status = google::protobuf::json::JsonStringToMessage(json, &msg, opt);
+    return status.ok();
+}
 
 
 // 判断类型对应的 is_* 函数
