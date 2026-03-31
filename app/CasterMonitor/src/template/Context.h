@@ -2,130 +2,99 @@
 
 #include <functional>
 #include <mutex>
-#include <string>
 #include <unordered_map>
+#include <QString>
+#include <QVariantMap>
+#include "util.h"
 
 template <typename T>
 class Context
 {
-    std::unordered_map<std::string, std::shared_ptr<T>> m_obj_map;
-
+    std::unordered_map<QString, std::shared_ptr<T>> m_obj_map;
     std::recursive_mutex m_map_lock;
 
 public:
-    int addObject(const std::string &UID, std::string json_str)
+    // 从 Redis HGETALL 结果全量同步本地 map
+    // 标记所有现存对象 update_flag=false → 遍历新数据 upsert → 删除未更新的对象
+    void syncFromRedis(const QVariantMap &redis_data)
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
 
-        // 创建一个对象
-        auto obj = std::make_shared<T>();
-        if (!JsonToProto(json_str, *obj)) // 解析对象
+        // 1) 标记所有现有对象为"未更新"
+        for (auto &[key, obj] : m_obj_map)
+            obj->update_flag(false);
+
+        // 2) 遍历 Redis 返回的 key-value，upsert 到本地 map
+        for (auto it = redis_data.begin(); it != redis_data.end(); ++it)
         {
-            return 1; // 解析失败
+            QString key = it.key();
+            auto parsed_json = QStringToJson(it.value().toString());
+
+            auto item = m_obj_map.find(key);
+            if (item == m_obj_map.end())
+            {
+                auto obj = std::make_shared<T>();
+                m_obj_map.insert(std::pair(key, obj));
+                item = m_obj_map.find(key);
+            }
+            item->second->setInfo(parsed_json);
+            item->second->update_flag(true);
         }
-        return addObject(UID, obj);
+
+        // 3) 清除本次未更新的元素
+        for (auto it = m_obj_map.begin(); it != m_obj_map.end();)
+        {
+            if (!it->second->update_flag())
+                it = m_obj_map.erase(it);
+            else
+                ++it;
+        }
     }
 
-    int addObject(const std::string &UID, std::shared_ptr<T> obj)
+    int addObject(const QString &UID, std::shared_ptr<T> obj)
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        auto item = m_obj_map.find(UID);
-        if (item != m_obj_map.end())
-        {
+        if (m_obj_map.find(UID) != m_obj_map.end())
             return 1;
-        }
-        // obj->set_uid(UID);
         m_obj_map.insert(std::pair(UID, obj));
         return 0;
     }
 
-    int delObject(const std::string &UID)
+    int delObject(const QString &UID)
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        auto item = m_obj_map.find(UID);
-        if (item == m_obj_map.end())
-        {
-            return 1; // 在map中不存在
-        }
+        if (m_obj_map.find(UID) == m_obj_map.end())
+            return 1;
         m_obj_map.erase(UID);
         return 0;
     }
 
-    int setObject(const std::string &UID, std::string json_str)
-    {
-        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        auto item = m_obj_map.find(UID);
-        if (item == m_obj_map.end())
-        {
-            return 1;
-        }
-        if (!JsonToProto(json_str, *item->second)) // 解析对象
-        {
-            return 2; // 解析失败
-        }
-        return 0;
-    }
-
-    std::string getObject(const std::string &UID)
-    {
-        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        auto item = m_obj_map.find(UID);
-        if (item == m_obj_map.end())
-        {
-            return std::string(); // 找不到
-        }
-        return ProtoToJson(*item->second);
-    }
-
-    std::shared_ptr<T> getObjectPtr(const std::string &UID)
+    std::shared_ptr<T> getObjectPtr(const QString &UID)
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
         auto it = m_obj_map.find(UID);
         if (it == m_obj_map.end())
-        {
             return nullptr;
-        }
         return it->second;
     }
 
-    void forEach(const std::function<void(const std::string &, const std::shared_ptr<T> &)> &callback)
+    void forEach(const std::function<void(const QString &, const std::shared_ptr<T> &)> &callback)
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        for (const auto &[key, st] : m_obj_map)
-        {
-            callback(key, st);
-        }
+        for (const auto &[key, obj] : m_obj_map)
+            callback(key, obj);
     }
 
-    std::unordered_map<std::string, std::shared_ptr<T>> *getObjs()
+    // 返回内部 map 的线程安全副本（适合在线程池中使用）
+    std::unordered_map<QString, std::shared_ptr<T>> getSnapshot()
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        return &m_obj_map;
+        return m_obj_map;
     }
 
-    void setUnpdateFlagFalse()
+    size_t size()
     {
         std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        for (auto iter : m_obj_map)
-        {
-            iter.second->set_update_flag(false);
-        }
-    }
-
-    void clearUnpdateFlagFalse()
-    {
-        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
-        auto it = m_obj_map.begin();
-        while (it != m_obj_map.end())
-        {
-            if (it->second->update_flag() == false)
-            {
-                it = m_obj_map.erase(it); // 删除元素，并更新迭代器
-            }
-            else
-            {
-                ++it; // 仅在未删除时前进迭代器
-            }
-        }
+        return m_obj_map.size();
     }
 };

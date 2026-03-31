@@ -1,11 +1,7 @@
 #include <sstream>
 #include "CasterMonitor.h"
-#include "AccountOperate.h"
-#include "AliasOperate.h"
 #include "excute/connectOperate.h"
 #include "excute/updateOperate.h"
-#include "pullOperate.h"
-#include "pushOperate.h"
 
 
 CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
@@ -15,7 +11,29 @@ CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
     _caster_mgr->start();
     _auth_mgr->start();
 
-    // 注册 HashConetxt 回调 -> 转发到对应的槽函数
+    // ==================== 绑定 EventWorker 到 HashConetxt ====================
+
+    // Auth 相关 → _auth_mgr
+    AccountRecords.setWorker(_auth_mgr.get());
+    AccountActives.setWorker(_auth_mgr.get());
+
+    // Core 相关 → _caster_mgr
+    AccessGroups.setWorker(_caster_mgr.get());
+    AccessItems.setWorker(_caster_mgr.get());
+    SourceRecords.setWorker(_caster_mgr.get());
+    SourceStates.setWorker(_caster_mgr.get());
+    ClientStates.setWorker(_caster_mgr.get());
+    StreamStates.setWorker(_caster_mgr.get());
+    AliasRules.setWorker(_caster_mgr.get());
+    PullRecords.setWorker(_caster_mgr.get());
+    PullStates.setWorker(_caster_mgr.get());
+    PushRecords.setWorker(_caster_mgr.get());
+    PushStates.setWorker(_caster_mgr.get());
+
+    // Service 相关 → _caster_mgr
+    CasterNodes.setWorker(_caster_mgr.get());
+
+    // ==================== 注册 HashConetxt 回调 ====================
     AccountRecords.setNoticeHashOperateFinishedHandler(
         [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAccountRecordsUpdated(t, uid, ok, info); });
     AccountActives.setNoticeHashOperateFinishedHandler(
@@ -53,80 +71,57 @@ CasterMonitor *CasterMonitor::create(QQmlEngine *, QJSEngine *) {
 
 QVariantMap CasterMonitor::getNtripServerInfo(QString UID)
 {
-    auto iter= m_ntrip_server_map.find(UID);
-    if(iter==m_ntrip_server_map.end())
+    auto ptr = m_ntrip_servers.getObjectPtr(UID);
+    if (!ptr)
     {
         ntrip_server obj;
         return JsonToQVariantMap(obj.info());
     }
-    return JsonToQVariantMap(iter->second->info());
-}
-
-QVariantMap CasterMonitor::getNtripServerInfoByMpt(QString Mpt)
-{
-    auto map_item= _ntrip_serverUID_map.find(Mpt);
-    if(map_item==_ntrip_serverUID_map.end())
-    {
-        ntrip_server obj;
-        return JsonToQVariantMap(obj.info());
-    }
-
-    return getNtripServerInfo(map_item->second);
+    return JsonToQVariantMap(ptr->info());
 }
 
 QVariantMap CasterMonitor::getNtripClientInfo(QString UID)
 {
-    auto iter= m_ntrip_client_map.find(UID);
-    if(iter==m_ntrip_client_map.end())
+    auto ptr = m_ntrip_clients.getObjectPtr(UID);
+    if (!ptr)
     {
         ntrip_client obj;
         return JsonToQVariantMap(obj.info());
     }
-    return JsonToQVariantMap(iter->second->info());
+    return JsonToQVariantMap(ptr->info());
 }
 
 QVariantMap CasterMonitor::getUserAccountInfo(QString UID)
 {
-    auto iter= m_user_account_map.find(UID);
-    if(iter==m_user_account_map.end())
+    auto ptr = m_user_accounts.getObjectPtr(UID);
+    if (!ptr)
     {
         user_account obj;
         return JsonToQVariantMap(obj.info());
     }
-    return JsonToQVariantMap(iter->second->info());
+    return JsonToQVariantMap(ptr->info());
 }
 
 QVariantMap CasterMonitor::getRelayPullInfo(QString UID)
 {
-    auto iter= m_relay_pull_list_map.find(UID);
-    if(iter==m_relay_pull_list_map.end())
+    auto ptr = m_relay_pull_items.getObjectPtr(UID);
+    if (!ptr)
     {
-        user_account obj;
+        relay_pull_item obj;
         return JsonToQVariantMap(obj.info());
     }
-    return JsonToQVariantMap(iter->second->info());
+    return JsonToQVariantMap(ptr->info());
 }
 
 QVariantMap CasterMonitor::getRelayPushInfo(QString UID)
 {
-    auto iter= m_relay_push_list_map.find(UID);
-    if(iter==m_relay_push_list_map.end())
+    auto ptr = m_relay_push_items.getObjectPtr(UID);
+    if (!ptr)
     {
-        user_account obj;
+        relay_push_item obj;
         return JsonToQVariantMap(obj.info());
     }
-    return JsonToQVariantMap(iter->second->info());
-}
-
-QVariantMap CasterMonitor::getAliasRuleInfo(QString UID)
-{
-    auto iter= m_alias_rule_map.find(UID);
-    if(iter==m_alias_rule_map.end())
-    {
-        user_account obj;
-        return JsonToQVariantMap(obj.info());
-    }
-    return JsonToQVariantMap(iter->second->info());
+    return JsonToQVariantMap(ptr->info());
 }
 
 QVariantMap CasterMonitor::genConnectCasterTemp()
@@ -222,9 +217,9 @@ QString CasterMonitor::addConnectAuthOperate(QVariantMap connect_info)
     // // 添加事件保存到上下文
     // _event_map.insert(std::pair(id,op));
     // 连接op的信号到CasterMonitor的槽函数
-    connect(op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateCasterRedisCtx,Qt::UniqueConnection); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectCasterSuccess,Qt::UniqueConnection); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectCasterFailed,Qt::UniqueConnection); //,Qt::QueuedConnection);
+    connect(op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateAuthRedisCtx,Qt::UniqueConnection);
+    connect(op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectAuthSuccess,Qt::UniqueConnection);
+    connect(op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectAuthFailed,Qt::UniqueConnection);
 
 
     auto UID = generate_UniqueKey();
@@ -373,316 +368,6 @@ QString CasterMonitor::addRefreshAlisaRuleOperate()
     return UID;
 }
 
-QVariantMap CasterMonitor::genAccountTemp()
-{
-    user_account item;
-    auto json_info= item.info();
-    json_info.erase("update_flag");
-    return JsonToQVariantMap(json_info);
-}
-
-QString CasterMonitor::addAddAccountOperate(QVariantMap account_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventAddAccount>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->account_info(account_info);
-
-    // 连接信号和槽
-    connect(op.get(),&EventAddAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addSetAccountOperate(QVariantMap account_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventSetAccount>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->account_info(account_info);
-
-    // 连接信号和槽
-    connect(op.get(),&EventSetAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addDelAccountOperate(QVariantMap account_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventDelAccount>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->account_info(account_info);
-
-    // 连接信号和槽
-    connect(op.get(),&EventDelAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addGetAccountOperate(QVariantMap account_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventGetAccount>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->account_info(account_info);
-
-    // 连接信号和槽
-    connect(op.get(),&EventGetAccount::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QVariantMap CasterMonitor::genPullStreamTemp()
-{
-    relay_pull_item item;
-    auto json_info= item.info();
-    // json_info.erase("update_flag");
-    return JsonToQVariantMap(json_info);
-}
-
-QString CasterMonitor::addAddPullStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventAddPull>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-
-    // 连接信号和槽
-    connect(op.get(),&EventAddPull::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addSetPullStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventSetPull>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-
-    // 连接信号和槽
-    connect(op.get(),&EventSetPull::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addDelPullStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventDelPull>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-    // 连接信号和槽
-    connect(op.get(),&EventDelPull::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addGetPullStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventGetPull>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-    // 连接信号和槽
-    connect(op.get(),&EventGetPull::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QVariantMap CasterMonitor::genPushStreamTemp()
-{
-    relay_push_item item;
-    auto json_info= item.info();
-    // json_info.erase("update_flag");
-    return JsonToQVariantMap(json_info);
-}
-
-QString CasterMonitor::addAddPushStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventAddPush>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-    // 连接信号和槽
-    connect(op.get(),&EventAddPush::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addSetPushStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventSetPush>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-    // 连接信号和槽
-    connect(op.get(),&EventSetPush::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addDelPushStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventDelPush>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-    // 连接信号和槽
-    connect(op.get(),&EventDelPush::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addGetPushStreamOperate(QVariantMap relay_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventGetPush>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->relay_info(relay_info);
-    // 连接信号和槽
-    connect(op.get(),&EventGetPush::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QVariantMap CasterMonitor::genAliasRuleTemp()
-{
-    user_account item;
-    auto json_info= item.info();
-    // json_info.erase("update_flag");
-    return JsonToQVariantMap(json_info);
-}
-
-QString CasterMonitor::addAddAliasRuleOperate(QVariantMap alias_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventAddAlias>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->alias_info(alias_info);
-    // 连接信号和槽
-    connect(op.get(),&EventAddAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addSetAliasRuleOperate(QVariantMap alias_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventSetAlias>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->alias_info(alias_info);
-    // 连接信号和槽
-    connect(op.get(),&EventSetAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addDelAliasRuleOperate(QVariantMap alias_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventDelAlias>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->alias_info(alias_info);
-    // 连接信号和槽
-    connect(op.get(),&EventDelAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addGetAliasRuleOperate(QVariantMap alias_info)
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventGetAlias>();
-
-    // 设置对象属性
-    op->id(UID);
-    op->alias_info(alias_info);
-    // 连接信号和槽
-    connect(op.get(),&EventDelAlias::operateFinished,this,&CasterMonitor::onOperateFinished);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
 
 QString CasterMonitor::excuteOperate(QString op_uid)
 {
@@ -790,370 +475,76 @@ void CasterMonitor::onUpdateAuthRedisCtx(redisAsyncContext *ctx)
 
 void CasterMonitor::onUpdateNodeMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_caster_node_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
-
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_caster_node_map.find(key);
-        if(item == m_caster_node_map.end())
-        {
-            auto obj= std::make_shared<caster_node>();
-            m_caster_node_map.insert(std::pair(key,obj));
-            item =  m_caster_node_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    //删除所有本次没有更新的元素
-    auto it = m_caster_node_map.begin();
-    while (it != m_caster_node_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_caster_node_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    m_caster_nodes.syncFromRedis(info);
     emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdataServerMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_ntrip_server_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
+    m_ntrip_servers.syncFromRedis(info);
 
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_ntrip_server_map.find(key);
-        if(item == m_ntrip_server_map.end())
-        {
-            auto obj= std::make_shared<ntrip_server>();
-            m_ntrip_server_map.insert(std::pair(key,obj));
-            item =  m_ntrip_server_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-
-        // 更新挂载点-Connect_key映射表
-        QString  alias_mpt=item->second->alias_mpt().c_str();
-        auto map_item =  _ntrip_serverUID_map.find(alias_mpt);
-        if(map_item == _ntrip_serverUID_map.end())
-        {
-            _ntrip_serverUID_map.insert(std::pair(alias_mpt,key));
-        }
-        else
-        {
-            map_item->second=key;
-        }
-
-    }
-
-    //删除所有本次没有更新的元素
-    auto it = m_ntrip_server_map.begin();
-    while (it != m_ntrip_server_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_ntrip_server_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
+    // 额外维护挂载点-Connect_key映射表
+    _ntrip_serverUID_map.clear();
+    m_ntrip_servers.forEach([this](const QString &key, const std::shared_ptr<ntrip_server> &obj) {
+        QString alias_mpt = QString::fromStdString(obj->alias_mpt());
+        _ntrip_serverUID_map[alias_mpt] = key;
+    });
 
     emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdataClientMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_ntrip_client_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
+    m_ntrip_clients.syncFromRedis(info);
 
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_ntrip_client_map.find(key);
-        if(item == m_ntrip_client_map.end())
+    // 补充计算与基站的距离
+    m_ntrip_clients.forEach([this](const QString &key, const std::shared_ptr<ntrip_client> &client) {
+        auto server = get_ntrip_server_by_mpt(QString::fromStdString(client->alias_mpt()));
+        if (server->position_update_time() != 0 && client->position_update_time() != 0)
         {
-            auto obj= std::make_shared<ntrip_client>();
-            m_ntrip_client_map.insert(std::pair(key,obj));
-            item =  m_ntrip_client_map.find(key);
+            client->distance(util_dist3d(
+                server->ecef_x(), server->ecef_y(), server->ecef_z(),
+                client->ecef_x(), client->ecef_y(), client->ecef_z()));
         }
-        item->second->setInfo(info);
-
-
-        auto server_item= get_ntrip_server_by_mpt(QString(item->second->alias_mpt().c_str()));
-
-        if(server_item->position_update_time()!=0 && item->second->position_update_time()!=0)
-        {
-            item->second->distance(util_dist3d(server_item->ecef_x(),server_item->ecef_y(),server_item->ecef_z(),
-                                               item->second->ecef_x(),item->second->ecef_y(),item->second->ecef_z()));
-        }
-
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    auto it = m_ntrip_client_map.begin();
-    while (it != m_ntrip_client_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_ntrip_client_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    });
 
     emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdateAccountMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_user_account_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
-
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_user_account_map.find(key);
-        if(item == m_user_account_map.end())
-        {
-            auto obj= std::make_shared<user_account>();
-            m_user_account_map.insert(std::pair(key,obj));
-            item =  m_user_account_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    auto it = m_user_account_map.begin();
-    while (it != m_user_account_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_user_account_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    m_user_accounts.syncFromRedis(info);
     emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdatePullListMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_relay_pull_list_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
-
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_relay_pull_list_map.find(key);
-        if(item == m_relay_pull_list_map.end())
-        {
-            auto obj= std::make_shared<relay_pull_item>();
-            m_relay_pull_list_map.insert(std::pair(key,obj));
-            item =  m_relay_pull_list_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    auto it = m_relay_pull_list_map.begin();
-    while (it != m_relay_pull_list_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_relay_pull_list_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    m_relay_pull_items.syncFromRedis(info);
     // emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdatePullStatMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_relay_pull_stat_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
-
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_relay_pull_stat_map.find(key);
-        if(item == m_relay_pull_stat_map.end())
-        {
-            auto obj= std::make_shared<relay_pull_stat>();
-            m_relay_pull_stat_map.insert(std::pair(key,obj));
-            item =  m_relay_pull_stat_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    auto it = m_relay_pull_stat_map.begin();
-    while (it != m_relay_pull_stat_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_relay_pull_stat_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    m_relay_pull_stats.syncFromRedis(info);
     emit operateFinished(OP_UID,success,info);
 }
 
 
 void CasterMonitor::onUpdatePushListMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_relay_push_list_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
-
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_relay_push_list_map.find(key);
-        if(item == m_relay_push_list_map.end())
-        {
-            auto obj= std::make_shared<relay_push_item>();
-            m_relay_push_list_map.insert(std::pair(key,obj));
-            item =  m_relay_push_list_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    auto it = m_relay_push_list_map.begin();
-    while (it != m_relay_push_list_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_relay_push_list_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    m_relay_push_items.syncFromRedis(info);
     // emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdatePushStatMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_relay_push_stat_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
-
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_relay_push_stat_map.find(key);
-        if(item == m_relay_push_stat_map.end())
-        {
-            auto obj= std::make_shared<relay_push_stat>();
-            m_relay_push_stat_map.insert(std::pair(key,obj));
-            item =  m_relay_push_stat_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    auto it = m_relay_push_stat_map.begin();
-    while (it != m_relay_push_stat_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_relay_push_stat_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    m_relay_push_stats.syncFromRedis(info);
     emit operateFinished(OP_UID,success,info);
 }
 
 void CasterMonitor::onUpdateAliasMap(QString OP_UID, bool success, QVariantMap info)
 {
-    // 所有数据更新标识标志为false
-    for(auto iter:m_alias_rule_map)
-    {
-        iter.second->update_flag(false);
-    }
-    //将数据更新到本地的context中去
-
-    // 遍历所有 key-value
-    for (auto it = info.begin(); it != info.end(); ++it) {
-        QString key = it.key();
-        QString value = it.value().toString();
-        auto info = QStringToJson(value);
-
-        auto item =  m_alias_rule_map.find(key);
-        if(item == m_alias_rule_map.end())
-        {
-            auto obj= std::make_shared<alias_rule>();
-            m_alias_rule_map.insert(std::pair(key,obj));
-            item =  m_alias_rule_map.find(key);
-        }
-        item->second->setInfo(info);
-        item->second->update_flag(true); //设置数据更新标识
-    }
-
-    auto it = m_alias_rule_map.begin();
-    while (it != m_alias_rule_map.end()) {
-        if (it->second->update_flag() == false) {
-            it = m_alias_rule_map.erase(it);  // 删除元素，并更新迭代器
-        } else {
-            ++it;  // 仅在未删除时前进迭代器
-        }
-    }
-
+    m_alias_rules.syncFromRedis(info);
     emit operateFinished(OP_UID,success,info);
 }
 
@@ -1175,13 +566,8 @@ std::shared_ptr<ntrip_server> CasterMonitor::get_ntrip_server_by_mpt(QString Mpt
         return std::make_shared<ntrip_server>();
     }
 
-    auto item= m_ntrip_server_map.find(map_item->second);
-    if(item==m_ntrip_server_map.end())
-    {
-        return std::make_shared<ntrip_server>();
-    }
-
-    return item->second;
+    auto ptr = m_ntrip_servers.getObjectPtr(map_item->second);
+    return ptr ? ptr : std::make_shared<ntrip_server>();
 }
 
 void CasterMonitor::onAccountRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)

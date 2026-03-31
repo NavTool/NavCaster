@@ -23,19 +23,12 @@ public:
             {
                 Q_EMIT loadDataStart();
 
-                m_data.clear();  //清除数据
+                m_data.clear();
 
-                auto data_map=CasterMonitor::getInstance()->m_alias_rule_map;
-
-                for(auto iter:data_map)
+                auto snapshot = CasterMonitor::getInstance()->m_alias_rules.getSnapshot();
+                for (auto &[key, obj] : snapshot)
                 {
-                    auto info = iter.second->info();
-                    QVariantMap data= JsonToQVariantMap(info);
-
-                    if(data["update_flag"].toBool() == false)
-                    {
-                        // continue;
-                    }
+                    QVariantMap data = JsonToQVariantMap(obj->info());
                     m_data.append(data);
                 }
 

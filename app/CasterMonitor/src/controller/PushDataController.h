@@ -23,29 +23,22 @@ public:
             {
                 Q_EMIT loadDataStart();
 
-                m_data.clear();  //清除数据
+                m_data.clear();
 
+                auto data_map = CasterMonitor::getInstance()->m_relay_push_items.getSnapshot();
+                auto stat_map = CasterMonitor::getInstance()->m_relay_push_stats.getSnapshot();
 
-                auto data_map=CasterMonitor::getInstance()->m_relay_push_list_map;
-                auto stat_map=CasterMonitor::getInstance()->m_relay_push_stat_map;   // 再从Stat中拉取当前已经在执行的任务的状态
-
-                for(auto iter:data_map)
+                for(auto &[key, obj] : data_map)
                 {
-                    auto info = iter.second->info();
-                    QVariantMap data= JsonToQVariantMap(info);
+                    QVariantMap data = JsonToQVariantMap(obj->info());
 
-
-                    auto stat_item=stat_map.find(iter.first);
-                    if(stat_item!=stat_map.end())
+                    auto stat_item = stat_map.find(key);
+                    if(stat_item != stat_map.end())
                     {
-                        data["connect_key"]=stat_item->second->connect_key().c_str();
-                        data["state"]=stat_item->second->state();
+                        data["connect_key"] = stat_item->second->connect_key().c_str();
+                        data["state"] = stat_item->second->state();
                     }
 
-                    if(data["update_flag"].toBool() == false)
-                    {
-                        // continue;
-                    }
                     m_data.append(data);
                 }
 

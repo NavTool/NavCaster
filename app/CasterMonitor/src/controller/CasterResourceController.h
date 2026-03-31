@@ -78,11 +78,11 @@ public:
 
                 m_node_status_data.clear();
 
-                auto data_map=CasterMonitor::getInstance()->m_caster_node_map;
+                auto snapshot = CasterMonitor::getInstance()->m_caster_nodes.getSnapshot();
 
-                for(auto iter:data_map)
+                for(auto &[key, obj] : snapshot)
                 {
-                    auto info = iter.second->info();
+                    auto info = obj->info();
                     QVariantMap data= JsonToQVariantMap(info);
 
                     m_node_count++;
@@ -92,26 +92,26 @@ public:
                         // continue;
                     }
 
-                    m_cluster_cpu += iter.second->cpu_usage();
-                    m_cluster_mem += iter.second->mem_usage();
-                    m_cluster_recv_total+=iter.second->recv_total();
-                    m_cluster_recv_speed+=iter.second->recv_speed();
-                    m_cluster_send_total+=iter.second->send_total();
-                    m_cluster_send_speed+= iter.second->send_speed();
-                    m_connect_online+=iter.second->connnect_count();
-                    m_server_online+=iter.second->server_count();
-                    m_client_online+=iter.second->client_count();
+                    m_cluster_cpu += obj->cpu_usage();
+                    m_cluster_mem += obj->mem_usage();
+                    m_cluster_recv_total+=obj->recv_total();
+                    m_cluster_recv_speed+=obj->recv_speed();
+                    m_cluster_send_total+=obj->send_total();
+                    m_cluster_send_speed+= obj->send_speed();
+                    m_connect_online+=obj->connnect_count();
+                    m_server_online+=obj->server_count();
+                    m_client_online+=obj->client_count();
 
 
-                    if(iter.second->online_time()!=0)
+                    if(obj->online_time()!=0)
                     {
                         if(m_cluster_runsec==0)
                         {
-                            m_cluster_runsec=iter.second->online_time(); //根据最长节点作为运行时长
+                            m_cluster_runsec=obj->online_time();
                         }
-                        else if(m_cluster_runsec>iter.second->online_time())
+                        else if(m_cluster_runsec>obj->online_time())
                         {
-                            m_cluster_runsec=iter.second->online_time();
+                            m_cluster_runsec=obj->online_time();
                         }
                     }
 

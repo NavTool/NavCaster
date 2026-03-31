@@ -25,17 +25,10 @@ public:
 
                 m_data.clear();
 
-                auto data_map=CasterMonitor::getInstance()->m_ntrip_client_map;
-
-                for(auto iter:data_map)
+                auto snapshot = CasterMonitor::getInstance()->m_ntrip_clients.getSnapshot();
+                for (auto &[key, obj] : snapshot)
                 {
-                    auto info = iter.second->info();
-                    QVariantMap data= JsonToQVariantMap(info);
-
-                    if(data["update_flag"].toBool() == false)
-                    {
-                        // continue;
-                    }
+                    QVariantMap data = JsonToQVariantMap(obj->info());
                     m_data.append(data);
                 }
 

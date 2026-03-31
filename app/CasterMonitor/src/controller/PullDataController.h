@@ -25,26 +25,20 @@ public:
 
                 m_data.clear();
 
-                auto data_map=CasterMonitor::getInstance()->m_relay_pull_list_map;   // 先从list中拉取所有的目标任务
-                auto stat_map=CasterMonitor::getInstance()->m_relay_pull_stat_map;   // 再从Stat中拉取当前已经在执行的任务的状态
+                auto data_map = CasterMonitor::getInstance()->m_relay_pull_items.getSnapshot();
+                auto stat_map = CasterMonitor::getInstance()->m_relay_pull_stats.getSnapshot();
 
-                for(auto iter:data_map)
+                for(auto &[key, obj] : data_map)
                 {
-                    auto info = iter.second->info();
-                    QVariantMap data= JsonToQVariantMap(info);
+                    QVariantMap data = JsonToQVariantMap(obj->info());
 
-
-                    auto stat_item=stat_map.find(iter.first);
-                    if(stat_item!=stat_map.end())
+                    auto stat_item = stat_map.find(key);
+                    if(stat_item != stat_map.end())
                     {
-                        data["connect_key"]=stat_item->second->connect_key().c_str();
-                        data["state"]=stat_item->second->state();
+                        data["connect_key"] = stat_item->second->connect_key().c_str();
+                        data["state"] = stat_item->second->state();
                     }
 
-                    if(data["update_flag"].toBool() == false)
-                    {
-                        // continue;
-                    }
                     m_data.append(data);
                 }
 

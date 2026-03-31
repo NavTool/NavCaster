@@ -41,21 +41,9 @@
 #include "service/CasterNode.pb.h"
 
 
-#include "monitor/AccountInfo.pb.h"
-#include "monitor/AliasInfo.pb.h"
-#include "monitor/ClientInfo.pb.h"
-#include "monitor/GroupInfo.pb.h"
-#include "monitor/NodeInfo.pb.h"
-#include "monitor/ProxyInfo.pb.h"
-#include "monitor/PullInfo.pb.h"
-#include "monitor/PushInfo.pb.h"
-#include "monitor/ServerInfo.pb.h"
-#include "monitor/SourceInfo.pb.h"
-
 using namespace caster::auth;
 using namespace caster::core;
 using namespace caster::service;
-using namespace caster::monitor;
 
 
 
@@ -63,38 +51,67 @@ using namespace caster::monitor;
 #define CONCAT3(a, b, c) a##b##c
 
 
-
-#define Q_REDIS_CONTEXT_API(OBJ, OBJS, RES)                                                                                \
-Q_INVOKABLE QVariantMap CONCAT3(generate, OBJ, Temp)(QString UID = "")                                            \
-{                                                                                                                 \
-    return PrototoQml(OBJ());                                                                                     \
-}                                                                                                                 \
-Q_INVOKABLE QString CONCAT2(add, OBJ)(const QString &UID, const QVariantMap &info)                                \
-{                                                                                                                 \
-    std::string op_uid = CasterMonitor::getInstance()->OBJS.addObject(UID.toStdString(), variantMapToJsonStr(info).toStdString()); \
-    return QString::fromStdString(op_uid);                                                                        \
-}                                                                                                                 \
-// Q_INVOKABLE int CONCAT2(del, OBJ)(const QString &UID)                                                             \
-// {                                                                                                                 \
-//     int res = CasterMonitor::getInstance()->OBJS.delObject(UID.toStdString());                                          \
-//     return res;                                                                                                   \
-// }                                                                                                                 \
-// Q_INVOKABLE int CONCAT2(set, OBJ)(const QString &UID, const QVariantMap &info)                                    \
-// {                                                                                                                 \
-//     int res = CasterMonitor::getInstance()->OBJS.setObject(UID.toStdString(), variantMapToJsonStr(info).toStdString()); \
-//     return res;                                                                                                   \
-// }                                                                                                                 \
-// Q_INVOKABLE QVariantMap CONCAT2(get, OBJ)(const QString &UID)                                                     \
-// {                                                                                                                 \
-//     return jsonStrToVariantMap(CasterMonitor::getInstance()->OBJS.getObject(UID.toStdString()).c_str());                \
-// }
+// ============================================================================
+//  Q_HASH_CRUD_API —— 为 HashConetxt 成员自动生成 QML 可调用的完整 CRUD 接口
+//
+//  NAME   : 实体名称（如 AccountRecord），用于拼接函数名
+//  MEMBER : CasterMonitor 中对应的 HashConetxt 成员变量名
+//
+//  生成的 QML 接口：
+//      generateXxxTemp()          → 返回 Proto 默认值的 QVariantMap 模板
+//      addXxx(field, info)        → HSETNX，返回 OP_UID
+//      delXxx(field)              → HDEL，  返回 OP_UID
+//      setXxx(field, info)        → HSET，  返回 OP_UID
+//      fetchXxx(field)            → HGET（异步），返回 OP_UID
+//      refreshAllXxx()            → HGETALL（异步），返回 OP_UID
+//      getXxx(field)              → 本地缓存同步查询，返回 QVariantMap
+//      getAllXxx()                → 本地缓存同步查询全部，返回 QVariantMap
+//
+//  使用示例（QML）：
+//      var temp = CasterMonitor.generateAccountRecordTemp()
+//      temp.account = "user001"
+//      var opId = CasterMonitor.addAccountRecord("user001", temp)
+//      // 监听 operateFinished(opId, success, info) 获取结果
+// ============================================================================
+#define Q_HASH_CRUD_API(NAME, MEMBER)                                                              \
+    Q_INVOKABLE QVariantMap CONCAT3(generate, NAME, Temp)()                                        \
+    {                                                                                               \
+        return MEMBER.generateTemplate();                                                           \
+    }                                                                                               \
+    Q_INVOKABLE QString CONCAT2(add, NAME)(const QString &field, const QVariantMap &info)           \
+    {                                                                                               \
+        return MEMBER.addItem(field, info);                                                         \
+    }                                                                                               \
+    Q_INVOKABLE QString CONCAT2(del, NAME)(const QString &field)                                   \
+    {                                                                                               \
+        return MEMBER.delItem(field);                                                               \
+    }                                                                                               \
+    Q_INVOKABLE QString CONCAT2(set, NAME)(const QString &field, const QVariantMap &info)           \
+    {                                                                                               \
+        return MEMBER.setItem(field, info);                                                         \
+    }                                                                                               \
+    Q_INVOKABLE QString CONCAT2(fetch, NAME)(const QString &field)                                 \
+    {                                                                                               \
+        return MEMBER.fetchItem(field);                                                             \
+    }                                                                                               \
+    Q_INVOKABLE QString CONCAT2(refreshAll, NAME)()                                                \
+    {                                                                                               \
+        return MEMBER.refreshAll();                                                                 \
+    }                                                                                               \
+    Q_INVOKABLE QVariantMap CONCAT2(get, NAME)(const QString &field)                               \
+    {                                                                                               \
+        return MEMBER.getItemInfo(field);                                                           \
+    }                                                                                               \
+    Q_INVOKABLE QVariantMap CONCAT2(getAll, NAME)()                                                \
+    {                                                                                               \
+        return MEMBER.getAllItemInfo();                                                              \
+    }
 
 
 
 class CasterMonitor : public QObject
 {
     Q_OBJECT
-    // Q_PROPERTY_AUTO(QVariantMap, project_info) // 站点信息
     QML_SINGLETON
     QML_ELEMENT
 private:
@@ -105,16 +122,14 @@ public:
     static CasterMonitor *create(QQmlEngine *, QJSEngine *);
 
 public:
-    // 查询函数
+    // 查询函数（本地缓存，兼容旧接口）
     Q_INVOKABLE QVariantMap getNtripServerInfo(QString UID);
-    Q_INVOKABLE QVariantMap getNtripServerInfoByMpt(QString Mpt);
     Q_INVOKABLE QVariantMap getNtripClientInfo(QString UID);
     Q_INVOKABLE QVariantMap getUserAccountInfo(QString UID);
     Q_INVOKABLE QVariantMap getRelayPullInfo(QString UID);
     Q_INVOKABLE QVariantMap getRelayPushInfo(QString UID);
-    Q_INVOKABLE QVariantMap getAliasRuleInfo(QString UID);
 
-    // 全量刷新数据
+    // 全量刷新数据（旧事件系统，保留兼容）
     Q_INVOKABLE QString addRefreshNodeOperate();
     Q_INVOKABLE QString addRefreshServerOperate();
     Q_INVOKABLE QString addRefreshClientOperate();
@@ -124,11 +139,7 @@ public:
     Q_INVOKABLE QString addRefreshAlisaRuleOperate();
 
 public:
-    // 执行指令->创建指令对象（生成任务ID,返回给命令创建者），存储到map中
-    // 执行任务，将传递到任务队列->任务队列执行->更新context上下文->通知任务执行完成（成功/失败）->清理指令对象（或者不清理,下次继续执行）
-    // 任务创建者拿到命令ID，监听命令ID，根据反馈执行对应的操作
-
-    // 创建任务
+    // ==================== 连接管理 ====================
 
     // 连接Caster
     Q_INVOKABLE QVariantMap genConnectCasterTemp();
@@ -140,40 +151,9 @@ public:
     Q_INVOKABLE QString addConnectAuthOperate(QVariantMap connect_info);
     Q_INVOKABLE QString addDisconnectAuthOperate();
 
-    // 账号管理
-    Q_INVOKABLE QVariantMap genAccountTemp();
-    Q_INVOKABLE QString addAddAccountOperate(QVariantMap account_info); // 添加账号（远程操作，添加完成后，本地也同步更新）
-    Q_INVOKABLE QString addSetAccountOperate(QVariantMap account_info); // 修改已有账号信息（远程操作，添加完成后，本地也同步更新）
-    Q_INVOKABLE QString addDelAccountOperate(QVariantMap account_info); // 删除账号（添加完成后，本地也同步更新）
-    Q_INVOKABLE QString addGetAccountOperate(QVariantMap account_info); // 查询账号（远程操作）
+    // ==================== 旧事件任务执行 ====================
 
-    // 数据接入任务
-    Q_INVOKABLE QVariantMap genPullStreamTemp();
-    Q_INVOKABLE QString addAddPullStreamOperate(QVariantMap relay_info); // 添加
-    Q_INVOKABLE QString addSetPullStreamOperate(QVariantMap relay_info); // 修改
-    Q_INVOKABLE QString addDelPullStreamOperate(QVariantMap relay_info); // 删除
-    Q_INVOKABLE QString addGetPullStreamOperate(QVariantMap relay_info); // 查询
-
-    // 数据推送任务
-    Q_INVOKABLE QVariantMap genPushStreamTemp();
-    Q_INVOKABLE QString addAddPushStreamOperate(QVariantMap relay_info); // 添加
-    Q_INVOKABLE QString addSetPushStreamOperate(QVariantMap relay_info); // 修改
-    Q_INVOKABLE QString addDelPushStreamOperate(QVariantMap relay_info); // 删除
-    Q_INVOKABLE QString addGetPushStreamOperate(QVariantMap relay_info); // 查询
-
-    // 数据流别名
-    Q_INVOKABLE QVariantMap genAliasRuleTemp();
-    Q_INVOKABLE QString addAddAliasRuleOperate(QVariantMap alias_info); // 添加
-    Q_INVOKABLE QString addSetAliasRuleOperate(QVariantMap alias_info); // 修改
-    Q_INVOKABLE QString addDelAliasRuleOperate(QVariantMap alias_info); // 删除
-    Q_INVOKABLE QString addGetAliasRuleOperate(QVariantMap alias_info); // 查询
-
-    // 执行任务
-    Q_INVOKABLE QString excuteOperate(QString op_uid); // 执行指令
-    // 取消执行
-    Q_INVOKABLE QString cancelOperate(QString op_uid); // 取消指令
-    // 清理任务
-    Q_INVOKABLE QString deleteOperate(QString op_uid); // 删除指令
+    Q_INVOKABLE QString excuteOperate(QString op_uid);  // 执行指令
 
 public:
     // 通用执行操作通知(这些
@@ -236,39 +216,18 @@ public:
     bool _auth_connected = false;
 
 public:
-    // 更新在线的基线列表（基本信息）   只刷新基本信息，更加详细的信息采用op的方式直接查询
+    std::unordered_map<QString, QString> _ntrip_serverUID_map; // 挂载点 → Connect_Key 映射
 
-    /*
-     *      查询 MPT:LIST     O(1)    获取所有的在线挂载点名称
-     *      新增 MPT:SRV      O(1)    获取所有基站连接和挂载点的映射关系
-     *      查询 MPT:REC:*    O(n)
-     *      查询 MPT:SUB:*    O(n)
-     *
-     *      查询 USR:LIST     O(1)    获取所有的在线用户名
-     *      新增 USR:SRV      O(1)    获取所有用户连接和挂载点的映射关系
-     *      查询 USR:REC:*    O(n)
-     *      查询 MPT:SUB:*    O(n)
-     */
-
-    // 这两个是定期刷新的内容，其他内容都是以这个内容为基础进行刷新
-    // std::set<QString> _active_ntrip_server_set;   // 在线挂载点  MPT:STAT
-    // std::set<QString> _active_ntrip_client_set;   // 在线用户    USR:STAT
-    std::unordered_map<QString, QString> _ntrip_serverUID_map; // Connect_Key - 挂载点 MPT:SRV  // 根据挂载点查找到Connect_Key
-    // std::unordered_map<QString,QString> _ntrip_clientUID_map;   // Connect_Key - 用户名 USR:SRV  // 根据用户名查找到Connect_Key
-
-    // Caster资源
-    std::unordered_map<QString, std::shared_ptr<caster_node>> m_caster_node_map;
-
-    std::unordered_map<QString, std::shared_ptr<ntrip_server>> m_ntrip_server_map; // Connect_Key，对象，站点的基本信息
-    std::unordered_map<QString, std::shared_ptr<ntrip_client>> m_ntrip_client_map; // Connect_Key，对象，站点的基本信息
-    std::unordered_map<QString, std::shared_ptr<user_account>> m_user_account_map; // key，对象，站点的基本信息
-
-    std::unordered_map<QString, std::shared_ptr<relay_pull_stat>> m_relay_pull_stat_map; // key，对象，站点的基本信息
-    std::unordered_map<QString, std::shared_ptr<relay_push_stat>> m_relay_push_stat_map; // key，对象，站点的基本信息
-
-    std::unordered_map<QString, std::shared_ptr<relay_pull_item>> m_relay_pull_list_map; // key，对象，站点的基本信息
-    std::unordered_map<QString, std::shared_ptr<relay_push_item>> m_relay_push_list_map; // key，对象，站点的基本信息
-    std::unordered_map<QString, std::shared_ptr<alias_rule>> m_alias_rule_map;           // key，对象，站点的基本信息
+    // 本地数据上下文（线程安全，带 flag 同步）
+    Context<caster_node>    m_caster_nodes;
+    Context<ntrip_server>   m_ntrip_servers;
+    Context<ntrip_client>   m_ntrip_clients;
+    Context<user_account>   m_user_accounts;
+    Context<relay_pull_item> m_relay_pull_items;
+    Context<relay_push_item> m_relay_push_items;
+    Context<relay_pull_stat> m_relay_pull_stats;
+    Context<relay_push_stat> m_relay_push_stats;
+    Context<alias_rule>     m_alias_rules;
 
 public:
 
@@ -310,23 +269,32 @@ public:
 
     HashConetxt<CasterNode,CasterNodeTableName>  CasterNodes;
 
-    // 本地存储数据
-    Context<SourceInfo> SourceInfos;
-    Context<ServerInfo> ServerInfos;
-    Context<ClientInfo> ClientInfos;
-    Context<AliasInfo> AliasInfos;
-    Context<PullInfo> PullInfos;
-    Context<PushInfo> PushInfos;
-    Context<ProxyInfo> ProxyInfos;
-    Context<AccountInfo> AccountInfos;
-    Context<GroupInfo> GroupInfos;
-    Context<NodeInfo> NodeInfos;
+
 
 
 public:
 
-    Q_REDIS_CONTEXT_API(AccountRecord, AccountRecords, AccountRecord)                         //
-    Q_REDIS_CONTEXT_API(AccountActive, AccountActives, AccountActive)                         //
+    // ==================== Redis HASH 自动生成的 CRUD 接口 ====================
+
+    // Auth 相关
+    Q_HASH_CRUD_API(AccountRecord, AccountRecords)
+    Q_HASH_CRUD_API(AccountActive, AccountActives)
+
+    // Core 相关
+    Q_HASH_CRUD_API(AccessGroup, AccessGroups)
+    Q_HASH_CRUD_API(AccessItem, AccessItems)
+    Q_HASH_CRUD_API(SourceRecord, SourceRecords)
+    Q_HASH_CRUD_API(ServerState, SourceStates)
+    Q_HASH_CRUD_API(ClientState, ClientStates)
+    Q_HASH_CRUD_API(StreamState, StreamStates)
+    Q_HASH_CRUD_API(AliasRule, AliasRules)
+    Q_HASH_CRUD_API(PullRecord, PullRecords)
+    Q_HASH_CRUD_API(PullState, PullStates)
+    Q_HASH_CRUD_API(PushRecord, PushRecords)
+    Q_HASH_CRUD_API(PushState, PushStates)
+
+    // Service 相关
+    Q_HASH_CRUD_API(CasterNode, CasterNodes)
 
 private slots:
     // redis异步更新后，更新内部的上下文

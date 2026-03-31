@@ -28,19 +28,11 @@ public:
 
         m_data.clear();
 
-        auto data_map=CasterMonitor::getInstance()->m_user_account_map;
-
-        for(auto iter:data_map)
-        {
-            auto info = iter.second->info();
-            QVariantMap data= JsonToQVariantMap(info);
-
-            if(data["update_flag"].toBool() == false)
-            {
-                // continue;
-            }
-            m_data.append(data);
-        }
+        CasterMonitor::getInstance()->m_user_accounts.forEach(
+            [this](const QString &key, const std::shared_ptr<user_account> &obj) {
+                QVariantMap data = JsonToQVariantMap(obj->info());
+                m_data.append(data);
+            });
 
         Q_EMIT loadDataSuccess();
 

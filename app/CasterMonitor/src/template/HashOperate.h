@@ -5,7 +5,9 @@
 #include <QtQml/qqml.h>
 #include <QUuid>
 #include "EventOperationBase.h"
+#include "EventWorker.h"
 #include "OperateMap.h"
+#include "util.h"
 #include <functional>
 #include <list>
 #include <mutex>
@@ -229,9 +231,78 @@ private:
     std::unordered_map<std::string, std::shared_ptr<T>> m_obj_map;
     std::recursive_mutex m_map_lock;
     HashOperateFinishedHandler m_hash_operate_finished_handler;
+    EventWorker *m_worker = nullptr;
 
 public:
-    // ==================== 异步操作接口 ====================
+    // ==================== Worker 绑定 ====================
+
+    void setWorker(EventWorker *worker) { m_worker = worker; }
+    EventWorker *worker() const { return m_worker; }
+
+    // ==================== QML 友好的 CRUD 接口 ====================
+
+    // 生成默认模板 QVariantMap（用于 QML 填充数据）
+    QVariantMap generateTemplate()
+    {
+        return PrototoQml(T());
+    }
+
+    // 从本地缓存获取单个对象（同步，返回 QVariantMap）
+    QVariantMap getItemInfo(const QString &field)
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+        auto it = m_obj_map.find(field.toStdString());
+        if (it == m_obj_map.end())
+            return PrototoQml(T());
+        return PrototoQml(*it->second);
+    }
+
+    // 从本地缓存获取所有对象（同步，返回 QVariantMap key→json）
+    QVariantMap getAllItemInfo()
+    {
+        std::lock_guard<std::recursive_mutex> lock(m_map_lock);
+        QVariantMap result;
+        for (const auto &[key, obj] : m_obj_map)
+        {
+            result[QString::fromStdString(key)] =
+                QString::fromStdString(ProtoToJson(*obj));
+        }
+        return result;
+    }
+
+    // 添加（HSETNX）- 返回 OP_UID，操作结果通过 handler 回调通知
+    QString addItem(const QString &field, const QVariantMap &info)
+    {
+        return QString::fromStdString(
+            addObject(field.toStdString(), variantMapToJsonStr(info).toStdString()));
+    }
+
+    // 删除（HDEL）- 返回 OP_UID
+    QString delItem(const QString &field)
+    {
+        return QString::fromStdString(delObject(field.toStdString()));
+    }
+
+    // 更新（HSET）- 返回 OP_UID
+    QString setItem(const QString &field, const QVariantMap &info)
+    {
+        return QString::fromStdString(
+            setObject(field.toStdString(), variantMapToJsonStr(info).toStdString()));
+    }
+
+    // 从 Redis 拉取单条（HGET）- 返回 OP_UID
+    QString fetchItem(const QString &field)
+    {
+        return QString::fromStdString(getObject(field.toStdString()));
+    }
+
+    // 从 Redis 拉取全量（HGETALL）- 返回 OP_UID
+    QString refreshAll()
+    {
+        return QString::fromStdString(getAllObjects());
+    }
+
+    // ==================== 异步操作接口（C++ 内部） ====================
 
     std::string addObject(const std::string &field, std::string json_str)
     {
@@ -355,7 +426,16 @@ private:
                              onOperateFinished(type, field, json_str, OP_UID, success, info);
                          });
 
-        return Operaters::getInstance()->addRedisOperate(hash_operate);
+        // 存储到全局操作管理器（维持生命周期直至回调完成）
+        Operaters::getInstance()->addRedisOperate(hash_operate);
+
+        // 提交到 EventWorker 执行
+        if (m_worker)
+        {
+            m_worker->postRedisTask(hash_operate);
+        }
+
+        return hash_operate->id().toStdString();
     }
 
     // ==================== 统一回调处理 ====================
