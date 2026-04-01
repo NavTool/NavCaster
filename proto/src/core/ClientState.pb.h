@@ -220,17 +220,24 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
-    kSourceGroupUidFieldNumber = 4,
-    kCreateTimeFieldNumber = 2,
+    kLoginMptFieldNumber = 4,
+    kAliasMptFieldNumber = 5,
+    kAccountFieldNumber = 7,
+    kIpFieldNumber = 8,
+    kOnlineTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
-    kEcefXFieldNumber = 5,
-    kEcefYFieldNumber = 6,
-    kEcefZFieldNumber = 7,
-    kQualityFieldNumber = 8,
-    kSatNumFieldNumber = 9,
-    kDiffFieldNumber = 10,
-    kDistanceFieldNumber = 11,
-    kPositionUpdateTimeFieldNumber = 12,
+    kTypeFieldNumber = 6,
+    kPortFieldNumber = 9,
+    kOnlineSecondsFieldNumber = 10,
+    kTcpDelayFieldNumber = 11,
+    kEcefXFieldNumber = 12,
+    kEcefYFieldNumber = 13,
+    kEcefZFieldNumber = 14,
+    kPositionUpdateTimeFieldNumber = 15,
+    kQualityFieldNumber = 16,
+    kSatNumFieldNumber = 17,
+    kDiffFieldNumber = 18,
+    kDistanceFieldNumber = 19,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -247,29 +254,74 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
 
   public:
-  // string source_group_uid = 4;
-  void clear_source_group_uid() ;
-  [[nodiscard]] const ::std::string& source_group_uid() const;
+  // string login_mpt = 4;
+  void clear_login_mpt() ;
+  [[nodiscard]] const ::std::string& login_mpt() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_source_group_uid(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_source_group_uid();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_source_group_uid();
-  void set_allocated_source_group_uid(::std::string* PROTOBUF_NULLABLE value);
+  void set_login_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_login_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_login_mpt();
+  void set_allocated_login_mpt(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_source_group_uid() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_source_group_uid(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_source_group_uid();
+  const ::std::string& _internal_login_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_login_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_login_mpt();
 
   public:
-  // uint64 create_time = 2;
-  void clear_create_time() ;
-  [[nodiscard]] ::uint64_t create_time() const;
-  void set_create_time(::uint64_t value);
+  // string alias_mpt = 5;
+  void clear_alias_mpt() ;
+  [[nodiscard]] const ::std::string& alias_mpt() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_alias_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_alias_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_alias_mpt();
+  void set_allocated_alias_mpt(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  ::uint64_t _internal_create_time() const;
-  void _internal_set_create_time(::uint64_t value);
+  const ::std::string& _internal_alias_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_alias_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_alias_mpt();
+
+  public:
+  // string account = 7;
+  void clear_account() ;
+  [[nodiscard]] const ::std::string& account() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_account(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_account();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_account();
+  void set_allocated_account(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_account() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_account(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_account();
+
+  public:
+  // string ip = 8;
+  void clear_ip() ;
+  [[nodiscard]] const ::std::string& ip() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_ip();
+  void set_allocated_ip(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_ip();
+
+  public:
+  // uint64 online_time = 2;
+  void clear_online_time() ;
+  [[nodiscard]] ::uint64_t online_time() const;
+  void set_online_time(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_online_time() const;
+  void _internal_set_online_time(::uint64_t value);
 
   public:
   // uint64 update_time = 3;
@@ -282,7 +334,47 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_update_time(::uint64_t value);
 
   public:
-  // double ecef_x = 5;
+  // int32 type = 6;
+  void clear_type() ;
+  [[nodiscard]] ::int32_t type() const;
+  void set_type(::int32_t value);
+
+  private:
+  ::int32_t _internal_type() const;
+  void _internal_set_type(::int32_t value);
+
+  public:
+  // int32 port = 9;
+  void clear_port() ;
+  [[nodiscard]] ::int32_t port() const;
+  void set_port(::int32_t value);
+
+  private:
+  ::int32_t _internal_port() const;
+  void _internal_set_port(::int32_t value);
+
+  public:
+  // uint64 online_seconds = 10;
+  void clear_online_seconds() ;
+  [[nodiscard]] ::uint64_t online_seconds() const;
+  void set_online_seconds(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_online_seconds() const;
+  void _internal_set_online_seconds(::uint64_t value);
+
+  public:
+  // uint64 tcp_delay = 11;
+  void clear_tcp_delay() ;
+  [[nodiscard]] ::uint64_t tcp_delay() const;
+  void set_tcp_delay(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_tcp_delay() const;
+  void _internal_set_tcp_delay(::uint64_t value);
+
+  public:
+  // double ecef_x = 12;
   void clear_ecef_x() ;
   [[nodiscard]] double ecef_x() const;
   void set_ecef_x(double value);
@@ -292,7 +384,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_ecef_x(double value);
 
   public:
-  // double ecef_y = 6;
+  // double ecef_y = 13;
   void clear_ecef_y() ;
   [[nodiscard]] double ecef_y() const;
   void set_ecef_y(double value);
@@ -302,7 +394,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_ecef_y(double value);
 
   public:
-  // double ecef_z = 7;
+  // double ecef_z = 14;
   void clear_ecef_z() ;
   [[nodiscard]] double ecef_z() const;
   void set_ecef_z(double value);
@@ -312,7 +404,17 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_ecef_z(double value);
 
   public:
-  // int32 quality = 8;
+  // int64 position_update_time = 15;
+  void clear_position_update_time() ;
+  [[nodiscard]] ::int64_t position_update_time() const;
+  void set_position_update_time(::int64_t value);
+
+  private:
+  ::int64_t _internal_position_update_time() const;
+  void _internal_set_position_update_time(::int64_t value);
+
+  public:
+  // int32 quality = 16;
   void clear_quality() ;
   [[nodiscard]] ::int32_t quality() const;
   void set_quality(::int32_t value);
@@ -322,7 +424,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_quality(::int32_t value);
 
   public:
-  // int32 sat_num = 9;
+  // int32 sat_num = 17;
   void clear_sat_num() ;
   [[nodiscard]] ::int32_t sat_num() const;
   void set_sat_num(::int32_t value);
@@ -332,7 +434,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_sat_num(::int32_t value);
 
   public:
-  // double diff = 10;
+  // double diff = 18;
   void clear_diff() ;
   [[nodiscard]] double diff() const;
   void set_diff(double value);
@@ -342,7 +444,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_diff(double value);
 
   public:
-  // double distance = 11;
+  // double distance = 19;
   void clear_distance() ;
   [[nodiscard]] double distance() const;
   void set_distance(double value);
@@ -352,22 +454,12 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
   void _internal_set_distance(double value);
 
   public:
-  // double position_update_time = 12;
-  void clear_position_update_time() ;
-  [[nodiscard]] double position_update_time() const;
-  void set_position_update_time(double value);
-
-  private:
-  double _internal_position_update_time() const;
-  void _internal_set_position_update_time(double value);
-
-  public:
   // @@protoc_insertion_point(class_scope:caster.core.ClientState)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 12,
-                                   0, 59,
+  static const ::google::protobuf::internal::TcParseTable<5, 19,
+                                   0, 78,
                                    2>
       _table_;
 
@@ -391,17 +483,24 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ClientState final : public ::google
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
-    ::google::protobuf::internal::ArenaStringPtr source_group_uid_;
-    ::uint64_t create_time_;
+    ::google::protobuf::internal::ArenaStringPtr login_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr alias_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr account_;
+    ::google::protobuf::internal::ArenaStringPtr ip_;
+    ::uint64_t online_time_;
     ::uint64_t update_time_;
+    ::int32_t type_;
+    ::int32_t port_;
+    ::uint64_t online_seconds_;
+    ::uint64_t tcp_delay_;
     double ecef_x_;
     double ecef_y_;
     double ecef_z_;
+    ::int64_t position_update_time_;
     ::int32_t quality_;
     ::int32_t sat_num_;
     double diff_;
     double distance_;
-    double position_update_time_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -491,29 +590,29 @@ inline void ClientState::set_allocated_uid(::std::string* PROTOBUF_NULLABLE valu
   // @@protoc_insertion_point(field_set_allocated:caster.core.ClientState.uid)
 }
 
-// uint64 create_time = 2;
-inline void ClientState::clear_create_time() {
+// uint64 online_time = 2;
+inline void ClientState::clear_online_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.create_time_ = ::uint64_t{0u};
+  _impl_.online_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000020U);
 }
-inline ::uint64_t ClientState::create_time() const {
-  // @@protoc_insertion_point(field_get:caster.core.ClientState.create_time)
-  return _internal_create_time();
+inline ::uint64_t ClientState::online_time() const {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.online_time)
+  return _internal_online_time();
 }
-inline void ClientState::set_create_time(::uint64_t value) {
-  _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
-  // @@protoc_insertion_point(field_set:caster.core.ClientState.create_time)
+inline void ClientState::set_online_time(::uint64_t value) {
+  _internal_set_online_time(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.online_time)
 }
-inline ::uint64_t ClientState::_internal_create_time() const {
+inline ::uint64_t ClientState::_internal_online_time() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.create_time_;
+  return _impl_.online_time_;
 }
-inline void ClientState::_internal_set_create_time(::uint64_t value) {
+inline void ClientState::_internal_set_online_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.create_time_ = value;
+  _impl_.online_time_ = value;
 }
 
 // uint64 update_time = 3;
@@ -521,7 +620,7 @@ inline void ClientState::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000008U);
+                  0x00000040U);
 }
 inline ::uint64_t ClientState::update_time() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.update_time)
@@ -529,7 +628,7 @@ inline ::uint64_t ClientState::update_time() const {
 }
 inline void ClientState::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.update_time)
 }
 inline ::uint64_t ClientState::_internal_update_time() const {
@@ -541,77 +640,372 @@ inline void ClientState::_internal_set_update_time(::uint64_t value) {
   _impl_.update_time_ = value;
 }
 
-// string source_group_uid = 4;
-inline void ClientState::clear_source_group_uid() {
+// string login_mpt = 4;
+inline void ClientState::clear_login_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.source_group_uid_.ClearToEmpty();
+  _impl_.login_mpt_.ClearToEmpty();
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000002U);
 }
-inline const ::std::string& ClientState::source_group_uid() const
+inline const ::std::string& ClientState::login_mpt() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ClientState.source_group_uid)
-  return _internal_source_group_uid();
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.login_mpt)
+  return _internal_login_mpt();
 }
 template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ClientState::set_source_group_uid(Arg_&& arg, Args_... args) {
+PROTOBUF_ALWAYS_INLINE void ClientState::set_login_mpt(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   SetHasBit(_impl_._has_bits_[0], 0x00000002U);
-  _impl_.source_group_uid_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ClientState.source_group_uid)
+  _impl_.login_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.login_mpt)
 }
-inline ::std::string* PROTOBUF_NONNULL ClientState::mutable_source_group_uid()
+inline ::std::string* PROTOBUF_NONNULL ClientState::mutable_login_mpt()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   SetHasBit(_impl_._has_bits_[0], 0x00000002U);
-  ::std::string* _s = _internal_mutable_source_group_uid();
-  // @@protoc_insertion_point(field_mutable:caster.core.ClientState.source_group_uid)
+  ::std::string* _s = _internal_mutable_login_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.core.ClientState.login_mpt)
   return _s;
 }
-inline const ::std::string& ClientState::_internal_source_group_uid() const {
+inline const ::std::string& ClientState::_internal_login_mpt() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.source_group_uid_.Get();
+  return _impl_.login_mpt_.Get();
 }
-inline void ClientState::_internal_set_source_group_uid(const ::std::string& value) {
+inline void ClientState::_internal_set_login_mpt(const ::std::string& value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.source_group_uid_.Set(value, GetArena());
+  _impl_.login_mpt_.Set(value, GetArena());
 }
-inline ::std::string* PROTOBUF_NONNULL ClientState::_internal_mutable_source_group_uid() {
+inline ::std::string* PROTOBUF_NONNULL ClientState::_internal_mutable_login_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.source_group_uid_.Mutable( GetArena());
+  return _impl_.login_mpt_.Mutable( GetArena());
 }
-inline ::std::string* PROTOBUF_NULLABLE ClientState::release_source_group_uid() {
+inline ::std::string* PROTOBUF_NULLABLE ClientState::release_login_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ClientState.source_group_uid)
+  // @@protoc_insertion_point(field_release:caster.core.ClientState.login_mpt)
   if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
     return nullptr;
   }
   ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
-  auto* released = _impl_.source_group_uid_.Release();
+  auto* released = _impl_.login_mpt_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.source_group_uid_.Set("", GetArena());
+    _impl_.login_mpt_.Set("", GetArena());
   }
   return released;
 }
-inline void ClientState::set_allocated_source_group_uid(::std::string* PROTOBUF_NULLABLE value) {
+inline void ClientState::set_allocated_login_mpt(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
     SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
     ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
-  _impl_.source_group_uid_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.source_group_uid_.IsDefault()) {
-    _impl_.source_group_uid_.Set("", GetArena());
+  _impl_.login_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.login_mpt_.IsDefault()) {
+    _impl_.login_mpt_.Set("", GetArena());
   }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ClientState.source_group_uid)
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ClientState.login_mpt)
 }
 
-// double ecef_x = 5;
+// string alias_mpt = 5;
+inline void ClientState::clear_alias_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.alias_mpt_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline const ::std::string& ClientState::alias_mpt() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.alias_mpt)
+  return _internal_alias_mpt();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void ClientState::set_alias_mpt(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.alias_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.alias_mpt)
+}
+inline ::std::string* PROTOBUF_NONNULL ClientState::mutable_alias_mpt()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_alias_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.core.ClientState.alias_mpt)
+  return _s;
+}
+inline const ::std::string& ClientState::_internal_alias_mpt() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.alias_mpt_.Get();
+}
+inline void ClientState::_internal_set_alias_mpt(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.alias_mpt_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL ClientState::_internal_mutable_alias_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.alias_mpt_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE ClientState::release_alias_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.ClientState.alias_mpt)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.alias_mpt_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.alias_mpt_.Set("", GetArena());
+  }
+  return released;
+}
+inline void ClientState::set_allocated_alias_mpt(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.alias_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.alias_mpt_.IsDefault()) {
+    _impl_.alias_mpt_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ClientState.alias_mpt)
+}
+
+// int32 type = 6;
+inline void ClientState::clear_type() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.type_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline ::int32_t ClientState::type() const {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.type)
+  return _internal_type();
+}
+inline void ClientState::set_type(::int32_t value) {
+  _internal_set_type(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.type)
+}
+inline ::int32_t ClientState::_internal_type() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.type_;
+}
+inline void ClientState::_internal_set_type(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.type_ = value;
+}
+
+// string account = 7;
+inline void ClientState::clear_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.account_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline const ::std::string& ClientState::account() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.account)
+  return _internal_account();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void ClientState::set_account(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.account_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.account)
+}
+inline ::std::string* PROTOBUF_NONNULL ClientState::mutable_account()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_account();
+  // @@protoc_insertion_point(field_mutable:caster.core.ClientState.account)
+  return _s;
+}
+inline const ::std::string& ClientState::_internal_account() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.account_.Get();
+}
+inline void ClientState::_internal_set_account(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.account_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL ClientState::_internal_mutable_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.account_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE ClientState::release_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.ClientState.account)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.account_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.account_.Set("", GetArena());
+  }
+  return released;
+}
+inline void ClientState::set_allocated_account(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.account_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.account_.IsDefault()) {
+    _impl_.account_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ClientState.account)
+}
+
+// string ip = 8;
+inline void ClientState::clear_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ip_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000010U);
+}
+inline const ::std::string& ClientState::ip() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.ip)
+  return _internal_ip();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void ClientState::set_ip(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  _impl_.ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.ip)
+}
+inline ::std::string* PROTOBUF_NONNULL ClientState::mutable_ip()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::std::string* _s = _internal_mutable_ip();
+  // @@protoc_insertion_point(field_mutable:caster.core.ClientState.ip)
+  return _s;
+}
+inline const ::std::string& ClientState::_internal_ip() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ip_.Get();
+}
+inline void ClientState::_internal_set_ip(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ip_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL ClientState::_internal_mutable_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.ip_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE ClientState::release_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.ClientState.ip)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  auto* released = _impl_.ip_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.ip_.Set("", GetArena());
+  }
+  return released;
+}
+inline void ClientState::set_allocated_ip(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+  _impl_.ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.ip_.IsDefault()) {
+    _impl_.ip_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ClientState.ip)
+}
+
+// int32 port = 9;
+inline void ClientState::clear_port() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.port_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline ::int32_t ClientState::port() const {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.port)
+  return _internal_port();
+}
+inline void ClientState::set_port(::int32_t value) {
+  _internal_set_port(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.port)
+}
+inline ::int32_t ClientState::_internal_port() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.port_;
+}
+inline void ClientState::_internal_set_port(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.port_ = value;
+}
+
+// uint64 online_seconds = 10;
+inline void ClientState::clear_online_seconds() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.online_seconds_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000200U);
+}
+inline ::uint64_t ClientState::online_seconds() const {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.online_seconds)
+  return _internal_online_seconds();
+}
+inline void ClientState::set_online_seconds(::uint64_t value) {
+  _internal_set_online_seconds(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.online_seconds)
+}
+inline ::uint64_t ClientState::_internal_online_seconds() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.online_seconds_;
+}
+inline void ClientState::_internal_set_online_seconds(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.online_seconds_ = value;
+}
+
+// uint64 tcp_delay = 11;
+inline void ClientState::clear_tcp_delay() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_delay_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000400U);
+}
+inline ::uint64_t ClientState::tcp_delay() const {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.tcp_delay)
+  return _internal_tcp_delay();
+}
+inline void ClientState::set_tcp_delay(::uint64_t value) {
+  _internal_set_tcp_delay(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.tcp_delay)
+}
+inline ::uint64_t ClientState::_internal_tcp_delay() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tcp_delay_;
+}
+inline void ClientState::_internal_set_tcp_delay(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tcp_delay_ = value;
+}
+
+// double ecef_x = 12;
 inline void ClientState::clear_ecef_x() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ecef_x_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000010U);
+                  0x00000800U);
 }
 inline double ClientState::ecef_x() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.ecef_x)
@@ -619,7 +1013,7 @@ inline double ClientState::ecef_x() const {
 }
 inline void ClientState::set_ecef_x(double value) {
   _internal_set_ecef_x(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.ecef_x)
 }
 inline double ClientState::_internal_ecef_x() const {
@@ -631,12 +1025,12 @@ inline void ClientState::_internal_set_ecef_x(double value) {
   _impl_.ecef_x_ = value;
 }
 
-// double ecef_y = 6;
+// double ecef_y = 13;
 inline void ClientState::clear_ecef_y() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ecef_y_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000020U);
+                  0x00001000U);
 }
 inline double ClientState::ecef_y() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.ecef_y)
@@ -644,7 +1038,7 @@ inline double ClientState::ecef_y() const {
 }
 inline void ClientState::set_ecef_y(double value) {
   _internal_set_ecef_y(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.ecef_y)
 }
 inline double ClientState::_internal_ecef_y() const {
@@ -656,12 +1050,12 @@ inline void ClientState::_internal_set_ecef_y(double value) {
   _impl_.ecef_y_ = value;
 }
 
-// double ecef_z = 7;
+// double ecef_z = 14;
 inline void ClientState::clear_ecef_z() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ecef_z_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000040U);
+                  0x00002000U);
 }
 inline double ClientState::ecef_z() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.ecef_z)
@@ -669,7 +1063,7 @@ inline double ClientState::ecef_z() const {
 }
 inline void ClientState::set_ecef_z(double value) {
   _internal_set_ecef_z(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.ecef_z)
 }
 inline double ClientState::_internal_ecef_z() const {
@@ -681,12 +1075,37 @@ inline void ClientState::_internal_set_ecef_z(double value) {
   _impl_.ecef_z_ = value;
 }
 
-// int32 quality = 8;
+// int64 position_update_time = 15;
+inline void ClientState::clear_position_update_time() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.position_update_time_ = ::int64_t{0};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00004000U);
+}
+inline ::int64_t ClientState::position_update_time() const {
+  // @@protoc_insertion_point(field_get:caster.core.ClientState.position_update_time)
+  return _internal_position_update_time();
+}
+inline void ClientState::set_position_update_time(::int64_t value) {
+  _internal_set_position_update_time(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  // @@protoc_insertion_point(field_set:caster.core.ClientState.position_update_time)
+}
+inline ::int64_t ClientState::_internal_position_update_time() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.position_update_time_;
+}
+inline void ClientState::_internal_set_position_update_time(::int64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.position_update_time_ = value;
+}
+
+// int32 quality = 16;
 inline void ClientState::clear_quality() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.quality_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000080U);
+                  0x00008000U);
 }
 inline ::int32_t ClientState::quality() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.quality)
@@ -694,7 +1113,7 @@ inline ::int32_t ClientState::quality() const {
 }
 inline void ClientState::set_quality(::int32_t value) {
   _internal_set_quality(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.quality)
 }
 inline ::int32_t ClientState::_internal_quality() const {
@@ -706,12 +1125,12 @@ inline void ClientState::_internal_set_quality(::int32_t value) {
   _impl_.quality_ = value;
 }
 
-// int32 sat_num = 9;
+// int32 sat_num = 17;
 inline void ClientState::clear_sat_num() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sat_num_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000100U);
+                  0x00010000U);
 }
 inline ::int32_t ClientState::sat_num() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.sat_num)
@@ -719,7 +1138,7 @@ inline ::int32_t ClientState::sat_num() const {
 }
 inline void ClientState::set_sat_num(::int32_t value) {
   _internal_set_sat_num(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.sat_num)
 }
 inline ::int32_t ClientState::_internal_sat_num() const {
@@ -731,12 +1150,12 @@ inline void ClientState::_internal_set_sat_num(::int32_t value) {
   _impl_.sat_num_ = value;
 }
 
-// double diff = 10;
+// double diff = 18;
 inline void ClientState::clear_diff() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.diff_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000200U);
+                  0x00020000U);
 }
 inline double ClientState::diff() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.diff)
@@ -744,7 +1163,7 @@ inline double ClientState::diff() const {
 }
 inline void ClientState::set_diff(double value) {
   _internal_set_diff(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.diff)
 }
 inline double ClientState::_internal_diff() const {
@@ -756,12 +1175,12 @@ inline void ClientState::_internal_set_diff(double value) {
   _impl_.diff_ = value;
 }
 
-// double distance = 11;
+// double distance = 19;
 inline void ClientState::clear_distance() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.distance_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000400U);
+                  0x00040000U);
 }
 inline double ClientState::distance() const {
   // @@protoc_insertion_point(field_get:caster.core.ClientState.distance)
@@ -769,7 +1188,7 @@ inline double ClientState::distance() const {
 }
 inline void ClientState::set_distance(double value) {
   _internal_set_distance(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   // @@protoc_insertion_point(field_set:caster.core.ClientState.distance)
 }
 inline double ClientState::_internal_distance() const {
@@ -779,31 +1198,6 @@ inline double ClientState::_internal_distance() const {
 inline void ClientState::_internal_set_distance(double value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.distance_ = value;
-}
-
-// double position_update_time = 12;
-inline void ClientState::clear_position_update_time() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.position_update_time_ = 0;
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00000800U);
-}
-inline double ClientState::position_update_time() const {
-  // @@protoc_insertion_point(field_get:caster.core.ClientState.position_update_time)
-  return _internal_position_update_time();
-}
-inline void ClientState::set_position_update_time(double value) {
-  _internal_set_position_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
-  // @@protoc_insertion_point(field_set:caster.core.ClientState.position_update_time)
-}
-inline double ClientState::_internal_position_update_time() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.position_update_time_;
-}
-inline void ClientState::_internal_set_position_update_time(double value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.position_update_time_ = value;
 }
 
 #ifdef __GNUC__

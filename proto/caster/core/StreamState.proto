@@ -3,10 +3,10 @@ package caster.core;
 
 message StreamState {
 
-  string uid = 1; //UID
+  string uid = 1; // 连接唯一标识 (ConnectKey)
 
-  uint64 online_time = 2;
-  uint64 update_time = 3;
+  uint64 online_time = 2; // 上线时刻
+  uint64 update_time = 3; // 信息更新时刻
 
   uint64 send_total = 4;
   double send_speed = 5;

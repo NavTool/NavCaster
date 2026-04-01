@@ -1,23 +1,30 @@
 syntax = "proto3";
 package caster.core;
 
-// 实时的挂载点信息，构造的源列表由这个表来提供数据源
-
+// 移动站连接状态
 
 message ClientState {
-  string uid         = 1;
-  uint64 create_time = 2; // 创建日期
-  uint64 update_time = 3; // 修改日期
+  string uid            = 1; // connect_key
+  uint64 online_time    = 2; // 上线时刻
+  uint64 update_time    = 3; // 更新时刻
 
-  string source_group_uid = 4; // 挂载点所属的挂载点组  如果 record表中没有记录，那么就是默认分组
+  string login_mpt      = 4; // 接入的挂载点
+  string alias_mpt      = 5; // 对外服务的名称
+  int32  type           = 6; // 接入类型
+  string account        = 7; // 账户名
+  string ip             = 8; // 连接IP
+  int32  port           = 9; // 连接端口
+  uint64 online_seconds = 10; // 在线时长(秒)
+  uint64 tcp_delay      = 11; // TCP延迟(微秒)
 
-  double ecef_x               = 5;
-  double ecef_y               = 6;
-  double ecef_z               = 7;
-  int32  quality              = 8;
-  int32  sat_num              = 9;
-  double diff                 = 10;
-  double distance             = 11;
-  double position_update_time = 12;
+  double ecef_x               = 12;
+  double ecef_y               = 13;
+  double ecef_z               = 14;
+  int64  position_update_time = 15;
 
+  // 用户专有字段
+  int32  quality        = 16; // 定位状态
+  int32  sat_num        = 17; // 卫星数
+  double diff           = 18; // 差分延迟
+  double distance       = 19; // 距离
 }

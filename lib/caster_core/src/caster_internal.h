@@ -13,6 +13,21 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+#include "core/StreamState.pb.h"
+
+#include "core/ServerState.pb.h"
+#include "core/ClientState.pb.h"
+#include "core/SourceRecord.pb.h"
+
+#include "core/PullRecord.pb.h"
+#include "core/PullState.pb.h"
+#include "core/PushRecord.pb.h"
+#include "core/PushState.pb.h"
+
+#include "core/AccessGroup.pb.h"
+#include "core/AccessItem.pb.h"
+#include "core/AliasRule.pb.h"
+
 /*
     库内维护的Redis表和结构说明
 
@@ -158,130 +173,141 @@ using json = nlohmann::json;
         6.  对于Proxy用户                  login_mpt为提供的Proxy挂载点名称(SN-GRECJ)             alias_mpt设置为Proxy挂载点的(SN-GRECJ_0F64)名称
 */
 
-class str_status
+// 数据流统计（速率计算）
+class stream_status
 {
-private:
-    std::string _UID;       // TCP连接唯一标识
-    std::string _login_mpt; // 用户接入的挂载点 | 基站接入使用的挂载点 | 接入的第三方挂载点名称
-    std::string _alias_mpt; // 挂载点对外服务的名称
-    int _type;              /* 挂载点类型
-                             *  0：未知
-                             *  1：普通挂载点
-                             *  2：最近挂载点
-                             *  3：Pull挂载点(Ntrip Client)
-                             *  4：Pull挂载点(TCP Client)
-                             *  5：Pull挂载点(TCP Server)
-                             *  6：Proxy挂载点(Ntrip Client)
-                             *  7：Alias挂载点(挂载点添加一个别名, 可通过这个别名来获取数据)
-                             */
-    /* 接入类型
-     *  0：未知
-     *  1：普通接入模式
-     *  2：最近基站模式
-     *  3：Push数据(Ntrip Server)
-     *  4：Push数据(TCP Client)
-     *  5：Push数据(TCP Server)
-     *  6：Proxy模式
-     *  7：Alias挂载点
-     */
-
-    std::string _account;
-    std::string _ip;
-    int _port = 0;
-    std::time_t _online_time = 0;    // 上线时刻
-    std::time_t _online_seconds = 0; // 上线持续时间
-
-    double _send_total = 0.0; // 总发送字节数
-    double _send_speed = 0.0; // 总发送速度
-    double _recv_total = 0.0; // 总接收字节数
-    double _recv_speed = 0.0; // 总接收速度
-
-    uint64_t _delay = 0.0; // 数据延迟
-
-    double _ecef_x = 0.0;
-    double _ecef_y = 0.0;
-    double _ecef_z = 0.0;
-    long long _position_update_time = 0; // 坐标更新时间戳 如果和信息更新时刻相隔太远, 就认为坐标无效
-
-    std::time_t _update_time = 0.0; // 信息更新时刻(执行所有函数的时候, 都会更新一下这个函数)
-
-private:
-    bool _is_rover = false;
-
-    // 用户专有的数据
-    int _quality = 0;   // 定位状态
-    int _sat_num = 0;   // 卫星数
-    double _diff = 0.0; // 差分延迟
-
-public:
-    str_status(std::string login_mpt, CasterRegisterType type, std::string user_name, std::string connect_key, bool is_rover);
-    ~str_status();
-
-    int set_alias_mpt(std::string alias_mpt);
-    int add_delay(uint64_t delay);
-    int add_recv(int size);
-    int add_send(int size);
-
-    int set_coord_info(double ecef_x, double ecef_y, double ecef_z, long long update_time);
-    int set_position_info(int quality, int sat_num, double diff);
-
-    std::string get_status_str(); // 0 基站  1 移动站
-
 private:
     struct Sample
     {
-        int64_t time; // 秒级时间戳
+        int64_t time;
         double bytes;
     };
 
     std::deque<Sample> _recvHistory;
     std::deque<Sample> _sendHistory;
+    int _windowSize = 60;
 
-    int _windowSize = 60; // 窗口秒数
+    std::string _uid;
+    std::time_t _online_time = 0;
+    std::time_t _update_time = 0;
 
-    // 清理超出窗口的样本
+    double _send_total = 0;
+    double _send_speed = 0;
+    double _recv_total = 0;
+    double _recv_speed = 0;
+
+public:
+    stream_status(std::string uid); 
+
+    int add_recv(int size);
+    int add_send(int size);
+
+    int fromString(const std::string &str); // 从proto转换为内部数据结构
+    std::string toString();                 // 从内部数据结构转换为proto
+
+private:
     void cleanOld(std::deque<Sample> &history, int64_t now);
-
-    // 计算平均速度
     double calcAvgSpeed(const std::deque<Sample> &history) const;
 };
 
-class relay_item
+// 基站连接状态
+class server_status
 {
 public:
-    std::string para; // 原始参数
+    std::string uid;    // connect_key
+    std::time_t online_time; // 上线时刻
+    std::time_t update_time; // 更新时刻
 
-    std::string UID;    // 请求类型
-    time_t modify_time; // 任务参数的更新时间，按照这个时间来确定参数是否发生变化
+    std::string login_mpt; // 接入的挂载点
+    std::string alias_mpt; // 对外服务的名称
+    int type;              // 挂载点类型
+    std::string account;   // 账户名
+    std::string ip;        // 连接IP    // 通过connect_key解析
+    int port;              // 连接端口
+    std::time_t tcp_delay; // TCP延迟(微秒) //定时上报
 
-    int type;                    // 请求类型
-    std::string target_ip;       // 目标IP
-    int target_port;             // 目标端口
-    std::string target_mpt;      // 挂载点
-    std::string target_account;  // 用户名
-    std::string target_password; // 密码
-    std::string login_mpt;       // 登录的挂载点
+    double ecef_x = 12;
+    double ecef_y = 13;
+    double ecef_z = 14;
+    std::time_t position_update_time = 15;   // 定时上报
+
+    caster::core::ServerState _state;
+
 public:
+
     int fromString(const std::string &str);
+    std::string toString();
 };
 
-class relay_stat
+// 移动站连接状态
+class client_status
 {
 public:
-    std::string _para; // 原始参数
+    caster::core::ClientState _state;
 
-    std::string _UID;    // 请求类型
-    time_t _modify_time; // 任务参数的更新时间，按照这个时间来确定参数是否发生变化
-
-    std::string _node; // 执行这个任务的节点ID
-    std::string _connect_key;
-    int _state; // 任务状态
 public:
     int fromString(const std::string &str);
+    std::string toString();
+};
 
-    int update_state(std::string connect_key, int state);
+class source_record
+{
+public:
+    caster::core::SourceRecord _config;
 
-    std::string get_status_str(); //
+public:
+    int fromString(const std::string &str);
+    std::string toString();
+};
+
+class alias_rule
+{
+public:
+    caster::core::AliasRule _config;
+
+public:
+    int fromString(const std::string &str);
+    std::string toString();
+};
+
+class pull_record
+{
+public:
+    caster::core::PullRecord _config;
+
+public:
+    int fromString(const std::string &str);
+    std::string toString();
+};
+
+class push_record
+{
+public:
+    caster::core::PushRecord _config;
+
+public:
+    int fromString(const std::string &str);
+    std::string toString();
+};
+
+class pull_status
+{
+public:
+    caster::core::PullState _state;
+
+public:
+    int fromString(const std::string &str);
+    std::string toString();
+};
+
+class push_status
+{
+public:
+    caster::core::PushState _state;
+
+public:
+    int fromString(const std::string &str);
+    std::string toString();
 };
 
 class caster_cb_item
@@ -352,13 +378,11 @@ private:
     event_base *_base;
 
 private:
-
     // 全局状态，获取整个节点的负载信息
     size_t _server_connection_count = 0; // 当前连接数   MPT:STAT
     size_t _client_connection_count = 0; // 当前连接数   USR:STAT
     size_t _pull_connection_count = 0;   // 当前连接数   STR:PULL:STAT
     size_t _push_connection_count = 0;   // 当前连接数   STR:PUSH:STAT
-
 
     // 本地记录  这些数据只需要本地维护和上传，无需下载
 
@@ -370,9 +394,10 @@ private:
     std::unordered_map<std::string, caster_cb_item> _base_near_sub_map;                                   // 连接key/cb_arg
 
     // 本节点维护的状态信息 挂载点解析的状态信息
-    std::unordered_map<std::string, str_status> _base_status_map;  // connect_key/str_status  //基站的状态统计信息       MPT:STAT
-    std::unordered_map<std::string, str_status> _rover_status_map; // connect_key/str_status  //移动站的状态统计信息     USR:STAT
-    std::unordered_map<std::string, mount_info> _mount_map;        // Mount_Point // 挂载点名为XXXX-F1A6(虚拟挂载点名-本地连接第三方时采用的端口转为4位16进制)
+    std::unordered_map<std::string, stream_status> _stream_status_map; // 记录每个连接的数据流统计信息(基站和用户的连接都记录在这里, 连接key为Mount_Point-ConnectKey)
+    std::unordered_map<std::string, server_status> _server_status_map; // 基站的状态信息
+    std::unordered_map<std::string, client_status> _client_status_map; // 用户的状态信息
+    std::unordered_map<std::string, source_record> _source_mount_map;  // 挂载点信息，用于获取集群所有的挂载点信息
 
     // 集群数据 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON
@@ -562,10 +587,12 @@ private:
     // 执行任务：LIST中有但是STAT中还没有，关闭任务：STAT中有但是LIST中没有
 
     std::unordered_map<std::string, std::string> _cluster_node_map;
-    std::unordered_map<std::string, relay_item> _pull_list_map; // 数据转发任务
-    std::unordered_map<std::string, relay_item> _push_list_map; // 数据转发任务
-    std::unordered_map<std::string, relay_stat> _pull_stat_map; // 数据转发任务
-    std::unordered_map<std::string, relay_stat> _push_stat_map; // 数据转发任务
+
+    std::unordered_map<std::string, pull_record> _pull_record_map; // 拉取连接的任务信息
+    std::unordered_map<std::string, pull_record> _push_record_map; // 推送连接的任务信息
+    std::unordered_map<std::string, pull_status> _pull_status_map; // 拉取连接的状态信息
+    std::unordered_map<std::string, push_status> _push_status_map; // 推送连接的状态信息
+                                                                   //  流的信息不在这里统计
 
     int try_set_master_node();          // 尝试设置为主节点
     int sync_cluster_state();           // 主节点同步全局信息到本地

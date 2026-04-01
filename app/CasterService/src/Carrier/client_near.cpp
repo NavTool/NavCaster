@@ -1,6 +1,4 @@
 #include "client_near.h"
-#include "knt.h"
-#include <iostream>
 
 client_near::client_near(ConnectInfo info) : carrier_base(info)
 {
@@ -16,50 +14,25 @@ int client_near::init()
     return 0;
 }
 
+// ============ 流程：auth_login → login_cb → caster_register(NEAREST) → register_cb(OK) → running → read_cb解析NMEA触发subscribe ============
+
 int client_near::start()
 {
     auth_login(AuthType::CLIENT);
     return 0;
 }
 
-int client_near::runing()
-{
-    // 启动Bev事件监听
-    start_bev(true, 0, false, 0);
-
-    start_timeout_event(5);
-
-    // 构造回复消息
-    auto str = build_nrtip_reply(CONNECT_TYPE_CLIENT, _ntrip_version2, _transfer_with_chunked);
-
-    // 发送回复消息
-    send_data(str.c_str(), str.size(), false);
-
-    // spdlog::info("[{}]: user [{}] is login, using mount [{}], addr:[{}:{}]", __class__, _user_name, _login_mpt, _ip, _port);
-
-    return 0;
-}
-
 int client_near::stop()
 {
-    // 停止Bev事件监听
     stop_bev();
-
-    // 用户下线
     auth_logout();
-
-    // 取消订阅
     unsubscribe();
-
-    // caster注销
     caster_withdraw();
 
-    // 将销毁操作放入消息队列，执行删除此对象
     _info.set_operate(OPERATE_TYPE_DESTORY);
     QUEUE::Push(_info);
 
-    // spdlog::info("[{}]: user [{}] is logout, using mount [{}], addr:[{}:{}]", __class__, _user_name, _login_mpt, _ip, _port);
-
+    spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
     return 0;
 }
 
@@ -81,6 +54,7 @@ int client_near::write_cb(bufferevent *bev)
 
 int client_near::event_cb(bufferevent *bev, short events)
 {
+    spdlog::info("[{}:{}]: event stop, mount [{}], addr:[{}:{}]", __class__, __func__, _info.mount_point(), _info.addr(), _info.port());
     stop();
     return 0;
 }
@@ -98,6 +72,7 @@ int client_near::login_cb(auth_reply *reply)
         caster_register(CasterRegisterType::NEAREST);
         break;
     case AuthReply::ERR:
+        spdlog::warn("[{}:{}]: auth login failed, addr:[{}:{}]", __class__, __func__, _info.addr(), _info.port());
         stop();
         break;
     default:
@@ -111,15 +86,18 @@ int client_near::register_cb(caster_reply *reply)
     switch (reply->type)
     {
     case CasterReply::OK:
-        runing();
+    {
+        // 注册成功，进入 running 状态（不立即订阅，等NMEA数据触发）
+        start_bev(true, 0, false, 0);
+        start_timeout_event(5);
+        auto str = build_nrtip_reply(CONNECT_TYPE_CLIENT, _ntrip_version2, _transfer_with_chunked);
+        send_data(str.c_str(), str.size(), false);
+        spdlog::info("[{}]: running, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
         break;
+    }
     case CasterReply::ERR:
-        // spdlog::info("[{}:{}]: CASTER_REPLY_ERROR:[{}], user [{}] , using mount [{}], addr:[{}:{}]", __class__, __func__, reply->str, svr->_user_name, svr->_login_mpt, svr->_ip, svr->_port);
+        spdlog::warn("[{}:{}]: caster register failed, addr:[{}:{}]", __class__, __func__, _info.addr(), _info.port());
         stop();
-        break;
-    case CasterReply::ACTIVE:
-        break;
-    case CasterReply::INACTIVE:
         break;
     default:
         break;
@@ -135,9 +113,9 @@ int client_near::subscribe_cb(caster_reply *reply)
         send_data(reply->str, reply->len, _transfer_with_chunked);
         break;
     case CasterReply::OK:
-        runing();
         break;
     case CasterReply::ERR:
+        spdlog::warn("[{}:{}]: subscribe failed, addr:[{}:{}]", __class__, __func__, _info.addr(), _info.port());
         stop();
         break;
     default:

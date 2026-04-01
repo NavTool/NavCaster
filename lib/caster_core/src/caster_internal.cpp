@@ -10,6 +10,38 @@
 
 #define __class__ "caster_internal"
 
+template <typename T>
+std::string ProtoToJson(const T &msg)
+{
+    google::protobuf::json::PrintOptions opt;
+    opt.add_whitespace = true;                       // 转换成json是否添加空格、换行和缩进
+    opt.always_print_fields_with_no_presence = true; // 打印不支持存在的字段
+    opt.always_print_enums_as_ints = false;          // 将枚举类型打印为int
+    opt.preserve_proto_field_names = true;           // 是否保留原型字段名
+    opt.unquote_int64_if_possible = true;            // 关键
+    std::string json_str;
+    auto res = google::protobuf::json::MessageToJsonString(msg, &json_str, opt);
+
+    if (res.ok())
+    {
+        return json_str;
+    }
+    else
+    {
+        return std::string();
+    }
+}
+
+template <typename T>
+bool JsonToProto(const std::string &json, T &msg)
+{
+    google::protobuf::json::ParseOptions opt;
+    opt.ignore_unknown_fields = true; // 关键：向前 / 向后兼容
+
+    auto status = google::protobuf::json::JsonStringToMessage(json, &msg, opt);
+    return status.ok();
+}
+
 /*
     设计的的Redis表和频道组成
     初版：
@@ -1129,7 +1161,7 @@ int caster_internal::upload_record_item()
 {
     if (_upload_base_stat)
     {
-        for (auto str : _base_status_map)
+        for (auto &str : _base_status_map)
         {
             redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str().c_str());
         }
@@ -1137,7 +1169,7 @@ int caster_internal::upload_record_item()
 
     if (_upload_rover_stat)
     {
-        for (auto str : _rover_status_map)
+        for (auto &str : _rover_status_map)
         {
             redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str().c_str());
         }
@@ -1454,14 +1486,32 @@ int caster_internal::register_base_channel(const char *channel, const char *user
 
     try
     {
-        // 创建一条新的stream记录
-        str_status str(channel, type, user_name, connect_key, false);
-        str.set_alias_mpt(channel); //  对于一般挂载点，alias挂载点和login一致
-        _base_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
+        // 创建一条新的连接记录
+        server_status conn;
+        {
+            std::string server_ip;
+            int server_port;
+            std::string client_ip;
+            int client_port;
+            decodeKey(connect_key, server_ip, server_port, client_ip, client_port);
+            auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            conn._state.set_uid(connect_key);
+            conn._state.set_login_mpt(channel);
+            conn._state.set_alias_mpt(channel);
+            conn._state.set_type(resolve_register_type(type));
+            conn._state.set_account(user_name);
+            conn._state.set_ip(client_ip);
+            conn._state.set_port(client_port);
+            conn._state.set_online_time(now);
+            conn._state.set_online_seconds(0);
+            conn._state.set_update_time(now);
+        }
+        _server_status_map.insert(std::pair<std::string, server_status>(connect_key, conn));
+        _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, stream_status()));
         // // 向云端插入记录
         if (_upload_base_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str().c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str());
         }
 
         // 将cb注册回调记录到本地
@@ -1520,14 +1570,32 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
     try
     {
-        // 创建一条新的stream记录
-        str_status str(channel, type, user_name, connect_key, true);
-        str.set_alias_mpt(channel); //  对于一般挂载点，alias挂载点和login一致
-        _rover_status_map.insert(std::pair<std::string, str_status>(connect_key, str));
+        // 创建一条新的连接记录
+        client_status conn;
+        {
+            std::string server_ip;
+            int server_port;
+            std::string client_ip;
+            int client_port;
+            decodeKey(connect_key, server_ip, server_port, client_ip, client_port);
+            auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+            conn._state.set_uid(connect_key);
+            conn._state.set_login_mpt(channel);
+            conn._state.set_alias_mpt(channel);
+            conn._state.set_type(resolve_register_type(type));
+            conn._state.set_account(user_name);
+            conn._state.set_ip(client_ip);
+            conn._state.set_port(client_port);
+            conn._state.set_online_time(now);
+            conn._state.set_online_seconds(0);
+            conn._state.set_update_time(now);
+        }
+        _client_status_map.insert(std::pair<std::string, client_status>(connect_key, conn));
+        _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, stream_status()));
         // 向云端插入记录
         if (_upload_rover_stat)
         {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.get_status_str().c_str()); // 更新挂载点数据生产者的更新时间
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
         }
 
         // 将cb注册回调记录到本地
@@ -1592,13 +1660,14 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:REC:%s %s", channel, connect_key);
 
     // 删除status记录
-    auto str = _base_status_map.find(connect_key);
-    if (str == _base_status_map.end())
+    auto str = _server_status_map.find(connect_key);
+    if (str == _server_status_map.end())
     {
         // 错误，找不到这条stream状态记录仪
         return 3;
     }
-    _base_status_map.erase(connect_key);
+    _server_status_map.erase(connect_key);
+    _stream_status_map.erase(connect_key);
     // // 向云端插入记录
     if (_upload_base_stat)
     {
@@ -1630,13 +1699,14 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:REC:%s %s", user_name, connect_key);
 
     // 删除status记录
-    auto str = _rover_status_map.find(connect_key);
-    if (str == _rover_status_map.end())
+    auto str = _client_status_map.find(connect_key);
+    if (str == _client_status_map.end())
     {
         // 错误，找不到这条stream状态记录仪
         return 3;
     }
-    _rover_status_map.erase(connect_key);
+    _client_status_map.erase(connect_key);
+    _stream_status_map.erase(connect_key);
     // 向云端插入记录
     if (_upload_rover_stat)
     {
@@ -2667,65 +2737,39 @@ void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, s
     clientPort = hexToDec(hexPort2);
 }
 
-str_status::str_status(std::string login_mpt, CasterRegisterType type, std::string user_name, std::string connect_key, bool is_rover)
+// ======================== helper ========================
+
+static int resolve_register_type(CasterRegisterType type)
 {
-    _is_rover = is_rover;
-
-    _UID = connect_key;
-    _login_mpt = login_mpt;
-    _account = user_name;
-
     switch (type)
     {
     case CasterRegisterType::SERVER:
-        _type = 1;
+        return 1;
     case CasterRegisterType::CLIENT:
-        _type = 1;
-        break;
+        return 1;
     case CasterRegisterType::NEAREST:
-        _type = 2;
-        break;
+        return 2;
     case CasterRegisterType::ALIAS:
-        _type = 7;
-        break;
+        return 7;
     case CasterRegisterType::PULL:
-        _type = 3;
-        break;
+        return 3;
     case CasterRegisterType::PUSH:
-        _type = 3;
-        break;
+        return 3;
     default:
-        _type = 0;
-        break;
+        return 0;
     }
-
-    std::string server_ip;
-    int server_port;
-    decodeKey(connect_key, server_ip, server_port, _ip, _port);
-
-    _send_total = 0; // 总发送字节数
-    _send_speed = 0; // 总发送速度
-
-    _recv_total = 0; // 总接收字节数
-    _recv_speed = 0; // 总接收速度
-
-    // 转换为 time_t 类型，表示从1970-01-01 00:00:00 UTC开始的秒数
-    _update_time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    _online_time = _update_time; // 登录时间设置为提前1秒，保证_online_seconds能够不为0
-    _online_seconds = _update_time - _online_time;
 }
 
-str_status::~str_status()
+// ======================== stream_status ========================
+
+stream_status::stream_status(std::string uid)
 {
+    _uid = uid;
+    _online_time = util_get_now_second();
+    _update_time = util_get_now_second();
 }
 
-int str_status::add_delay(uint64_t delay)
-{
-    _delay = delay;
-    return 0;
-}
-
-int str_status::add_recv(int size)
+int stream_status::add_recv(int size)
 {
     _recv_total += size;
     _update_time = util_get_now_second();
@@ -2735,7 +2779,7 @@ int str_status::add_recv(int size)
     return 0;
 }
 
-int str_status::add_send(int size)
+int stream_status::add_send(int size)
 {
     _send_total += size;
     _update_time = util_get_now_second();
@@ -2745,72 +2789,33 @@ int str_status::add_send(int size)
     return 0;
 }
 
-int str_status::set_alias_mpt(std::string alias_mpt)
+int stream_status::fromString(const std::string &str)
 {
-    _alias_mpt = alias_mpt;
-    return 0;
+    return 0; // 目前不需要从字符串解析状态，后续如果需要再实现
 }
 
-int str_status::set_coord_info(double ecef_x, double ecef_y, double ecef_z, long long update_time)
+std::string stream_status::toString()
 {
-    _ecef_x = ecef_x;
-    _ecef_y = ecef_y;
-    _ecef_z = ecef_z;
-    _position_update_time = update_time;
-    return 0;
-}
-
-int str_status::set_position_info(int quality, int sat_num, double diff)
-{
-    _quality = quality;
-    _sat_num = sat_num;
-    _diff = diff;
-    return 0;
-}
-
-std::string str_status::get_status_str()
-{
-    // 强制刷新一次速度
+    // 刷新速度
     add_recv(0);
     add_send(0);
 
-    json info;
+    // 创建一个proto
+    caster::core::StreamState proto;
 
-    info["UID"] = _UID;
-    info["login_mpt"] = _login_mpt;
-    info["alias_mpt"] = _alias_mpt;
-    info["type"] = _type;
-    info["account"] = _account;
-    info["ip"] = _ip;
-    info["port"] = _port;
-    info["online_time"] = _online_time;
-    info["online_seconds"] = _online_seconds;
+    proto.set_uid(_uid);
+    proto.set_online_time(_online_time);
+    proto.set_update_time(_update_time);
 
-    info["send_total"] = _send_total;
-    info["send_speed"] = _send_speed;
-    info["recv_total"] = _recv_total;
-    info["recv_speed"] = _recv_speed;
+    proto.set_send_total(_send_total);
+    proto.set_send_speed(_send_speed);
+    proto.set_recv_total(_recv_total);
+    proto.set_recv_speed(_recv_speed);
 
-    info["tcp_delay"] = _delay;
-
-    info["ecef_x"] = _ecef_x;
-    info["ecef_y"] = _ecef_y;
-    info["ecef_z"] = _ecef_z;
-    info["position_update_time"] = _position_update_time;
-
-    info["update_time"] = _update_time;
-
-    if (_is_rover)
-    {
-        info["quality"] = _quality;
-        info["sat_num"] = _sat_num;
-        info["diff"] = _diff;
-    }
-
-    return info.dump();
+    return ProtoToJson(proto);
 }
 
-void str_status::cleanOld(std::deque<Sample> &history, int64_t now)
+void stream_status::cleanOld(std::deque<Sample> &history, int64_t now)
 {
     while (!history.empty() && now - history.front().time > _windowSize)
     {
@@ -2818,7 +2823,7 @@ void str_status::cleanOld(std::deque<Sample> &history, int64_t now)
     }
 }
 
-double str_status::calcAvgSpeed(const std::deque<Sample> &history) const
+double stream_status::calcAvgSpeed(const std::deque<Sample> &history) const
 {
     if (history.size() < 2)
         return 0.0;
@@ -2829,6 +2834,113 @@ double str_status::calcAvgSpeed(const std::deque<Sample> &history) const
         return 0.0;
     int64_t deltaBytes = last.bytes - first.bytes;
     return static_cast<double>(deltaBytes) / deltaTime;
+}
+
+// ======================== server_status ========================
+
+int server_status::fromString(const std::string &str)
+{
+    return 0; // 目前不需要从字符串解析状态，后续如果需要再实现
+}
+
+std::string server_status::toString()
+{
+    caster::core::ServerState proto;
+
+    proto.set_uid(uid);
+    proto.set_online_time(online_time);
+    proto.set_update_time(update_time);
+    proto.set_login_mpt(login_mpt);
+    proto.set_alias_mpt(alias_mpt);
+
+    return ProtoToJson(proto);
+}
+
+// ======================== client_status ========================
+
+int client_status::fromString(const std::string &str)
+{
+    return 0;
+}
+
+std::string client_status::toString()
+{
+    caster::core::ClientState proto;
+    return ProtoToJson(proto);
+}
+
+// ======================== source_record ========================
+
+int source_record::fromString(const std::string &str)
+{
+
+    return 0;
+}
+
+std::string source_record::toString()
+{
+    caster::core::SourceRecord proto;
+    return ProtoToJson(proto);
+}
+
+// ======================== alias_rule ========================
+
+int alias_rule::fromString(const std::string &str)
+{
+    return JsonToProto(str, _config) ? 0 : 1;
+}
+
+std::string alias_rule::toString()
+{
+    return ProtoToJson(_config);
+}
+
+// ======================== pull_record ========================
+
+int pull_record::fromString(const std::string &str)
+{
+    return JsonToProto(str, _config) ? 0 : 1;
+}
+
+std::string pull_record::toString()
+{
+    return ProtoToJson(_config);
+}
+
+// ======================== push_record ========================
+
+int push_record::fromString(const std::string &str)
+{
+    return JsonToProto(str, _config) ? 0 : 1;
+}
+
+std::string push_record::toString()
+{
+    return ProtoToJson(_config);
+}
+
+// ======================== pull_status ========================
+
+int pull_status::fromString(const std::string &str)
+{
+    return JsonToProto(str, _state) ? 0 : 1;
+}
+
+std::string pull_status::toString()
+{
+    return ProtoToJson(_state);
+}
+
+// ======================== push_status ========================
+
+int push_status::fromString(const std::string &str)
+{
+    return JsonToProto(str, _state) ? 0 : 1;
+}
+
+std::string push_status::toString()
+{
+    return ProtoToJson(_state);
 }
 
 int caster_broadcast_item::fromString(const std::string &str)

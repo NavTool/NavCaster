@@ -29,7 +29,6 @@
 #include "google/protobuf/message_lite.h"
 #include "google/protobuf/repeated_field.h"  // IWYU pragma: export
 #include "google/protobuf/extension_set.h"  // IWYU pragma: export
-#include "google/protobuf/generated_enum_reflection.h"
 #include "google/protobuf/unknown_field_set.h"
 // @@protoc_insertion_point(includes)
 
@@ -56,8 +55,6 @@ extern const ::google::protobuf::internal::DescriptorTable descriptor_table_core
 }  // extern "C"
 namespace caster {
 namespace core {
-enum ServerInfoFromType : int;
-extern const uint32_t ServerInfoFromType_internal_data_[];
 class ServerState;
 struct ServerStateGlobalsTypeInternal;
 extern ServerStateGlobalsTypeInternal _ServerState_globals_;
@@ -66,57 +63,11 @@ extern const ::google::protobuf::internal::ClassDataFull ServerState_class_data_
 }  // namespace caster
 namespace google {
 namespace protobuf {
-template <>
-internal::EnumTraitsT<::caster::core::ServerInfoFromType_internal_data_>
-    internal::EnumTraitsImpl::value<::caster::core::ServerInfoFromType>;
 }  // namespace protobuf
 }  // namespace google
 
 namespace caster {
 namespace core {
-enum ServerInfoFromType : int {
-  SERVER_INFO_FROM_UNKNOWN = 0,
-  SERVER_INFO_FROM_DECODE = 1,
-  SERVER_INFO_FROM_SOURCE = 2,
-  ServerInfoFromType_INT_MIN_SENTINEL_DO_NOT_USE_ =
-      ::std::numeric_limits<::int32_t>::min(),
-  ServerInfoFromType_INT_MAX_SENTINEL_DO_NOT_USE_ =
-      ::std::numeric_limits<::int32_t>::max(),
-};
-
-extern const uint32_t ServerInfoFromType_internal_data_[];
-inline constexpr ServerInfoFromType ServerInfoFromType_MIN =
-    static_cast<ServerInfoFromType>(0);
-inline constexpr ServerInfoFromType ServerInfoFromType_MAX =
-    static_cast<ServerInfoFromType>(2);
-[[nodiscard]] inline bool ServerInfoFromType_IsValid(int value) {
-  return 0 <= value && value <= 2;
-}
-inline constexpr int ServerInfoFromType_ARRAYSIZE = 2 + 1;
-[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-ServerInfoFromType_descriptor();
-[[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(ServerInfoFromType) {
-  return ServerInfoFromType_descriptor();
-}
-template <typename T>
-[[nodiscard]] const ::std::string& ServerInfoFromType_Name(T value) {
-  static_assert(::std::is_same<T, ServerInfoFromType>::value ||
-                    ::std::is_integral<T>::value,
-                "Incorrect type passed to ServerInfoFromType_Name().");
-  return ServerInfoFromType_Name(static_cast<ServerInfoFromType>(value));
-}
-template <>
-[[nodiscard]] inline const ::std::string& ServerInfoFromType_Name(ServerInfoFromType value) {
-  return ::google::protobuf::internal::NameOfDenseEnum<ServerInfoFromType_descriptor, 0, 2>(
-      static_cast<int>(value));
-}
-[[nodiscard]] inline bool ServerInfoFromType_Parse(
-    ::absl::string_view name, ServerInfoFromType* PROTOBUF_NONNULL value) {
-  return ::google::protobuf::internal::ParseNamedEnum<ServerInfoFromType>(ServerInfoFromType_descriptor(), name,
-                                           value);
-}
-using ::google::protobuf::internal::generated_enum::AbslParseFlag;
-using ::google::protobuf::internal::generated_enum::AbslUnparseFlag;
 
 // ===================================================================
 
@@ -269,27 +220,20 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ServerState final : public ::google
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
-    kMountpointFieldNumber = 5,
-    kIdentufierFieldNumber = 6,
-    kFormatFieldNumber = 7,
-    kFormatDetailsFieldNumber = 8,
-    kCarrierFieldNumber = 9,
-    kNavSystemFieldNumber = 10,
-    kNetworkFieldNumber = 11,
-    kCountryFieldNumber = 12,
-    kLatitudeFieldNumber = 13,
-    kLongitudeFieldNumber = 14,
-    kNmeaFieldNumber = 15,
-    kSolutionFieldNumber = 16,
-    kGeneratorFieldNumber = 17,
-    kComprEncrrypFieldNumber = 18,
-    kAuthenticationFieldNumber = 19,
-    kFeeFieldNumber = 20,
-    kBitrateFieldNumber = 21,
-    kMiscFieldNumber = 22,
-    kCreateTimeFieldNumber = 2,
+    kLoginMptFieldNumber = 4,
+    kAliasMptFieldNumber = 5,
+    kAccountFieldNumber = 7,
+    kIpFieldNumber = 8,
+    kOnlineTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
-    kTypeFieldNumber = 4,
+    kTypeFieldNumber = 6,
+    kPortFieldNumber = 9,
+    kOnlineSecondsFieldNumber = 10,
+    kTcpDelayFieldNumber = 11,
+    kEcefXFieldNumber = 12,
+    kEcefYFieldNumber = 13,
+    kEcefZFieldNumber = 14,
+    kPositionUpdateTimeFieldNumber = 15,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -306,284 +250,74 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ServerState final : public ::google
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
 
   public:
-  // string mountpoint = 5;
-  void clear_mountpoint() ;
-  [[nodiscard]] const ::std::string& mountpoint() const;
+  // string login_mpt = 4;
+  void clear_login_mpt() ;
+  [[nodiscard]] const ::std::string& login_mpt() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_mountpoint(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_mountpoint();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_mountpoint();
-  void set_allocated_mountpoint(::std::string* PROTOBUF_NULLABLE value);
+  void set_login_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_login_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_login_mpt();
+  void set_allocated_login_mpt(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_mountpoint() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_mountpoint(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_mountpoint();
+  const ::std::string& _internal_login_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_login_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_login_mpt();
 
   public:
-  // string identufier = 6;
-  void clear_identufier() ;
-  [[nodiscard]] const ::std::string& identufier() const;
+  // string alias_mpt = 5;
+  void clear_alias_mpt() ;
+  [[nodiscard]] const ::std::string& alias_mpt() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_identufier(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_identufier();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_identufier();
-  void set_allocated_identufier(::std::string* PROTOBUF_NULLABLE value);
+  void set_alias_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_alias_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_alias_mpt();
+  void set_allocated_alias_mpt(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_identufier() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_identufier(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_identufier();
+  const ::std::string& _internal_alias_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_alias_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_alias_mpt();
 
   public:
-  // string format = 7;
-  void clear_format() ;
-  [[nodiscard]] const ::std::string& format() const;
+  // string account = 7;
+  void clear_account() ;
+  [[nodiscard]] const ::std::string& account() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_format(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_format();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_format();
-  void set_allocated_format(::std::string* PROTOBUF_NULLABLE value);
+  void set_account(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_account();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_account();
+  void set_allocated_account(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_format() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_format(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_format();
+  const ::std::string& _internal_account() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_account(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_account();
 
   public:
-  // string format_details = 8;
-  void clear_format_details() ;
-  [[nodiscard]] const ::std::string& format_details() const;
+  // string ip = 8;
+  void clear_ip() ;
+  [[nodiscard]] const ::std::string& ip() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_format_details(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_format_details();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_format_details();
-  void set_allocated_format_details(::std::string* PROTOBUF_NULLABLE value);
+  void set_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_ip();
+  void set_allocated_ip(::std::string* PROTOBUF_NULLABLE value);
 
   private:
-  const ::std::string& _internal_format_details() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_format_details(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_format_details();
+  const ::std::string& _internal_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_ip();
 
   public:
-  // string carrier = 9;
-  void clear_carrier() ;
-  [[nodiscard]] const ::std::string& carrier() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_carrier(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_carrier();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_carrier();
-  void set_allocated_carrier(::std::string* PROTOBUF_NULLABLE value);
+  // uint64 online_time = 2;
+  void clear_online_time() ;
+  [[nodiscard]] ::uint64_t online_time() const;
+  void set_online_time(::uint64_t value);
 
   private:
-  const ::std::string& _internal_carrier() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_carrier(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_carrier();
-
-  public:
-  // string nav_system = 10;
-  void clear_nav_system() ;
-  [[nodiscard]] const ::std::string& nav_system() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_nav_system(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_nav_system();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_nav_system();
-  void set_allocated_nav_system(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_nav_system() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_nav_system(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_nav_system();
-
-  public:
-  // string network = 11;
-  void clear_network() ;
-  [[nodiscard]] const ::std::string& network() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_network(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_network();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_network();
-  void set_allocated_network(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_network() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_network(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_network();
-
-  public:
-  // string country = 12;
-  void clear_country() ;
-  [[nodiscard]] const ::std::string& country() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_country(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_country();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_country();
-  void set_allocated_country(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_country() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_country(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_country();
-
-  public:
-  // string latitude = 13;
-  void clear_latitude() ;
-  [[nodiscard]] const ::std::string& latitude() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_latitude(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_latitude();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_latitude();
-  void set_allocated_latitude(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_latitude() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_latitude(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_latitude();
-
-  public:
-  // string longitude = 14;
-  void clear_longitude() ;
-  [[nodiscard]] const ::std::string& longitude() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_longitude(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_longitude();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_longitude();
-  void set_allocated_longitude(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_longitude() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_longitude(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_longitude();
-
-  public:
-  // string nmea = 15;
-  void clear_nmea() ;
-  [[nodiscard]] const ::std::string& nmea() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_nmea(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_nmea();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_nmea();
-  void set_allocated_nmea(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_nmea() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_nmea(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_nmea();
-
-  public:
-  // string solution = 16;
-  void clear_solution() ;
-  [[nodiscard]] const ::std::string& solution() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_solution(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_solution();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_solution();
-  void set_allocated_solution(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_solution() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_solution(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_solution();
-
-  public:
-  // string generator = 17;
-  void clear_generator() ;
-  [[nodiscard]] const ::std::string& generator() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_generator(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_generator();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_generator();
-  void set_allocated_generator(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_generator() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_generator(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_generator();
-
-  public:
-  // string compr_encrryp = 18;
-  void clear_compr_encrryp() ;
-  [[nodiscard]] const ::std::string& compr_encrryp() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_compr_encrryp(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_compr_encrryp();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_compr_encrryp();
-  void set_allocated_compr_encrryp(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_compr_encrryp() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_compr_encrryp(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_compr_encrryp();
-
-  public:
-  // string authentication = 19;
-  void clear_authentication() ;
-  [[nodiscard]] const ::std::string& authentication() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_authentication(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_authentication();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_authentication();
-  void set_allocated_authentication(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_authentication() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_authentication(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_authentication();
-
-  public:
-  // string fee = 20;
-  void clear_fee() ;
-  [[nodiscard]] const ::std::string& fee() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_fee(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_fee();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_fee();
-  void set_allocated_fee(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_fee() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_fee(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_fee();
-
-  public:
-  // string bitrate = 21;
-  void clear_bitrate() ;
-  [[nodiscard]] const ::std::string& bitrate() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_bitrate(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_bitrate();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_bitrate();
-  void set_allocated_bitrate(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_bitrate() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_bitrate(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_bitrate();
-
-  public:
-  // string misc = 22;
-  void clear_misc() ;
-  [[nodiscard]] const ::std::string& misc() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_misc(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_misc();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_misc();
-  void set_allocated_misc(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_misc() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_misc(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_misc();
-
-  public:
-  // uint64 create_time = 2;
-  void clear_create_time() ;
-  [[nodiscard]] ::uint64_t create_time() const;
-  void set_create_time(::uint64_t value);
-
-  private:
-  ::uint64_t _internal_create_time() const;
-  void _internal_set_create_time(::uint64_t value);
+  ::uint64_t _internal_online_time() const;
+  void _internal_set_online_time(::uint64_t value);
 
   public:
   // uint64 update_time = 3;
@@ -596,22 +330,92 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ServerState final : public ::google
   void _internal_set_update_time(::uint64_t value);
 
   public:
-  // .caster.core.ServerInfoFromType type = 4;
+  // int32 type = 6;
   void clear_type() ;
-  [[nodiscard]] ::caster::core::ServerInfoFromType type() const;
-  void set_type(::caster::core::ServerInfoFromType value);
+  [[nodiscard]] ::int32_t type() const;
+  void set_type(::int32_t value);
 
   private:
-  ::caster::core::ServerInfoFromType _internal_type() const;
-  void _internal_set_type(::caster::core::ServerInfoFromType value);
+  ::int32_t _internal_type() const;
+  void _internal_set_type(::int32_t value);
+
+  public:
+  // int32 port = 9;
+  void clear_port() ;
+  [[nodiscard]] ::int32_t port() const;
+  void set_port(::int32_t value);
+
+  private:
+  ::int32_t _internal_port() const;
+  void _internal_set_port(::int32_t value);
+
+  public:
+  // uint64 online_seconds = 10;
+  void clear_online_seconds() ;
+  [[nodiscard]] ::uint64_t online_seconds() const;
+  void set_online_seconds(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_online_seconds() const;
+  void _internal_set_online_seconds(::uint64_t value);
+
+  public:
+  // uint64 tcp_delay = 11;
+  void clear_tcp_delay() ;
+  [[nodiscard]] ::uint64_t tcp_delay() const;
+  void set_tcp_delay(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_tcp_delay() const;
+  void _internal_set_tcp_delay(::uint64_t value);
+
+  public:
+  // double ecef_x = 12;
+  void clear_ecef_x() ;
+  [[nodiscard]] double ecef_x() const;
+  void set_ecef_x(double value);
+
+  private:
+  double _internal_ecef_x() const;
+  void _internal_set_ecef_x(double value);
+
+  public:
+  // double ecef_y = 13;
+  void clear_ecef_y() ;
+  [[nodiscard]] double ecef_y() const;
+  void set_ecef_y(double value);
+
+  private:
+  double _internal_ecef_y() const;
+  void _internal_set_ecef_y(double value);
+
+  public:
+  // double ecef_z = 14;
+  void clear_ecef_z() ;
+  [[nodiscard]] double ecef_z() const;
+  void set_ecef_z(double value);
+
+  private:
+  double _internal_ecef_z() const;
+  void _internal_set_ecef_z(double value);
+
+  public:
+  // int64 position_update_time = 15;
+  void clear_position_update_time() ;
+  [[nodiscard]] ::int64_t position_update_time() const;
+  void set_position_update_time(::int64_t value);
+
+  private:
+  ::int64_t _internal_position_update_time() const;
+  void _internal_set_position_update_time(::int64_t value);
 
   public:
   // @@protoc_insertion_point(class_scope:caster.core.ServerState)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<5, 22,
-                                   0, 201,
+  static const ::google::protobuf::internal::TcParseTable<4, 15,
+                                   0, 70,
                                    2>
       _table_;
 
@@ -635,27 +439,20 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ServerState final : public ::google
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
-    ::google::protobuf::internal::ArenaStringPtr mountpoint_;
-    ::google::protobuf::internal::ArenaStringPtr identufier_;
-    ::google::protobuf::internal::ArenaStringPtr format_;
-    ::google::protobuf::internal::ArenaStringPtr format_details_;
-    ::google::protobuf::internal::ArenaStringPtr carrier_;
-    ::google::protobuf::internal::ArenaStringPtr nav_system_;
-    ::google::protobuf::internal::ArenaStringPtr network_;
-    ::google::protobuf::internal::ArenaStringPtr country_;
-    ::google::protobuf::internal::ArenaStringPtr latitude_;
-    ::google::protobuf::internal::ArenaStringPtr longitude_;
-    ::google::protobuf::internal::ArenaStringPtr nmea_;
-    ::google::protobuf::internal::ArenaStringPtr solution_;
-    ::google::protobuf::internal::ArenaStringPtr generator_;
-    ::google::protobuf::internal::ArenaStringPtr compr_encrryp_;
-    ::google::protobuf::internal::ArenaStringPtr authentication_;
-    ::google::protobuf::internal::ArenaStringPtr fee_;
-    ::google::protobuf::internal::ArenaStringPtr bitrate_;
-    ::google::protobuf::internal::ArenaStringPtr misc_;
-    ::uint64_t create_time_;
+    ::google::protobuf::internal::ArenaStringPtr login_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr alias_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr account_;
+    ::google::protobuf::internal::ArenaStringPtr ip_;
+    ::uint64_t online_time_;
     ::uint64_t update_time_;
-    int type_;
+    ::int32_t type_;
+    ::int32_t port_;
+    ::uint64_t online_seconds_;
+    ::uint64_t tcp_delay_;
+    double ecef_x_;
+    double ecef_y_;
+    double ecef_z_;
+    ::int64_t position_update_time_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -745,29 +542,29 @@ inline void ServerState::set_allocated_uid(::std::string* PROTOBUF_NULLABLE valu
   // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.uid)
 }
 
-// uint64 create_time = 2;
-inline void ServerState::clear_create_time() {
+// uint64 online_time = 2;
+inline void ServerState::clear_online_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.create_time_ = ::uint64_t{0u};
+  _impl_.online_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00080000U);
+                  0x00000020U);
 }
-inline ::uint64_t ServerState::create_time() const {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.create_time)
-  return _internal_create_time();
+inline ::uint64_t ServerState::online_time() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.online_time)
+  return _internal_online_time();
 }
-inline void ServerState::set_create_time(::uint64_t value) {
-  _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.create_time)
+inline void ServerState::set_online_time(::uint64_t value) {
+  _internal_set_online_time(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.online_time)
 }
-inline ::uint64_t ServerState::_internal_create_time() const {
+inline ::uint64_t ServerState::_internal_online_time() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.create_time_;
+  return _impl_.online_time_;
 }
-inline void ServerState::_internal_set_create_time(::uint64_t value) {
+inline void ServerState::_internal_set_online_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.create_time_ = value;
+  _impl_.online_time_ = value;
 }
 
 // uint64 update_time = 3;
@@ -775,7 +572,7 @@ inline void ServerState::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00100000U);
+                  0x00000040U);
 }
 inline ::uint64_t ServerState::update_time() const {
   // @@protoc_insertion_point(field_get:caster.core.ServerState.update_time)
@@ -783,7 +580,7 @@ inline ::uint64_t ServerState::update_time() const {
 }
 inline void ServerState::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:caster.core.ServerState.update_time)
 }
 inline ::uint64_t ServerState::_internal_update_time() const {
@@ -795,1199 +592,464 @@ inline void ServerState::_internal_set_update_time(::uint64_t value) {
   _impl_.update_time_ = value;
 }
 
-// .caster.core.ServerInfoFromType type = 4;
-inline void ServerState::clear_type() {
+// string login_mpt = 4;
+inline void ServerState::clear_login_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.type_ = 0;
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00200000U);
-}
-inline ::caster::core::ServerInfoFromType ServerState::type() const {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.type)
-  return _internal_type();
-}
-inline void ServerState::set_type(::caster::core::ServerInfoFromType value) {
-  _internal_set_type(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.type)
-}
-inline ::caster::core::ServerInfoFromType ServerState::_internal_type() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return static_cast<::caster::core::ServerInfoFromType>(_impl_.type_);
-}
-inline void ServerState::_internal_set_type(::caster::core::ServerInfoFromType value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.type_ = value;
-}
-
-// string mountpoint = 5;
-inline void ServerState::clear_mountpoint() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.mountpoint_.ClearToEmpty();
+  _impl_.login_mpt_.ClearToEmpty();
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000002U);
 }
-inline const ::std::string& ServerState::mountpoint() const
+inline const ::std::string& ServerState::login_mpt() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.mountpoint)
-  return _internal_mountpoint();
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.login_mpt)
+  return _internal_login_mpt();
 }
 template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_mountpoint(Arg_&& arg, Args_... args) {
+PROTOBUF_ALWAYS_INLINE void ServerState::set_login_mpt(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   SetHasBit(_impl_._has_bits_[0], 0x00000002U);
-  _impl_.mountpoint_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.mountpoint)
+  _impl_.login_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.login_mpt)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_mountpoint()
+inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_login_mpt()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   SetHasBit(_impl_._has_bits_[0], 0x00000002U);
-  ::std::string* _s = _internal_mutable_mountpoint();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.mountpoint)
+  ::std::string* _s = _internal_mutable_login_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.login_mpt)
   return _s;
 }
-inline const ::std::string& ServerState::_internal_mountpoint() const {
+inline const ::std::string& ServerState::_internal_login_mpt() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.mountpoint_.Get();
+  return _impl_.login_mpt_.Get();
 }
-inline void ServerState::_internal_set_mountpoint(const ::std::string& value) {
+inline void ServerState::_internal_set_login_mpt(const ::std::string& value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.mountpoint_.Set(value, GetArena());
+  _impl_.login_mpt_.Set(value, GetArena());
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_mountpoint() {
+inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_login_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.mountpoint_.Mutable( GetArena());
+  return _impl_.login_mpt_.Mutable( GetArena());
 }
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_mountpoint() {
+inline ::std::string* PROTOBUF_NULLABLE ServerState::release_login_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.mountpoint)
+  // @@protoc_insertion_point(field_release:caster.core.ServerState.login_mpt)
   if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
     return nullptr;
   }
   ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
-  auto* released = _impl_.mountpoint_.Release();
+  auto* released = _impl_.login_mpt_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.mountpoint_.Set("", GetArena());
+    _impl_.login_mpt_.Set("", GetArena());
   }
   return released;
 }
-inline void ServerState::set_allocated_mountpoint(::std::string* PROTOBUF_NULLABLE value) {
+inline void ServerState::set_allocated_login_mpt(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
     SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
     ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
-  _impl_.mountpoint_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.mountpoint_.IsDefault()) {
-    _impl_.mountpoint_.Set("", GetArena());
+  _impl_.login_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.login_mpt_.IsDefault()) {
+    _impl_.login_mpt_.Set("", GetArena());
   }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.mountpoint)
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.login_mpt)
 }
 
-// string identufier = 6;
-inline void ServerState::clear_identufier() {
+// string alias_mpt = 5;
+inline void ServerState::clear_alias_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.identufier_.ClearToEmpty();
+  _impl_.alias_mpt_.ClearToEmpty();
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000004U);
 }
-inline const ::std::string& ServerState::identufier() const
+inline const ::std::string& ServerState::alias_mpt() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.identufier)
-  return _internal_identufier();
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.alias_mpt)
+  return _internal_alias_mpt();
 }
 template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_identufier(Arg_&& arg, Args_... args) {
+PROTOBUF_ALWAYS_INLINE void ServerState::set_alias_mpt(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   SetHasBit(_impl_._has_bits_[0], 0x00000004U);
-  _impl_.identufier_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.identufier)
+  _impl_.alias_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.alias_mpt)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_identufier()
+inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_alias_mpt()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   SetHasBit(_impl_._has_bits_[0], 0x00000004U);
-  ::std::string* _s = _internal_mutable_identufier();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.identufier)
+  ::std::string* _s = _internal_mutable_alias_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.alias_mpt)
   return _s;
 }
-inline const ::std::string& ServerState::_internal_identufier() const {
+inline const ::std::string& ServerState::_internal_alias_mpt() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.identufier_.Get();
+  return _impl_.alias_mpt_.Get();
 }
-inline void ServerState::_internal_set_identufier(const ::std::string& value) {
+inline void ServerState::_internal_set_alias_mpt(const ::std::string& value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.identufier_.Set(value, GetArena());
+  _impl_.alias_mpt_.Set(value, GetArena());
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_identufier() {
+inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_alias_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.identufier_.Mutable( GetArena());
+  return _impl_.alias_mpt_.Mutable( GetArena());
 }
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_identufier() {
+inline ::std::string* PROTOBUF_NULLABLE ServerState::release_alias_mpt() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.identufier)
+  // @@protoc_insertion_point(field_release:caster.core.ServerState.alias_mpt)
   if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
     return nullptr;
   }
   ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
-  auto* released = _impl_.identufier_.Release();
+  auto* released = _impl_.alias_mpt_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.identufier_.Set("", GetArena());
+    _impl_.alias_mpt_.Set("", GetArena());
   }
   return released;
 }
-inline void ServerState::set_allocated_identufier(::std::string* PROTOBUF_NULLABLE value) {
+inline void ServerState::set_allocated_alias_mpt(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
     SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
     ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
-  _impl_.identufier_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.identufier_.IsDefault()) {
-    _impl_.identufier_.Set("", GetArena());
+  _impl_.alias_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.alias_mpt_.IsDefault()) {
+    _impl_.alias_mpt_.Set("", GetArena());
   }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.identufier)
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.alias_mpt)
 }
 
-// string format = 7;
-inline void ServerState::clear_format() {
+// int32 type = 6;
+inline void ServerState::clear_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.format_.ClearToEmpty();
+  _impl_.type_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline ::int32_t ServerState::type() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.type)
+  return _internal_type();
+}
+inline void ServerState::set_type(::int32_t value) {
+  _internal_set_type(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.type)
+}
+inline ::int32_t ServerState::_internal_type() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.type_;
+}
+inline void ServerState::_internal_set_type(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.type_ = value;
+}
+
+// string account = 7;
+inline void ServerState::clear_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.account_.ClearToEmpty();
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000008U);
 }
-inline const ::std::string& ServerState::format() const
+inline const ::std::string& ServerState::account() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.format)
-  return _internal_format();
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.account)
+  return _internal_account();
 }
 template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_format(Arg_&& arg, Args_... args) {
+PROTOBUF_ALWAYS_INLINE void ServerState::set_account(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   SetHasBit(_impl_._has_bits_[0], 0x00000008U);
-  _impl_.format_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.format)
+  _impl_.account_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.account)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_format()
+inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_account()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   SetHasBit(_impl_._has_bits_[0], 0x00000008U);
-  ::std::string* _s = _internal_mutable_format();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.format)
+  ::std::string* _s = _internal_mutable_account();
+  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.account)
   return _s;
 }
-inline const ::std::string& ServerState::_internal_format() const {
+inline const ::std::string& ServerState::_internal_account() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.format_.Get();
+  return _impl_.account_.Get();
 }
-inline void ServerState::_internal_set_format(const ::std::string& value) {
+inline void ServerState::_internal_set_account(const ::std::string& value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.format_.Set(value, GetArena());
+  _impl_.account_.Set(value, GetArena());
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_format() {
+inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_account() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.format_.Mutable( GetArena());
+  return _impl_.account_.Mutable( GetArena());
 }
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_format() {
+inline ::std::string* PROTOBUF_NULLABLE ServerState::release_account() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.format)
+  // @@protoc_insertion_point(field_release:caster.core.ServerState.account)
   if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
     return nullptr;
   }
   ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
-  auto* released = _impl_.format_.Release();
+  auto* released = _impl_.account_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.format_.Set("", GetArena());
+    _impl_.account_.Set("", GetArena());
   }
   return released;
 }
-inline void ServerState::set_allocated_format(::std::string* PROTOBUF_NULLABLE value) {
+inline void ServerState::set_allocated_account(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
     SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
     ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
-  _impl_.format_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.format_.IsDefault()) {
-    _impl_.format_.Set("", GetArena());
+  _impl_.account_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.account_.IsDefault()) {
+    _impl_.account_.Set("", GetArena());
   }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.format)
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.account)
 }
 
-// string format_details = 8;
-inline void ServerState::clear_format_details() {
+// string ip = 8;
+inline void ServerState::clear_ip() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.format_details_.ClearToEmpty();
+  _impl_.ip_.ClearToEmpty();
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000010U);
 }
-inline const ::std::string& ServerState::format_details() const
+inline const ::std::string& ServerState::ip() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.format_details)
-  return _internal_format_details();
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.ip)
+  return _internal_ip();
 }
 template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_format_details(Arg_&& arg, Args_... args) {
+PROTOBUF_ALWAYS_INLINE void ServerState::set_ip(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   SetHasBit(_impl_._has_bits_[0], 0x00000010U);
-  _impl_.format_details_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.format_details)
+  _impl_.ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.ip)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_format_details()
+inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_ip()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
   SetHasBit(_impl_._has_bits_[0], 0x00000010U);
-  ::std::string* _s = _internal_mutable_format_details();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.format_details)
+  ::std::string* _s = _internal_mutable_ip();
+  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.ip)
   return _s;
 }
-inline const ::std::string& ServerState::_internal_format_details() const {
+inline const ::std::string& ServerState::_internal_ip() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.format_details_.Get();
+  return _impl_.ip_.Get();
 }
-inline void ServerState::_internal_set_format_details(const ::std::string& value) {
+inline void ServerState::_internal_set_ip(const ::std::string& value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.format_details_.Set(value, GetArena());
+  _impl_.ip_.Set(value, GetArena());
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_format_details() {
+inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_ip() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.format_details_.Mutable( GetArena());
+  return _impl_.ip_.Mutable( GetArena());
 }
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_format_details() {
+inline ::std::string* PROTOBUF_NULLABLE ServerState::release_ip() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.format_details)
+  // @@protoc_insertion_point(field_release:caster.core.ServerState.ip)
   if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
     return nullptr;
   }
   ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
-  auto* released = _impl_.format_details_.Release();
+  auto* released = _impl_.ip_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.format_details_.Set("", GetArena());
+    _impl_.ip_.Set("", GetArena());
   }
   return released;
 }
-inline void ServerState::set_allocated_format_details(::std::string* PROTOBUF_NULLABLE value) {
+inline void ServerState::set_allocated_ip(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
     SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   } else {
     ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
   }
-  _impl_.format_details_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.format_details_.IsDefault()) {
-    _impl_.format_details_.Set("", GetArena());
+  _impl_.ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.ip_.IsDefault()) {
+    _impl_.ip_.Set("", GetArena());
   }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.format_details)
+  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.ip)
 }
 
-// string carrier = 9;
-inline void ServerState::clear_carrier() {
+// int32 port = 9;
+inline void ServerState::clear_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.carrier_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00000020U);
-}
-inline const ::std::string& ServerState::carrier() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.carrier)
-  return _internal_carrier();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_carrier(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
-  _impl_.carrier_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.carrier)
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_carrier()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
-  ::std::string* _s = _internal_mutable_carrier();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.carrier)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_carrier() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.carrier_.Get();
-}
-inline void ServerState::_internal_set_carrier(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.carrier_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_carrier() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.carrier_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_carrier() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.carrier)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000020U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
-  auto* released = _impl_.carrier_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.carrier_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_carrier(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
-  }
-  _impl_.carrier_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.carrier_.IsDefault()) {
-    _impl_.carrier_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.carrier)
-}
-
-// string nav_system = 10;
-inline void ServerState::clear_nav_system() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nav_system_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00000040U);
-}
-inline const ::std::string& ServerState::nav_system() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.nav_system)
-  return _internal_nav_system();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_nav_system(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
-  _impl_.nav_system_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.nav_system)
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_nav_system()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
-  ::std::string* _s = _internal_mutable_nav_system();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.nav_system)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_nav_system() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.nav_system_.Get();
-}
-inline void ServerState::_internal_set_nav_system(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nav_system_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_nav_system() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.nav_system_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_nav_system() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.nav_system)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000040U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
-  auto* released = _impl_.nav_system_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.nav_system_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_nav_system(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
-  }
-  _impl_.nav_system_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.nav_system_.IsDefault()) {
-    _impl_.nav_system_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.nav_system)
-}
-
-// string network = 11;
-inline void ServerState::clear_network() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.network_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00000080U);
-}
-inline const ::std::string& ServerState::network() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.network)
-  return _internal_network();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_network(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
-  _impl_.network_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.network)
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_network()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
-  ::std::string* _s = _internal_mutable_network();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.network)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_network() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.network_.Get();
-}
-inline void ServerState::_internal_set_network(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.network_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_network() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.network_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_network() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.network)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000080U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
-  auto* released = _impl_.network_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.network_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_network(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
-  }
-  _impl_.network_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.network_.IsDefault()) {
-    _impl_.network_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.network)
-}
-
-// string country = 12;
-inline void ServerState::clear_country() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.country_.ClearToEmpty();
+  _impl_.port_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000100U);
 }
-inline const ::std::string& ServerState::country() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.country)
-  return _internal_country();
+inline ::int32_t ServerState::port() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.port)
+  return _internal_port();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_country(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
+inline void ServerState::set_port(::int32_t value) {
+  _internal_set_port(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000100U);
-  _impl_.country_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.country)
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.port)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_country()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
-  ::std::string* _s = _internal_mutable_country();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.country)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_country() const {
+inline ::int32_t ServerState::_internal_port() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.country_.Get();
+  return _impl_.port_;
 }
-inline void ServerState::_internal_set_country(const ::std::string& value) {
+inline void ServerState::_internal_set_port(::int32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.country_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_country() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.country_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_country() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.country)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000100U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
-  auto* released = _impl_.country_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.country_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_country(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
-  }
-  _impl_.country_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.country_.IsDefault()) {
-    _impl_.country_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.country)
+  _impl_.port_ = value;
 }
 
-// string latitude = 13;
-inline void ServerState::clear_latitude() {
+// uint64 online_seconds = 10;
+inline void ServerState::clear_online_seconds() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.latitude_.ClearToEmpty();
+  _impl_.online_seconds_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000200U);
 }
-inline const ::std::string& ServerState::latitude() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.latitude)
-  return _internal_latitude();
+inline ::uint64_t ServerState::online_seconds() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.online_seconds)
+  return _internal_online_seconds();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_latitude(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
+inline void ServerState::set_online_seconds(::uint64_t value) {
+  _internal_set_online_seconds(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000200U);
-  _impl_.latitude_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.latitude)
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.online_seconds)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_latitude()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
-  ::std::string* _s = _internal_mutable_latitude();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.latitude)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_latitude() const {
+inline ::uint64_t ServerState::_internal_online_seconds() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.latitude_.Get();
+  return _impl_.online_seconds_;
 }
-inline void ServerState::_internal_set_latitude(const ::std::string& value) {
+inline void ServerState::_internal_set_online_seconds(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.latitude_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_latitude() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.latitude_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_latitude() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.latitude)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000200U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
-  auto* released = _impl_.latitude_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.latitude_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_latitude(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
-  }
-  _impl_.latitude_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.latitude_.IsDefault()) {
-    _impl_.latitude_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.latitude)
+  _impl_.online_seconds_ = value;
 }
 
-// string longitude = 14;
-inline void ServerState::clear_longitude() {
+// uint64 tcp_delay = 11;
+inline void ServerState::clear_tcp_delay() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.longitude_.ClearToEmpty();
+  _impl_.tcp_delay_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000400U);
 }
-inline const ::std::string& ServerState::longitude() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.longitude)
-  return _internal_longitude();
+inline ::uint64_t ServerState::tcp_delay() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.tcp_delay)
+  return _internal_tcp_delay();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_longitude(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
+inline void ServerState::set_tcp_delay(::uint64_t value) {
+  _internal_set_tcp_delay(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000400U);
-  _impl_.longitude_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.longitude)
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.tcp_delay)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_longitude()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
-  ::std::string* _s = _internal_mutable_longitude();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.longitude)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_longitude() const {
+inline ::uint64_t ServerState::_internal_tcp_delay() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.longitude_.Get();
+  return _impl_.tcp_delay_;
 }
-inline void ServerState::_internal_set_longitude(const ::std::string& value) {
+inline void ServerState::_internal_set_tcp_delay(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.longitude_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_longitude() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.longitude_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_longitude() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.longitude)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000400U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
-  auto* released = _impl_.longitude_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.longitude_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_longitude(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000400U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
-  }
-  _impl_.longitude_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.longitude_.IsDefault()) {
-    _impl_.longitude_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.longitude)
+  _impl_.tcp_delay_ = value;
 }
 
-// string nmea = 15;
-inline void ServerState::clear_nmea() {
+// double ecef_x = 12;
+inline void ServerState::clear_ecef_x() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nmea_.ClearToEmpty();
+  _impl_.ecef_x_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00000800U);
 }
-inline const ::std::string& ServerState::nmea() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.nmea)
-  return _internal_nmea();
+inline double ServerState::ecef_x() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.ecef_x)
+  return _internal_ecef_x();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_nmea(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
+inline void ServerState::set_ecef_x(double value) {
+  _internal_set_ecef_x(value);
   SetHasBit(_impl_._has_bits_[0], 0x00000800U);
-  _impl_.nmea_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.nmea)
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.ecef_x)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_nmea()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
-  ::std::string* _s = _internal_mutable_nmea();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.nmea)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_nmea() const {
+inline double ServerState::_internal_ecef_x() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.nmea_.Get();
+  return _impl_.ecef_x_;
 }
-inline void ServerState::_internal_set_nmea(const ::std::string& value) {
+inline void ServerState::_internal_set_ecef_x(double value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.nmea_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_nmea() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.nmea_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_nmea() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.nmea)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000800U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
-  auto* released = _impl_.nmea_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.nmea_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_nmea(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000800U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
-  }
-  _impl_.nmea_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.nmea_.IsDefault()) {
-    _impl_.nmea_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.nmea)
+  _impl_.ecef_x_ = value;
 }
 
-// string solution = 16;
-inline void ServerState::clear_solution() {
+// double ecef_y = 13;
+inline void ServerState::clear_ecef_y() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.solution_.ClearToEmpty();
+  _impl_.ecef_y_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00001000U);
 }
-inline const ::std::string& ServerState::solution() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.solution)
-  return _internal_solution();
+inline double ServerState::ecef_y() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.ecef_y)
+  return _internal_ecef_y();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_solution(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
+inline void ServerState::set_ecef_y(double value) {
+  _internal_set_ecef_y(value);
   SetHasBit(_impl_._has_bits_[0], 0x00001000U);
-  _impl_.solution_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.solution)
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.ecef_y)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_solution()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
-  ::std::string* _s = _internal_mutable_solution();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.solution)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_solution() const {
+inline double ServerState::_internal_ecef_y() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.solution_.Get();
+  return _impl_.ecef_y_;
 }
-inline void ServerState::_internal_set_solution(const ::std::string& value) {
+inline void ServerState::_internal_set_ecef_y(double value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.solution_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_solution() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.solution_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_solution() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.solution)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00001000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
-  auto* released = _impl_.solution_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.solution_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_solution(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00001000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
-  }
-  _impl_.solution_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.solution_.IsDefault()) {
-    _impl_.solution_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.solution)
+  _impl_.ecef_y_ = value;
 }
 
-// string generator = 17;
-inline void ServerState::clear_generator() {
+// double ecef_z = 14;
+inline void ServerState::clear_ecef_z() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.generator_.ClearToEmpty();
+  _impl_.ecef_z_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
                   0x00002000U);
 }
-inline const ::std::string& ServerState::generator() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.generator)
-  return _internal_generator();
+inline double ServerState::ecef_z() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.ecef_z)
+  return _internal_ecef_z();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_generator(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
+inline void ServerState::set_ecef_z(double value) {
+  _internal_set_ecef_z(value);
   SetHasBit(_impl_._has_bits_[0], 0x00002000U);
-  _impl_.generator_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.generator)
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.ecef_z)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_generator()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
-  ::std::string* _s = _internal_mutable_generator();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.generator)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_generator() const {
+inline double ServerState::_internal_ecef_z() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.generator_.Get();
+  return _impl_.ecef_z_;
 }
-inline void ServerState::_internal_set_generator(const ::std::string& value) {
+inline void ServerState::_internal_set_ecef_z(double value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.generator_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_generator() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.generator_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_generator() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.generator)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00002000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
-  auto* released = _impl_.generator_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.generator_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_generator(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00002000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
-  }
-  _impl_.generator_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.generator_.IsDefault()) {
-    _impl_.generator_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.generator)
+  _impl_.ecef_z_ = value;
 }
 
-// string compr_encrryp = 18;
-inline void ServerState::clear_compr_encrryp() {
+// int64 position_update_time = 15;
+inline void ServerState::clear_position_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.compr_encrryp_.ClearToEmpty();
+  _impl_.position_update_time_ = ::int64_t{0};
   ClearHasBit(_impl_._has_bits_[0],
                   0x00004000U);
 }
-inline const ::std::string& ServerState::compr_encrryp() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.compr_encrryp)
-  return _internal_compr_encrryp();
+inline ::int64_t ServerState::position_update_time() const {
+  // @@protoc_insertion_point(field_get:caster.core.ServerState.position_update_time)
+  return _internal_position_update_time();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_compr_encrryp(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
+inline void ServerState::set_position_update_time(::int64_t value) {
+  _internal_set_position_update_time(value);
   SetHasBit(_impl_._has_bits_[0], 0x00004000U);
-  _impl_.compr_encrryp_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.compr_encrryp)
+  // @@protoc_insertion_point(field_set:caster.core.ServerState.position_update_time)
 }
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_compr_encrryp()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
-  ::std::string* _s = _internal_mutable_compr_encrryp();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.compr_encrryp)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_compr_encrryp() const {
+inline ::int64_t ServerState::_internal_position_update_time() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.compr_encrryp_.Get();
+  return _impl_.position_update_time_;
 }
-inline void ServerState::_internal_set_compr_encrryp(const ::std::string& value) {
+inline void ServerState::_internal_set_position_update_time(::int64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.compr_encrryp_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_compr_encrryp() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.compr_encrryp_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_compr_encrryp() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.compr_encrryp)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00004000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
-  auto* released = _impl_.compr_encrryp_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.compr_encrryp_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_compr_encrryp(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00004000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
-  }
-  _impl_.compr_encrryp_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.compr_encrryp_.IsDefault()) {
-    _impl_.compr_encrryp_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.compr_encrryp)
-}
-
-// string authentication = 19;
-inline void ServerState::clear_authentication() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.authentication_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00008000U);
-}
-inline const ::std::string& ServerState::authentication() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.authentication)
-  return _internal_authentication();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_authentication(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
-  _impl_.authentication_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.authentication)
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_authentication()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
-  ::std::string* _s = _internal_mutable_authentication();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.authentication)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_authentication() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.authentication_.Get();
-}
-inline void ServerState::_internal_set_authentication(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.authentication_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_authentication() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.authentication_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_authentication() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.authentication)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00008000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
-  auto* released = _impl_.authentication_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.authentication_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_authentication(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00008000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
-  }
-  _impl_.authentication_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.authentication_.IsDefault()) {
-    _impl_.authentication_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.authentication)
-}
-
-// string fee = 20;
-inline void ServerState::clear_fee() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.fee_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00010000U);
-}
-inline const ::std::string& ServerState::fee() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.fee)
-  return _internal_fee();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_fee(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
-  _impl_.fee_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.fee)
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_fee()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
-  ::std::string* _s = _internal_mutable_fee();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.fee)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_fee() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.fee_.Get();
-}
-inline void ServerState::_internal_set_fee(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.fee_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_fee() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.fee_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_fee() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.fee)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00010000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
-  auto* released = _impl_.fee_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.fee_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_fee(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00010000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
-  }
-  _impl_.fee_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.fee_.IsDefault()) {
-    _impl_.fee_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.fee)
-}
-
-// string bitrate = 21;
-inline void ServerState::clear_bitrate() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.bitrate_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00020000U);
-}
-inline const ::std::string& ServerState::bitrate() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.bitrate)
-  return _internal_bitrate();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_bitrate(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
-  _impl_.bitrate_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.bitrate)
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_bitrate()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
-  ::std::string* _s = _internal_mutable_bitrate();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.bitrate)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_bitrate() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.bitrate_.Get();
-}
-inline void ServerState::_internal_set_bitrate(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.bitrate_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_bitrate() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.bitrate_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_bitrate() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.bitrate)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00020000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
-  auto* released = _impl_.bitrate_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.bitrate_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_bitrate(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00020000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00020000U);
-  }
-  _impl_.bitrate_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.bitrate_.IsDefault()) {
-    _impl_.bitrate_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.bitrate)
-}
-
-// string misc = 22;
-inline void ServerState::clear_misc() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.misc_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0],
-                  0x00040000U);
-}
-inline const ::std::string& ServerState::misc() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:caster.core.ServerState.misc)
-  return _internal_misc();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void ServerState::set_misc(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
-  _impl_.misc_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:caster.core.ServerState.misc)
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::mutable_misc()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
-  ::std::string* _s = _internal_mutable_misc();
-  // @@protoc_insertion_point(field_mutable:caster.core.ServerState.misc)
-  return _s;
-}
-inline const ::std::string& ServerState::_internal_misc() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.misc_.Get();
-}
-inline void ServerState::_internal_set_misc(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.misc_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL ServerState::_internal_mutable_misc() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.misc_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE ServerState::release_misc() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:caster.core.ServerState.misc)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00040000U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
-  auto* released = _impl_.misc_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.misc_.Set("", GetArena());
-  }
-  return released;
-}
-inline void ServerState::set_allocated_misc(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00040000U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00040000U);
-  }
-  _impl_.misc_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.misc_.IsDefault()) {
-    _impl_.misc_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:caster.core.ServerState.misc)
+  _impl_.position_update_time_ = value;
 }
 
 #ifdef __GNUC__
@@ -1998,19 +1060,6 @@ inline void ServerState::set_allocated_misc(::std::string* PROTOBUF_NULLABLE val
 }  // namespace core
 }  // namespace caster
 
-
-namespace google {
-namespace protobuf {
-
-template <>
-struct is_proto_enum<::caster::core::ServerInfoFromType> : std::true_type {};
-template <>
-inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::caster::core::ServerInfoFromType>() {
-  return ::caster::core::ServerInfoFromType_descriptor();
-}
-
-}  // namespace protobuf
-}  // namespace google
 
 // @@protoc_insertion_point(global_scope)
 

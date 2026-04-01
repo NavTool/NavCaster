@@ -10,6 +10,11 @@ bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/mutua
 bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto
 
 
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/*.proto
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/context/*.proto
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/mutual/*.proto
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto
+
 
 
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/auth/*.proto
@@ -17,3 +22,11 @@ bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/core/*
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/monitor/*.proto
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto
 bin\Release\protoc.exe -I proto/caster/ --cpp_out=proto/src  proto/caster/*.proto
+
+
+
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/auth/*.proto
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/core/*.proto
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/monitor/*.proto
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/service/*.proto
+./bin/Debug/protoc-35.0.0 -I proto/caster/ --cpp_out=proto/src  proto/caster/*.proto

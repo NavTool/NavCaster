@@ -11,7 +11,7 @@ message PullRecord {
   PullType type      = 5;
 
   string target_ip       = 6;
-  string target_port     = 7;
+  int32  target_port     = 7;
   string target_mpt      = 8;
   string target_account  = 9;
   string target_password = 10;

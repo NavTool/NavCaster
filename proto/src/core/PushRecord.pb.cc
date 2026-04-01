@@ -44,8 +44,25 @@ inline constexpr PushRecord::Impl_::Impl_(
         uid_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        login_mpt_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        target_ip_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        target_mpt_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        target_account_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        target_password_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         create_time_{::uint64_t{0u}},
-        update_time_{::uint64_t{0u}} {}
+        update_time_{::uint64_t{0u}},
+        type_{static_cast< ::caster::PushType >(0)},
+        target_port_{0} {}
 
 template <typename>
 constexpr PushRecord::PushRecord(::_pbi::ConstantInitialized)
@@ -77,13 +94,27 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_._has_bits_),
-        6, // hasbit index offset
+        13, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.update_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.login_mpt_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.type_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.target_ip_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.target_port_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.target_mpt_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.target_account_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PushRecord, _impl_.target_password_),
         0,
+        6,
+        7,
         1,
+        8,
         2,
+        9,
+        3,
+        4,
+        5,
 };
 
 static const ::_pbi::MigrationSchema
@@ -95,20 +126,29 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_core_2fPushRecord_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\025core/PushRecord.proto\022\013caster.core\"C\n\n"
-    "PushRecord\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_time\030\002"
-    " \001(\004\022\023\n\013update_time\030\003 \001(\004b\006proto3"
+    "\n\025core/PushRecord.proto\022\013caster.core\032\014Co"
+    "mmon.proto\"\343\001\n\nPushRecord\022\013\n\003uid\030\001 \001(\t\022\023"
+    "\n\013create_time\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004"
+    "\022\021\n\tlogin_mpt\030\004 \001(\t\022\036\n\004type\030\005 \001(\0162\020.cast"
+    "er.PushType\022\021\n\ttarget_ip\030\006 \001(\t\022\023\n\013target"
+    "_port\030\007 \001(\005\022\022\n\ntarget_mpt\030\010 \001(\t\022\026\n\016targe"
+    "t_account\030\t \001(\t\022\027\n\017target_password\030\n \001(\t"
+    "b\006proto3"
+};
+static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
+    descriptor_table_core_2fPushRecord_2eproto_deps[1] = {
+        &::descriptor_table_Common_2eproto,
 };
 static ::absl::once_flag descriptor_table_core_2fPushRecord_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fPushRecord_2eproto = {
     false,
     false,
-    113,
+    288,
     descriptor_table_protodef_core_2fPushRecord_2eproto,
     "core/PushRecord.proto",
     &descriptor_table_core_2fPushRecord_2eproto_once,
-    nullptr,
-    0,
+    descriptor_table_core_2fPushRecord_2eproto_deps,
+    1,
     1,
     schemas,
     file_default_instances,
@@ -143,7 +183,12 @@ PROTOBUF_NDEBUG_INLINE PushRecord::Impl_::Impl_(
     [[maybe_unused]] const ::caster::core::PushRecord& from_msg)
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
-        uid_(arena, from.uid_) {}
+        uid_(arena, from.uid_),
+        login_mpt_(arena, from.login_mpt_),
+        target_ip_(arena, from.target_ip_),
+        target_mpt_(arena, from.target_mpt_),
+        target_account_(arena, from.target_account_),
+        target_password_(arena, from.target_password_) {}
 
 PushRecord::PushRecord(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -162,9 +207,9 @@ PushRecord::PushRecord(
                offsetof(Impl_, create_time_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, create_time_),
-           offsetof(Impl_, update_time_) -
+           offsetof(Impl_, target_port_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::update_time_));
+               sizeof(Impl_::target_port_));
 
   // @@protoc_insertion_point(copy_constructor:caster.core.PushRecord)
 }
@@ -172,16 +217,21 @@ PROTOBUF_NDEBUG_INLINE PushRecord::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
-        uid_(arena) {}
+        uid_(arena),
+        login_mpt_(arena),
+        target_ip_(arena),
+        target_mpt_(arena),
+        target_account_(arena),
+        target_password_(arena) {}
 
 inline void PushRecord::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, create_time_),
            0,
-           offsetof(Impl_, update_time_) -
+           offsetof(Impl_, target_port_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::update_time_));
+               sizeof(Impl_::target_port_));
 }
 PushRecord::~PushRecord() {
   // @@protoc_insertion_point(destructor:caster.core.PushRecord)
@@ -195,6 +245,11 @@ inline void PushRecord::SharedDtor(MessageLite& self) {
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.uid_.Destroy();
+  this_._impl_.login_mpt_.Destroy();
+  this_._impl_.target_ip_.Destroy();
+  this_._impl_.target_mpt_.Destroy();
+  this_._impl_.target_account_.Destroy();
+  this_._impl_.target_password_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -259,16 +314,16 @@ PushRecord::GetClassData() const {
   return PushRecord_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<2, 3, 0, 34, 2>
+const ::_pbi::TcParseTable<4, 10, 0, 99, 2>
 PushRecord::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(PushRecord, _impl_._has_bits_),
     0, // no _extensions_
-    3, 24,  // max_field_number, fast_idx_mask
+    10, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967288,  // skipmap
+    4294966272,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    3,  // num_field_entries
+    10,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     PushRecord_class_data_.base(),
@@ -284,28 +339,80 @@ PushRecord::_table_ = {
      {10, 0, 0,
       PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.uid_)}},
     // uint64 create_time = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PushRecord, _impl_.create_time_), 1>(),
-     {16, 1, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PushRecord, _impl_.create_time_), 6>(),
+     {16, 6, 0,
       PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.create_time_)}},
     // uint64 update_time = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PushRecord, _impl_.update_time_), 2>(),
-     {24, 2, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PushRecord, _impl_.update_time_), 7>(),
+     {24, 7, 0,
       PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.update_time_)}},
+    // string login_mpt = 4;
+    {::_pbi::TcParser::FastUS1,
+     {34, 1, 0,
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.login_mpt_)}},
+    // .caster.PushType type = 5;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(PushRecord, _impl_.type_), 8>(),
+     {40, 8, 0,
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.type_)}},
+    // string target_ip = 6;
+    {::_pbi::TcParser::FastUS1,
+     {50, 2, 0,
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_ip_)}},
+    // int32 target_port = 7;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(PushRecord, _impl_.target_port_), 9>(),
+     {56, 9, 0,
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_port_)}},
+    // string target_mpt = 8;
+    {::_pbi::TcParser::FastUS1,
+     {66, 3, 0,
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_mpt_)}},
+    // string target_account = 9;
+    {::_pbi::TcParser::FastUS1,
+     {74, 4, 0,
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_account_)}},
+    // string target_password = 10;
+    {::_pbi::TcParser::FastUS1,
+     {82, 5, 0,
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_password_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
   }}, {{
     65535, 65535
   }}, {{
     // string uid = 1;
     {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.uid_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // uint64 create_time = 2;
-    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.create_time_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.create_time_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // uint64 update_time = 3;
-    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.update_time_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.update_time_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // string login_mpt = 4;
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.login_mpt_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // .caster.PushType type = 5;
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.type_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    // string target_ip = 6;
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_ip_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // int32 target_port = 7;
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_port_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    // string target_mpt = 8;
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_mpt_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string target_account = 9;
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_account_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string target_password = 10;
+    {PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_password_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
   }},
   // no aux_entries
   {{
-    "\26\3\0\0\0\0\0\0"
+    "\26\3\0\0\11\0\11\0\12\16\17\0\0\0\0\0"
     "caster.core.PushRecord"
     "uid"
+    "login_mpt"
+    "target_ip"
+    "target_mpt"
+    "target_account"
+    "target_password"
   }},
 };
 PROTOBUF_NOINLINE void PushRecord::Clear() {
@@ -316,13 +423,35 @@ PROTOBUF_NOINLINE void PushRecord::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    _impl_.uid_.ClearNonDefaultToEmpty();
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      _impl_.uid_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      _impl_.login_mpt_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      _impl_.target_ip_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      _impl_.target_mpt_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      _impl_.target_account_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      _impl_.target_password_.ClearNonDefaultToEmpty();
+    }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000006U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000c0U)) {
     ::memset(&_impl_.create_time_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.update_time_) -
         reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.update_time_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    ::memset(&_impl_.type_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.target_port_) -
+        reinterpret_cast<char*>(&_impl_.type_)) + sizeof(_impl_.target_port_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -358,7 +487,7 @@ PROTOBUF_NOINLINE void PushRecord::Clear() {
   }
 
   // uint64 create_time = 2;
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_create_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -367,11 +496,79 @@ PROTOBUF_NOINLINE void PushRecord::Clear() {
   }
 
   // uint64 update_time = 3;
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
     if (this_._internal_update_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
           3, this_._internal_update_time(), target);
+    }
+  }
+
+  // string login_mpt = 4;
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (!this_._internal_login_mpt().empty()) {
+      const ::std::string& _s = this_._internal_login_mpt();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PushRecord.login_mpt");
+      target = stream->WriteStringMaybeAliased(4, _s, target);
+    }
+  }
+
+  // .caster.PushType type = 5;
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (this_._internal_type() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          5, this_._internal_type(), target);
+    }
+  }
+
+  // string target_ip = 6;
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (!this_._internal_target_ip().empty()) {
+      const ::std::string& _s = this_._internal_target_ip();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PushRecord.target_ip");
+      target = stream->WriteStringMaybeAliased(6, _s, target);
+    }
+  }
+
+  // int32 target_port = 7;
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    if (this_._internal_target_port() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<7>(
+              stream, this_._internal_target_port(), target);
+    }
+  }
+
+  // string target_mpt = 8;
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (!this_._internal_target_mpt().empty()) {
+      const ::std::string& _s = this_._internal_target_mpt();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PushRecord.target_mpt");
+      target = stream->WriteStringMaybeAliased(8, _s, target);
+    }
+  }
+
+  // string target_account = 9;
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (!this_._internal_target_account().empty()) {
+      const ::std::string& _s = this_._internal_target_account();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PushRecord.target_account");
+      target = stream->WriteStringMaybeAliased(9, _s, target);
+    }
+  }
+
+  // string target_password = 10;
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (!this_._internal_target_password().empty()) {
+      const ::std::string& _s = this_._internal_target_password();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PushRecord.target_password");
+      target = stream->WriteStringMaybeAliased(10, _s, target);
     }
   }
 
@@ -400,7 +597,7 @@ PROTOBUF_NOINLINE void PushRecord::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // string uid = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_uid().empty()) {
@@ -408,18 +605,69 @@ PROTOBUF_NOINLINE void PushRecord::Clear() {
                                         this_._internal_uid());
       }
     }
-    // uint64 create_time = 2;
+    // string login_mpt = 4;
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!this_._internal_login_mpt().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_login_mpt());
+      }
+    }
+    // string target_ip = 6;
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!this_._internal_target_ip().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_target_ip());
+      }
+    }
+    // string target_mpt = 8;
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!this_._internal_target_mpt().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_target_mpt());
+      }
+    }
+    // string target_account = 9;
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!this_._internal_target_account().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_target_account());
+      }
+    }
+    // string target_password = 10;
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!this_._internal_target_password().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_target_password());
+      }
+    }
+    // uint64 create_time = 2;
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_create_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_create_time());
       }
     }
     // uint64 update_time = 3;
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (this_._internal_update_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_update_time());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    // .caster.PushType type = 5;
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (this_._internal_type() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_type());
+      }
+    }
+    // int32 target_port = 7;
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (this_._internal_target_port() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_target_port());
       }
     }
   }
@@ -441,7 +689,7 @@ void PushRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_uid().empty()) {
         _this->_internal_set_uid(from._internal_uid());
@@ -452,13 +700,70 @@ void PushRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!from._internal_login_mpt().empty()) {
+        _this->_internal_set_login_mpt(from._internal_login_mpt());
+      } else {
+        if (_this->_impl_.login_mpt_.IsDefault()) {
+          _this->_internal_set_login_mpt("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!from._internal_target_ip().empty()) {
+        _this->_internal_set_target_ip(from._internal_target_ip());
+      } else {
+        if (_this->_impl_.target_ip_.IsDefault()) {
+          _this->_internal_set_target_ip("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!from._internal_target_mpt().empty()) {
+        _this->_internal_set_target_mpt(from._internal_target_mpt());
+      } else {
+        if (_this->_impl_.target_mpt_.IsDefault()) {
+          _this->_internal_set_target_mpt("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!from._internal_target_account().empty()) {
+        _this->_internal_set_target_account(from._internal_target_account());
+      } else {
+        if (_this->_impl_.target_account_.IsDefault()) {
+          _this->_internal_set_target_account("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!from._internal_target_password().empty()) {
+        _this->_internal_set_target_password(from._internal_target_password());
+      } else {
+        if (_this->_impl_.target_password_.IsDefault()) {
+          _this->_internal_set_target_password("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (from._internal_create_time() != 0) {
         _this->_impl_.create_time_ = from._impl_.create_time_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (from._internal_update_time() != 0) {
         _this->_impl_.update_time_ = from._impl_.update_time_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (from._internal_type() != 0) {
+        _this->_impl_.type_ = from._impl_.type_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (from._internal_target_port() != 0) {
+        _this->_impl_.target_port_ = from._impl_.target_port_;
       }
     }
   }
@@ -482,9 +787,14 @@ void PushRecord::InternalSwap(PushRecord* PROTOBUF_RESTRICT PROTOBUF_NONNULL oth
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uid_, &other->_impl_.uid_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.login_mpt_, &other->_impl_.login_mpt_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.target_ip_, &other->_impl_.target_ip_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.target_mpt_, &other->_impl_.target_mpt_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.target_account_, &other->_impl_.target_account_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.target_password_, &other->_impl_.target_password_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.update_time_)
-      + sizeof(PushRecord::_impl_.update_time_)
+      PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.target_port_)
+      + sizeof(PushRecord::_impl_.target_port_)
       - PROTOBUF_FIELD_OFFSET(PushRecord, _impl_.create_time_)>(
           reinterpret_cast<char*>(&_impl_.create_time_),
           reinterpret_cast<char*>(&other->_impl_.create_time_));

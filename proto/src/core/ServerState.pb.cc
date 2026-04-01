@@ -44,63 +44,28 @@ inline constexpr ServerState::Impl_::Impl_(
         uid_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        mountpoint_(
+        login_mpt_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        identufier_(
+        alias_mpt_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        format_(
+        account_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        format_details_(
+        ip_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        carrier_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        nav_system_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        network_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        country_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        latitude_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        longitude_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        nmea_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        solution_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        generator_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        compr_encrryp_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        authentication_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        fee_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        bitrate_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        misc_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        create_time_{::uint64_t{0u}},
+        online_time_{::uint64_t{0u}},
         update_time_{::uint64_t{0u}},
-        type_{static_cast< ::caster::core::ServerInfoFromType >(0)} {}
+        type_{0},
+        port_{0},
+        online_seconds_{::uint64_t{0u}},
+        tcp_delay_{::uint64_t{0u}},
+        ecef_x_{0},
+        ecef_y_{0},
+        ecef_z_{0},
+        position_update_time_{::int64_t{0}} {}
 
 template <typename>
 constexpr ServerState::ServerState(::_pbi::ConstantInitialized)
@@ -123,8 +88,8 @@ PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ServerStateGlobalsTypeInternal _ServerState_globals_;
 }  // namespace core
 }  // namespace caster
-static const ::_pb::EnumDescriptor* PROTOBUF_NONNULL
-    file_level_enum_descriptors_core_2fServerState_2eproto[1];
+static constexpr const ::_pb::EnumDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
+    file_level_enum_descriptors_core_2fServerState_2eproto = nullptr;
 static constexpr const ::_pb::ServiceDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
     file_level_service_descriptors_core_2fServerState_2eproto = nullptr;
 const ::uint32_t
@@ -132,40 +97,30 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_._has_bits_),
-        25, // hasbit index offset
+        18, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.uid_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.create_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.online_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.update_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.login_mpt_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.alias_mpt_),
         PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.type_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.mountpoint_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.identufier_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.format_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.format_details_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.carrier_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.nav_system_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.network_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.country_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.latitude_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.longitude_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.nmea_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.solution_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.generator_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.compr_encrryp_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.authentication_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.fee_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.bitrate_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.misc_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.account_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.ip_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.port_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.online_seconds_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.tcp_delay_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.ecef_x_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.ecef_y_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.ecef_z_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::ServerState, _impl_.position_update_time_),
         0,
-        19,
-        20,
-        21,
-        1,
-        2,
-        3,
-        4,
         5,
         6,
+        1,
+        2,
         7,
+        3,
+        4,
         8,
         9,
         10,
@@ -173,10 +128,6 @@ const ::uint32_t
         12,
         13,
         14,
-        15,
-        16,
-        17,
-        18,
 };
 
 static const ::_pbi::MigrationSchema
@@ -188,28 +139,21 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_core_2fServerState_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\026core/ServerState.proto\022\013caster.core\"\275\003"
-    "\n\013ServerState\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_tim"
-    "e\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004\022-\n\004type\030\004 \001"
-    "(\0162\037.caster.core.ServerInfoFromType\022\022\n\nm"
-    "ountpoint\030\005 \001(\t\022\022\n\nidentufier\030\006 \001(\t\022\016\n\006f"
-    "ormat\030\007 \001(\t\022\026\n\016format_details\030\010 \001(\t\022\017\n\007c"
-    "arrier\030\t \001(\t\022\022\n\nnav_system\030\n \001(\t\022\017\n\007netw"
-    "ork\030\013 \001(\t\022\017\n\007country\030\014 \001(\t\022\020\n\010latitude\030\r"
-    " \001(\t\022\021\n\tlongitude\030\016 \001(\t\022\014\n\004nmea\030\017 \001(\t\022\020\n"
-    "\010solution\030\020 \001(\t\022\021\n\tgenerator\030\021 \001(\t\022\025\n\rco"
-    "mpr_encrryp\030\022 \001(\t\022\026\n\016authentication\030\023 \001("
-    "\t\022\013\n\003fee\030\024 \001(\t\022\017\n\007bitrate\030\025 \001(\t\022\014\n\004misc\030"
-    "\026 \001(\t*l\n\022ServerInfoFromType\022\034\n\030SERVER_IN"
-    "FO_FROM_UNKNOWN\020\000\022\033\n\027SERVER_INFO_FROM_DE"
-    "CODE\020\001\022\033\n\027SERVER_INFO_FROM_SOURCE\020\002b\006pro"
-    "to3"
+    "\n\026core/ServerState.proto\022\013caster.core\"\234\002"
+    "\n\013ServerState\022\013\n\003uid\030\001 \001(\t\022\023\n\013online_tim"
+    "e\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004\022\021\n\tlogin_mp"
+    "t\030\004 \001(\t\022\021\n\talias_mpt\030\005 \001(\t\022\014\n\004type\030\006 \001(\005"
+    "\022\017\n\007account\030\007 \001(\t\022\n\n\002ip\030\010 \001(\t\022\014\n\004port\030\t "
+    "\001(\005\022\026\n\016online_seconds\030\n \001(\004\022\021\n\ttcp_delay"
+    "\030\013 \001(\004\022\016\n\006ecef_x\030\014 \001(\001\022\016\n\006ecef_y\030\r \001(\001\022\016"
+    "\n\006ecef_z\030\016 \001(\001\022\034\n\024position_update_time\030\017"
+    " \001(\003b\006proto3"
 };
 static ::absl::once_flag descriptor_table_core_2fServerState_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fServerState_2eproto = {
     false,
     false,
-    603,
+    332,
     descriptor_table_protodef_core_2fServerState_2eproto,
     "core/ServerState.proto",
     &descriptor_table_core_2fServerState_2eproto_once,
@@ -224,13 +168,6 @@ PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fServerS
 };
 namespace caster {
 namespace core {
-[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-ServerInfoFromType_descriptor() {
-  ::google::protobuf::internal::AssignDescriptors(&descriptor_table_core_2fServerState_2eproto);
-  return file_level_enum_descriptors_core_2fServerState_2eproto[0];
-}
-PROTOBUF_CONSTINIT const uint32_t ServerInfoFromType_internal_data_[] = {
-    196608u, 0u, };
 // ===================================================================
 
 class ServerState::_Internal {
@@ -257,24 +194,10 @@ PROTOBUF_NDEBUG_INLINE ServerState::Impl_::Impl_(
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
         uid_(arena, from.uid_),
-        mountpoint_(arena, from.mountpoint_),
-        identufier_(arena, from.identufier_),
-        format_(arena, from.format_),
-        format_details_(arena, from.format_details_),
-        carrier_(arena, from.carrier_),
-        nav_system_(arena, from.nav_system_),
-        network_(arena, from.network_),
-        country_(arena, from.country_),
-        latitude_(arena, from.latitude_),
-        longitude_(arena, from.longitude_),
-        nmea_(arena, from.nmea_),
-        solution_(arena, from.solution_),
-        generator_(arena, from.generator_),
-        compr_encrryp_(arena, from.compr_encrryp_),
-        authentication_(arena, from.authentication_),
-        fee_(arena, from.fee_),
-        bitrate_(arena, from.bitrate_),
-        misc_(arena, from.misc_) {}
+        login_mpt_(arena, from.login_mpt_),
+        alias_mpt_(arena, from.alias_mpt_),
+        account_(arena, from.account_),
+        ip_(arena, from.ip_) {}
 
 ServerState::ServerState(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -290,12 +213,12 @@ ServerState::ServerState(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::memcpy(reinterpret_cast<char*>(&_impl_) +
-               offsetof(Impl_, create_time_),
+               offsetof(Impl_, online_time_),
            reinterpret_cast<const char*>(&from._impl_) +
-               offsetof(Impl_, create_time_),
-           offsetof(Impl_, type_) -
-               offsetof(Impl_, create_time_) +
-               sizeof(Impl_::type_));
+               offsetof(Impl_, online_time_),
+           offsetof(Impl_, position_update_time_) -
+               offsetof(Impl_, online_time_) +
+               sizeof(Impl_::position_update_time_));
 
   // @@protoc_insertion_point(copy_constructor:caster.core.ServerState)
 }
@@ -304,33 +227,19 @@ PROTOBUF_NDEBUG_INLINE ServerState::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
         uid_(arena),
-        mountpoint_(arena),
-        identufier_(arena),
-        format_(arena),
-        format_details_(arena),
-        carrier_(arena),
-        nav_system_(arena),
-        network_(arena),
-        country_(arena),
-        latitude_(arena),
-        longitude_(arena),
-        nmea_(arena),
-        solution_(arena),
-        generator_(arena),
-        compr_encrryp_(arena),
-        authentication_(arena),
-        fee_(arena),
-        bitrate_(arena),
-        misc_(arena) {}
+        login_mpt_(arena),
+        alias_mpt_(arena),
+        account_(arena),
+        ip_(arena) {}
 
 inline void ServerState::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
   ::memset(reinterpret_cast<char*>(&_impl_) +
-               offsetof(Impl_, create_time_),
+               offsetof(Impl_, online_time_),
            0,
-           offsetof(Impl_, type_) -
-               offsetof(Impl_, create_time_) +
-               sizeof(Impl_::type_));
+           offsetof(Impl_, position_update_time_) -
+               offsetof(Impl_, online_time_) +
+               sizeof(Impl_::position_update_time_));
 }
 ServerState::~ServerState() {
   // @@protoc_insertion_point(destructor:caster.core.ServerState)
@@ -344,24 +253,10 @@ inline void ServerState::SharedDtor(MessageLite& self) {
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.uid_.Destroy();
-  this_._impl_.mountpoint_.Destroy();
-  this_._impl_.identufier_.Destroy();
-  this_._impl_.format_.Destroy();
-  this_._impl_.format_details_.Destroy();
-  this_._impl_.carrier_.Destroy();
-  this_._impl_.nav_system_.Destroy();
-  this_._impl_.network_.Destroy();
-  this_._impl_.country_.Destroy();
-  this_._impl_.latitude_.Destroy();
-  this_._impl_.longitude_.Destroy();
-  this_._impl_.nmea_.Destroy();
-  this_._impl_.solution_.Destroy();
-  this_._impl_.generator_.Destroy();
-  this_._impl_.compr_encrryp_.Destroy();
-  this_._impl_.authentication_.Destroy();
-  this_._impl_.fee_.Destroy();
-  this_._impl_.bitrate_.Destroy();
-  this_._impl_.misc_.Destroy();
+  this_._impl_.login_mpt_.Destroy();
+  this_._impl_.alias_mpt_.Destroy();
+  this_._impl_.account_.Destroy();
+  this_._impl_.ip_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -426,16 +321,16 @@ ServerState::GetClassData() const {
   return ServerState_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 22, 0, 201, 2>
+const ::_pbi::TcParseTable<4, 15, 0, 70, 2>
 ServerState::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(ServerState, _impl_._has_bits_),
     0, // no _extensions_
-    22, 248,  // max_field_number, fast_idx_mask
+    15, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4290772992,  // skipmap
+    4294934528,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    22,  // num_field_entries
+    15,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     ServerState_class_data_.base(),
@@ -450,170 +345,105 @@ ServerState::_table_ = {
     {::_pbi::TcParser::FastUS1,
      {10, 0, 0,
       PROTOBUF_FIELD_OFFSET(ServerState, _impl_.uid_)}},
-    // uint64 create_time = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ServerState, _impl_.create_time_), 19>(),
-     {16, 19, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.create_time_)}},
+    // uint64 online_time = 2;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ServerState, _impl_.online_time_), 5>(),
+     {16, 5, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.online_time_)}},
     // uint64 update_time = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ServerState, _impl_.update_time_), 20>(),
-     {24, 20, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ServerState, _impl_.update_time_), 6>(),
+     {24, 6, 0,
       PROTOBUF_FIELD_OFFSET(ServerState, _impl_.update_time_)}},
-    // .caster.core.ServerInfoFromType type = 4;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ServerState, _impl_.type_), 21>(),
-     {32, 21, 0,
+    // string login_mpt = 4;
+    {::_pbi::TcParser::FastUS1,
+     {34, 1, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.login_mpt_)}},
+    // string alias_mpt = 5;
+    {::_pbi::TcParser::FastUS1,
+     {42, 2, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.alias_mpt_)}},
+    // int32 type = 6;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ServerState, _impl_.type_), 7>(),
+     {48, 7, 0,
       PROTOBUF_FIELD_OFFSET(ServerState, _impl_.type_)}},
-    // string mountpoint = 5;
-    {::_pbi::TcParser::FastUS1,
-     {42, 1, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.mountpoint_)}},
-    // string identufier = 6;
-    {::_pbi::TcParser::FastUS1,
-     {50, 2, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.identufier_)}},
-    // string format = 7;
+    // string account = 7;
     {::_pbi::TcParser::FastUS1,
      {58, 3, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.format_)}},
-    // string format_details = 8;
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.account_)}},
+    // string ip = 8;
     {::_pbi::TcParser::FastUS1,
      {66, 4, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.format_details_)}},
-    // string carrier = 9;
-    {::_pbi::TcParser::FastUS1,
-     {74, 5, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.carrier_)}},
-    // string nav_system = 10;
-    {::_pbi::TcParser::FastUS1,
-     {82, 6, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.nav_system_)}},
-    // string network = 11;
-    {::_pbi::TcParser::FastUS1,
-     {90, 7, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.network_)}},
-    // string country = 12;
-    {::_pbi::TcParser::FastUS1,
-     {98, 8, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.country_)}},
-    // string latitude = 13;
-    {::_pbi::TcParser::FastUS1,
-     {106, 9, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.latitude_)}},
-    // string longitude = 14;
-    {::_pbi::TcParser::FastUS1,
-     {114, 10, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.longitude_)}},
-    // string nmea = 15;
-    {::_pbi::TcParser::FastUS1,
-     {122, 11, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.nmea_)}},
-    // string solution = 16;
-    {::_pbi::TcParser::FastUS2,
-     {386, 12, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.solution_)}},
-    // string generator = 17;
-    {::_pbi::TcParser::FastUS2,
-     {394, 13, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.generator_)}},
-    // string compr_encrryp = 18;
-    {::_pbi::TcParser::FastUS2,
-     {402, 14, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.compr_encrryp_)}},
-    // string authentication = 19;
-    {::_pbi::TcParser::FastUS2,
-     {410, 15, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.authentication_)}},
-    // string fee = 20;
-    {::_pbi::TcParser::FastUS2,
-     {418, 16, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.fee_)}},
-    // string bitrate = 21;
-    {::_pbi::TcParser::FastUS2,
-     {426, 17, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.bitrate_)}},
-    // string misc = 22;
-    {::_pbi::TcParser::FastUS2,
-     {434, 18, 0,
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.misc_)}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ip_)}},
+    // int32 port = 9;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ServerState, _impl_.port_), 8>(),
+     {72, 8, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.port_)}},
+    // uint64 online_seconds = 10;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ServerState, _impl_.online_seconds_), 9>(),
+     {80, 9, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.online_seconds_)}},
+    // uint64 tcp_delay = 11;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ServerState, _impl_.tcp_delay_), 10>(),
+     {88, 10, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.tcp_delay_)}},
+    // double ecef_x = 12;
+    {::_pbi::TcParser::FastF64S1,
+     {97, 11, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ecef_x_)}},
+    // double ecef_y = 13;
+    {::_pbi::TcParser::FastF64S1,
+     {105, 12, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ecef_y_)}},
+    // double ecef_z = 14;
+    {::_pbi::TcParser::FastF64S1,
+     {113, 13, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ecef_z_)}},
+    // int64 position_update_time = 15;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(ServerState, _impl_.position_update_time_), 14>(),
+     {120, 14, 0,
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.position_update_time_)}},
   }}, {{
     65535, 65535
   }}, {{
     // string uid = 1;
     {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.uid_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // uint64 create_time = 2;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.create_time_), _Internal::kHasBitsOffset + 19, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 online_time = 2;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.online_time_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // uint64 update_time = 3;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.update_time_), _Internal::kHasBitsOffset + 20, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-    // .caster.core.ServerInfoFromType type = 4;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.type_), _Internal::kHasBitsOffset + 21, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
-    // string mountpoint = 5;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.mountpoint_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string identufier = 6;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.identufier_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string format = 7;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.format_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string format_details = 8;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.format_details_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string carrier = 9;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.carrier_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string nav_system = 10;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.nav_system_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string network = 11;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.network_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string country = 12;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.country_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string latitude = 13;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.latitude_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string longitude = 14;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.longitude_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string nmea = 15;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.nmea_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string solution = 16;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.solution_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string generator = 17;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.generator_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string compr_encrryp = 18;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.compr_encrryp_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string authentication = 19;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.authentication_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string fee = 20;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.fee_), _Internal::kHasBitsOffset + 16, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string bitrate = 21;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.bitrate_), _Internal::kHasBitsOffset + 17, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string misc = 22;
-    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.misc_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.update_time_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // string login_mpt = 4;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.login_mpt_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string alias_mpt = 5;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.alias_mpt_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // int32 type = 6;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.type_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    // string account = 7;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.account_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string ip = 8;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ip_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // int32 port = 9;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.port_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    // uint64 online_seconds = 10;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.online_seconds_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 tcp_delay = 11;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.tcp_delay_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // double ecef_x = 12;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ecef_x_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // double ecef_y = 13;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ecef_y_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // double ecef_z = 14;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.ecef_z_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // int64 position_update_time = 15;
+    {PROTOBUF_FIELD_OFFSET(ServerState, _impl_.position_update_time_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt64)},
   }},
   // no aux_entries
   {{
-    "\27\3\0\0\0\12\12\6\16\7\12\7\7\10\11\4\10\11\15\16\3\7\4\0"
+    "\27\3\0\0\11\11\0\7\2\0\0\0\0\0\0\0"
     "caster.core.ServerState"
     "uid"
-    "mountpoint"
-    "identufier"
-    "format"
-    "format_details"
-    "carrier"
-    "nav_system"
-    "network"
-    "country"
-    "latitude"
-    "longitude"
-    "nmea"
-    "solution"
-    "generator"
-    "compr_encrryp"
-    "authentication"
-    "fee"
-    "bitrate"
-    "misc"
+    "login_mpt"
+    "alias_mpt"
+    "account"
+    "ip"
   }},
 };
 PROTOBUF_NOINLINE void ServerState::Clear() {
@@ -624,73 +454,32 @@ PROTOBUF_NOINLINE void ServerState::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       _impl_.uid_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      _impl_.mountpoint_.ClearNonDefaultToEmpty();
+      _impl_.login_mpt_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      _impl_.identufier_.ClearNonDefaultToEmpty();
+      _impl_.alias_mpt_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      _impl_.format_.ClearNonDefaultToEmpty();
+      _impl_.account_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      _impl_.format_details_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      _impl_.carrier_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      _impl_.nav_system_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      _impl_.network_.ClearNonDefaultToEmpty();
+      _impl_.ip_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      _impl_.country_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      _impl_.latitude_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      _impl_.longitude_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-      _impl_.nmea_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      _impl_.solution_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      _impl_.generator_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      _impl_.compr_encrryp_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      _impl_.authentication_.ClearNonDefaultToEmpty();
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00070000U)) {
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-      _impl_.fee_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-      _impl_.bitrate_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-      _impl_.misc_.ClearNonDefaultToEmpty();
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00380000U)) {
-    ::memset(&_impl_.create_time_, 0, static_cast<::size_t>(
+  if (BatchCheckHasBit(cached_has_bits, 0x000000e0U)) {
+    ::memset(&_impl_.online_time_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.type_) -
-        reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.type_));
+        reinterpret_cast<char*>(&_impl_.online_time_)) + sizeof(_impl_.type_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
+    ::memset(&_impl_.port_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.position_update_time_) -
+        reinterpret_cast<char*>(&_impl_.port_)) + sizeof(_impl_.position_update_time_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -725,17 +514,17 @@ PROTOBUF_NOINLINE void ServerState::Clear() {
     }
   }
 
-  // uint64 create_time = 2;
-  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-    if (this_._internal_create_time() != 0) {
+  // uint64 online_time = 2;
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (this_._internal_online_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
-          2, this_._internal_create_time(), target);
+          2, this_._internal_online_time(), target);
     }
   }
 
   // uint64 update_time = 3;
-  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_update_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -743,192 +532,115 @@ PROTOBUF_NOINLINE void ServerState::Clear() {
     }
   }
 
-  // .caster.core.ServerInfoFromType type = 4;
-  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
-    if (this_._internal_type() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteEnumToArray(
-          4, this_._internal_type(), target);
+  // string login_mpt = 4;
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (!this_._internal_login_mpt().empty()) {
+      const ::std::string& _s = this_._internal_login_mpt();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.login_mpt");
+      target = stream->WriteStringMaybeAliased(4, _s, target);
     }
   }
 
-  // string mountpoint = 5;
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-    if (!this_._internal_mountpoint().empty()) {
-      const ::std::string& _s = this_._internal_mountpoint();
+  // string alias_mpt = 5;
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (!this_._internal_alias_mpt().empty()) {
+      const ::std::string& _s = this_._internal_alias_mpt();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.mountpoint");
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.alias_mpt");
       target = stream->WriteStringMaybeAliased(5, _s, target);
     }
   }
 
-  // string identufier = 6;
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-    if (!this_._internal_identufier().empty()) {
-      const ::std::string& _s = this_._internal_identufier();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.identufier");
-      target = stream->WriteStringMaybeAliased(6, _s, target);
+  // int32 type = 6;
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_type() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<6>(
+              stream, this_._internal_type(), target);
     }
   }
 
-  // string format = 7;
+  // string account = 7;
   if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-    if (!this_._internal_format().empty()) {
-      const ::std::string& _s = this_._internal_format();
+    if (!this_._internal_account().empty()) {
+      const ::std::string& _s = this_._internal_account();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.format");
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.account");
       target = stream->WriteStringMaybeAliased(7, _s, target);
     }
   }
 
-  // string format_details = 8;
+  // string ip = 8;
   if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-    if (!this_._internal_format_details().empty()) {
-      const ::std::string& _s = this_._internal_format_details();
+    if (!this_._internal_ip().empty()) {
+      const ::std::string& _s = this_._internal_ip();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.format_details");
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.ip");
       target = stream->WriteStringMaybeAliased(8, _s, target);
     }
   }
 
-  // string carrier = 9;
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-    if (!this_._internal_carrier().empty()) {
-      const ::std::string& _s = this_._internal_carrier();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.carrier");
-      target = stream->WriteStringMaybeAliased(9, _s, target);
-    }
-  }
-
-  // string nav_system = 10;
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-    if (!this_._internal_nav_system().empty()) {
-      const ::std::string& _s = this_._internal_nav_system();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.nav_system");
-      target = stream->WriteStringMaybeAliased(10, _s, target);
-    }
-  }
-
-  // string network = 11;
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-    if (!this_._internal_network().empty()) {
-      const ::std::string& _s = this_._internal_network();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.network");
-      target = stream->WriteStringMaybeAliased(11, _s, target);
-    }
-  }
-
-  // string country = 12;
+  // int32 port = 9;
   if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-    if (!this_._internal_country().empty()) {
-      const ::std::string& _s = this_._internal_country();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.country");
-      target = stream->WriteStringMaybeAliased(12, _s, target);
+    if (this_._internal_port() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<9>(
+              stream, this_._internal_port(), target);
     }
   }
 
-  // string latitude = 13;
+  // uint64 online_seconds = 10;
   if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-    if (!this_._internal_latitude().empty()) {
-      const ::std::string& _s = this_._internal_latitude();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.latitude");
-      target = stream->WriteStringMaybeAliased(13, _s, target);
+    if (this_._internal_online_seconds() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          10, this_._internal_online_seconds(), target);
     }
   }
 
-  // string longitude = 14;
+  // uint64 tcp_delay = 11;
   if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-    if (!this_._internal_longitude().empty()) {
-      const ::std::string& _s = this_._internal_longitude();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.longitude");
-      target = stream->WriteStringMaybeAliased(14, _s, target);
+    if (this_._internal_tcp_delay() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          11, this_._internal_tcp_delay(), target);
     }
   }
 
-  // string nmea = 15;
+  // double ecef_x = 12;
   if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-    if (!this_._internal_nmea().empty()) {
-      const ::std::string& _s = this_._internal_nmea();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.nmea");
-      target = stream->WriteStringMaybeAliased(15, _s, target);
+    if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_x()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          12, this_._internal_ecef_x(), target);
     }
   }
 
-  // string solution = 16;
+  // double ecef_y = 13;
   if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-    if (!this_._internal_solution().empty()) {
-      const ::std::string& _s = this_._internal_solution();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.solution");
-      target = stream->WriteStringMaybeAliased(16, _s, target);
+    if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_y()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          13, this_._internal_ecef_y(), target);
     }
   }
 
-  // string generator = 17;
+  // double ecef_z = 14;
   if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-    if (!this_._internal_generator().empty()) {
-      const ::std::string& _s = this_._internal_generator();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.generator");
-      target = stream->WriteStringMaybeAliased(17, _s, target);
+    if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_z()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          14, this_._internal_ecef_z(), target);
     }
   }
 
-  // string compr_encrryp = 18;
+  // int64 position_update_time = 15;
   if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-    if (!this_._internal_compr_encrryp().empty()) {
-      const ::std::string& _s = this_._internal_compr_encrryp();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.compr_encrryp");
-      target = stream->WriteStringMaybeAliased(18, _s, target);
-    }
-  }
-
-  // string authentication = 19;
-  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-    if (!this_._internal_authentication().empty()) {
-      const ::std::string& _s = this_._internal_authentication();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.authentication");
-      target = stream->WriteStringMaybeAliased(19, _s, target);
-    }
-  }
-
-  // string fee = 20;
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-    if (!this_._internal_fee().empty()) {
-      const ::std::string& _s = this_._internal_fee();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.fee");
-      target = stream->WriteStringMaybeAliased(20, _s, target);
-    }
-  }
-
-  // string bitrate = 21;
-  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-    if (!this_._internal_bitrate().empty()) {
-      const ::std::string& _s = this_._internal_bitrate();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.bitrate");
-      target = stream->WriteStringMaybeAliased(21, _s, target);
-    }
-  }
-
-  // string misc = 22;
-  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-    if (!this_._internal_misc().empty()) {
-      const ::std::string& _s = this_._internal_misc();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.ServerState.misc");
-      target = stream->WriteStringMaybeAliased(22, _s, target);
+    if (this_._internal_position_update_time() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt64ToArrayWithField<15>(
+              stream, this_._internal_position_update_time(), target);
     }
   }
 
@@ -965,155 +677,101 @@ PROTOBUF_NOINLINE void ServerState::Clear() {
                                         this_._internal_uid());
       }
     }
-    // string mountpoint = 5;
+    // string login_mpt = 4;
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      if (!this_._internal_mountpoint().empty()) {
+      if (!this_._internal_login_mpt().empty()) {
         total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_mountpoint());
+                                        this_._internal_login_mpt());
       }
     }
-    // string identufier = 6;
+    // string alias_mpt = 5;
     if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      if (!this_._internal_identufier().empty()) {
+      if (!this_._internal_alias_mpt().empty()) {
         total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_identufier());
+                                        this_._internal_alias_mpt());
       }
     }
-    // string format = 7;
+    // string account = 7;
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (!this_._internal_format().empty()) {
+      if (!this_._internal_account().empty()) {
         total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_format());
+                                        this_._internal_account());
       }
     }
-    // string format_details = 8;
+    // string ip = 8;
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (!this_._internal_format_details().empty()) {
+      if (!this_._internal_ip().empty()) {
         total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_format_details());
+                                        this_._internal_ip());
       }
     }
-    // string carrier = 9;
+    // uint64 online_time = 2;
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (!this_._internal_carrier().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_carrier());
-      }
-    }
-    // string nav_system = 10;
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (!this_._internal_nav_system().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_nav_system());
-      }
-    }
-    // string network = 11;
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (!this_._internal_network().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_network());
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    // string country = 12;
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (!this_._internal_country().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_country());
-      }
-    }
-    // string latitude = 13;
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (!this_._internal_latitude().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_latitude());
-      }
-    }
-    // string longitude = 14;
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      if (!this_._internal_longitude().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_longitude());
-      }
-    }
-    // string nmea = 15;
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-      if (!this_._internal_nmea().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_nmea());
-      }
-    }
-    // string solution = 16;
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      if (!this_._internal_solution().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_solution());
-      }
-    }
-    // string generator = 17;
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      if (!this_._internal_generator().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_generator());
-      }
-    }
-    // string compr_encrryp = 18;
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      if (!this_._internal_compr_encrryp().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_compr_encrryp());
-      }
-    }
-    // string authentication = 19;
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      if (!this_._internal_authentication().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_authentication());
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x003f0000U)) {
-    // string fee = 20;
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-      if (!this_._internal_fee().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_fee());
-      }
-    }
-    // string bitrate = 21;
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-      if (!this_._internal_bitrate().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_bitrate());
-      }
-    }
-    // string misc = 22;
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-      if (!this_._internal_misc().empty()) {
-        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_misc());
-      }
-    }
-    // uint64 create_time = 2;
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-      if (this_._internal_create_time() != 0) {
+      if (this_._internal_online_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
-            this_._internal_create_time());
+            this_._internal_online_time());
       }
     }
     // uint64 update_time = 3;
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_update_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_update_time());
       }
     }
-    // .caster.core.ServerInfoFromType type = 4;
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    // int32 type = 6;
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (this_._internal_type() != 0) {
-        total_size += 1 +
-                      ::_pbi::WireFormatLite::EnumSize(this_._internal_type());
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_type());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
+    // int32 port = 9;
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (this_._internal_port() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_port());
+      }
+    }
+    // uint64 online_seconds = 10;
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (this_._internal_online_seconds() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_online_seconds());
+      }
+    }
+    // uint64 tcp_delay = 11;
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (this_._internal_tcp_delay() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_tcp_delay());
+      }
+    }
+    // double ecef_x = 12;
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_x()) != 0) {
+        total_size += 9;
+      }
+    }
+    // double ecef_y = 13;
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_y()) != 0) {
+        total_size += 9;
+      }
+    }
+    // double ecef_z = 14;
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_z()) != 0) {
+        total_size += 9;
+      }
+    }
+    // int64 position_update_time = 15;
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (this_._internal_position_update_time() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int64SizePlusOne(
+            this_._internal_position_update_time());
       }
     }
   }
@@ -1146,184 +804,91 @@ void ServerState::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      if (!from._internal_mountpoint().empty()) {
-        _this->_internal_set_mountpoint(from._internal_mountpoint());
+      if (!from._internal_login_mpt().empty()) {
+        _this->_internal_set_login_mpt(from._internal_login_mpt());
       } else {
-        if (_this->_impl_.mountpoint_.IsDefault()) {
-          _this->_internal_set_mountpoint("");
+        if (_this->_impl_.login_mpt_.IsDefault()) {
+          _this->_internal_set_login_mpt("");
         }
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      if (!from._internal_identufier().empty()) {
-        _this->_internal_set_identufier(from._internal_identufier());
+      if (!from._internal_alias_mpt().empty()) {
+        _this->_internal_set_alias_mpt(from._internal_alias_mpt());
       } else {
-        if (_this->_impl_.identufier_.IsDefault()) {
-          _this->_internal_set_identufier("");
+        if (_this->_impl_.alias_mpt_.IsDefault()) {
+          _this->_internal_set_alias_mpt("");
         }
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (!from._internal_format().empty()) {
-        _this->_internal_set_format(from._internal_format());
+      if (!from._internal_account().empty()) {
+        _this->_internal_set_account(from._internal_account());
       } else {
-        if (_this->_impl_.format_.IsDefault()) {
-          _this->_internal_set_format("");
+        if (_this->_impl_.account_.IsDefault()) {
+          _this->_internal_set_account("");
         }
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (!from._internal_format_details().empty()) {
-        _this->_internal_set_format_details(from._internal_format_details());
+      if (!from._internal_ip().empty()) {
+        _this->_internal_set_ip(from._internal_ip());
       } else {
-        if (_this->_impl_.format_details_.IsDefault()) {
-          _this->_internal_set_format_details("");
+        if (_this->_impl_.ip_.IsDefault()) {
+          _this->_internal_set_ip("");
         }
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (!from._internal_carrier().empty()) {
-        _this->_internal_set_carrier(from._internal_carrier());
-      } else {
-        if (_this->_impl_.carrier_.IsDefault()) {
-          _this->_internal_set_carrier("");
-        }
+      if (from._internal_online_time() != 0) {
+        _this->_impl_.online_time_ = from._impl_.online_time_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (!from._internal_nav_system().empty()) {
-        _this->_internal_set_nav_system(from._internal_nav_system());
-      } else {
-        if (_this->_impl_.nav_system_.IsDefault()) {
-          _this->_internal_set_nav_system("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (!from._internal_network().empty()) {
-        _this->_internal_set_network(from._internal_network());
-      } else {
-        if (_this->_impl_.network_.IsDefault()) {
-          _this->_internal_set_network("");
-        }
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (!from._internal_country().empty()) {
-        _this->_internal_set_country(from._internal_country());
-      } else {
-        if (_this->_impl_.country_.IsDefault()) {
-          _this->_internal_set_country("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (!from._internal_latitude().empty()) {
-        _this->_internal_set_latitude(from._internal_latitude());
-      } else {
-        if (_this->_impl_.latitude_.IsDefault()) {
-          _this->_internal_set_latitude("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
-      if (!from._internal_longitude().empty()) {
-        _this->_internal_set_longitude(from._internal_longitude());
-      } else {
-        if (_this->_impl_.longitude_.IsDefault()) {
-          _this->_internal_set_longitude("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
-      if (!from._internal_nmea().empty()) {
-        _this->_internal_set_nmea(from._internal_nmea());
-      } else {
-        if (_this->_impl_.nmea_.IsDefault()) {
-          _this->_internal_set_nmea("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
-      if (!from._internal_solution().empty()) {
-        _this->_internal_set_solution(from._internal_solution());
-      } else {
-        if (_this->_impl_.solution_.IsDefault()) {
-          _this->_internal_set_solution("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
-      if (!from._internal_generator().empty()) {
-        _this->_internal_set_generator(from._internal_generator());
-      } else {
-        if (_this->_impl_.generator_.IsDefault()) {
-          _this->_internal_set_generator("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
-      if (!from._internal_compr_encrryp().empty()) {
-        _this->_internal_set_compr_encrryp(from._internal_compr_encrryp());
-      } else {
-        if (_this->_impl_.compr_encrryp_.IsDefault()) {
-          _this->_internal_set_compr_encrryp("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
-      if (!from._internal_authentication().empty()) {
-        _this->_internal_set_authentication(from._internal_authentication());
-      } else {
-        if (_this->_impl_.authentication_.IsDefault()) {
-          _this->_internal_set_authentication("");
-        }
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x003f0000U)) {
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
-      if (!from._internal_fee().empty()) {
-        _this->_internal_set_fee(from._internal_fee());
-      } else {
-        if (_this->_impl_.fee_.IsDefault()) {
-          _this->_internal_set_fee("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
-      if (!from._internal_bitrate().empty()) {
-        _this->_internal_set_bitrate(from._internal_bitrate());
-      } else {
-        if (_this->_impl_.bitrate_.IsDefault()) {
-          _this->_internal_set_bitrate("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
-      if (!from._internal_misc().empty()) {
-        _this->_internal_set_misc(from._internal_misc());
-      } else {
-        if (_this->_impl_.misc_.IsDefault()) {
-          _this->_internal_set_misc("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
-      if (from._internal_create_time() != 0) {
-        _this->_impl_.create_time_ = from._impl_.create_time_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
       if (from._internal_update_time() != 0) {
         _this->_impl_.update_time_ = from._impl_.update_time_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (from._internal_type() != 0) {
         _this->_impl_.type_ = from._impl_.type_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (from._internal_port() != 0) {
+        _this->_impl_.port_ = from._impl_.port_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (from._internal_online_seconds() != 0) {
+        _this->_impl_.online_seconds_ = from._impl_.online_seconds_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (from._internal_tcp_delay() != 0) {
+        _this->_impl_.tcp_delay_ = from._impl_.tcp_delay_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_ecef_x()) != 0) {
+        _this->_impl_.ecef_x_ = from._impl_.ecef_x_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_ecef_y()) != 0) {
+        _this->_impl_.ecef_y_ = from._impl_.ecef_y_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_ecef_z()) != 0) {
+        _this->_impl_.ecef_z_ = from._impl_.ecef_z_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (from._internal_position_update_time() != 0) {
+        _this->_impl_.position_update_time_ = from._impl_.position_update_time_;
       }
     }
   }
@@ -1347,30 +912,16 @@ void ServerState::InternalSwap(ServerState* PROTOBUF_RESTRICT PROTOBUF_NONNULL o
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uid_, &other->_impl_.uid_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.mountpoint_, &other->_impl_.mountpoint_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.identufier_, &other->_impl_.identufier_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.format_, &other->_impl_.format_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.format_details_, &other->_impl_.format_details_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.carrier_, &other->_impl_.carrier_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.nav_system_, &other->_impl_.nav_system_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.network_, &other->_impl_.network_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.country_, &other->_impl_.country_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.latitude_, &other->_impl_.latitude_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.longitude_, &other->_impl_.longitude_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.nmea_, &other->_impl_.nmea_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.solution_, &other->_impl_.solution_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.generator_, &other->_impl_.generator_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.compr_encrryp_, &other->_impl_.compr_encrryp_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.authentication_, &other->_impl_.authentication_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.fee_, &other->_impl_.fee_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.bitrate_, &other->_impl_.bitrate_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.misc_, &other->_impl_.misc_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.login_mpt_, &other->_impl_.login_mpt_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.alias_mpt_, &other->_impl_.alias_mpt_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.account_, &other->_impl_.account_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.ip_, &other->_impl_.ip_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.type_)
-      + sizeof(ServerState::_impl_.type_)
-      - PROTOBUF_FIELD_OFFSET(ServerState, _impl_.create_time_)>(
-          reinterpret_cast<char*>(&_impl_.create_time_),
-          reinterpret_cast<char*>(&other->_impl_.create_time_));
+      PROTOBUF_FIELD_OFFSET(ServerState, _impl_.position_update_time_)
+      + sizeof(ServerState::_impl_.position_update_time_)
+      - PROTOBUF_FIELD_OFFSET(ServerState, _impl_.online_time_)>(
+          reinterpret_cast<char*>(&_impl_.online_time_),
+          reinterpret_cast<char*>(&other->_impl_.online_time_));
 }
 
 ::google::protobuf::Metadata ServerState::GetMetadata() const {

@@ -25,8 +25,14 @@ public:
     int start() override;
     int stop() override;
 
-    int write_cb(struct bufferevent *bev) override;               // bev写回调函数
-    int event_cb(struct bufferevent *bev, short events) override; // bev事件回调函数
+    int read_cb(struct bufferevent *bev) override;
+    int write_cb(struct bufferevent *bev) override;
+    int event_cb(struct bufferevent *bev, short events) override;
+    int timeout_cb() override;
+
+    int login_cb(auth_reply *reply) override;
+    int register_cb(caster_reply *reply) override;
+    int subscribe_cb(caster_reply *reply) override;
 
 private:
     int build_source_table();

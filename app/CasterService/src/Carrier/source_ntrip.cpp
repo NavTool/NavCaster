@@ -15,6 +15,8 @@ int source_ntrip::init()
     return 0;
 }
 
+// ============ 流程：start直接发送源表 → write_cb检查发送完成 → stop ============
+
 int source_ntrip::start()
 {
     start_bev(false, 0, true, 0);
@@ -32,7 +34,12 @@ int source_ntrip::stop()
     _info.set_operate(OPERATE_TYPE_DESTORY);
     QUEUE::Push(_info);
 
-    spdlog::info("[{}]: close connect , user [{}],  addr:[{}:{}]", __class__, _info.user_name(), _info.addr(), _info.port());
+    spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
+    return 0;
+}
+
+int source_ntrip::read_cb(bufferevent *bev)
+{
     return 0;
 }
 
@@ -57,7 +64,28 @@ int source_ntrip::write_cb(bufferevent *bev)
 
 int source_ntrip::event_cb(bufferevent *bev, short events)
 {
+    spdlog::info("[{}:{}]: event stop, mount [{}], addr:[{}:{}]", __class__, __func__, _info.mount_point(), _info.addr(), _info.port());
     stop();
+    return 0;
+}
+
+int source_ntrip::timeout_cb()
+{
+    return 0;
+}
+
+int source_ntrip::login_cb(auth_reply *reply)
+{
+    return 0;
+}
+
+int source_ntrip::register_cb(caster_reply *reply)
+{
+    return 0;
+}
+
+int source_ntrip::subscribe_cb(caster_reply *reply)
+{
     return 0;
 }
 

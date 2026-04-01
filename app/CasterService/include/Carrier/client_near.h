@@ -19,8 +19,7 @@ using json = nlohmann::json;
 class client_near : public carrier_base
 {
 private:
-    // 内部成员变量
-    std::string _alias_mpt; // 实际使用的挂载点
+    std::string _alias_mpt;
     double _ecef_x = 0.0;
     double _ecef_y = 0.0;
     double _ecef_z = 0.0;
@@ -37,14 +36,12 @@ public:
     int start() override;
     int stop() override;
 
-    int runing() override;
+    int read_cb(struct bufferevent *bev) override;
+    int write_cb(struct bufferevent *bev) override;
+    int event_cb(struct bufferevent *bev, short events) override;
+    int timeout_cb() override;
 
-    int read_cb(struct bufferevent *bev) override;                // bev读回调函数
-    int write_cb(struct bufferevent *bev) override;               // bev写回调函数
-    int event_cb(struct bufferevent *bev, short events) override; // bev事件回调函数
-    int timeout_cb() override;                                    // 定时器回调函数
-
-    int login_cb(auth_reply *reply) override;       // Auth登录回调函数
-    int register_cb(caster_reply *reply) override;  // Caster注册回调函数
-    int subscribe_cb(caster_reply *reply) override; // 订阅回调函数
+    int login_cb(auth_reply *reply) override;
+    int register_cb(caster_reply *reply) override;
+    int subscribe_cb(caster_reply *reply) override;
 };

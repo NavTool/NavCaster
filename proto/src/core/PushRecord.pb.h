@@ -30,6 +30,7 @@
 #include "google/protobuf/repeated_field.h"  // IWYU pragma: export
 #include "google/protobuf/extension_set.h"  // IWYU pragma: export
 #include "google/protobuf/unknown_field_set.h"
+#include "Common.pb.h"
 // @@protoc_insertion_point(includes)
 
 // Must be included last.
@@ -220,8 +221,15 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PushRecord final : public ::google:
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
+    kLoginMptFieldNumber = 4,
+    kTargetIpFieldNumber = 6,
+    kTargetMptFieldNumber = 8,
+    kTargetAccountFieldNumber = 9,
+    kTargetPasswordFieldNumber = 10,
     kCreateTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
+    kTypeFieldNumber = 5,
+    kTargetPortFieldNumber = 7,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -236,6 +244,81 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PushRecord final : public ::google:
   const ::std::string& _internal_uid() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_uid(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
+
+  public:
+  // string login_mpt = 4;
+  void clear_login_mpt() ;
+  [[nodiscard]] const ::std::string& login_mpt() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_login_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_login_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_login_mpt();
+  void set_allocated_login_mpt(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_login_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_login_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_login_mpt();
+
+  public:
+  // string target_ip = 6;
+  void clear_target_ip() ;
+  [[nodiscard]] const ::std::string& target_ip() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_target_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_target_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_target_ip();
+  void set_allocated_target_ip(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_target_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_target_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_target_ip();
+
+  public:
+  // string target_mpt = 8;
+  void clear_target_mpt() ;
+  [[nodiscard]] const ::std::string& target_mpt() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_target_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_target_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_target_mpt();
+  void set_allocated_target_mpt(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_target_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_target_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_target_mpt();
+
+  public:
+  // string target_account = 9;
+  void clear_target_account() ;
+  [[nodiscard]] const ::std::string& target_account() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_target_account(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_target_account();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_target_account();
+  void set_allocated_target_account(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_target_account() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_target_account(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_target_account();
+
+  public:
+  // string target_password = 10;
+  void clear_target_password() ;
+  [[nodiscard]] const ::std::string& target_password() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_target_password(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_target_password();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_target_password();
+  void set_allocated_target_password(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_target_password() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_target_password(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_target_password();
 
   public:
   // uint64 create_time = 2;
@@ -258,12 +341,32 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PushRecord final : public ::google:
   void _internal_set_update_time(::uint64_t value);
 
   public:
+  // .caster.PushType type = 5;
+  void clear_type() ;
+  [[nodiscard]] ::caster::PushType type() const;
+  void set_type(::caster::PushType value);
+
+  private:
+  ::caster::PushType _internal_type() const;
+  void _internal_set_type(::caster::PushType value);
+
+  public:
+  // int32 target_port = 7;
+  void clear_target_port() ;
+  [[nodiscard]] ::int32_t target_port() const;
+  void set_target_port(::int32_t value);
+
+  private:
+  ::int32_t _internal_target_port() const;
+  void _internal_set_target_port(::int32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.core.PushRecord)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 34,
+  static const ::google::protobuf::internal::TcParseTable<4, 10,
+                                   0, 99,
                                    2>
       _table_;
 
@@ -287,8 +390,15 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PushRecord final : public ::google:
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
+    ::google::protobuf::internal::ArenaStringPtr login_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr target_ip_;
+    ::google::protobuf::internal::ArenaStringPtr target_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr target_account_;
+    ::google::protobuf::internal::ArenaStringPtr target_password_;
     ::uint64_t create_time_;
     ::uint64_t update_time_;
+    int type_;
+    ::int32_t target_port_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -383,7 +493,7 @@ inline void PushRecord::clear_create_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.create_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000040U);
 }
 inline ::uint64_t PushRecord::create_time() const {
   // @@protoc_insertion_point(field_get:caster.core.PushRecord.create_time)
@@ -391,7 +501,7 @@ inline ::uint64_t PushRecord::create_time() const {
 }
 inline void PushRecord::set_create_time(::uint64_t value) {
   _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:caster.core.PushRecord.create_time)
 }
 inline ::uint64_t PushRecord::_internal_create_time() const {
@@ -408,7 +518,7 @@ inline void PushRecord::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000080U);
 }
 inline ::uint64_t PushRecord::update_time() const {
   // @@protoc_insertion_point(field_get:caster.core.PushRecord.update_time)
@@ -416,7 +526,7 @@ inline ::uint64_t PushRecord::update_time() const {
 }
 inline void PushRecord::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   // @@protoc_insertion_point(field_set:caster.core.PushRecord.update_time)
 }
 inline ::uint64_t PushRecord::_internal_update_time() const {
@@ -426,6 +536,381 @@ inline ::uint64_t PushRecord::_internal_update_time() const {
 inline void PushRecord::_internal_set_update_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = value;
+}
+
+// string login_mpt = 4;
+inline void PushRecord::clear_login_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.login_mpt_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& PushRecord::login_mpt() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PushRecord.login_mpt)
+  return _internal_login_mpt();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PushRecord::set_login_mpt(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.login_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PushRecord.login_mpt)
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::mutable_login_mpt()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_login_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.core.PushRecord.login_mpt)
+  return _s;
+}
+inline const ::std::string& PushRecord::_internal_login_mpt() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.login_mpt_.Get();
+}
+inline void PushRecord::_internal_set_login_mpt(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.login_mpt_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::_internal_mutable_login_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.login_mpt_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PushRecord::release_login_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PushRecord.login_mpt)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.login_mpt_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.login_mpt_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PushRecord::set_allocated_login_mpt(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.login_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.login_mpt_.IsDefault()) {
+    _impl_.login_mpt_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PushRecord.login_mpt)
+}
+
+// .caster.PushType type = 5;
+inline void PushRecord::clear_type() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.type_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline ::caster::PushType PushRecord::type() const {
+  // @@protoc_insertion_point(field_get:caster.core.PushRecord.type)
+  return _internal_type();
+}
+inline void PushRecord::set_type(::caster::PushType value) {
+  _internal_set_type(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  // @@protoc_insertion_point(field_set:caster.core.PushRecord.type)
+}
+inline ::caster::PushType PushRecord::_internal_type() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::caster::PushType>(_impl_.type_);
+}
+inline void PushRecord::_internal_set_type(::caster::PushType value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.type_ = value;
+}
+
+// string target_ip = 6;
+inline void PushRecord::clear_target_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_ip_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline const ::std::string& PushRecord::target_ip() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PushRecord.target_ip)
+  return _internal_target_ip();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PushRecord::set_target_ip(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.target_ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PushRecord.target_ip)
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::mutable_target_ip()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_target_ip();
+  // @@protoc_insertion_point(field_mutable:caster.core.PushRecord.target_ip)
+  return _s;
+}
+inline const ::std::string& PushRecord::_internal_target_ip() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_ip_.Get();
+}
+inline void PushRecord::_internal_set_target_ip(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_ip_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::_internal_mutable_target_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.target_ip_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PushRecord::release_target_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PushRecord.target_ip)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.target_ip_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.target_ip_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PushRecord::set_allocated_target_ip(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.target_ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.target_ip_.IsDefault()) {
+    _impl_.target_ip_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PushRecord.target_ip)
+}
+
+// int32 target_port = 7;
+inline void PushRecord::clear_target_port() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_port_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000200U);
+}
+inline ::int32_t PushRecord::target_port() const {
+  // @@protoc_insertion_point(field_get:caster.core.PushRecord.target_port)
+  return _internal_target_port();
+}
+inline void PushRecord::set_target_port(::int32_t value) {
+  _internal_set_target_port(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  // @@protoc_insertion_point(field_set:caster.core.PushRecord.target_port)
+}
+inline ::int32_t PushRecord::_internal_target_port() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_port_;
+}
+inline void PushRecord::_internal_set_target_port(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_port_ = value;
+}
+
+// string target_mpt = 8;
+inline void PushRecord::clear_target_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_mpt_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline const ::std::string& PushRecord::target_mpt() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PushRecord.target_mpt)
+  return _internal_target_mpt();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PushRecord::set_target_mpt(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.target_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PushRecord.target_mpt)
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::mutable_target_mpt()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_target_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.core.PushRecord.target_mpt)
+  return _s;
+}
+inline const ::std::string& PushRecord::_internal_target_mpt() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_mpt_.Get();
+}
+inline void PushRecord::_internal_set_target_mpt(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_mpt_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::_internal_mutable_target_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.target_mpt_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PushRecord::release_target_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PushRecord.target_mpt)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.target_mpt_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.target_mpt_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PushRecord::set_allocated_target_mpt(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.target_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.target_mpt_.IsDefault()) {
+    _impl_.target_mpt_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PushRecord.target_mpt)
+}
+
+// string target_account = 9;
+inline void PushRecord::clear_target_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_account_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000010U);
+}
+inline const ::std::string& PushRecord::target_account() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PushRecord.target_account)
+  return _internal_target_account();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PushRecord::set_target_account(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  _impl_.target_account_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PushRecord.target_account)
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::mutable_target_account()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::std::string* _s = _internal_mutable_target_account();
+  // @@protoc_insertion_point(field_mutable:caster.core.PushRecord.target_account)
+  return _s;
+}
+inline const ::std::string& PushRecord::_internal_target_account() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_account_.Get();
+}
+inline void PushRecord::_internal_set_target_account(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_account_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::_internal_mutable_target_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.target_account_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PushRecord::release_target_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PushRecord.target_account)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  auto* released = _impl_.target_account_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.target_account_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PushRecord::set_allocated_target_account(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+  _impl_.target_account_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.target_account_.IsDefault()) {
+    _impl_.target_account_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PushRecord.target_account)
+}
+
+// string target_password = 10;
+inline void PushRecord::clear_target_password() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_password_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000020U);
+}
+inline const ::std::string& PushRecord::target_password() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PushRecord.target_password)
+  return _internal_target_password();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PushRecord::set_target_password(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  _impl_.target_password_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PushRecord.target_password)
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::mutable_target_password()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ::std::string* _s = _internal_mutable_target_password();
+  // @@protoc_insertion_point(field_mutable:caster.core.PushRecord.target_password)
+  return _s;
+}
+inline const ::std::string& PushRecord::_internal_target_password() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_password_.Get();
+}
+inline void PushRecord::_internal_set_target_password(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_password_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PushRecord::_internal_mutable_target_password() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.target_password_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PushRecord::release_target_password() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PushRecord.target_password)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000020U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  auto* released = _impl_.target_password_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.target_password_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PushRecord::set_allocated_target_password(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  }
+  _impl_.target_password_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.target_password_.IsDefault()) {
+    _impl_.target_password_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PushRecord.target_password)
 }
 
 #ifdef __GNUC__
