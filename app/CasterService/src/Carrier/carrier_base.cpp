@@ -141,6 +141,152 @@ carrier_base::~carrier_base()
     event_free(_timeout_ev);
 }
 
+int carrier_base::start()
+{
+    run(); // 启动协程（fire-and-forget）
+    return 0;
+}
+
+int carrier_base::stop()
+{
+    stop_bev();
+    stop_timeout_event();
+    auth_logout();
+    unsubscribe();
+    caster_withdraw();
+
+    _events.close();
+
+    _info.set_operate(OPERATE_TYPE_DESTORY);
+    QUEUE::Push(_info);
+
+    spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]",
+                 __class__, _info.mount_point(), _info.addr(), _info.port());
+    return 0;
+}
+
+int carrier_base::auth_login_cb(auth_reply *reply)
+{
+    if (_pending_auth)
+    {
+        _auth_result = *reply;
+        auto h = _pending_auth;
+        _pending_auth = nullptr;   // 首次调用完毕之后，设置挂起点为空，这样之后的回调调用都会通过Event的协程返回值返回
+        h.resume();
+    }
+    else
+    {
+        CarrierEvent evt;
+        evt.type = CarrierEventType::AuthReply;
+        evt.auth_type = reply->type;
+        _events.push(std::move(evt));
+    }
+    return 0;
+}
+
+int carrier_base::caster_register_cb(caster_reply *reply)
+{
+    if (_pending_register)
+    {
+        _register_result = *reply;
+        auto h = _pending_register;
+        _pending_register = nullptr;
+        h.resume();
+    }
+    else
+    {
+        CarrierEvent evt;
+        evt.type = CarrierEventType::RegisterReply;
+        evt.caster_type = reply->type;
+        _events.push(std::move(evt));
+    }
+    return 0;
+}
+
+int carrier_base::caster_subscribe_cb(caster_reply *reply)
+{
+    if (_pending_subscribe)
+    {
+        _subscribe_result = *reply;
+        auto h = _pending_subscribe;
+        _pending_subscribe = nullptr;
+        h.resume();
+    }
+    else
+    {
+        CarrierEvent evt;
+        evt.type = CarrierEventType::SubscribeReply;
+        evt.caster_type = reply->type;
+        if (reply->str && reply->len > 0)
+            evt.data.assign(reinterpret_cast<const uint8_t*>(reply->str),
+                            reinterpret_cast<const uint8_t*>(reply->str) + reply->len);
+        _events.push(std::move(evt));
+    }
+    return 0;
+}
+
+int carrier_base::bev_read_cb(bufferevent *bev)
+{
+    if (_pending_bev_read)
+    {
+        _bev_read_result = read_data(false); // 初始化阶段（握手）不使用 chunked
+        auto h = _pending_bev_read;
+        _pending_bev_read = nullptr;
+        h.resume();
+    }
+    else
+    {
+        CarrierEvent evt;
+        evt.type = CarrierEventType::BevRead;
+        _events.push(std::move(evt));
+    }
+    return 0;
+}
+
+int carrier_base::bev_write_cb(bufferevent *bev)
+{
+    if (_pending_bev_write)
+    {
+        auto h = _pending_bev_write;
+        _pending_bev_write = nullptr;
+        h.resume();
+    }
+    else
+    {
+        CarrierEvent evt;
+        evt.type = CarrierEventType::BevWrite;
+        _events.push(std::move(evt));
+    }
+    return 0;
+}
+
+int carrier_base::bev_event_cb(bufferevent *bev, short events)
+{
+    if (_pending_bev_event)
+    {
+        _bev_event_result = events;
+        auto h = _pending_bev_event;
+        _pending_bev_event = nullptr;
+        h.resume();
+    }
+    else
+    {
+        CarrierEvent evt;
+        evt.type = CarrierEventType::BevEvent;
+        evt.bev_events = events;
+        _events.push(std::move(evt));
+    }
+    return 0;
+}
+
+int carrier_base::timeout_cb()
+{
+    CarrierEvent evt;
+    evt.type = CarrierEventType::Timeout;
+    _events.push(std::move(evt));
+    return 0;
+}
+
 std::string carrier_base::create_bev(std::string addr, int port)
 {
     return connect_bev::getInstance()->new_bev(addr, port);
@@ -153,7 +299,7 @@ int carrier_base::destory_bev(std::string connect_key)
 
 int carrier_base::start_bev(bool enable_read_cb, time_t read_timeout_sec, bool enable_write_cb, time_t write_timeout_sec)
 {
-    connect_bev::getInstance()->set_bev(_connect_key, enable_read_cb ? ReadCallback : nullptr, enable_write_cb ? WriteCallback : nullptr, EventCallback, this);
+    connect_bev::getInstance()->set_bev(_connect_key, enable_read_cb ? BevReadCallback : nullptr, enable_write_cb ? BevWriteCallback : nullptr, BevEventCallback, this);
     connect_bev::getInstance()->set_timer(_connect_key, read_timeout_sec, write_timeout_sec);
     return 0;
 }
@@ -365,20 +511,20 @@ std::vector<uint8_t> carrier_base::read_data_from_chunk()
     return datas;
 }
 
-void carrier_base::ReadCallback(bufferevent *bev, void *arg)
+void carrier_base::BevReadCallback(bufferevent *bev, void *arg)
 {
     auto svr = static_cast<carrier_base *>(arg);
     bufferevent_read_buffer(bev, svr->_recv_evbuf);
-    svr->read_cb(bev);
+    svr->bev_read_cb(bev);
 }
 
-void carrier_base::WriteCallback(bufferevent *bev, void *arg)
+void carrier_base::BevWriteCallback(bufferevent *bev, void *arg)
 {
     auto svr = static_cast<carrier_base *>(arg);
-    svr->write_cb(bev);
+    svr->bev_write_cb(bev);
 }
 
-void carrier_base::EventCallback(bufferevent *bev, short events, void *arg)
+void carrier_base::BevEventCallback(bufferevent *bev, short events, void *arg)
 {
     auto svr = static_cast<carrier_base *>(arg);
 
@@ -391,7 +537,7 @@ void carrier_base::EventCallback(bufferevent *bev, short events, void *arg)
                  (events & BEV_EVENT_TIMEOUT) ? "timeout" : "-",
                  (events & BEV_EVENT_CONNECTED) ? "connected" : "-");
 
-    svr->event_cb(bev, events);
+    svr->bev_event_cb(bev, events);
 }
 
 void carrier_base::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
@@ -403,17 +549,54 @@ void carrier_base::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 void carrier_base::AuthLoginCallback(const char *request, void *arg, auth_reply *reply)
 {
     auto *svr = static_cast<carrier_base *>(arg);
-    svr->login_cb(reply);
+    svr->auth_login_cb(reply);
 }
 
 void carrier_base::CasterRegisterCallback(const char *request, void *arg, caster_reply *reply)
 {
     auto *svr = static_cast<carrier_base *>(arg);
-    svr->register_cb(reply);
+    svr->caster_register_cb(reply);
 }
 
 void carrier_base::CasterSubscribeCallback(const char *request, void *arg, caster_reply *reply)
 {
     auto *svr = static_cast<carrier_base *>(arg);
-    svr->subscribe_cb(reply);
+    svr->caster_subscribe_cb(reply);
+}
+
+carrier_base::BevWriteAwaitable carrier_base::co_wait_bev_write()
+{
+    return BevWriteAwaitable{this};
+}
+
+TimerAwaitable carrier_base::co_sleep(time_t sec)
+{
+    return TimerAwaitable(connect_bev::getInstance()->get_base(), sec);
+}
+
+carrier_base::BevReadAwaitable carrier_base::co_wait_bev_read()
+{
+    return BevReadAwaitable{this};
+}
+
+carrier_base::BevEventAwaitable carrier_base::co_wait_bev_event()
+{
+    return BevEventAwaitable{this};
+}
+
+carrier_base::CasterSubscribeAwaitable carrier_base::co_caster_subscribe()
+{
+    return CasterSubscribeAwaitable{this};
+}
+
+carrier_base::CasterRegisterAwaitable carrier_base::co_caster_register(CasterRegisterType type)
+{
+    _register_type = type;
+    return CasterRegisterAwaitable{this, type};
+}
+
+carrier_base::AuthRegisterAwaitable carrier_base::co_auth_login(AuthType type)
+{
+    _auth_type = type;
+    return AuthRegisterAwaitable{this, type};
 }
