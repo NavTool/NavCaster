@@ -142,10 +142,8 @@ namespace CASTER
     // 取消订阅基站数据
     int Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key);
     // 设置基站坐标信息
-    int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
+    int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z);
     // 设置基站连接延迟信息
-    int Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay);
-
     int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
     int Set_Push_Rover_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
@@ -164,9 +162,9 @@ namespace CASTER
     // 取消订阅移动站数据
     int Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key);
     // 设置用户坐标信息
-    int Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff);
+    int Set_Rover_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, int Q, int sat, double diff);
     // 设置用户连接延迟信息
-    int Set_Rover_Delay_Info(const char *user_name, const char *connect_key, uint64_t delay);
+    int Set_Delay_Info(const char *connect_key, uint64_t delay);
 
     // 获取文本形式的源列表
     std::string Get_Source_Table_Text();

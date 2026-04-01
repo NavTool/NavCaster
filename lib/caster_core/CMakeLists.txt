@@ -23,17 +23,36 @@ endif()
 
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)
+include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/context)
 
-set(SOURCES
-    include/Caster_Core.h
-    src/Caster_Core.cpp
-    # src/caster_core_internal.h
-    # src/caster_core_internal.cpp
-    src/caster_internal.h
-    src/caster_internal.cpp
+# 遍历目录自动添加所有源文件
+file(GLOB_RECURSE CPP_SOURCE_FILES
+    CONFIGURE_DEPENDS
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/context/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/context/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/context/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/context/**/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/context/**/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/context/**/*.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/**/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/**/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/**/*.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/**/*.cpp
 )
 
-add_library(${PROJECT_NAME} STATIC ${SOURCES})
+
+add_library(${PROJECT_NAME} STATIC ${CPP_SOURCE_FILES})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(${PROJECT_NAME}  PRIVATE ${CMAKE_BINARY_DIR})

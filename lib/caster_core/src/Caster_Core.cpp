@@ -443,14 +443,9 @@ int CASTER::Relay_Register_Callback(RelayCallback cb, void *arg)
     return caster_internal::getInstance()->relay_register_callback(cb, arg);
 }
 
-int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
+int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z)
 {
-    return caster_internal::getInstance()->set_base_coord_info(mount_point, connect_key, ecef_x, ecef_y, ecef_z, update_time);
-}
-
-int CASTER::Set_Base_Delay_Info(const char *mount_point, const char *connect_key, uint64_t delay)
-{
-    return caster_internal::getInstance()->set_base_delay_info(mount_point, connect_key, delay);
+    return caster_internal::getInstance()->set_base_coord_info(mount_point, connect_key, ecef_x, ecef_y, ecef_z);
 }
 
 int CASTER::Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
@@ -463,12 +458,13 @@ int CASTER::Set_Push_Rover_Info(const char *mount_point, const char *alias_mpt, 
     return caster_internal::getInstance()->update_push_rover_info(mount_point, alias_mpt, connect_key, state);
 }
 
-int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff)
+int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z,int Q, int sat, double diff)
 {
-    return caster_internal::getInstance()->set_rover_coord_info(user_name, connect_key, ecef_x, ecef_y, ecef_z, update_time, Q, sat, diff);
+    return caster_internal::getInstance()->set_rover_coord_info(user_name, connect_key, ecef_x, ecef_y, ecef_z, Q, sat, diff);
 }
 
-int CASTER::Set_Rover_Delay_Info(const char *user_name, const char *connect_key, uint64_t delay)
+
+int CASTER::Set_Delay_Info(const char *connect_key, uint64_t delay)
 {
-    return caster_internal::getInstance()->set_rover_delay_info(user_name, connect_key, delay);
+    return caster_internal::getInstance()->set_connect_delay_info(connect_key, delay);
 }

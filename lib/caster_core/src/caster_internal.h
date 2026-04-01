@@ -13,20 +13,19 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-#include "core/StreamState.pb.h"
 
-#include "core/ServerState.pb.h"
-#include "core/ClientState.pb.h"
-#include "core/SourceRecord.pb.h"
-
-#include "core/PullRecord.pb.h"
-#include "core/PullState.pb.h"
-#include "core/PushRecord.pb.h"
-#include "core/PushState.pb.h"
-
-#include "core/AccessGroup.pb.h"
-#include "core/AccessItem.pb.h"
-#include "core/AliasRule.pb.h"
+#include "access_group.h"
+#include "access_item.h"
+#include "alias_rule.h"
+#include "boardcast_msg.h"
+#include "client_status.h"
+#include "pull_record.h"
+#include "pull_status.h"
+#include "push_record.h"
+#include "push_status.h"
+#include "server_status.h"
+#include "source_record.h"
+#include "stream_status.h"
 
 /*
     库内维护的Redis表和结构说明
@@ -173,142 +172,6 @@ using json = nlohmann::json;
         6.  对于Proxy用户                  login_mpt为提供的Proxy挂载点名称(SN-GRECJ)             alias_mpt设置为Proxy挂载点的(SN-GRECJ_0F64)名称
 */
 
-// 数据流统计（速率计算）
-class stream_status
-{
-private:
-    struct Sample
-    {
-        int64_t time;
-        double bytes;
-    };
-
-    std::deque<Sample> _recvHistory;
-    std::deque<Sample> _sendHistory;
-    int _windowSize = 60;
-
-    std::string _uid;
-    std::time_t _online_time = 0;
-    std::time_t _update_time = 0;
-
-    double _send_total = 0;
-    double _send_speed = 0;
-    double _recv_total = 0;
-    double _recv_speed = 0;
-
-public:
-    stream_status(std::string uid); 
-
-    int add_recv(int size);
-    int add_send(int size);
-
-    int fromString(const std::string &str); // 从proto转换为内部数据结构
-    std::string toString();                 // 从内部数据结构转换为proto
-
-private:
-    void cleanOld(std::deque<Sample> &history, int64_t now);
-    double calcAvgSpeed(const std::deque<Sample> &history) const;
-};
-
-// 基站连接状态
-class server_status
-{
-public:
-    std::string uid;    // connect_key
-    std::time_t online_time; // 上线时刻
-    std::time_t update_time; // 更新时刻
-
-    std::string login_mpt; // 接入的挂载点
-    std::string alias_mpt; // 对外服务的名称
-    int type;              // 挂载点类型
-    std::string account;   // 账户名
-    std::string ip;        // 连接IP    // 通过connect_key解析
-    int port;              // 连接端口
-    std::time_t tcp_delay; // TCP延迟(微秒) //定时上报
-
-    double ecef_x = 12;
-    double ecef_y = 13;
-    double ecef_z = 14;
-    std::time_t position_update_time = 15;   // 定时上报
-
-    caster::core::ServerState _state;
-
-public:
-
-    int fromString(const std::string &str);
-    std::string toString();
-};
-
-// 移动站连接状态
-class client_status
-{
-public:
-    caster::core::ClientState _state;
-
-public:
-    int fromString(const std::string &str);
-    std::string toString();
-};
-
-class source_record
-{
-public:
-    caster::core::SourceRecord _config;
-
-public:
-    int fromString(const std::string &str);
-    std::string toString();
-};
-
-class alias_rule
-{
-public:
-    caster::core::AliasRule _config;
-
-public:
-    int fromString(const std::string &str);
-    std::string toString();
-};
-
-class pull_record
-{
-public:
-    caster::core::PullRecord _config;
-
-public:
-    int fromString(const std::string &str);
-    std::string toString();
-};
-
-class push_record
-{
-public:
-    caster::core::PushRecord _config;
-
-public:
-    int fromString(const std::string &str);
-    std::string toString();
-};
-
-class pull_status
-{
-public:
-    caster::core::PullState _state;
-
-public:
-    int fromString(const std::string &str);
-    std::string toString();
-};
-
-class push_status
-{
-public:
-    caster::core::PushState _state;
-
-public:
-    int fromString(const std::string &str);
-    std::string toString();
-};
 
 class caster_cb_item
 {
@@ -320,30 +183,6 @@ public:
     void *arg;
 };
 
-// 广播指令生成和解析类
-
-class caster_broadcast_item
-{
-public:
-    // 广播的类型
-    CasterBroadcastType type = CasterBroadcastType::UNKNOWN; // 0:未知 1:基站 2:  3:  4:  5:
-    // 目标ConnectKey
-    std::string connect_key;
-    // 目标频道
-    std::string channel;
-    // 传递参数
-    std::string Para;
-
-    // 状态
-    CasterReply status = CasterReply::NIL;
-    // 原因
-    std::string reason;
-
-public:
-    int fromString(const std::string &str);
-
-    std::string toString();
-};
 
 class caster_internal
 {
@@ -399,6 +238,7 @@ private:
     std::unordered_map<std::string, client_status> _client_status_map; // 用户的状态信息
     std::unordered_map<std::string, source_record> _source_mount_map;  // 挂载点信息，用于获取集群所有的挂载点信息
 
+
     // 集群数据 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON
     std::unordered_map<std::string, std::string> _alias_mount_map;   // 别名挂载点                                     MPT:LIST:ALIAS
@@ -449,9 +289,8 @@ public:
     // 取消订阅频道
     int unsub_base_channel(const char *channel, const char *connect_key);
     // 设置基站坐标信息
-    int set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time);
-    // 设置基站延迟信息
-    int set_base_delay_info(const char *mount_point, const char *connect_key, uint64_t delay);
+    int set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z);
+
     // 设置基站挂载点信息
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
@@ -466,9 +305,12 @@ public:
     // 取消订阅频道
     int unsub_rover_channel(const char *channel, const char *connect_key);
     // 设置用户坐标信息
-    int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff);
-    // 设置用户延迟信息
-    int set_rover_delay_info(const char *user_name, const char *connect_key, uint64_t delay);
+    int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, int Q, int sat, double diff);
+
+
+
+    // 设置延迟信息
+    int set_connect_delay_info(const char *connect_key, uint64_t delay);
 
     // 获取挂载点列表正文
     std::string get_source_list_text();
@@ -617,10 +459,7 @@ private:
 
     // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
 
-    std::unordered_map<std::string, relay_item> _pull_excute_list_map; // 本地已经执行的任务
-    std::unordered_map<std::string, relay_item> _push_excute_list_map; // 本地已经执行的任务
-    std::unordered_map<std::string, relay_stat> _pull_excute_stat_map; // 本地已经执行的任务
-    std::unordered_map<std::string, relay_stat> _push_excute_stat_map; // 本地已经执行的任务
+
 
 public:
     int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);

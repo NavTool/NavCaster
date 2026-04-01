@@ -10,37 +10,6 @@
 
 #define __class__ "caster_internal"
 
-template <typename T>
-std::string ProtoToJson(const T &msg)
-{
-    google::protobuf::json::PrintOptions opt;
-    opt.add_whitespace = true;                       // 转换成json是否添加空格、换行和缩进
-    opt.always_print_fields_with_no_presence = true; // 打印不支持存在的字段
-    opt.always_print_enums_as_ints = false;          // 将枚举类型打印为int
-    opt.preserve_proto_field_names = true;           // 是否保留原型字段名
-    opt.unquote_int64_if_possible = true;            // 关键
-    std::string json_str;
-    auto res = google::protobuf::json::MessageToJsonString(msg, &json_str, opt);
-
-    if (res.ok())
-    {
-        return json_str;
-    }
-    else
-    {
-        return std::string();
-    }
-}
-
-template <typename T>
-bool JsonToProto(const std::string &json, T &msg)
-{
-    google::protobuf::json::ParseOptions opt;
-    opt.ignore_unknown_fields = true; // 关键：向前 / 向后兼容
-
-    auto status = google::protobuf::json::JsonStringToMessage(json, &msg, opt);
-    return status.ok();
-}
 
 /*
     设计的的Redis表和频道组成
@@ -212,8 +181,8 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
 
         // 更新用户订阅的挂载点信息
-        auto item = _rover_status_map.find(connect_key);
-        if (item != _rover_status_map.end())
+        auto item = _client_status_map.find(connect_key);
+        if (item != _client_status_map.end())
         {
             item->second.set_alias_mpt(channel);
         }
@@ -309,8 +278,8 @@ int caster_internal::sub_alias_channel(const char *channel, const char *user_nam
             }
 
             // 更新用户订阅的挂载点信息
-            auto item = caster_internal::getInstance()->_rover_status_map.find(connect_key);
-            if (item != caster_internal::getInstance()->_rover_status_map.end())
+            auto item = caster_internal::getInstance()->_client_status_map.find(connect_key);
+            if (item != caster_internal::getInstance()->_client_status_map.end())
             {
                 item->second.set_alias_mpt(alias_mpt);
             }
@@ -423,16 +392,15 @@ int caster_internal::unsub_rover_channel(const char *channel, const char *connec
     return 0;
 }
 
-int caster_internal::set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time, int Q, int sat, double diff)
+int caster_internal::set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, int Q, int sat, double diff)
 {
     // 更新坐标到状态信息中
-    auto item = _rover_status_map.find(connect_key);
-    if (item == _rover_status_map.end())
+    auto item = _client_status_map.find(connect_key);
+    if (item == _client_status_map.end())
     {
         return 1;
     }
-    item->second.set_coord_info(ecef_x, ecef_y, ecef_z, update_time);
-    item->second.set_position_info(Q, sat, diff);
+    item->second.set_coord_info(ecef_x, ecef_y, ecef_z, Q, sat, diff);
     // 将ECEF坐标转换成经纬度
     double lat = 0.0, lon = 0.0, alt = 0.0;
     util_ecef2pos(ecef_x, ecef_y, ecef_z, lat, lon, alt);
@@ -442,10 +410,10 @@ int caster_internal::set_rover_coord_info(const char *user_name, const char *con
     return 0;
 }
 
-int caster_internal::set_rover_delay_info(const char *user_name, const char *connect_key, uint64_t delay)
+int caster_internal::set_connect_delay_info(const char *connect_key, uint64_t delay)
 {
-    auto item = _rover_status_map.find(connect_key);
-    if (item == _rover_status_map.end())
+    auto item = _stream_status_map.find(connect_key);
+    if (item == _stream_status_map.end())
     {
         return 1;
     }
@@ -458,15 +426,15 @@ std::string caster_internal::get_source_list_text()
     return _source_list_text;
 }
 
-int caster_internal::set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, long long update_time)
+int caster_internal::set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z)
 {
     // 更新坐标到状态信息中
-    auto item = _base_status_map.find(connect_key);
-    if (item == _base_status_map.end())
+    auto item = _server_status_map.find(connect_key);
+    if (item == _server_status_map.end())
     {
         return 1;
     }
-    item->second.set_coord_info(ecef_x, ecef_y, ecef_z, update_time);
+    item->second.set_coord_info(ecef_x, ecef_y, ecef_z);
 
     // 将ECEF坐标转换成经纬度
     double lat = 0.0, lon = 0.0, alt = 0.0;
@@ -474,17 +442,6 @@ int caster_internal::set_base_coord_info(const char *mount_point, const char *co
     // 更新坐标到GEO表中
     redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD MPT:GEO %s %s %s", std::to_string(lon).c_str(), std::to_string(lat).c_str(), mount_point); //
 
-    return 0;
-}
-
-int caster_internal::set_base_delay_info(const char *mount_point, const char *connect_key, uint64_t delay)
-{
-    auto item = _base_status_map.find(connect_key);
-    if (item == _base_status_map.end())
-    {
-        return 1;
-    }
-    item->second.add_delay(delay);
     return 0;
 }
 
@@ -531,14 +488,14 @@ int caster_internal::check_redis_connection()
 
 int caster_internal::update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
 {
-    auto stat_item = _base_status_map.find(connect_key);
-    if (stat_item != _base_status_map.end())
+    auto stat_item = _server_status_map.find(connect_key);
+    if (stat_item != _server_status_map.end())
     {
         stat_item->second.set_alias_mpt(alias_mpt);
     }
 
-    auto pull_item = _pull_excute_stat_map.find(mount_point);
-    if (pull_item != _pull_excute_stat_map.end())
+    auto pull_item = _pull_status_map.find(mount_point);
+    if (pull_item != _pull_status_map.end())
     {
         pull_item->second.update_state(connect_key, state);
     }
@@ -547,14 +504,14 @@ int caster_internal::update_pull_base_info(const char *mount_point, const char *
 
 int caster_internal::update_push_rover_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
 {
-    auto stat_item = _rover_status_map.find(connect_key);
-    if (stat_item != _rover_status_map.end())
+    auto stat_item = _client_status_map.find(connect_key);
+    if (stat_item != _client_status_map.end())
     {
         stat_item->second.set_alias_mpt(alias_mpt);
     }
 
-    auto push_item = _push_excute_stat_map.find(mount_point);
-    if (push_item != _push_excute_stat_map.end())
+    auto push_item = _push_status_map.find(mount_point);
+    if (push_item != _push_status_map.end())
     {
         push_item->second.update_state(connect_key, state);
     }
@@ -589,9 +546,9 @@ int caster_internal::upload_node_status()
     info["recv_total"] = _recv_total;
     info["recv_speed"] = _recv_speed;
 
-    info["connnect_count"] = _base_status_map.size() + _rover_status_map.size(); // 连接数
-    info["server_count"] = _base_status_map.size();                              // 基站数量
-    info["client_count"] = _rover_status_map.size();                             // 移动站数量
+    info["connnect_count"] = _server_status_map.size() + _client_status_map.size(); // 连接数
+    info["server_count"] = _server_status_map.size();                              // 基站数量
+    info["client_count"] = _client_status_map.size();                             // 移动站数量
 
     info["online_time"] = _startup_time;
 
@@ -635,21 +592,21 @@ int caster_internal::relay_push_task_distribution()
     // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
 
     // 查找所有的LIST任务
-    for (auto list_iter : _push_list_map)
+    for (auto list_iter : _push_record_map)
     {
-        auto stat_iter = _push_stat_map.find(list_iter.first);
-        if (stat_iter == _push_stat_map.end())
+        auto stat_iter = _push_status_map.find(list_iter.first);
+        if (stat_iter == _push_status_map.end())
         {
-            // STAT中不包含这个任务，创建任务
-            caster_broadcast_item item;
-            item.type = CasterBroadcastType::RELAY_PUSH_ACTIVE;
-            item.channel = list_iter.second.UID;
-            item.Para = list_iter.second.para;
-            item.status = CasterReply::ACTIVE;
-            item.reason = "Push Task Active";
+            // // STAT中不包含这个任务，创建任务
+            // boardcast_msg msg;
+            // item.type = CasterBroadcastType::RELAY_PUSH_ACTIVE;
+            // item.channel = list_iter.second.UID;
+            // item.Para = list_iter.second.para;
+            // item.status = CasterReply::ACTIVE;
+            // item.reason = "Push Task Active";
 
-            // 向某个节点发送广播，当前默认选择主节点执行这个任务
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // // 向某个节点发送广播，当前默认选择主节点执行这个任务
+            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
         }
         // else
         // {
@@ -660,22 +617,22 @@ int caster_internal::relay_push_task_distribution()
     }
     // 查找STAT中是否包含这个任务
 
-    for (auto stat_iter : _push_stat_map)
+    for (auto stat_iter : _push_status_map)
     {
-        auto list_iter = _push_list_map.find(stat_iter.first);
-        if (list_iter == _push_list_map.end())
+        auto list_iter = _push_record_map.find(stat_iter.first);
+        if (list_iter == _push_record_map.end())
         {
-            // LIST中不包含这个任务，移除任务
-            caster_broadcast_item item;
-            item.type = CasterBroadcastType::RELAY_PUSH_INACTIVE;
-            item.channel = stat_iter.second._UID;
-            item.Para = stat_iter.second._para;
-            item.status = CasterReply::INACTIVE;
-            item.reason = "Push Task Inactive";
-            // 根据STAT中记录的节点ID，发送删除任务的广播
+            // // LIST中不包含这个任务，移除任务
+            // caster_broadcast_item item;
+            // item.type = CasterBroadcastType::RELAY_PUSH_INACTIVE;
+            // item.channel = stat_iter.second._UID;
+            // item.Para = stat_iter.second._para;
+            // item.status = CasterReply::INACTIVE;
+            // item.reason = "Push Task Inactive";
+            // // 根据STAT中记录的节点ID，发送删除任务的广播
 
-            // 向指定节点发送广播
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // // 向指定节点发送广播
+            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
         }
     }
 
@@ -688,21 +645,21 @@ int caster_internal::relay_pull_task_distribution()
     // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
 
     // 查找所有的LIST任务
-    for (auto list_iter : _pull_list_map)
+    for (auto list_iter : _pull_record_map)
     {
-        auto stat_iter = _pull_stat_map.find(list_iter.first);
-        if (stat_iter == _pull_stat_map.end())
+        auto stat_iter = _pull_status_map.find(list_iter.first);
+        if (stat_iter == _pull_status_map.end())
         {
             // STAT中不包含这个任务，创建任务
-            caster_broadcast_item item;
-            item.type = CasterBroadcastType::RELAY_PULL_ACTIVE;
-            item.channel = list_iter.second.UID;
-            item.Para = list_iter.second.para;
-            item.status = CasterReply::ACTIVE;
-            item.reason = "Pull Task Active";
+            // caster_broadcast_item item;
+            // item.type = CasterBroadcastType::RELAY_PULL_ACTIVE;
+            // item.channel = list_iter.second.UID;
+            // item.Para = list_iter.second.para;
+            // item.status = CasterReply::ACTIVE;
+            // item.reason = "Pull Task Active";
 
-            // 向某个节点发送广播，当前默认选择主节点执行这个任务
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // // 向某个节点发送广播，当前默认选择主节点执行这个任务
+            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
         }
         // else
         // {
@@ -713,22 +670,22 @@ int caster_internal::relay_pull_task_distribution()
     }
     // 查找STAT中是否包含这个任务
 
-    for (auto stat_iter : _pull_stat_map)
+    for (auto stat_iter : _pull_status_map)
     {
-        auto list_iter = _pull_list_map.find(stat_iter.first);
-        if (list_iter == _pull_list_map.end())
+        auto list_iter = _pull_record_map.find(stat_iter.first);
+        if (list_iter == _pull_record_map.end())
         {
-            // LIST中不包含这个任务，移除任务
-            caster_broadcast_item item;
-            item.type = CasterBroadcastType::RELAY_PULL_INACTIVE;
-            item.channel = stat_iter.second._UID;
-            item.Para = stat_iter.second._para;
-            item.status = CasterReply::INACTIVE;
-            item.reason = "Pull Task Inactive";
-            // 根据STAT中记录的节点ID，发送删除任务的广播
+            // // LIST中不包含这个任务，移除任务
+            // caster_broadcast_item item;
+            // item.type = CasterBroadcastType::RELAY_PULL_INACTIVE;
+            // item.channel = stat_iter.second._UID;
+            // item.Para = stat_iter.second._para;
+            // item.status = CasterReply::INACTIVE;
+            // item.reason = "Pull Task Inactive";
+            // // 根据STAT中记录的节点ID，发送删除任务的广播
 
-            // 向指定节点发送广播
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // // 向指定节点发送广播
+            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
         }
     }
 
@@ -747,7 +704,7 @@ int caster_internal::relay_task_response(std::string req_str)
 {
 
     // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
-    caster_broadcast_item req;
+    boardcast_msg req;
     if (req.fromString(req_str))
     {
         return 1; // 解析失败
@@ -755,97 +712,97 @@ int caster_internal::relay_task_response(std::string req_str)
 
     // 添加到已经任务列表中
 
-    if (req.type == CasterBroadcastType::RELAY_PULL_ACTIVE)
-    {
-        if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
-        {
-            // 已经存在这个任务，说明是重复的广播，忽略
-            return 2;
-        }
-        else
-        {
-            relay_item item;
-            item.fromString(req.Para);
-            _pull_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
+    // if (req.type == CasterBroadcastType::RELAY_PULL_ACTIVE)
+    // {
+    //     if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
+    //     {
+    //         // 已经存在这个任务，说明是重复的广播，忽略
+    //         return 2;
+    //     }
+    //     else
+    //     {
+    //         relay_item item;
+    //         item.fromString(req.Para);
+    //         _pull_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
 
-            relay_stat stat; // 初始化STAT信息
-            stat._para = req.Para;
-            stat._UID = item.UID;
-            stat._modify_time = item.modify_time;
-            stat._node = _node_ID;
-            _pull_excute_stat_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
-            _relay_cb(_relay_cb_arg, req.type, req.Para);
-        }
-    }
-    else if (req.type == CasterBroadcastType::RELAY_PULL_INACTIVE)
-    {
-        // 停止一个转发任务
-        if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
-        {
-            // 已经存在这个任务，删除这个任务
-            _relay_cb(_relay_cb_arg, req.type, req.Para);
-            _pull_excute_list_map.erase(req.channel);
-            _pull_excute_stat_map.erase(req.channel);
-            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PULL:STAT %s", req.channel.c_str());
-        }
-        else
-        {
-            // 不存在这个任务，忽略
-            return 3;
-        }
-    }
-    else if (req.type == CasterBroadcastType::RELAY_PUSH_ACTIVE)
-    {
-        if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
-        {
-            // 已经存在这个任务，说明是重复的广播，忽略
-            return 2;
-        }
-        else
-        {
-            relay_item item;
-            item.fromString(req.Para);
-            _push_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
+    //         relay_stat stat; // 初始化STAT信息
+    //         stat._para = req.Para;
+    //         stat._UID = item.UID;
+    //         stat._modify_time = item.modify_time;
+    //         stat._node = _node_ID;
+    //         _pull_status_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
+    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
+    //     }
+    // }
+    // else if (req.type == CasterBroadcastType::RELAY_PULL_INACTIVE)
+    // {
+    //     // 停止一个转发任务
+    //     if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
+    //     {
+    //         // 已经存在这个任务，删除这个任务
+    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
+    //         _pull_excute_list_map.erase(req.channel);
+    //         _pull_status_map.erase(req.channel);
+    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PULL:STAT %s", req.channel.c_str());
+    //     }
+    //     else
+    //     {
+    //         // 不存在这个任务，忽略
+    //         return 3;
+    //     }
+    // }
+    // else if (req.type == CasterBroadcastType::RELAY_PUSH_ACTIVE)
+    // {
+    //     if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
+    //     {
+    //         // 已经存在这个任务，说明是重复的广播，忽略
+    //         return 2;
+    //     }
+    //     else
+    //     {
+    //         relay_item item;
+    //         item.fromString(req.Para);
+    //         _push_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
 
-            relay_stat stat; // 初始化STAT信息
-            stat._para = req.Para;
-            stat._UID = item.UID;
-            stat._modify_time = item.modify_time;
-            stat._node = _node_ID;
-            _push_excute_stat_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
-            _relay_cb(_relay_cb_arg, req.type, req.Para);
-        }
-    }
-    else if (req.type == CasterBroadcastType::RELAY_PUSH_INACTIVE)
-    {
-        // 停止一个转发任务
-        if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
-        {
-            // 已经存在这个任务，删除这个任务
-            _relay_cb(_relay_cb_arg, req.type, req.Para);
-            _push_excute_list_map.erase(req.channel);
-            _push_excute_stat_map.erase(req.channel);
-            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PUSH:STAT %s", req.channel.c_str());
-        }
-        else
-        {
-            // 不存在这个任务，忽略
-            return 3;
-        }
-    }
+    //         relay_stat stat; // 初始化STAT信息
+    //         stat._para = req.Para;
+    //         stat._UID = item.UID;
+    //         stat._modify_time = item.modify_time;
+    //         stat._node = _node_ID;
+    //         _push_status_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
+    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
+    //     }
+    // }
+    // else if (req.type == CasterBroadcastType::RELAY_PUSH_INACTIVE)
+    // {
+    //     // 停止一个转发任务
+    //     if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
+    //     {
+    //         // 已经存在这个任务，删除这个任务
+    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
+    //         _push_excute_list_map.erase(req.channel);
+    //         _push_status_map.erase(req.channel);
+    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PUSH:STAT %s", req.channel.c_str());
+    //     }
+    //     else
+    //     {
+    //         // 不存在这个任务，忽略
+    //         return 3;
+    //     }
+    // }
 
     return 0;
 }
 
 int caster_internal::upload_relay_status()
 {
-    for (auto iter : _pull_excute_stat_map)
+    for (auto iter : _pull_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PULL:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.get_status_str().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PULL:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
-    for (auto iter : _push_excute_stat_map)
+    for (auto iter : _push_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PUSH:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.get_status_str().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PUSH:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
     return 0;
 }
@@ -968,7 +925,7 @@ void caster_internal::Redis_SyncPullList_Callback(redisAsyncContext *c, void *r,
         return;
     }
 
-    svr->_pull_list_map.clear();
+    svr->_pull_record_map.clear();
 
     for (int i = 0; i < reply->elements; i += 2)
     {
@@ -976,13 +933,13 @@ void caster_internal::Redis_SyncPullList_Callback(redisAsyncContext *c, void *r,
         std::string value = reply->element[i + 1]->str;
 
         // json转换成relay_item
-        relay_item item;
+        pull_record item(field);
         if (item.fromString(value))
         {
             // 解析失败
             continue;
         }
-        svr->_pull_list_map.insert(std::pair<std::string, relay_item>(field, item));
+        svr->_pull_record_map.insert(std::pair<std::string, pull_record>(field, item));
     }
 }
 
@@ -1012,7 +969,7 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
         return;
     }
 
-    svr->_pull_stat_map.clear();
+    svr->_pull_status_map.clear();
 
     for (int i = 0; i < reply->elements; i += 2)
     {
@@ -1020,13 +977,13 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
         std::string value = reply->element[i + 1]->str;
 
         // json转换成relay_item
-        relay_stat item;
+        pull_status item(field);
         if (item.fromString(value))
         {
             // 解析失败
             continue;
         }
-        svr->_pull_stat_map.insert(std::pair<std::string, relay_stat>(field, item));
+        svr->_pull_status_map.insert(std::pair<std::string, pull_status>(field, item));
     }
 }
 
@@ -1052,7 +1009,7 @@ void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r,
         return;
     }
 
-    svr->_push_list_map.clear();
+    svr->_push_record_map.clear();
 
     for (int i = 0; i < reply->elements; i += 2)
     {
@@ -1060,13 +1017,13 @@ void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r,
         std::string value = reply->element[i + 1]->str;
 
         // json转换成relay_item
-        relay_item item;
+        pull_record item(field);
         if (item.fromString(value))
         {
             // 解析失败
             continue;
         }
-        svr->_push_list_map.insert(std::pair<std::string, relay_item>(field, item));
+        svr->_push_record_map.insert(std::pair<std::string, pull_record>(field, item));
     }
 }
 
@@ -1096,7 +1053,7 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
         return;
     }
 
-    svr->_push_stat_map.clear();
+    svr->_push_status_map.clear();
 
     for (int i = 0; i < reply->elements; i += 2)
     {
@@ -1104,13 +1061,13 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
         std::string value = reply->element[i + 1]->str;
 
         // json转换成relay_item
-        relay_stat item;
+        push_status item(field);
         if (item.fromString(value))
         {
             // 解析失败
             continue;
         }
-        svr->_push_stat_map.insert(std::pair<std::string, relay_stat>(field, item));
+        svr->_push_status_map.insert(std::pair<std::string, push_status>(field, item));
     }
 }
 
@@ -1159,38 +1116,29 @@ int caster_internal::test_queue_delay()
 
 int caster_internal::upload_record_item()
 {
-    if (_upload_base_stat)
+
+    // 基站状态   ConnectKey/基站状态
+    for (auto &str : _server_status_map)
     {
-        for (auto &str : _base_status_map)
-        {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str().c_str());
-        }
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
     }
 
-    if (_upload_rover_stat)
+    // 用户状态   ConnectKey/用户状态
+    for (auto &str : _client_status_map)
     {
-        for (auto &str : _rover_status_map)
-        {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.get_status_str().c_str());
-        }
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
     }
+
+    // 源列表    挂载点名// 挂载点信息
+    for (auto &str : _source_mount_map)
+    {
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SOURCE EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
+    }
+
 
     for (auto iter : _base_register_map)
     {
-        // 更新本地维护的基站
-        // 查询
-        std::string mount_info_str;
-        auto mount_info = _mount_map.find(iter.first);
-        if (mount_info != _mount_map.end())
-        {
-            mount_info_str = convert_mount_info_to_string(mount_info->second);
-        }
-        else
-        {
-            mount_info_str = convert_mount_info_to_string(build_default_mount_info(iter.first));
-        }
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:LIST:COMMON EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), mount_info_str.c_str()); // 更新挂载点数据生产者的更新时间
-
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:LIST:COMMON EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(),util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
         for (auto items : iter.second)
         {
             // 更新基站注册连接有效期
@@ -1402,25 +1350,25 @@ mount_info caster_internal::build_default_mount_info(std::string mount_point)
     //     "Not parsed or provided"};
 
     mount_info item = {
-        "STR",
-        mount_point,
-        "unknown",
-        "RTCM 3.3",
-        "1074(1),1084(1),1094(1),1124(1)",
-        "2",
-        "GPS+GLO+GAL+BDS",
-        "SNT",
-        "XXX",
-        "0.00",
-        "0.00",
-        "1",
-        "0",
-        "SNT",
-        "none",
-        "N",
-        "N",
-        "11520",
-        "none"};
+                       "STR",
+                       mount_point,
+                       "unknown",
+                       "RTCM 3.3",
+                       "1074(1),1084(1),1094(1),1124(1)",
+                       "2",
+                       "GPS+GLO+GAL+BDS",
+                       "SNT",
+                       "XXX",
+                       "0.00",
+                       "0.00",
+                       "1",
+                       "0",
+                       "SNT",
+                       "none",
+                       "N",
+                       "N",
+                       "11520",
+                       "none"};
 
     return item;
 }
@@ -1487,32 +1435,18 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     try
     {
         // 创建一条新的连接记录
-        server_status conn;
-        {
-            std::string server_ip;
-            int server_port;
-            std::string client_ip;
-            int client_port;
-            decodeKey(connect_key, server_ip, server_port, client_ip, client_port);
-            auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            conn._state.set_uid(connect_key);
-            conn._state.set_login_mpt(channel);
-            conn._state.set_alias_mpt(channel);
-            conn._state.set_type(resolve_register_type(type));
-            conn._state.set_account(user_name);
-            conn._state.set_ip(client_ip);
-            conn._state.set_port(client_port);
-            conn._state.set_online_time(now);
-            conn._state.set_online_seconds(0);
-            conn._state.set_update_time(now);
-        }
+        server_status conn(connect_key);
+
         _server_status_map.insert(std::pair<std::string, server_status>(connect_key, conn));
-        _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, stream_status()));
+
+        // 数据流记录
+        stream_status str(connect_key);
+
+        _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
         // // 向云端插入记录
-        if (_upload_base_stat)
-        {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str());
-        }
+
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -1571,32 +1505,19 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
     try
     {
         // 创建一条新的连接记录
-        client_status conn;
-        {
-            std::string server_ip;
-            int server_port;
-            std::string client_ip;
-            int client_port;
-            decodeKey(connect_key, server_ip, server_port, client_ip, client_port);
-            auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-            conn._state.set_uid(connect_key);
-            conn._state.set_login_mpt(channel);
-            conn._state.set_alias_mpt(channel);
-            conn._state.set_type(resolve_register_type(type));
-            conn._state.set_account(user_name);
-            conn._state.set_ip(client_ip);
-            conn._state.set_port(client_port);
-            conn._state.set_online_time(now);
-            conn._state.set_online_seconds(0);
-            conn._state.set_update_time(now);
-        }
+        client_status conn(connect_key);
+
         _client_status_map.insert(std::pair<std::string, client_status>(connect_key, conn));
-        _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, stream_status()));
-        // 向云端插入记录
-        if (_upload_rover_stat)
-        {
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
-        }
+
+        // 数据流记录
+        stream_status str(connect_key);
+
+        _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
+
+
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
+
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -1719,7 +1640,7 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
 int caster_internal::send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
     // 向redis发布广播
-    caster_broadcast_item item;
+    boardcast_msg      item;
 
     item.type = CasterBroadcastType::BASE_STATUS_UPDATE;
     item.channel = channel;
@@ -1733,15 +1654,11 @@ int caster_internal::send_status_base_channel(const char *channel, const char *c
 
 int caster_internal::pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
 {
-    auto str = _base_status_map.find(connect_key);
-    if (str != _base_status_map.end())
+    auto str = _stream_status_map.find(connect_key);
+    if (str != _stream_status_map.end())
     {
         str->second.add_recv(data_length);
         add_sum_recv(data_length);
-        // if (_upload_base_stat)
-        // {
-        //     redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str(0).c_str());
-        // }
     }
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH MPT:%s %b", mount_point, data, data_length);
 }
@@ -1749,7 +1666,7 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
 int caster_internal::send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
     // 向redis发布广播
-    caster_broadcast_item item;
+    boardcast_msg item;
 
     item.type = CasterBroadcastType::ROVER_STATUS_UPDATE;
     item.channel = channel;
@@ -1763,15 +1680,11 @@ int caster_internal::send_status_rover_channel(const char *channel, const char *
 
 int caster_internal::pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length)
 {
-    auto str = _rover_status_map.find(connect_key);
-    if (str != _rover_status_map.end())
+    auto str = _stream_status_map.find(connect_key);
+    if (str != _stream_status_map.end())
     {
         str->second.add_recv(data_length);
         add_sum_recv(data_length);
-        // if (_upload_rover_stat)
-        // {
-        //     redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str->second.get_status_str(1).c_str());
-        // }
     }
 
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH USR:%s %b", user_name, data, data_length);
@@ -2081,15 +1994,11 @@ void caster_internal::Redis_SUB_Base_Callback(redisAsyncContext *c, void *r, voi
             auto arg = cb_item.arg;
             Func(re2->str, arg, &Reply);
 
-            auto str = svr->_rover_status_map.find(cb_item.connect_key);
-            if (str != svr->_rover_status_map.end())
+            auto str = svr->_stream_status_map.find(cb_item.connect_key);
+            if (str != svr->_stream_status_map.end())
             {
                 str->second.add_send(Reply.len);
                 svr->add_sum_send(Reply.len);
-                // if (svr->_upload_rover_stat)
-                // {
-                //     redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str(1).c_str());
-                // }
             }
         }
     }
@@ -2129,8 +2038,8 @@ void caster_internal::Redis_SUB_Rover_Callback(redisAsyncContext *c, void *r, vo
             auto arg = cb_item.arg;
             Func(re2->str, arg, &Reply);
 
-            auto str = svr->_base_status_map.find(cb_item.connect_key);
-            if (str != svr->_base_status_map.end())
+            auto str = svr->_stream_status_map.find(cb_item.connect_key);
+            if (str != svr->_stream_status_map.end())
             {
                 str->second.add_send(Reply.len);
                 svr->add_sum_send(Reply.len);
@@ -2371,7 +2280,7 @@ void caster_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, vo
 int caster_internal::broadcast_response(std::string req_str)
 {
     // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
-    caster_broadcast_item req;
+    boardcast_msg req;
     if (req.fromString(req_str))
     {
         return 1; // 解析失败
@@ -2671,8 +2580,8 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
             }
 
             // 更新用户订阅的挂载点信息
-            auto item = caster_internal::getInstance()->_rover_status_map.find(cb_item->connect_key);
-            if (item != caster_internal::getInstance()->_rover_status_map.end())
+            auto item = caster_internal::getInstance()->_client_status_map.find(cb_item->connect_key);
+            if (item != caster_internal::getInstance()->_client_status_map.end())
             {
                 item->second.set_alias_mpt(field);
             }
@@ -2760,291 +2669,3 @@ static int resolve_register_type(CasterRegisterType type)
     }
 }
 
-// ======================== stream_status ========================
-
-stream_status::stream_status(std::string uid)
-{
-    _uid = uid;
-    _online_time = util_get_now_second();
-    _update_time = util_get_now_second();
-}
-
-int stream_status::add_recv(int size)
-{
-    _recv_total += size;
-    _update_time = util_get_now_second();
-    _recvHistory.push_back({_update_time, _recv_total});
-    cleanOld(_recvHistory, _update_time);
-    _recv_speed = calcAvgSpeed(_recvHistory);
-    return 0;
-}
-
-int stream_status::add_send(int size)
-{
-    _send_total += size;
-    _update_time = util_get_now_second();
-    _sendHistory.push_back({_update_time, _send_total});
-    cleanOld(_sendHistory, _update_time);
-    _send_speed = calcAvgSpeed(_sendHistory);
-    return 0;
-}
-
-int stream_status::fromString(const std::string &str)
-{
-    return 0; // 目前不需要从字符串解析状态，后续如果需要再实现
-}
-
-std::string stream_status::toString()
-{
-    // 刷新速度
-    add_recv(0);
-    add_send(0);
-
-    // 创建一个proto
-    caster::core::StreamState proto;
-
-    proto.set_uid(_uid);
-    proto.set_online_time(_online_time);
-    proto.set_update_time(_update_time);
-
-    proto.set_send_total(_send_total);
-    proto.set_send_speed(_send_speed);
-    proto.set_recv_total(_recv_total);
-    proto.set_recv_speed(_recv_speed);
-
-    return ProtoToJson(proto);
-}
-
-void stream_status::cleanOld(std::deque<Sample> &history, int64_t now)
-{
-    while (!history.empty() && now - history.front().time > _windowSize)
-    {
-        history.pop_front();
-    }
-}
-
-double stream_status::calcAvgSpeed(const std::deque<Sample> &history) const
-{
-    if (history.size() < 2)
-        return 0.0;
-    const Sample &first = history.front();
-    const Sample &last = history.back();
-    int64_t deltaTime = last.time - first.time;
-    if (deltaTime <= 0)
-        return 0.0;
-    int64_t deltaBytes = last.bytes - first.bytes;
-    return static_cast<double>(deltaBytes) / deltaTime;
-}
-
-// ======================== server_status ========================
-
-int server_status::fromString(const std::string &str)
-{
-    return 0; // 目前不需要从字符串解析状态，后续如果需要再实现
-}
-
-std::string server_status::toString()
-{
-    caster::core::ServerState proto;
-
-    proto.set_uid(uid);
-    proto.set_online_time(online_time);
-    proto.set_update_time(update_time);
-    proto.set_login_mpt(login_mpt);
-    proto.set_alias_mpt(alias_mpt);
-
-    return ProtoToJson(proto);
-}
-
-// ======================== client_status ========================
-
-int client_status::fromString(const std::string &str)
-{
-    return 0;
-}
-
-std::string client_status::toString()
-{
-    caster::core::ClientState proto;
-    return ProtoToJson(proto);
-}
-
-// ======================== source_record ========================
-
-int source_record::fromString(const std::string &str)
-{
-
-    return 0;
-}
-
-std::string source_record::toString()
-{
-    caster::core::SourceRecord proto;
-    return ProtoToJson(proto);
-}
-
-// ======================== alias_rule ========================
-
-int alias_rule::fromString(const std::string &str)
-{
-    return JsonToProto(str, _config) ? 0 : 1;
-}
-
-std::string alias_rule::toString()
-{
-    return ProtoToJson(_config);
-}
-
-// ======================== pull_record ========================
-
-int pull_record::fromString(const std::string &str)
-{
-    return JsonToProto(str, _config) ? 0 : 1;
-}
-
-std::string pull_record::toString()
-{
-    return ProtoToJson(_config);
-}
-
-// ======================== push_record ========================
-
-int push_record::fromString(const std::string &str)
-{
-    return JsonToProto(str, _config) ? 0 : 1;
-}
-
-std::string push_record::toString()
-{
-    return ProtoToJson(_config);
-}
-
-// ======================== pull_status ========================
-
-int pull_status::fromString(const std::string &str)
-{
-    return JsonToProto(str, _state) ? 0 : 1;
-}
-
-std::string pull_status::toString()
-{
-    return ProtoToJson(_state);
-}
-
-// ======================== push_status ========================
-
-int push_status::fromString(const std::string &str)
-{
-    return JsonToProto(str, _state) ? 0 : 1;
-}
-
-std::string push_status::toString()
-{
-    return ProtoToJson(_state);
-}
-
-int caster_broadcast_item::fromString(const std::string &str)
-{
-    json info = json::parse(str);
-    try
-    {
-        type = static_cast<CasterBroadcastType>(info["type"].get<int>());
-        connect_key = info["connect_key"].get<std::string>();
-        channel = info["channel"].get<std::string>();
-        Para = info["Para"].get<std::string>();
-        status = static_cast<CasterReply>(info["status"].get<int>());
-        reason = info["reason"].get<std::string>();
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::warn("[caster_broadcast_item:{}]: decode field: {} ,what: {}", __func__, str, e.what());
-        return 1;
-    }
-
-    return 0;
-}
-
-std::string caster_broadcast_item::toString()
-{
-    json info;
-
-    info["type"] = static_cast<int>(type);
-    info["connect_key"] = connect_key;
-    info["channel"] = channel;
-    info["Para"] = Para;
-    info["status"] = static_cast<int>(status);
-    info["reason"] = reason;
-
-    return info.dump();
-}
-
-int relay_stat::update_state(std::string connect_key, int state)
-{
-    _connect_key = connect_key;
-    _state = state;
-    return 0;
-}
-
-std::string relay_stat::get_status_str()
-{
-    json info;
-
-    info["UID"] = _UID;
-    info["modify_time"] = _modify_time;
-
-    info["node"] = _node;
-    info["connect_key"] = _connect_key;
-    info["state"] = _state;
-
-    return info.dump();
-}
-
-int relay_item::fromString(const std::string &str)
-{
-    para = str;
-
-    json info = json::parse(str);
-    try
-    {
-        UID = info["UID"];
-        modify_time = info["modify_time"];
-
-        type = info["type"];
-        target_ip = info["target_ip"];
-        target_port = info["target_port"];
-        target_mpt = info["target_mpt"];
-        target_account = info["target_account"];
-        target_password = info["target_password"];
-        login_mpt = info["login_mpt"];
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::warn("[relay_item:{}]: decode field: {} ,what: {}", __func__, str, e.what());
-
-        return 1;
-    }
-    return 0;
-}
-
-int relay_stat::fromString(const std::string &str)
-{
-    _para = str;
-
-    json info = json::parse(str);
-    try
-    {
-        _UID = info["UID"];
-        _modify_time = info["modify_time"];
-
-        _node = info["node"];
-        _state = info["state"];
-        _connect_key = info["connect_key"];
-    }
-    catch (const std::exception &e)
-    {
-        spdlog::warn("[relay_stat:{}]: decode field: {} ,what: {}", __func__, str, e.what());
-
-        return 1;
-    }
-    return 0;
-}

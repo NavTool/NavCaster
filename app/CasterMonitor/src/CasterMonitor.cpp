@@ -391,51 +391,6 @@ QString CasterMonitor::excuteOperate(QString op_uid)
     return QString();
 }
 
-QString CasterMonitor::cancelOperate(QString op_uid)
-{
-    if(_caster_event_map.find(op_uid)!=_caster_event_map.end())
-    {
-
-    }
-    if(_caster_redis_map.find(op_uid)!=_caster_redis_map.end())
-    {
-
-    }
-    if(_auth_event_map.find(op_uid)!=_auth_event_map.end())
-    {
-
-    }
-    if(_auth_redis_map.find(op_uid)!=_auth_redis_map.end())
-    {
-
-    }
-
-    return QString();
-}
-
-QString CasterMonitor::deleteOperate(QString op_uid)
-{
-    if(_caster_event_map.find(op_uid)!=_caster_event_map.end())
-    {
-
-    }
-    if(_caster_redis_map.find(op_uid)!=_caster_redis_map.end())
-    {
-
-    }
-    if(_auth_event_map.find(op_uid)!=_auth_event_map.end())
-    {
-
-    }
-    if(_auth_redis_map.find(op_uid)!=_auth_redis_map.end())
-    {
-
-    }
-
-    return QString();
-}
-
-
 void CasterMonitor::onConnectCasterSuccess()
 {
     emit connectCasterSuccess();
