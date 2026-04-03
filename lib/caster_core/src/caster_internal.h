@@ -13,7 +13,6 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-
 #include "access_group.h"
 #include "access_item.h"
 #include "alias_rule.h"
@@ -172,6 +171,46 @@ using json = nlohmann::json;
         6.  对于Proxy用户                  login_mpt为提供的Proxy挂载点名称(SN-GRECJ)             alias_mpt设置为Proxy挂载点的(SN-GRECJ_0F64)名称
 */
 
+// 节点状态信息
+#define CASTER_MASTER_KEY "CASTER:MASTER"   // 主节点标识, 由主节点写入, 从节点读取, 用于判断当前节点是否为主节点
+#define CASTER_NODE_INFO_LIST "CASTER:NODE" // 节点状态列表, 记录集群中每个节点的实时状态信息
+
+// 订阅关系维护
+#define MPT_ONLINE_LIST "MPT:LIST" // 挂载点在线列表
+#define USR_ONLINE_LIST "USR:LIST" // 用户在线列表
+
+#define MPT_CONNECTION_LIST "MPT:REC" // 某个挂载点的连接列表，记录当前使用这个挂载点名登录的连接的ConnectKey和登录时间
+#define USR_CONNECTION_LIST "USR:REC" // 某个用户的连接列表，记录当前使用这个用户名登录的连接的ConnectKey和登录时间
+
+#define MPT_SUBSCRIBE_LIST "MPT:SUB" // 某个挂载点的订阅列表，记录当前订阅这个挂载点的连接的ConnectKey和登录时间
+#define USR_SUBSCRIBE_LIST "USR:SUB" // 某个用户的订阅列表，记录当前订阅这个用户数据连接的ConnectKey和登录时间
+
+// 位置信息
+#define MPT_POSITION_LIST "MPT:GEO" // 挂载点位置信息列表，记录挂载点的经纬度信息
+#define USR_POSITION_LIST "USR:GEO" // 用户位置信息列表，记录用户的经纬度信息
+
+// 源列表信息
+#define SOURCE_DECODE_LIST "MPT:SOURCE" // 挂载点信息列表，记录所有在线的挂载点信息
+#define SOURCE_RECORD_LIST "MPT:RECORD" // 挂载点记录列表，记录所有的自定义挂载点信息（这个的优先级高于SOURCE:DECODE，当这个有数据的时候，会优先使用这个里面记录的信息）
+
+// 状态维护
+#define MPT_STATUS_LIST "MPT:STAT" // 基站状态列表, 记录每个挂载点的状态信息(挂载点的ConnectKey-数据流统计信息)
+#define USR_STATUS_LIST "USR:STAT" // 用户状态列表, 记录每个用户的状态信息(用户的ConnectKey-数据流统计信息)
+#define STR_STATUS_LIST "STR:STAT" // 数据流状态列表, 记录每个连接的数据流统计信息(基站和用户的连接都记录在这里, 连接key为Mount_Point-ConnectKey)
+
+// 数据转发
+#define PULL_STREAM_LIST "PULL:LIST" // Pull数据流列表, 记录所有Pull类型的数据转发任务
+#define PUSH_STREAM_LIST "PUSH:LIST" // Push数据流列表,
+
+#define PULL_STREAM_STATUS "PULL:STAT" // Pull数据流的状态信息
+#define PUSH_STREAM_STATUS "PUSH:STAT" // Push数据流的状态信息,
+
+// 权限控制
+#define ACCESS_GROUP_LIST "ACCESS:GROUP" // 权限组列表, 记录权限组的信息
+#define ACCESS_ITEM_LIST "ACCESS:ITEM"   // 权限项列表, 记录权限
+
+// 别名维护
+#define ALIAS_RULE_LIST "ALIAS:RULE" // 别名规则列表, 记录别名挂载点和实体挂载点的映射关系
 
 class caster_cb_item
 {
@@ -182,7 +221,6 @@ public:
     CasterCallback cb;
     void *arg;
 };
-
 
 class caster_internal
 {
@@ -236,8 +274,9 @@ private:
     std::unordered_map<std::string, stream_status> _stream_status_map; // 记录每个连接的数据流统计信息(基站和用户的连接都记录在这里, 连接key为Mount_Point-ConnectKey)
     std::unordered_map<std::string, server_status> _server_status_map; // 基站的状态信息
     std::unordered_map<std::string, client_status> _client_status_map; // 用户的状态信息
-    std::unordered_map<std::string, source_record> _source_mount_map;  // 挂载点信息，用于获取集群所有的挂载点信息
 
+    std::unordered_map<std::string, source_record> _source_decode_map;  // 解析的挂载点信息
+    std::unordered_map<std::string, source_record> _source_record_map;  // 设置的挂载点信息
 
     // 集群数据 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON
@@ -307,8 +346,6 @@ public:
     // 设置用户坐标信息
     int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, int Q, int sat, double diff);
 
-
-
     // 设置延迟信息
     int set_connect_delay_info(const char *connect_key, uint64_t delay);
 
@@ -324,8 +361,8 @@ private:
 
 private:
     // 挂载点信息生成的函数
-    std::string convert_mount_info_to_string(mount_info item);
-    mount_info build_default_mount_info(std::string mount_point);
+    // std::string convert_mount_info_to_string(mount_info item);
+    // mount_info build_default_mount_info(std::string mount_point);
 
     // 注册回调
     static void Redis_Register_Base_Callback(redisAsyncContext *c, void *r, void *privdata);
@@ -340,10 +377,11 @@ private:
     int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
 
     // 更新有效挂载点、有效用户的回调
-    static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取MPT:LIST:COMMON
-    static void Redis_Update_Alias_Base_Callback(redisAsyncContext *c, void *r, void *privdata);   // 拉取MPT:LIST:ALIAS
-    static void Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取MPT:LIST:NEAREST
+    static void Redis_Update_Active_Base_Callback(redisAsyncContext *c, void *r, void *privdata);  // 拉取MPT:LIST
     static void Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取USR:LIST
+
+    static void Redis_Update_Decode_Source_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取MPT:SOURCE
+    static void Redis_Update_Record_Source_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取MPT:RECORD
 
     static void Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, void *r, void *privdata); // MPT:ALIAS
 
@@ -458,8 +496,6 @@ private:
     // 设置节点 NX，获取节点，判断自己是不是主节点，如果是主节点，给主节点续期，执行主节点任务
 
     // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
-
-
 
 public:
     int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);

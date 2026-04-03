@@ -56,3 +56,144 @@ bool JsonToProto(const std::string &json, T &msg)
     auto status = google::protobuf::json::JsonStringToMessage(json, &msg, opt);
     return status.ok();
 }
+
+
+// 将十六进制字符串解析为十进制整数
+int hexToDec(const std::string &hexStr)
+{
+    int value;
+    std::stringstream ss;
+    ss << std::hex << hexStr;
+    ss >> value;
+    return value;
+}
+
+// 从16进制字符串还原IP和端口
+void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, std::string &clientIP, int &clientPort)
+{
+    if (key.size() != 24)
+    {
+        throw std::invalid_argument("Invalid key length");
+    }
+
+    // 如果使用的时IPv6那要如何支持呢
+
+    // 分离16进制字符串
+    std::string hexIp1 = key.substr(0, 8);    // 服务器IP部分
+    std::string hexPort1 = key.substr(8, 4);  // 服务器端口部分
+    std::string hexIp2 = key.substr(12, 8);   // 客户端IP部分
+    std::string hexPort2 = key.substr(20, 4); // 客户端端口部分
+
+    // 解析服务器IP
+    serverIP = std::to_string(hexToDec(hexIp1.substr(0, 2))) + "." +
+               std::to_string(hexToDec(hexIp1.substr(2, 2))) + "." +
+               std::to_string(hexToDec(hexIp1.substr(4, 2))) + "." +
+               std::to_string(hexToDec(hexIp1.substr(6, 2)));
+
+    // 解析服务器端口
+    serverPort = hexToDec(hexPort1);
+
+    // 解析客户端IP
+    clientIP = std::to_string(hexToDec(hexIp2.substr(0, 2))) + "." +
+               std::to_string(hexToDec(hexIp2.substr(2, 2))) + "." +
+               std::to_string(hexToDec(hexIp2.substr(4, 2))) + "." +
+               std::to_string(hexToDec(hexIp2.substr(6, 2)));
+
+    // 解析客户端端口
+    clientPort = hexToDec(hexPort2);
+}
+
+
+std::string convert_mount_info_to_string(mount_info i)
+{
+    std::string item;
+
+    item = i.STR + ";" +
+           i.mountpoint + ";" +
+           i.identufier + ";" +
+           i.format + ";" +
+           i.format_details + ";" +
+           i.carrier + ";" +
+           i.nav_system + ";" +
+           i.network + ";" +
+           i.country + ";" +
+           i.latitude + ";" +
+           i.longitude + ";" +
+           i.nmea + ";" +
+           i.solution + ";" +
+           i.generator + ";" +
+           i.compr_encrryp + ";" +
+           i.authentication + ";" +
+           i.fee + ";" +
+           i.bitrate + ";" +
+           i.misc + ";" + "\r\n";
+
+    return item;
+}
+
+mount_info build_default_mount_info(std::string mount_point)
+{
+    // STR;              STR;
+    // mountpoint;       KORO996;
+    // identufier;       ShangHai;
+    // format;           RTCM 3.3;
+    // format-details;   1004(5),1074(1),1084(1),1094(1),1124(1)
+    // carrier;          2
+    // nav-system;       GPS+GLO+GAL+BDS
+    // network;          KNT
+    // country;          CHN
+    // latitude;         36.11
+    // longitude;        120.11
+    // nmea;             0
+    // solution;         0
+    // generator;        SN
+    // compr-encrryp;    none
+    // authentication;   B
+    // fee;              N
+    // bitrate;          9100
+    // misc;             caster.koroyo.xyz:2101/KORO996
+
+    // mount_info item = {
+    //     "STR",
+    //     mount_point,
+    //     "unknown",
+    //     "unknown",
+    //     "unknown",
+    //     "0",
+    //     "unknown",
+    //     "unknown",
+    //     "unknown",
+    //     "00.00",
+    //     "000.00",
+    //     "0",
+    //     "0",
+    //     "unknown",
+    //     "unknown",
+    //     "B",
+    //     "N",
+    //     "0000",
+    //     "Not parsed or provided"};
+
+    mount_info item = {
+        "STR",
+        mount_point,
+        "unknown",
+        "RTCM 3.3",
+        "1074(1),1084(1),1094(1),1124(1)",
+        "2",
+        "GPS+GLO+GAL+BDS",
+        "SNT",
+        "XXX",
+        "0.00",
+        "0.00",
+        "1",
+        "0",
+        "SNT",
+        "none",
+        "N",
+        "N",
+        "11520",
+        "none"};
+
+    return item;
+}

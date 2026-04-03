@@ -10,7 +10,6 @@
 
 #define __class__ "caster_internal"
 
-
 /*
     设计的的Redis表和频道组成
     初版：
@@ -423,7 +422,13 @@ int caster_internal::set_connect_delay_info(const char *connect_key, uint64_t de
 
 std::string caster_internal::get_source_list_text()
 {
-    return _source_list_text;
+    std::string str;
+    for (auto iter : _source_decode_map)
+    {
+        str += iter.second.toSourceItem();
+    }
+
+    return str;
 }
 
 int caster_internal::set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z)
@@ -547,8 +552,8 @@ int caster_internal::upload_node_status()
     info["recv_speed"] = _recv_speed;
 
     info["connnect_count"] = _server_status_map.size() + _client_status_map.size(); // 连接数
-    info["server_count"] = _server_status_map.size();                              // 基站数量
-    info["client_count"] = _client_status_map.size();                             // 移动站数量
+    info["server_count"] = _server_status_map.size();                               // 基站数量
+    info["client_count"] = _client_status_map.size();                               // 移动站数量
 
     info["online_time"] = _startup_time;
 
@@ -574,12 +579,12 @@ int caster_internal::sync_cluster_state()
 
     // 从云端获取所有的转发任务
     // STR:RELAY:LIST
-    redisAsyncCommand(_pub_context, Redis_SyncPullList_Callback, this, "HGETALL STR:PULL:LIST");
-    redisAsyncCommand(_pub_context, Redis_SyncPushList_Callback, this, "HGETALL STR:PUSH:LIST");
+    redisAsyncCommand(_pub_context, Redis_SyncPullList_Callback, this, "HGETALL PULL:LIST");
+    redisAsyncCommand(_pub_context, Redis_SyncPushList_Callback, this, "HGETALL PUSH:LIST");
     // 从云端获取所有的任务状态
     // STR:RELAY:LIST
-    redisAsyncCommand(_pub_context, Redis_SyncPullStat_Callback, this, "HGETALL STR:PULL:STAT");
-    redisAsyncCommand(_pub_context, Redis_SyncPushStat_Callback, this, "HGETALL STR:PUSH:STAT");
+    redisAsyncCommand(_pub_context, Redis_SyncPullStat_Callback, this, "HGETALL PULL:STAT");
+    redisAsyncCommand(_pub_context, Redis_SyncPushStat_Callback, this, "HGETALL PUSH:STAT");
 
     // 从云端获取所有节点的状态（这个放到最后一步，这个回调执行后要保证前面的数据都已经拿到）
     redisAsyncCommand(_pub_context, Redis_SyncClusterNode_Callback, this, "HGETALL CASTER:NODE");
@@ -743,7 +748,7 @@ int caster_internal::relay_task_response(std::string req_str)
     //         _relay_cb(_relay_cb_arg, req.type, req.Para);
     //         _pull_excute_list_map.erase(req.channel);
     //         _pull_status_map.erase(req.channel);
-    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PULL:STAT %s", req.channel.c_str());
+    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL PULL:STAT %s", req.channel.c_str());
     //     }
     //     else
     //     {
@@ -782,7 +787,7 @@ int caster_internal::relay_task_response(std::string req_str)
     //         _relay_cb(_relay_cb_arg, req.type, req.Para);
     //         _push_excute_list_map.erase(req.channel);
     //         _push_status_map.erase(req.channel);
-    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL STR:PUSH:STAT %s", req.channel.c_str());
+    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL PUSH:STAT %s", req.channel.c_str());
     //     }
     //     else
     //     {
@@ -798,11 +803,11 @@ int caster_internal::upload_relay_status()
 {
     for (auto iter : _pull_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PULL:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX PULL:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
     for (auto iter : _push_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:PUSH:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX PUSH:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
     return 0;
 }
@@ -916,12 +921,12 @@ void caster_internal::Redis_SyncPullList_Callback(redisAsyncContext *c, void *r,
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL STR:PULL:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL PULL:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL STR:PULL:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL PULL:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
@@ -960,12 +965,12 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL STR:PULL:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL PULL:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL STR:PULL:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL PULL:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
@@ -1000,12 +1005,12 @@ void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r,
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL STR:PUSH:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL PUSH:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL STR:PUSH:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL PUSH:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
@@ -1044,12 +1049,12 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL STR:PULL:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL PULL:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL STR:PULL:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL PULL:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
@@ -1116,11 +1121,17 @@ int caster_internal::test_queue_delay()
 
 int caster_internal::upload_record_item()
 {
+    // 数据流状态   ConnectKey/数据流状态
+    for (auto &str : _stream_status_map)
+    {
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
+    }
 
     // 基站状态   ConnectKey/基站状态
     for (auto &str : _server_status_map)
     {
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SOURCE EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toSource().c_str());
     }
 
     // 用户状态   ConnectKey/用户状态
@@ -1129,16 +1140,9 @@ int caster_internal::upload_record_item()
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
     }
 
-    // 源列表    挂载点名// 挂载点信息
-    for (auto &str : _source_mount_map)
-    {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SOURCE EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
-    }
-
-
     for (auto iter : _base_register_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:LIST:COMMON EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(),util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:LIST EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
         for (auto items : iter.second)
         {
             // 更新基站注册连接有效期
@@ -1181,15 +1185,15 @@ int caster_internal::upload_record_item()
 
 int caster_internal::download_active_item()
 {
-    redisAsyncCommand(_pub_context, Redis_Update_Active_Base_Callback, this, "HGETALL MPT:LIST:COMMON");
-    redisAsyncCommand(_pub_context, Redis_Update_Nearest_Base_Callback, this, "HGETALL MPT:LIST:NEAREST");
-    redisAsyncCommand(_pub_context, Redis_Update_Alias_Base_Callback, this, "HGETALL MPT:LIST:ALIAS");
+    redisAsyncCommand(_pub_context, Redis_Update_Active_Base_Callback, this, "HGETALL MPT:LIST");
     redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST");
+    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST");
+    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST");
 
     redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_server_connection_count, "HLEN MPT:STAT");
     redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_client_connection_count, "HLEN USR:STAT");
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_pull_connection_count, "HLEN STR:PULL:STAT");
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_push_connection_count, "HLEN STR:PUSH:STAT");
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_pull_connection_count, "HLEN PULL:STAT");
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_push_connection_count, "HLEN PUSH:STAT");
     return 0;
 }
 
@@ -1279,99 +1283,7 @@ int caster_internal::check_active_rover_channel()
 //     return 0;
 // }
 
-std::string caster_internal::convert_mount_info_to_string(mount_info i)
-{
-    std::string item;
 
-    item = i.STR + ";" +
-           i.mountpoint + ";" +
-           i.identufier + ";" +
-           i.format + ";" +
-           i.format_details + ";" +
-           i.carrier + ";" +
-           i.nav_system + ";" +
-           i.network + ";" +
-           i.country + ";" +
-           i.latitude + ";" +
-           i.longitude + ";" +
-           i.nmea + ";" +
-           i.solution + ";" +
-           i.generator + ";" +
-           i.compr_encrryp + ";" +
-           i.authentication + ";" +
-           i.fee + ";" +
-           i.bitrate + ";" +
-           i.misc + ";" + "\r\n";
-
-    return item;
-}
-
-mount_info caster_internal::build_default_mount_info(std::string mount_point)
-{
-    // STR;              STR;
-    // mountpoint;       KORO996;
-    // identufier;       ShangHai;
-    // format;           RTCM 3.3;
-    // format-details;   1004(5),1074(1),1084(1),1094(1),1124(1)
-    // carrier;          2
-    // nav-system;       GPS+GLO+GAL+BDS
-    // network;          KNT
-    // country;          CHN
-    // latitude;         36.11
-    // longitude;        120.11
-    // nmea;             0
-    // solution;         0
-    // generator;        SN
-    // compr-encrryp;    none
-    // authentication;   B
-    // fee;              N
-    // bitrate;          9100
-    // misc;             caster.koroyo.xyz:2101/KORO996
-
-    // mount_info item = {
-    //     "STR",
-    //     mount_point,
-    //     "unknown",
-    //     "unknown",
-    //     "unknown",
-    //     "0",
-    //     "unknown",
-    //     "unknown",
-    //     "unknown",
-    //     "00.00",
-    //     "000.00",
-    //     "0",
-    //     "0",
-    //     "unknown",
-    //     "unknown",
-    //     "B",
-    //     "N",
-    //     "0000",
-    //     "Not parsed or provided"};
-
-    mount_info item = {
-                       "STR",
-                       mount_point,
-                       "unknown",
-                       "RTCM 3.3",
-                       "1074(1),1084(1),1094(1),1124(1)",
-                       "2",
-                       "GPS+GLO+GAL+BDS",
-                       "SNT",
-                       "XXX",
-                       "0.00",
-                       "0.00",
-                       "1",
-                       "0",
-                       "SNT",
-                       "none",
-                       "N",
-                       "N",
-                       "11520",
-                       "none"};
-
-    return item;
-}
 
 void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
@@ -1381,7 +1293,7 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
 
     svr->upload_node_status(); // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
 
-    svr->upload_relay_status(); // 上传当前节点的转发任务状态 到 STR:PULL:STAT 和 STR:PUSH:STAT 中
+    svr->upload_relay_status(); // 上传当前节点的转发任务状态 到 PULL:STAT 和 PUSH:STAT 中
 
     svr->try_set_master_node(); // 尝试设置为主节点
 
@@ -1391,7 +1303,7 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
     // 向redis ping，根据回调确认连接正常
     svr->check_redis_connection();
 
-    //  清除本地不再有实际连接注册的基站，这样就不会给这些已经不在线的基站在MPT:LIST:COMMON中续期
+    //  清除本地不再有实际连接注册的基站，这样就不会给这些已经不在线的基站在MPT:LIST中续期
     svr->clear_overdue_item();
 
     // 本地维护的在线挂载点续期
@@ -1514,10 +1426,8 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
 
-
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
-
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -1640,7 +1550,7 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
 int caster_internal::send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
     // 向redis发布广播
-    boardcast_msg      item;
+    boardcast_msg item;
 
     item.type = CasterBroadcastType::BASE_STATUS_UPDATE;
     item.channel = channel;
@@ -2351,101 +2261,33 @@ void caster_internal::Redis_Update_Active_Base_Callback(redisAsyncContext *c, vo
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL MPT:LIST:COMMON: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL MPT:LIST: reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL MPT:LIST:COMMON reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL MPT:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
     // if (reply->elements == 0)
     // {
-    //     spdlog::info("[{}:{}]: HGETALL MPT:LIST:COMMON reply->elements: {}", __class__, __func__, reply->elements);
+    //     spdlog::info("[{}:{}]: HGETALL MPT:LIST reply->elements: {}", __class__, __func__, reply->elements);
     //     return;
     // }
 
     svr->_active_mount_map.clear();
-    svr->_source_list_text.clear();
 
     for (int i = 0; i < reply->elements; i += 2)
     {
         auto field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
         svr->_active_mount_map.insert(std::pair<std::string, std::string>(field, value));
-        svr->_source_list_text += value;
     }
 
     svr->check_active_base_channel();
 
     // spdlog::info("Sync active base, current item:{} ", svr->_active_mount_set.size());
-}
-
-void caster_internal::Redis_Update_Alias_Base_Callback(redisAsyncContext *c, void *r, void *privdata)
-{
-    auto reply = static_cast<redisReply *>(r);
-    auto svr = static_cast<caster_internal *>(privdata);
-
-    if (!reply)
-    {
-        return;
-    }
-
-    if (reply->type == REDIS_REPLY_NIL)
-    {
-        spdlog::warn("[{}:{}]: HGETALL MPT:LIST:COMMON: reply->type == REDIS_REPLY_NIL", __class__, __func__);
-        return;
-    }
-    if (reply->type != REDIS_REPLY_ARRAY)
-    {
-        spdlog::error("[{}:{}]: HGETALL MPT:LIST:COMMON reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
-        return;
-    }
-
-    svr->_alias_mount_map.clear();
-    svr->_alias_list_text.clear();
-
-    for (int i = 0; i < reply->elements; i += 2)
-    {
-        auto field = reply->element[i]->str;
-        std::string value = reply->element[i + 1]->str;
-        svr->_alias_mount_map.insert(std::pair<std::string, std::string>(field, value));
-        svr->_alias_list_text += value;
-    }
-}
-
-void caster_internal::Redis_Update_Nearest_Base_Callback(redisAsyncContext *c, void *r, void *privdata)
-{
-    auto reply = static_cast<redisReply *>(r);
-    auto svr = static_cast<caster_internal *>(privdata);
-
-    if (!reply)
-    {
-        return;
-    }
-
-    if (reply->type == REDIS_REPLY_NIL)
-    {
-        spdlog::warn("[{}:{}]: HGETALL MPT:LIST:NEAREST: reply->type == REDIS_REPLY_NIL", __class__, __func__);
-        return;
-    }
-    if (reply->type != REDIS_REPLY_ARRAY)
-    {
-        spdlog::error("[{}:{}]: HGETALL MPT:LIST:NEAREST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
-        return;
-    }
-
-    svr->_nearest_mount_map.clear();
-    svr->_nearest_list_text.clear();
-
-    for (int i = 0; i < reply->elements; i += 2)
-    {
-        auto field = reply->element[i]->str;
-        std::string value = reply->element[i + 1]->str;
-        svr->_nearest_mount_map.insert(std::pair<std::string, std::string>(field, value));
-        svr->_nearest_list_text += value;
-    }
 }
 
 void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -2480,6 +2322,80 @@ void caster_internal::Redis_Update_Active_Rover_Callback(redisAsyncContext *c, v
     // spdlog::info("Sync active rover, current item:{} ", svr->_active_user_set.size());
 
     svr->check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
+}
+
+void caster_internal::Redis_Update_Decode_Source_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL MPT:LIST: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL MPT:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    // if (reply->elements == 0)
+    // {
+    //     spdlog::info("[{}:{}]: HGETALL MPT:LIST reply->elements: {}", __class__, __func__, reply->elements);
+    //     return;
+    // }
+
+    svr->_source_decode_map.clear();
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        svr->_source_decode_map.insert(std::pair<std::string, std::string>(field, value));
+    }
+}
+
+void caster_internal::Redis_Update_Record_Source_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("[{}:{}]: HGETALL MPT:LIST: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("[{}:{}]: HGETALL MPT:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        return;
+    }
+
+    // if (reply->elements == 0)
+    // {
+    //     spdlog::info("[{}:{}]: HGETALL MPT:LIST reply->elements: {}", __class__, __func__, reply->elements);
+    //     return;
+    // }
+
+    svr->_source_record_map.clear();
+
+    for (int i = 0; i < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        svr->_source_record_map.insert(std::pair<std::string, std::string>(field, value));
+    }
 }
 
 void caster_internal::Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -2601,50 +2517,7 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
     cb_item->cb(NULL, cb_item->arg, &Reply);
 }
 
-// 将十六进制字符串解析为十进制整数
-int hexToDec(const std::string &hexStr)
-{
-    int value;
-    std::stringstream ss;
-    ss << std::hex << hexStr;
-    ss >> value;
-    return value;
-}
 
-// 从16进制字符串还原IP和端口
-void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, std::string &clientIP, int &clientPort)
-{
-    if (key.size() != 24)
-    {
-        throw std::invalid_argument("Invalid key length");
-    }
-
-    // 如果使用的时IPv6那要如何支持呢
-
-    // 分离16进制字符串
-    std::string hexIp1 = key.substr(0, 8);    // 服务器IP部分
-    std::string hexPort1 = key.substr(8, 4);  // 服务器端口部分
-    std::string hexIp2 = key.substr(12, 8);   // 客户端IP部分
-    std::string hexPort2 = key.substr(20, 4); // 客户端端口部分
-
-    // 解析服务器IP
-    serverIP = std::to_string(hexToDec(hexIp1.substr(0, 2))) + "." +
-               std::to_string(hexToDec(hexIp1.substr(2, 2))) + "." +
-               std::to_string(hexToDec(hexIp1.substr(4, 2))) + "." +
-               std::to_string(hexToDec(hexIp1.substr(6, 2)));
-
-    // 解析服务器端口
-    serverPort = hexToDec(hexPort1);
-
-    // 解析客户端IP
-    clientIP = std::to_string(hexToDec(hexIp2.substr(0, 2))) + "." +
-               std::to_string(hexToDec(hexIp2.substr(2, 2))) + "." +
-               std::to_string(hexToDec(hexIp2.substr(4, 2))) + "." +
-               std::to_string(hexToDec(hexIp2.substr(6, 2)));
-
-    // 解析客户端端口
-    clientPort = hexToDec(hexPort2);
-}
 
 // ======================== helper ========================
 
@@ -2668,4 +2541,3 @@ static int resolve_register_type(CasterRegisterType type)
         return 0;
     }
 }
-

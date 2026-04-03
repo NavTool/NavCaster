@@ -7,10 +7,12 @@ class source_record
 private:
     std::string _uid;
 
+    std::string _mountpoint; // 挂载点名称
+
 public:
     source_record(std::string uid)
     {
-        _uid=uid;
+        _uid = uid;
     }
 
     int fromString(const std::string &str)
@@ -25,5 +27,10 @@ public:
         proto.set_uid(_uid);
         // 生成json
         return ProtoToJson(proto);
+    }
+
+    std::string toSourceItem()
+    {
+        return convert_mount_info_to_string(build_default_mount_info(_mountpoint));
     }
 };

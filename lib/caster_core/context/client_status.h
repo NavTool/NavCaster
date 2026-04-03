@@ -55,6 +55,7 @@ public:
     int set_distance(double distance)
     {
         _distance=distance;
+        return 0;
     }
 
     int fromString(const std::string &str)
