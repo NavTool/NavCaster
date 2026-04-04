@@ -16,6 +16,7 @@
 #include "core/AccessItem.pb.h"
 #include "core/AliasRule.pb.h"
 #include "core/BoardcastMsg.pb.h"
+#include "core/CasterNode.pb.h"
 #include "core/ClientState.pb.h"
 #include "core/PullRecord.pb.h"
 #include "core/PullState.pb.h"

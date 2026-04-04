@@ -165,7 +165,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
         find = _base_sub_map.find(channel);
 
         // 更新订阅者列表
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SUB:%s EX %s FIELDS 1 %s %s",
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_SUBSCRIBE_LIST ":%s EX %s FIELDS 1 %s %s",
                           channel,
                           std::to_string(_key_expire_time).c_str(),
                           connect_key,
@@ -228,7 +228,7 @@ int caster_internal::sub_near_channel(const char *channel, const char *user_name
     caster_cb_item *ptr = &find->second;
     // 添加一个查询，查询最近的站点
 
-    redisAsyncCommand(_pub_context, Redis_Geo_Radius_Callback, ptr, "GEORADIUS MPT:GEO %s %s 100 KM WITHDIST ASC", std::to_string(lon).c_str(), std::to_string(lat).c_str());
+    redisAsyncCommand(_pub_context, Redis_Geo_Radius_Callback, ptr, "GEORADIUS " MPT_POSITION_LIST " %s %s 100 KM WITHDIST ASC", std::to_string(lon).c_str(), std::to_string(lat).c_str());
 
     return 0;
 }
@@ -319,7 +319,7 @@ int caster_internal::unsub_base_channel(const char *channel, const char *connect
         _base_near_sub_map.erase(near_item);
     }
 
-    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:SUB:%s %s", channel, connect_key);
+    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_SUBSCRIBE_LIST ":%s %s", channel, connect_key);
 
     return 0;
 }
@@ -342,7 +342,7 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
         find = _rover_sub_map.find(channel);
 
         // 更新订阅者列表
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:SUB:%s EX %s FIELDS 1 %s %s",
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_SUBSCRIBE_LIST ":%s EX %s FIELDS 1 %s %s",
                           channel,
                           _key_expire_time,
                           connect_key,
@@ -386,7 +386,7 @@ int caster_internal::unsub_rover_channel(const char *channel, const char *connec
     }
     // 更新订阅者列表
     channel_subs->second.erase(item);
-    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:SUB:%s %s", channel, connect_key);
+    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_SUBSCRIBE_LIST ":%s %s", channel, connect_key);
 
     return 0;
 }
@@ -404,7 +404,7 @@ int caster_internal::set_rover_coord_info(const char *user_name, const char *con
     double lat = 0.0, lon = 0.0, alt = 0.0;
     util_ecef2pos(ecef_x, ecef_y, ecef_z, lat, lon, alt);
     // 更新坐标到GEO表中
-    redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD USR:GEO %s %s %s", std::to_string(lon).c_str(), std::to_string(lat).c_str(), connect_key); //
+    redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD " USR_POSITION_LIST " %s %s %s", std::to_string(lon).c_str(), std::to_string(lat).c_str(), connect_key); //
 
     return 0;
 }
@@ -445,7 +445,7 @@ int caster_internal::set_base_coord_info(const char *mount_point, const char *co
     double lat = 0.0, lon = 0.0, alt = 0.0;
     util_ecef2pos(ecef_x, ecef_y, ecef_z, lat, lon, alt);
     // 更新坐标到GEO表中
-    redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD MPT:GEO %s %s %s", std::to_string(lon).c_str(), std::to_string(lat).c_str(), mount_point); //
+    redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD " MPT_POSITION_LIST " %s %s %s", std::to_string(lon).c_str(), std::to_string(lat).c_str(), mount_point); //
 
     return 0;
 }
@@ -530,47 +530,25 @@ int caster_internal::upload_node_status()
     add_sum_send(0);
 
     // 将本节点的信息上传到Redis
-    json info;
+    caster_node node(_node_ID, _node_name);
 
-    info["UID"] = _node_ID.c_str();
-    info["node_name"] = _node_name.c_str();
-    info["set_version"] = PROJECT_SET_VERSION;
-    info["tag_version"] = PROJECT_TAG_VERSION;
-    info["run_platform"] = SYSTEM_PLATFORM;
+    node.set_sys_usage();
+    node.set_delay_info(_queue_delay, _sub_ping_delay, _sub_tcp_delay, _pub_ping_delay, _pub_tcp_delay);
+    node.set_traffic_info(_send_total, _send_speed, _recv_total, _recv_speed);
+    node.set_connection_count(_server_status_map.size(), _client_status_map.size());
 
-    info["cpu_usage"] = SysUsage::getInstance()->getProcessCPU();    // CPU
-    info["mem_usage"] = SysUsage::getInstance()->getProcessMemory(); // 内存
-    info["queue_delay"] = _queue_delay;                              // 队列延迟，微秒级
-    info["sub_ping_delay"] = _sub_ping_delay;                        // SUB连接PING延迟，微秒级
-    info["sub_tcp_delay"] = _sub_tcp_delay;                          // SUB连接TCP延迟，微秒级
-    info["pub_ping_delay"] = _pub_ping_delay;                        // PUB连接PING延迟，微秒级
-    info["pub_tcp_delay"] = _pub_tcp_delay;                          // PUB连接TCP延迟，微秒级
-
-    info["send_total"] = _send_total;
-    info["send_speed"] = _send_speed;
-    info["recv_total"] = _recv_total;
-    info["recv_speed"] = _recv_speed;
-
-    info["connnect_count"] = _server_status_map.size() + _client_status_map.size(); // 连接数
-    info["server_count"] = _server_status_map.size();                               // 基站数量
-    info["client_count"] = _client_status_map.size();                               // 移动站数量
-
-    info["online_time"] = _startup_time;
-
-    info["update_time"] = util_get_now_second();
-
-    redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX CASTER:NODE EX %s FIELDS 1 %s %s",
+    redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " CASTER_NODE_INFO_LIST " EX %s FIELDS 1 %s %s",
                       std::to_string(_key_expire_time).c_str(),
-                      _node_ID.c_str(),     // 节点名
-                      info.dump().c_str()); // 节点状态信息
+                      _node_ID.c_str(),
+                      node.toString().c_str());
 
     return 0;
 }
 
 int caster_internal::try_set_master_node()
 {
-    redisAsyncCommand(_pub_context, NULL, NULL, "SET CASTER:MASTER %s NX EX %s", _node_ID.c_str(), std::to_string(_key_expire_time).c_str()); // 节点名   NODE为随机字符串+启动后从Redis中获取一个累加值
-    redisAsyncCommand(_pub_context, Redis_SetMaster_Callback, this, "GET CASTER:MASTER");
+    redisAsyncCommand(_pub_context, NULL, NULL, "SET " CASTER_MASTER_KEY " %s NX EX %s", _node_ID.c_str(), std::to_string(_key_expire_time).c_str()); // 节点名   NODE为随机字符串+启动后从Redis中获取一个累加值
+    redisAsyncCommand(_pub_context, Redis_SetMaster_Callback, this, "GET " CASTER_MASTER_KEY);
     return 0;
 }
 
@@ -579,15 +557,15 @@ int caster_internal::sync_cluster_state()
 
     // 从云端获取所有的转发任务
     // STR:RELAY:LIST
-    redisAsyncCommand(_pub_context, Redis_SyncPullList_Callback, this, "HGETALL PULL:LIST");
-    redisAsyncCommand(_pub_context, Redis_SyncPushList_Callback, this, "HGETALL PUSH:LIST");
+    redisAsyncCommand(_pub_context, Redis_SyncPullList_Callback, this, "HGETALL " PULL_STREAM_RECORD);
+    redisAsyncCommand(_pub_context, Redis_SyncPushList_Callback, this, "HGETALL " PUSH_STREAM_RECORD);
     // 从云端获取所有的任务状态
     // STR:RELAY:LIST
-    redisAsyncCommand(_pub_context, Redis_SyncPullStat_Callback, this, "HGETALL PULL:STAT");
-    redisAsyncCommand(_pub_context, Redis_SyncPushStat_Callback, this, "HGETALL PUSH:STAT");
+    redisAsyncCommand(_pub_context, Redis_SyncPullStat_Callback, this, "HGETALL " PULL_STREAM_STATUS);
+    redisAsyncCommand(_pub_context, Redis_SyncPushStat_Callback, this, "HGETALL " PUSH_STREAM_STATUS);
 
     // 从云端获取所有节点的状态（这个放到最后一步，这个回调执行后要保证前面的数据都已经拿到）
-    redisAsyncCommand(_pub_context, Redis_SyncClusterNode_Callback, this, "HGETALL CASTER:NODE");
+    redisAsyncCommand(_pub_context, Redis_SyncClusterNode_Callback, this, "HGETALL " CASTER_NODE_INFO_LIST);
 
     return 0;
 }
@@ -748,7 +726,7 @@ int caster_internal::relay_task_response(std::string req_str)
     //         _relay_cb(_relay_cb_arg, req.type, req.Para);
     //         _pull_excute_list_map.erase(req.channel);
     //         _pull_status_map.erase(req.channel);
-    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL PULL:STAT %s", req.channel.c_str());
+    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", req.channel.c_str());
     //     }
     //     else
     //     {
@@ -787,7 +765,7 @@ int caster_internal::relay_task_response(std::string req_str)
     //         _relay_cb(_relay_cb_arg, req.type, req.Para);
     //         _push_excute_list_map.erase(req.channel);
     //         _push_status_map.erase(req.channel);
-    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL PUSH:STAT %s", req.channel.c_str());
+    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", req.channel.c_str());
     //     }
     //     else
     //     {
@@ -803,11 +781,11 @@ int caster_internal::upload_relay_status()
 {
     for (auto iter : _pull_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX PULL:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
     for (auto iter : _push_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX PUSH:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
     return 0;
 }
@@ -825,7 +803,7 @@ void caster_internal::Redis_SetMaster_Callback(redisAsyncContext *c, void *r, vo
     auto svr = static_cast<caster_internal *>(privdata);
 
     // 如果返回的节点名和自己的节点名是一致的，那么给这个节点续期
-    redisAsyncCommand(svr->_pub_context, Redis_KeepMaster_Callback, svr, "SET CASTER:MASTER %sIFEQ %sEX %s",
+    redisAsyncCommand(svr->_pub_context, Redis_KeepMaster_Callback, svr, "SET " CASTER_MASTER_KEY " %sIFEQ %sEX %s",
                       svr->_node_ID.c_str(),
                       svr->_node_ID.c_str(),
                       std::to_string(svr->_key_expire_time).c_str()); //
@@ -921,12 +899,12 @@ void caster_internal::Redis_SyncPullList_Callback(redisAsyncContext *c, void *r,
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL PULL:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL PULL:RECORD reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL PULL:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL PULL:RECORD reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
@@ -1005,12 +983,12 @@ void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r,
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL PUSH:LIST reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL PUSH:RECORD reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL PUSH:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL PUSH:RECORD reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
@@ -1022,13 +1000,13 @@ void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r,
         std::string value = reply->element[i + 1]->str;
 
         // json转换成relay_item
-        pull_record item(field);
+        push_record item(field);
         if (item.fromString(value))
         {
             // 解析失败
             continue;
         }
-        svr->_push_record_map.insert(std::pair<std::string, pull_record>(field, item));
+        svr->_push_record_map.insert(std::pair<std::string, push_record>(field, item));
     }
 }
 
@@ -1049,12 +1027,12 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL PULL:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL PUSH:STAT reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL PULL:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL PUSH:STAT reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
@@ -1099,7 +1077,7 @@ int caster_internal::clear_overdue_item()
         if (iter.second.size() == 0)
         {
             _rover_register_map.erase(iter.first);
-            // redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:LIST %s", iter.first.c_str());
+            // redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_ONLINE_LIST " %s", iter.first.c_str());
         }
     }
 
@@ -1124,29 +1102,29 @@ int caster_internal::upload_record_item()
     // 数据流状态   ConnectKey/数据流状态
     for (auto &str : _stream_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " STR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
     }
 
     // 基站状态   ConnectKey/基站状态
     for (auto &str : _server_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:SOURCE EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toSource().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " SOURCE_DECODE_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toSource().c_str());
     }
 
     // 用户状态   ConnectKey/用户状态
     for (auto &str : _client_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
     }
 
     for (auto iter : _base_register_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:LIST EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_ONLINE_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
         for (auto items : iter.second)
         {
             // 更新基站注册连接有效期
-            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE MPT:REC:%s %s FIELDS 1 %s", items.second.channel.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
+            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE " MPT_CONNECTION_LIST ":%s %s FIELDS 1 %s", items.second.channel.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
         }
     }
 
@@ -1155,19 +1133,19 @@ int caster_internal::upload_record_item()
         for (auto items : iter.second)
         {
             // 更新本地订阅基站频道的连接信息
-            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE MPT:SUB:%s %s FIELDS 1 %s", items.second.channel.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
+            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE " MPT_SUBSCRIBE_LIST ":%s %s FIELDS 1 %s", items.second.channel.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
         }
     }
 
     for (auto iter : _rover_register_map)
     {
         // 更新本地维护的用户
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:LIST EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_ONLINE_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
 
         for (auto items : iter.second)
         {
             // 更新用户注册连接
-            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE USR:REC:%s %s FIELDS 1 %s", items.second.user_name.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个用户连接续期
+            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE " USR_CONNECTION_LIST ":%s %s FIELDS 1 %s", items.second.user_name.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个用户连接续期
         }
     }
 
@@ -1176,7 +1154,7 @@ int caster_internal::upload_record_item()
         for (auto items : iter.second)
         {
             // 更新本地订阅用户频道的连接信息
-            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE USR:SUB:%s %s FIELDS 1 %s", items.second.channel.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
+            redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE " USR_SUBSCRIBE_LIST ":%s %s FIELDS 1 %s", items.second.channel.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
         }
     }
 
@@ -1185,21 +1163,21 @@ int caster_internal::upload_record_item()
 
 int caster_internal::download_active_item()
 {
-    redisAsyncCommand(_pub_context, Redis_Update_Active_Base_Callback, this, "HGETALL MPT:LIST");
-    redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST");
-    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST");
-    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL USR:LIST");
+    redisAsyncCommand(_pub_context, Redis_Update_Active_Base_Callback, this, "HGETALL " MPT_ONLINE_LIST);
+    redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL " USR_ONLINE_LIST);
+    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL " USR_ONLINE_LIST);
+    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL " USR_ONLINE_LIST);
 
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_server_connection_count, "HLEN MPT:STAT");
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_client_connection_count, "HLEN USR:STAT");
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_pull_connection_count, "HLEN PULL:STAT");
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_push_connection_count, "HLEN PUSH:STAT");
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_server_connection_count, "HLEN " MPT_STATUS_LIST);
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_client_connection_count, "HLEN " USR_STATUS_LIST);
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_pull_connection_count, "HLEN " PULL_STREAM_STATUS);
+    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_push_connection_count, "HLEN " PUSH_STREAM_STATUS);
     return 0;
 }
 
 int caster_internal::download_alias_rule()
 {
-    redisAsyncCommand(_pub_context, Redis_Update_Alias_Rule_Callback, this, "HGETALL MPT:ALIAS");
+    redisAsyncCommand(_pub_context, Redis_Update_Alias_Rule_Callback, this, "HGETALL " ALIAS_RULE_LIST);
 
     return 0;
 }
@@ -1357,8 +1335,8 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
         // // 向云端插入记录
 
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str());
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " STR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -1381,7 +1359,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         // 反正记录只能由注册者自己删除（或者说注册该连接的Caster维护）
 
         // 向云端插入记录
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX MPT:REC:%s EX %s FIELDS 1 %s %s",
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_CONNECTION_LIST ":%s EX %s FIELDS 1 %s %s",
                           channel,
                           std::to_string(_key_expire_time).c_str(),
                           connect_key,
@@ -1390,7 +1368,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         // 向云端查询记录，等待下一步处理
 
         auto ctx = new std::pair<caster_internal *, caster_cb_item>(this, cb_item);
-        redisAsyncCommand(_pub_context, Redis_Register_Base_Callback, ctx, "HGETALL MPT:REC:%s", channel); // 查询当前频道的所有记录
+        redisAsyncCommand(_pub_context, Redis_Register_Base_Callback, ctx, "HGETALL " MPT_CONNECTION_LIST ":%s", channel); // 查询当前频道的所有记录
     }
     catch (std::exception &e)
     {
@@ -1426,8 +1404,8 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
 
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX STR:STAT EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " STR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -1445,7 +1423,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性，即：查询到的结果已经包含当前记录，因此避免查询-插入-再查询的时候
         // 向云端插入记录
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX USR:REC:%s EX %s FIELDS 1 %s %s",
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_CONNECTION_LIST ":%s EX %s FIELDS 1 %s %s",
                           user_name,
                           std::to_string(_key_expire_time).c_str(),
                           connect_key,
@@ -1453,7 +1431,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         // 向云端查询记录，等待下一步处理
         auto ctx = new std::pair<caster_internal *, caster_cb_item>(this, cb_item);
-        redisAsyncCommand(_pub_context, Redis_Register_Rover_Callback, ctx, "HGETALL USR:REC:%s", user_name); // 查询当前频道的所有记录
+        redisAsyncCommand(_pub_context, Redis_Register_Rover_Callback, ctx, "HGETALL " USR_CONNECTION_LIST ":%s", user_name); // 查询当前频道的所有记录
     }
     catch (std::exception &e)
     {
@@ -1488,7 +1466,7 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
     // 删除该条记录
     channel_registers->second.erase(item);
     // 删除Redis记录
-    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:REC:%s %s", channel, connect_key);
+    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_CONNECTION_LIST ":%s %s", channel, connect_key);
 
     // 删除status记录
     auto str = _server_status_map.find(connect_key);
@@ -1502,7 +1480,7 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
     // // 向云端插入记录
     if (_upload_base_stat)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HDEL MPT:STAT %s ", connect_key);
+        redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_STATUS_LIST " %s ", connect_key);
     }
 
     return 0;
@@ -1527,7 +1505,7 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     // 删除该条记录
     channel_registers->second.erase(item);
     // 删除Redis记录
-    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:REC:%s %s", user_name, connect_key);
+    redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_CONNECTION_LIST ":%s %s", user_name, connect_key);
 
     // 删除status记录
     auto str = _client_status_map.find(connect_key);
@@ -1541,7 +1519,7 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     // 向云端插入记录
     if (_upload_rover_stat)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HDEL USR:STAT %s", connect_key);
+        redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_STATUS_LIST " %s", connect_key);
     }
 
     return 0;
@@ -1733,8 +1711,8 @@ int caster_internal::init_sub_context()
 
 int caster_internal::init_pub_context()
 {
-    // redisAsyncCommand(_pub_context, NULL, NULL, "DEL MPT:STAT");
-    // redisAsyncCommand(_pub_context, NULL, NULL, "DEL USR:STAT");
+    // redisAsyncCommand(_pub_context, NULL, NULL, "DEL " MPT_STATUS_LIST);
+    // redisAsyncCommand(_pub_context, NULL, NULL, "DEL " USR_STATUS_LIST);
     return 0;
 }
 
@@ -1955,7 +1933,7 @@ void caster_internal::Redis_SUB_Rover_Callback(redisAsyncContext *c, void *r, vo
                 svr->add_sum_send(Reply.len);
                 // if (svr->_upload_base_stat)
                 // {
-                //     redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX MPT:STAT EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str(0).c_str());
+                //     redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSETEX " MPT_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(svr->_key_expire_time).c_str(), cb_item.connect_key.c_str(), str->second.get_status_str(0).c_str());
                 // }
             }
         }
@@ -2336,18 +2314,18 @@ void caster_internal::Redis_Update_Decode_Source_Callback(redisAsyncContext *c, 
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL MPT:LIST: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL MPT:SOURCE: reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL MPT:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL MPT:SOURCE reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
     // if (reply->elements == 0)
     // {
-    //     spdlog::info("[{}:{}]: HGETALL MPT:LIST reply->elements: {}", __class__, __func__, reply->elements);
+    //     spdlog::info("[{}:{}]: HGETALL MPT:SOURCE reply->elements: {}", __class__, __func__, reply->elements);
     //     return;
     // }
 
@@ -2373,18 +2351,18 @@ void caster_internal::Redis_Update_Record_Source_Callback(redisAsyncContext *c, 
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("[{}:{}]: HGETALL MPT:LIST: reply->type == REDIS_REPLY_NIL", __class__, __func__);
+        spdlog::warn("[{}:{}]: HGETALL MPT:RECORD: reply->type == REDIS_REPLY_NIL", __class__, __func__);
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("[{}:{}]: HGETALL MPT:LIST reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
+        spdlog::error("[{}:{}]: HGETALL MPT:RECORD reply->type != REDIS_REPLY_ARRAY: {}", __class__, __func__, reply->type);
         return;
     }
 
     // if (reply->elements == 0)
     // {
-    //     spdlog::info("[{}:{}]: HGETALL MPT:LIST reply->elements: {}", __class__, __func__, reply->elements);
+    //     spdlog::info("[{}:{}]: HGETALL MPT:RECORD reply->elements: {}", __class__, __func__, reply->elements);
     //     return;
     // }
 
@@ -2410,12 +2388,12 @@ void caster_internal::Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, voi
 
     if (reply->type == REDIS_REPLY_NIL)
     {
-        spdlog::warn("HGETALL MPT:ALIAS reply->type == REDIS_REPLY_NIL");
+        spdlog::warn("HGETALL ALIAS:RULE reply->type == REDIS_REPLY_NIL");
         return;
     }
     if (reply->type != REDIS_REPLY_ARRAY)
     {
-        spdlog::error("HGETALL MPT:ALIAS reply->type != REDIS_REPLY_ARRAY: {}", reply->type);
+        spdlog::error("HGETALL ALIAS:RULE reply->type != REDIS_REPLY_ARRAY: {}", reply->type);
         return;
     }
 
@@ -2468,7 +2446,7 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
         auto iter = caster_internal::getInstance()->_active_mount_map.find(field); // 查找这个挂载点是否处于在线状态
         if (iter == caster_internal::getInstance()->_active_mount_map.end())       // 如果不在线，那么要把这个记录删掉
         {
-            redisAsyncCommand(caster_internal::getInstance()->_pub_context, NULL, NULL, "ZREM MPT:GEO %s", field);
+            redisAsyncCommand(caster_internal::getInstance()->_pub_context, NULL, NULL, "ZREM " MPT_POSITION_LIST " %s", field);
             continue;
         }
         else // 如果在线,订阅这个挂载点

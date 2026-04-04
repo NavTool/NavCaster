@@ -63,7 +63,7 @@ public:
             case CarrierEventType::SubscribeReply:
                 if (evt->caster_type == CasterReply::STRING)
                 {
-                    send_data(reinterpret_cast<const char*>(evt->data.data()), evt->data.size(), _transfer_with_chunked);
+                    send_data(reinterpret_cast<const char *>(evt->data.data()), evt->data.size(), _transfer_with_chunked);
                 }
                 else if (evt->caster_type == CasterReply::ERR)
                 {
@@ -95,6 +95,14 @@ public:
                 spdlog::info("[{}]: disconnected, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
                 stop();
                 co_return;
+
+            case CarrierEventType::BevRead:
+
+                break;
+
+            case CarrierEventType::Timeout:
+                // 发送心跳或其他定时任务
+                break;
 
             default:
                 break;

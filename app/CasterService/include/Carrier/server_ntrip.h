@@ -82,6 +82,10 @@ public:
                 stop();
                 co_return;
 
+            case CarrierEventType::Timeout:
+                // 发送心跳或其他定时任务
+                break;
+
             default:
                 break;
             }

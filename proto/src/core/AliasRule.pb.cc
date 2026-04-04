@@ -52,7 +52,8 @@ inline constexpr AliasRule::Impl_::Impl_(
             ::_pbi::ConstantInitialized()),
         create_time_{::uint64_t{0u}},
         update_time_{::uint64_t{0u}},
-        enable_{false} {}
+        enable_{false},
+        visible_{false} {}
 
 template <typename>
 constexpr AliasRule::AliasRule(::_pbi::ConstantInitialized)
@@ -84,19 +85,21 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_._has_bits_),
-        9, // hasbit index offset
+        10, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_.update_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_.enable_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_.source_name_),
         PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_.alias_name_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::AliasRule, _impl_.visible_),
         0,
         3,
         4,
         5,
         1,
         2,
+        6,
 };
 
 static const ::_pbi::MigrationSchema
@@ -108,17 +111,17 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_core_2fAliasRule_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\024core/AliasRule.proto\022\013caster.core\"{\n\tA"
-    "liasRule\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_time\030\002 \001"
-    "(\004\022\023\n\013update_time\030\003 \001(\004\022\016\n\006enable\030\004 \001(\010\022"
-    "\023\n\013source_name\030\005 \001(\t\022\022\n\nalias_name\030\006 \001(\t"
-    "b\006proto3"
+    "\n\024core/AliasRule.proto\022\013caster.core\"\214\001\n\t"
+    "AliasRule\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_time\030\002 "
+    "\001(\004\022\023\n\013update_time\030\003 \001(\004\022\016\n\006enable\030\004 \001(\010"
+    "\022\023\n\013source_name\030\005 \001(\t\022\022\n\nalias_name\030\006 \001("
+    "\t\022\017\n\007visible\030\007 \001(\010b\006proto3"
 };
 static ::absl::once_flag descriptor_table_core_2fAliasRule_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fAliasRule_2eproto = {
     false,
     false,
-    168,
+    186,
     descriptor_table_protodef_core_2fAliasRule_2eproto,
     "core/AliasRule.proto",
     &descriptor_table_core_2fAliasRule_2eproto_once,
@@ -179,9 +182,9 @@ AliasRule::AliasRule(
                offsetof(Impl_, create_time_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, create_time_),
-           offsetof(Impl_, enable_) -
+           offsetof(Impl_, visible_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::enable_));
+               sizeof(Impl_::visible_));
 
   // @@protoc_insertion_point(copy_constructor:caster.core.AliasRule)
 }
@@ -198,9 +201,9 @@ inline void AliasRule::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, create_time_),
            0,
-           offsetof(Impl_, enable_) -
+           offsetof(Impl_, visible_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::enable_));
+               sizeof(Impl_::visible_));
 }
 AliasRule::~AliasRule() {
   // @@protoc_insertion_point(destructor:caster.core.AliasRule)
@@ -280,16 +283,16 @@ AliasRule::GetClassData() const {
   return AliasRule_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<3, 6, 0, 54, 2>
+const ::_pbi::TcParseTable<3, 7, 0, 54, 2>
 AliasRule::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(AliasRule, _impl_._has_bits_),
     0, // no _extensions_
-    6, 56,  // max_field_number, fast_idx_mask
+    7, 56,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967232,  // skipmap
+    4294967168,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    6,  // num_field_entries
+    7,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     AliasRule_class_data_.base(),
@@ -324,7 +327,10 @@ AliasRule::_table_ = {
     {::_pbi::TcParser::FastUS1,
      {50, 2, 0,
       PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.alias_name_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // bool visible = 7;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AliasRule, _impl_.visible_), 6>(),
+     {56, 6, 0,
+      PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.visible_)}},
   }}, {{
     65535, 65535
   }}, {{
@@ -340,6 +346,8 @@ AliasRule::_table_ = {
     {PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.source_name_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // string alias_name = 6;
     {PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.alias_name_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // bool visible = 7;
+    {PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.visible_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
   }},
   // no aux_entries
   {{
@@ -369,10 +377,10 @@ PROTOBUF_NOINLINE void AliasRule::Clear() {
       _impl_.alias_name_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000038U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000078U)) {
     ::memset(&_impl_.create_time_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.enable_) -
-        reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.enable_));
+        reinterpret_cast<char*>(&_impl_.visible_) -
+        reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.visible_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -454,6 +462,15 @@ PROTOBUF_NOINLINE void AliasRule::Clear() {
     }
   }
 
+  // bool visible = 7;
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_visible() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          7, this_._internal_visible(), target);
+    }
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -479,7 +496,7 @@ PROTOBUF_NOINLINE void AliasRule::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
     // string uid = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_uid().empty()) {
@@ -521,6 +538,12 @@ PROTOBUF_NOINLINE void AliasRule::Clear() {
         total_size += 2;
       }
     }
+    // bool visible = 7;
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_visible() != 0) {
+        total_size += 2;
+      }
+    }
   }
   return this_.MaybeComputeUnknownFieldsSize(total_size,
                                              &this_._impl_._cached_size_);
@@ -540,7 +563,7 @@ void AliasRule::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_uid().empty()) {
         _this->_internal_set_uid(from._internal_uid());
@@ -583,6 +606,11 @@ void AliasRule::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.enable_ = from._impl_.enable_;
       }
     }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_visible() != 0) {
+        _this->_impl_.visible_ = from._impl_.visible_;
+      }
+    }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
   _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
@@ -607,8 +635,8 @@ void AliasRule::InternalSwap(AliasRule* PROTOBUF_RESTRICT PROTOBUF_NONNULL other
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.source_name_, &other->_impl_.source_name_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.alias_name_, &other->_impl_.alias_name_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.enable_)
-      + sizeof(AliasRule::_impl_.enable_)
+      PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.visible_)
+      + sizeof(AliasRule::_impl_.visible_)
       - PROTOBUF_FIELD_OFFSET(AliasRule, _impl_.create_time_)>(
           reinterpret_cast<char*>(&_impl_.create_time_),
           reinterpret_cast<char*>(&other->_impl_.create_time_));

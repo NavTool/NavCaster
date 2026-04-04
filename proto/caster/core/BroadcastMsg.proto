@@ -23,7 +23,7 @@ enum BroadcastOperateType
   BOARDCAST_OPERATR_INACTIVE    = 5; // 取消激活
 }
 
-message BoardcastMsg {
+message BroadcastMsg {
   BroadcastType        type       = 1; // 广播类型
   BroadcastOperateType operate    = 2; // 操作类型
   string               msg_str    = 3; // 请求字符串，包含了请求的具体内容，可以

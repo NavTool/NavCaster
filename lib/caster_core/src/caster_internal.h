@@ -17,6 +17,7 @@ using json = nlohmann::json;
 #include "access_item.h"
 #include "alias_rule.h"
 #include "boardcast_msg.h"
+#include "caster_node.h"
 #include "client_status.h"
 #include "pull_record.h"
 #include "pull_status.h"
@@ -199,15 +200,15 @@ using json = nlohmann::json;
 #define STR_STATUS_LIST "STR:STAT" // 数据流状态列表, 记录每个连接的数据流统计信息(基站和用户的连接都记录在这里, 连接key为Mount_Point-ConnectKey)
 
 // 数据转发
-#define PULL_STREAM_LIST "PULL:LIST" // Pull数据流列表, 记录所有Pull类型的数据转发任务
-#define PUSH_STREAM_LIST "PUSH:LIST" // Push数据流列表,
+#define PULL_STREAM_RECORD "PULL:RECORD" // Pull数据流列表, 记录所有Pull类型的数据转发任务
+#define PUSH_STREAM_RECORD "PUSH:RECORD" // Push数据流列表,
 
 #define PULL_STREAM_STATUS "PULL:STAT" // Pull数据流的状态信息
 #define PUSH_STREAM_STATUS "PUSH:STAT" // Push数据流的状态信息,
 
 // 权限控制
-#define ACCESS_GROUP_LIST "ACCESS:GROUP" // 权限组列表, 记录权限组的信息
-#define ACCESS_ITEM_LIST "ACCESS:ITEM"   // 权限项列表, 记录权限
+#define ACCESS_GROUP "ACCESS:GROUP" // 权限组列表, 记录权限组的信息
+#define ACCESS_ITEM "ACCESS:ITEM"   // 权限项列表, 记录权限
 
 // 别名维护
 #define ALIAS_RULE_LIST "ALIAS:RULE" // 别名规则列表, 记录别名挂载点和实体挂载点的映射关系
@@ -469,7 +470,7 @@ private:
     std::unordered_map<std::string, std::string> _cluster_node_map;
 
     std::unordered_map<std::string, pull_record> _pull_record_map; // 拉取连接的任务信息
-    std::unordered_map<std::string, pull_record> _push_record_map; // 推送连接的任务信息
+    std::unordered_map<std::string, push_record> _push_record_map; // 推送连接的任务信息
     std::unordered_map<std::string, pull_status> _pull_status_map; // 拉取连接的状态信息
     std::unordered_map<std::string, push_status> _push_status_map; // 推送连接的状态信息
                                                                    //  流的信息不在这里统计

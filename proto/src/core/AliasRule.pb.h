@@ -225,6 +225,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AliasRule final : public ::google::
     kCreateTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
     kEnableFieldNumber = 4,
+    kVisibleFieldNumber = 7,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -301,11 +302,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AliasRule final : public ::google::
   void _internal_set_enable(bool value);
 
   public:
+  // bool visible = 7;
+  void clear_visible() ;
+  [[nodiscard]] bool visible() const;
+  void set_visible(bool value);
+
+  private:
+  bool _internal_visible() const;
+  void _internal_set_visible(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.core.AliasRule)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<3, 6,
+  static const ::google::protobuf::internal::TcParseTable<3, 7,
                                    0, 54,
                                    2>
       _table_;
@@ -335,6 +346,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AliasRule final : public ::google::
     ::uint64_t create_time_;
     ::uint64_t update_time_;
     bool enable_;
+    bool visible_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -627,6 +639,31 @@ inline void AliasRule::set_allocated_alias_name(::std::string* PROTOBUF_NULLABLE
     _impl_.alias_name_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:caster.core.AliasRule.alias_name)
+}
+
+// bool visible = 7;
+inline void AliasRule::clear_visible() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.visible_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000040U);
+}
+inline bool AliasRule::visible() const {
+  // @@protoc_insertion_point(field_get:caster.core.AliasRule.visible)
+  return _internal_visible();
+}
+inline void AliasRule::set_visible(bool value) {
+  _internal_set_visible(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  // @@protoc_insertion_point(field_set:caster.core.AliasRule.visible)
+}
+inline bool AliasRule::_internal_visible() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.visible_;
+}
+inline void AliasRule::_internal_set_visible(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.visible_ = value;
 }
 
 #ifdef __GNUC__

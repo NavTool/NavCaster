@@ -1,0 +1,33 @@
+syntax = "proto3";
+package caster.core;
+
+// 节点状态信息
+
+message CasterNode {
+  string uid            = 1; // 节点唯一标识
+  string node_name      = 2; // 节点名称
+
+  string set_version    = 3; // 软件版本
+  string tag_version    = 4; // 完整tag版本
+  string run_platform   = 5; // 运行平台
+
+  double cpu_usage      = 6; // CPU使用率
+  double mem_usage      = 7; // 内存使用率
+  uint64 queue_delay    = 8; // 队列延迟(微秒)
+  uint64 sub_ping_delay = 9; // SUB连接PING延迟(微秒)
+  uint64 sub_tcp_delay  = 10; // SUB连接TCP延迟(微秒)
+  uint64 pub_ping_delay = 11; // PUB连接PING延迟(微秒)
+  uint64 pub_tcp_delay  = 12; // PUB连接TCP延迟(微秒)
+
+  uint64 send_total     = 13; // 发送总字节数
+  double send_speed     = 14; // 发送速率
+  uint64 recv_total     = 15; // 接收总字节数
+  double recv_speed     = 16; // 接收速率
+
+  uint64 connect_count  = 17; // 总连接数
+  uint64 server_count   = 18; // 基站连接数
+  uint64 client_count   = 19; // 移动站连接数
+
+  uint64 online_time    = 20; // 节点上线时刻
+  uint64 update_time    = 21; // 状态更新时刻
+}

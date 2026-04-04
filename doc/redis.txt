@@ -19,7 +19,7 @@ ACT:UND:XXXX   (XXXX为用户名)
 作用：记录使用此账号匿名登录的连接的UID，用于与注册账号做区分 
 
 
-ACT:ACCOUNT     // 账号注册表
+ACT:RECORD     // 账号注册表
 类型：HASH （Field：UID与用户名一致  Value：AccountRecord.proto  TTL：不过期）
 作用：记录已经注册的账号
 
