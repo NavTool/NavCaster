@@ -16,7 +16,7 @@ using json = nlohmann::json;
 #include "access_group.h"
 #include "access_item.h"
 #include "alias_rule.h"
-#include "boardcast_msg.h"
+#include "broadcast_msg.h"
 #include "caster_node.h"
 #include "client_status.h"
 #include "pull_record.h"

@@ -39,23 +39,6 @@ struct caster_reply
     double dval = 0.0;
 };
 
-enum class CasterBroadcastType
-{
-    UNKNOWN = 0,
-    BASE_STATUS_UPDATE,  // 基站状态更新
-    BASE_REGISTER,       // 基站上线
-    BASE_WITHDRAW,       // 基站下线
-    ROVER_STATUS_UPDATE, // 移动站状态更新
-    ROVER_REGISTER,      // 用户上线
-    ROVER_WITHDRAW,      // 用户下线
-    RELAY_PULL_ACTIVE,   // 激活数据接入任务
-    RELAY_PULL_UPDATE,   // 更新任务的参数
-    RELAY_PULL_INACTIVE, // 关闭数据接入任务
-    RELAY_PUSH_ACTIVE,   // 激活数据推送任务
-    RELAY_PUSH_UPDATE,   // 更新任务的参数
-    RELAY_PUSH_INACTIVE  // 关闭数据推送任务
-};
-
 enum class CasterRegisterType
 {
     UNKNOWN = 0,
@@ -92,18 +75,8 @@ struct mount_info
 
 typedef void (*CasterCallback)(const char *request, void *arg, caster_reply *reply);
 
-// struct relay_request
-// {
-//     std::string type;            // 请求类型
-//     std::string target_ip;       // 目标IP
-//     int target_port;             // 目标端口
-//     std::string target_mpt;      // 挂载点
-//     std::string target_account;  // 用户名
-//     std::string target_password; // 密码
-//     std::string login_mpt;       // 登录的挂载点
-// };
-
-typedef void (*RelayCallback)(void *arg, CasterBroadcastType type, std::string req);
+class broadcast_msg;
+typedef void (*RelayCallback)(void *arg, const broadcast_msg &msg);
 
 namespace CASTER
 {

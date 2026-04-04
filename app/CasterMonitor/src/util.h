@@ -13,7 +13,7 @@ using json = nlohmann::json;
 
 
 template <typename T>
-std::string ProtoToJson(const T &msg)
+inline std::string ProtoToJson(const T &msg)
 {
     google::protobuf::json::PrintOptions opt;
     opt.add_whitespace = true;                       // 转换成json是否添加空格、换行和缩进
@@ -78,7 +78,7 @@ T QmltoProto(QVariantMap info)
 
 
 template <typename T>
-bool JsonToProto(const std::string &json, T &msg)
+inline bool JsonToProto(const std::string &json, T &msg)
 {
     google::protobuf::json::ParseOptions opt;
     opt.ignore_unknown_fields = true; // 关键：向前 / 向后兼容

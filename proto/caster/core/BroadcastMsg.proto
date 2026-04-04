@@ -26,6 +26,7 @@ enum BroadcastOperateType
 message BroadcastMsg {
   BroadcastType        type       = 1; // 广播类型
   BroadcastOperateType operate    = 2; // 操作类型
-  string               msg_str    = 3; // 请求字符串，包含了请求的具体内容，可以
-  string               reason_str = 4; // 原因
+  string               target     = 3; // 相关对象的唯一标识，例如节点ID、连接ID等
+  string               msg_str    = 4 ; // 请求字符串，包含了请求的具体内容，可以
+  string               reason_str = 5; // 原因
 }

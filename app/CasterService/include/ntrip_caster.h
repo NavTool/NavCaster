@@ -68,7 +68,7 @@ private:
 
 private:
     int process_request(ConnectInfo req);
-    int process_relay(CasterBroadcastType type, std::string req_str);
+    int process_relay(const broadcast_msg &msg);
 
 private:
     Carrier<server_ntrip> Servers;
@@ -93,7 +93,7 @@ public:
     // libevent回调
     static void Request_Process_Cb(evutil_socket_t fd, short what, void *arg);
     static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
-    static void Relay_Request_Callback(void *arg, CasterBroadcastType type, std::string req_str);
+    static void Relay_Request_Callback(void *arg, const broadcast_msg &msg);
 
 private:
     // // 扩展模块 许可检查功能--------------------------------------------------------------------------

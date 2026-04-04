@@ -1,4 +1,5 @@
 #include "ntrip_caster.h"
+#include "broadcast_msg.h"
 
 #include <event2/listener.h>
 #include <event2/bufferevent.h>
@@ -78,36 +79,10 @@
 //     svr->_compat_listener->enable_accept_new_connect();
 // }
 
-void ntrip_caster::Relay_Request_Callback(void *arg, CasterBroadcastType type, std::string req_str)
+void ntrip_caster::Relay_Request_Callback(void *arg, const broadcast_msg &msg)
 {
-    ConnectInfo req;
-
-    switch (type)
-    {
-    case CasterBroadcastType::RELAY_PULL_ACTIVE:
-        /* code */
-        req.set_type(CONNECT_TYPE_PULL);
-        req.set_operate(OPERATE_TYPE_CREATE);
-        break;
-    case CasterBroadcastType::RELAY_PULL_INACTIVE:
-        /* code */
-        break;
-    case CasterBroadcastType::RELAY_PULL_UPDATE:
-        /* code */
-        break;
-    case CasterBroadcastType::RELAY_PUSH_ACTIVE:
-        /* code */
-        break;
-    case CasterBroadcastType::RELAY_PUSH_INACTIVE:
-        /* code */
-        break;
-    case CasterBroadcastType::RELAY_PUSH_UPDATE:
-        /* code */
-        break;
-    default:
-        break;
-    }
-    QUEUE::Push(req);
+    auto svr = static_cast<ntrip_caster *>(arg);
+    svr->process_relay(msg);
 }
 
 ntrip_caster::ntrip_caster()
@@ -298,8 +273,108 @@ int ntrip_caster::process_request(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::process_relay(CasterBroadcastType type, std::string req_str)
+int ntrip_caster::process_relay(const broadcast_msg &msg)
 {
+    ConnectInfo req;
+
+    if (msg.type == caster::core::BOARDCAST_TYPE_PULL_OPERATE)
+    {
+        // 解析PullRecord
+        caster::core::PullRecord record;
+        if (!JsonToProto(msg.msg_str, record))
+        {
+            spdlog::warn("[{}:{}]: Failed to parse PullRecord from msg_str", __class__, __func__);
+            return 1;
+        }
+
+        req.set_type(CONNECT_TYPE_PULL);
+        req.set_connect_key(record.uid());
+        req.set_mount_point(record.login_mpt());
+        req.set_addr(record.target_ip());
+        req.set_port(record.target_port());
+
+        // 构造认证信息 (Base64编码 account:password)
+        if (!record.target_account().empty())
+        {
+            std::string auth_raw = record.target_account() + ":" + record.target_password();
+            req.set_ntrip_auth(auth_raw);
+        }
+
+        // 设置远端挂载点到http_host字段，用于NTRIP请求
+        if (!record.target_mpt().empty())
+        {
+            req.set_mount_point(record.target_mpt());
+        }
+
+        switch (msg.operate)
+        {
+        case caster::core::BOARDCAST_OPERATR_ACTIVE:
+            req.set_operate(OPERATE_TYPE_CREATE);
+            break;
+        case caster::core::BOARDCAST_OPERATR_INACTIVE:
+            req.set_operate(OPERATE_TYPE_DESTORY);
+            break;
+        case caster::core::BOARDCAST_OPERATE_UPDATE:
+            req.set_operate(OPERATE_TYPE_UPDATE);
+            break;
+        default:
+            return 1;
+        }
+
+        Pulls.operateObject(req);
+    }
+    else if (msg.type == caster::core::BOARDCAST_TYPE_RUSH_OPERATE)
+    {
+        // 解析PushRecord
+        caster::core::PushRecord record;
+        if (!JsonToProto(msg.msg_str, record))
+        {
+            spdlog::warn("[{}:{}]: Failed to parse PushRecord from msg_str", __class__, __func__);
+            return 1;
+        }
+
+        req.set_type(CONNECT_TYPE_PUSH);
+        req.set_connect_key(record.uid());
+        req.set_mount_point(record.login_mpt());
+        req.set_addr(record.target_ip());
+        req.set_port(record.target_port());
+
+        // 构造认证信息
+        if (!record.target_account().empty())
+        {
+            std::string auth_raw = record.target_account() + ":" + record.target_password();
+            req.set_ntrip_auth(auth_raw);
+        }
+
+        // 设置远端挂载点
+        if (!record.target_mpt().empty())
+        {
+            req.set_mount_point(record.target_mpt());
+        }
+
+        switch (msg.operate)
+        {
+        case caster::core::BOARDCAST_OPERATR_ACTIVE:
+            req.set_operate(OPERATE_TYPE_CREATE);
+            break;
+        case caster::core::BOARDCAST_OPERATR_INACTIVE:
+            req.set_operate(OPERATE_TYPE_DESTORY);
+            break;
+        case caster::core::BOARDCAST_OPERATE_UPDATE:
+            req.set_operate(OPERATE_TYPE_UPDATE);
+            break;
+        default:
+            return 1;
+        }
+
+        Pushs.operateObject(req);
+    }
+    else
+    {
+        spdlog::warn("[{}:{}]: Unsupported relay broadcast type: {}", __class__, __func__, static_cast<int>(msg.type));
+        return 1;
+    }
+
     return 0;
 }
 

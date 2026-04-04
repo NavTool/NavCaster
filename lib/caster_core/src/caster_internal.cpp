@@ -575,47 +575,40 @@ int caster_internal::relay_push_task_distribution()
     // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
 
     // 查找所有的LIST任务
-    for (auto list_iter : _push_record_map)
+    for (auto &list_iter : _push_record_map)
     {
         auto stat_iter = _push_status_map.find(list_iter.first);
         if (stat_iter == _push_status_map.end())
         {
-            // // STAT中不包含这个任务，创建任务
-            // boardcast_msg msg;
-            // item.type = CasterBroadcastType::RELAY_PUSH_ACTIVE;
-            // item.channel = list_iter.second.UID;
-            // item.Para = list_iter.second.para;
-            // item.status = CasterReply::ACTIVE;
-            // item.reason = "Push Task Active";
+            // STAT中不包含这个任务，创建任务
+            broadcast_msg msg;
+            msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
+            msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
+            msg.target = list_iter.first;              // target填充UID
+            msg.msg_str = list_iter.second.toString();  // msg_str为PushRecord的JSON
+            msg.reason_str = "Push Task Active";
 
-            // // 向某个节点发送广播，当前默认选择主节点执行这个任务
-            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // 向某个节点发送广播，当前默认选择主节点执行这个任务
+            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
         }
-        // else
-        // {
-        //     // 查看任务的状态是否和当前的参数一致，具体使用一个字段来表示任务的参数版本号
-
-        //     // 如果不一致,那么要更新任务参数
-        // }
     }
-    // 查找STAT中是否包含这个任务
 
-    for (auto stat_iter : _push_status_map)
+    // 查找STAT中是否有多余的任务（在LIST中不存在的）
+    for (auto &stat_iter : _push_status_map)
     {
         auto list_iter = _push_record_map.find(stat_iter.first);
         if (list_iter == _push_record_map.end())
         {
-            // // LIST中不包含这个任务，移除任务
-            // caster_broadcast_item item;
-            // item.type = CasterBroadcastType::RELAY_PUSH_INACTIVE;
-            // item.channel = stat_iter.second._UID;
-            // item.Para = stat_iter.second._para;
-            // item.status = CasterReply::INACTIVE;
-            // item.reason = "Push Task Inactive";
-            // // 根据STAT中记录的节点ID，发送删除任务的广播
+            // LIST中不包含这个任务，移除任务
+            broadcast_msg msg;
+            msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
+            msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
+            msg.target = stat_iter.first;              // target填充UID
+            msg.msg_str = stat_iter.second.toString();  // msg_str为PushStatus的JSON
+            msg.reason_str = "Push Task Inactive";
 
-            // // 向指定节点发送广播
-            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // 向指定节点发送广播
+            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
         }
     }
 
@@ -624,155 +617,128 @@ int caster_internal::relay_push_task_distribution()
 
 int caster_internal::relay_pull_task_distribution()
 {
-
     // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
 
     // 查找所有的LIST任务
-    for (auto list_iter : _pull_record_map)
+    for (auto &list_iter : _pull_record_map)
     {
         auto stat_iter = _pull_status_map.find(list_iter.first);
         if (stat_iter == _pull_status_map.end())
         {
             // STAT中不包含这个任务，创建任务
-            // caster_broadcast_item item;
-            // item.type = CasterBroadcastType::RELAY_PULL_ACTIVE;
-            // item.channel = list_iter.second.UID;
-            // item.Para = list_iter.second.para;
-            // item.status = CasterReply::ACTIVE;
-            // item.reason = "Pull Task Active";
+            broadcast_msg msg;
+            msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
+            msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
+            msg.target = list_iter.first;              // target填充UID
+            msg.msg_str = list_iter.second.toString();  // msg_str为PullRecord的JSON
+            msg.reason_str = "Pull Task Active";
 
-            // // 向某个节点发送广播，当前默认选择主节点执行这个任务
-            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // 向某个节点发送广播，当前默认选择主节点执行这个任务
+            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
         }
-        // else
-        // {
-        //     // 查看任务的状态是否和当前的参数一致，具体使用一个字段来表示任务的参数版本号
-
-        //     // 如果不一致,那么要更新任务参数
-        // }
     }
-    // 查找STAT中是否包含这个任务
 
-    for (auto stat_iter : _pull_status_map)
+    // 查找STAT中是否有多余的任务（在LIST中不存在的）
+    for (auto &stat_iter : _pull_status_map)
     {
         auto list_iter = _pull_record_map.find(stat_iter.first);
         if (list_iter == _pull_record_map.end())
         {
-            // // LIST中不包含这个任务，移除任务
-            // caster_broadcast_item item;
-            // item.type = CasterBroadcastType::RELAY_PULL_INACTIVE;
-            // item.channel = stat_iter.second._UID;
-            // item.Para = stat_iter.second._para;
-            // item.status = CasterReply::INACTIVE;
-            // item.reason = "Pull Task Inactive";
-            // // 根据STAT中记录的节点ID，发送删除任务的广播
+            // LIST中不包含这个任务，移除任务
+            broadcast_msg msg;
+            msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
+            msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
+            msg.target = stat_iter.first;              // target填充UID
+            msg.msg_str = stat_iter.second.toString();  // msg_str为PullStatus的JSON
+            msg.reason_str = "Pull Task Inactive";
 
-            // // 向指定节点发送广播
-            // redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), item.toString().c_str());
+            // 向指定节点发送广播
+            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
         }
     }
-
-    // 不包含任务，创建任务（向某个NODE分发这个任务）（具体选择哪个节点的策略先不管了）
-
-    // 查找所有STAT任务
-
-    // 查找LIST中是否包含这个任务
-
-    // 不包含任务，移除任务（STAT中应当包含执行这个任务的节点ID)
 
     return 0;
 }
 
 int caster_internal::relay_task_response(std::string req_str)
 {
-
-    // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
-    boardcast_msg req;
+    // 根据接收到的广播，触发对应的回调函数，通知Caster外围创建和删除任务
+    broadcast_msg req;
     if (req.fromString(req_str))
     {
         return 1; // 解析失败
     }
 
-    // 添加到已经任务列表中
+    auto uid = req.target;
 
-    // if (req.type == CasterBroadcastType::RELAY_PULL_ACTIVE)
-    // {
-    //     if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
-    //     {
-    //         // 已经存在这个任务，说明是重复的广播，忽略
-    //         return 2;
-    //     }
-    //     else
-    //     {
-    //         relay_item item;
-    //         item.fromString(req.Para);
-    //         _pull_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
+    if (req.type == caster::core::BOARDCAST_TYPE_PULL_OPERATE)
+    {
+        if (req.operate == caster::core::BOARDCAST_OPERATR_ACTIVE)
+        {
+            if (_pull_status_map.count(uid))
+            {
+                return 2; // 已经存在这个任务，说明是重复的广播，忽略
+            }
 
-    //         relay_stat stat; // 初始化STAT信息
-    //         stat._para = req.Para;
-    //         stat._UID = item.UID;
-    //         stat._modify_time = item.modify_time;
-    //         stat._node = _node_ID;
-    //         _pull_status_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
-    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
-    //     }
-    // }
-    // else if (req.type == CasterBroadcastType::RELAY_PULL_INACTIVE)
-    // {
-    //     // 停止一个转发任务
-    //     if (_pull_excute_list_map.find(req.channel) != _pull_excute_list_map.end())
-    //     {
-    //         // 已经存在这个任务，删除这个任务
-    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
-    //         _pull_excute_list_map.erase(req.channel);
-    //         _pull_status_map.erase(req.channel);
-    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", req.channel.c_str());
-    //     }
-    //     else
-    //     {
-    //         // 不存在这个任务，忽略
-    //         return 3;
-    //     }
-    // }
-    // else if (req.type == CasterBroadcastType::RELAY_PUSH_ACTIVE)
-    // {
-    //     if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
-    //     {
-    //         // 已经存在这个任务，说明是重复的广播，忽略
-    //         return 2;
-    //     }
-    //     else
-    //     {
-    //         relay_item item;
-    //         item.fromString(req.Para);
-    //         _push_excute_list_map.insert(std::pair<std::string, relay_item>(req.channel, item));
+            pull_status stat(uid);
+            _pull_status_map.insert({uid, stat});
+            _relay_cb(_relay_cb_arg, req);
+        }
+        else if (req.operate == caster::core::BOARDCAST_OPERATR_INACTIVE)
+        {
+            auto it = _pull_status_map.find(uid);
+            if (it == _pull_status_map.end())
+            {
+                return 3; // 不存在这个任务，忽略
+            }
+            _relay_cb(_relay_cb_arg, req);
+            _pull_status_map.erase(it);
+            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", uid.c_str());
+        }
+        else if (req.operate == caster::core::BOARDCAST_OPERATE_UPDATE)
+        {
+            auto it = _pull_status_map.find(uid);
+            if (it == _pull_status_map.end())
+            {
+                return 3; // 不存在这个任务，忽略
+            }
+            _relay_cb(_relay_cb_arg, req);
+        }
+    }
+    else if (req.type == caster::core::BOARDCAST_TYPE_RUSH_OPERATE)
+    {
+        if (req.operate == caster::core::BOARDCAST_OPERATR_ACTIVE)
+        {
+            if (_push_status_map.count(uid))
+            {
+                return 2; // 已经存在这个任务，说明是重复的广播，忽略
+            }
 
-    //         relay_stat stat; // 初始化STAT信息
-    //         stat._para = req.Para;
-    //         stat._UID = item.UID;
-    //         stat._modify_time = item.modify_time;
-    //         stat._node = _node_ID;
-    //         _push_status_map.insert(std::pair<std::string, relay_stat>(req.channel, stat));
-    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
-    //     }
-    // }
-    // else if (req.type == CasterBroadcastType::RELAY_PUSH_INACTIVE)
-    // {
-    //     // 停止一个转发任务
-    //     if (_push_excute_list_map.find(req.channel) != _push_excute_list_map.end())
-    //     {
-    //         // 已经存在这个任务，删除这个任务
-    //         _relay_cb(_relay_cb_arg, req.type, req.Para);
-    //         _push_excute_list_map.erase(req.channel);
-    //         _push_status_map.erase(req.channel);
-    //         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", req.channel.c_str());
-    //     }
-    //     else
-    //     {
-    //         // 不存在这个任务，忽略
-    //         return 3;
-    //     }
-    // }
+            push_status stat(uid);
+            _push_status_map.insert({uid, stat});
+            _relay_cb(_relay_cb_arg, req);
+        }
+        else if (req.operate == caster::core::BOARDCAST_OPERATR_INACTIVE)
+        {
+            auto it = _push_status_map.find(uid);
+            if (it == _push_status_map.end())
+            {
+                return 3; // 不存在这个任务，忽略
+            }
+            _relay_cb(_relay_cb_arg, req);
+            _push_status_map.erase(it);
+            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", uid.c_str());
+        }
+        else if (req.operate == caster::core::BOARDCAST_OPERATE_UPDATE)
+        {
+            auto it = _push_status_map.find(uid);
+            if (it == _push_status_map.end())
+            {
+                return 3; // 不存在这个任务，忽略
+            }
+            _relay_cb(_relay_cb_arg, req);
+        }
+    }
 
     return 0;
 }
@@ -1528,14 +1494,12 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
 int caster_internal::send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
     // 向redis发布广播
-    boardcast_msg item;
-
-    item.type = CasterBroadcastType::BASE_STATUS_UPDATE;
-    item.channel = channel;
-    item.connect_key = connect_key;
-    item.Para = "";
-    item.status = status;
-    item.reason = reason;
+    broadcast_msg item;
+    item.type = caster::core::BOARDCAST_TYPE_SERVER_OPERATE;
+    item.operate = broadcast_msg::ReplyToOperate(status);
+    item.target = connect_key;
+    item.msg_str = channel;       // 状态变更时msg_str填充channel
+    item.reason_str = reason;
 
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
 }
@@ -1554,14 +1518,12 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
 int caster_internal::send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
     // 向redis发布广播
-    boardcast_msg item;
-
-    item.type = CasterBroadcastType::ROVER_STATUS_UPDATE;
-    item.channel = channel;
-    item.connect_key = connect_key;
-    item.Para = "";
-    item.status = status;
-    item.reason = reason;
+    broadcast_msg item;
+    item.type = caster::core::BOARDCAST_TYPE_CLIENT_OPERATE;
+    item.operate = broadcast_msg::ReplyToOperate(status);
+    item.target = connect_key;
+    item.msg_str = channel;       // 状态变更时msg_str填充channel
+    item.reason_str = reason;
 
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
 }
@@ -2167,8 +2129,8 @@ void caster_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, vo
 
 int caster_internal::broadcast_response(std::string req_str)
 {
-    // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
-    boardcast_msg req;
+    // 根据接收到的广播，触发对应的回调函数，通知Caster外围创建和删除任务
+    broadcast_msg req;
     if (req.fromString(req_str))
     {
         return 1; // 解析失败
@@ -2176,11 +2138,11 @@ int caster_internal::broadcast_response(std::string req_str)
 
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> *item_map = nullptr;
 
-    if (req.type == CasterBroadcastType::ROVER_STATUS_UPDATE)
+    if (req.type == caster::core::BOARDCAST_TYPE_CLIENT_OPERATE)
     {
         item_map = &_base_register_map;
     }
-    else if (req.type == CasterBroadcastType::BASE_STATUS_UPDATE)
+    else if (req.type == caster::core::BOARDCAST_TYPE_SERVER_OPERATE)
     {
         item_map = &_rover_register_map;
     }
@@ -2188,8 +2150,8 @@ int caster_internal::broadcast_response(std::string req_str)
     {
         return 1; // 不支持的广播类型
     }
-    // 收到拉取激活源的请求
-    auto item = item_map->find(req.channel);
+    // 收到状态更新的请求
+    auto item = item_map->find(req.msg_str); // 状态变更时msg_str中存储的是channel
     if (item == item_map->end())
     {
         return 2; // 本地没有该频道的注册记录
@@ -2197,10 +2159,10 @@ int caster_internal::broadcast_response(std::string req_str)
 
     // 复制字符串
     caster_reply Reply;
-    Reply.type = req.status;
-    Reply.str = req.reason.c_str();
+    Reply.type = broadcast_msg::OperateToReply(req.operate);
+    Reply.str = req.reason_str.c_str();
 
-    if (req.connect_key.size() == 0) // 没有指定特定的连接，则对所有的连接都发送一次回复（针对允许同名频道都在线的情况）
+    if (req.target.empty()) // 没有指定特定的连接，则对所有的连接都发送一次回复（针对允许同名频道都在线的情况）
     {
         for (auto iter : item->second)
         {
@@ -2212,7 +2174,7 @@ int caster_internal::broadcast_response(std::string req_str)
     }
     else
     {
-        auto target = item->second.find(req.connect_key);
+        auto target = item->second.find(req.target);
         if (target == item->second.end())
         {
             return 3; // 本地没有该连接的注册记录

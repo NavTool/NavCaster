@@ -319,12 +319,28 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BroadcastMsg final : public ::googl
 
   // accessors -------------------------------------------------------
   enum : int {
-    kMsgStrFieldNumber = 3,
-    kReasonStrFieldNumber = 4,
+    kTargetFieldNumber = 3,
+    kMsgStrFieldNumber = 4,
+    kReasonStrFieldNumber = 5,
     kTypeFieldNumber = 1,
     kOperateFieldNumber = 2,
   };
-  // string msg_str = 3;
+  // string target = 3;
+  void clear_target() ;
+  [[nodiscard]] const ::std::string& target() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_target(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_target();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_target();
+  void set_allocated_target(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_target() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_target(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_target();
+
+  public:
+  // string msg_str = 4;
   void clear_msg_str() ;
   [[nodiscard]] const ::std::string& msg_str() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -339,7 +355,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BroadcastMsg final : public ::googl
   ::std::string* PROTOBUF_NONNULL _internal_mutable_msg_str();
 
   public:
-  // string reason_str = 4;
+  // string reason_str = 5;
   void clear_reason_str() ;
   [[nodiscard]] const ::std::string& reason_str() const;
   template <typename Arg_ = const ::std::string&, typename... Args_>
@@ -378,8 +394,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BroadcastMsg final : public ::googl
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 4,
-                                   0, 50,
+  static const ::google::protobuf::internal::TcParseTable<3, 5,
+                                   0, 56,
                                    2>
       _table_;
 
@@ -402,6 +418,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED BroadcastMsg final : public ::googl
         const BroadcastMsg& from_msg);
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr target_;
     ::google::protobuf::internal::ArenaStringPtr msg_str_;
     ::google::protobuf::internal::ArenaStringPtr reason_str_;
     int type_;
@@ -435,7 +452,7 @@ inline void BroadcastMsg::clear_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.type_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000008U);
 }
 inline ::caster::core::BroadcastType BroadcastMsg::type() const {
   // @@protoc_insertion_point(field_get:caster.core.BroadcastMsg.type)
@@ -443,7 +460,7 @@ inline ::caster::core::BroadcastType BroadcastMsg::type() const {
 }
 inline void BroadcastMsg::set_type(::caster::core::BroadcastType value) {
   _internal_set_type(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   // @@protoc_insertion_point(field_set:caster.core.BroadcastMsg.type)
 }
 inline ::caster::core::BroadcastType BroadcastMsg::_internal_type() const {
@@ -460,7 +477,7 @@ inline void BroadcastMsg::clear_operate() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.operate_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000008U);
+                  0x00000010U);
 }
 inline ::caster::core::BroadcastOperateType BroadcastMsg::operate() const {
   // @@protoc_insertion_point(field_get:caster.core.BroadcastMsg.operate)
@@ -468,7 +485,7 @@ inline ::caster::core::BroadcastOperateType BroadcastMsg::operate() const {
 }
 inline void BroadcastMsg::set_operate(::caster::core::BroadcastOperateType value) {
   _internal_set_operate(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   // @@protoc_insertion_point(field_set:caster.core.BroadcastMsg.operate)
 }
 inline ::caster::core::BroadcastOperateType BroadcastMsg::_internal_operate() const {
@@ -480,12 +497,77 @@ inline void BroadcastMsg::_internal_set_operate(::caster::core::BroadcastOperate
   _impl_.operate_ = value;
 }
 
-// string msg_str = 3;
+// string target = 3;
+inline void BroadcastMsg::clear_target() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000001U);
+}
+inline const ::std::string& BroadcastMsg::target() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.BroadcastMsg.target)
+  return _internal_target();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void BroadcastMsg::set_target(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  _impl_.target_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.BroadcastMsg.target)
+}
+inline ::std::string* PROTOBUF_NONNULL BroadcastMsg::mutable_target()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ::std::string* _s = _internal_mutable_target();
+  // @@protoc_insertion_point(field_mutable:caster.core.BroadcastMsg.target)
+  return _s;
+}
+inline const ::std::string& BroadcastMsg::_internal_target() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.target_.Get();
+}
+inline void BroadcastMsg::_internal_set_target(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.target_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL BroadcastMsg::_internal_mutable_target() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.target_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE BroadcastMsg::release_target() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.BroadcastMsg.target)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  auto* released = _impl_.target_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.target_.Set("", GetArena());
+  }
+  return released;
+}
+inline void BroadcastMsg::set_allocated_target(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  }
+  _impl_.target_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.target_.IsDefault()) {
+    _impl_.target_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.BroadcastMsg.target)
+}
+
+// string msg_str = 4;
 inline void BroadcastMsg::clear_msg_str() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.msg_str_.ClearToEmpty();
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000001U);
+                  0x00000002U);
 }
 inline const ::std::string& BroadcastMsg::msg_str() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -495,13 +577,13 @@ inline const ::std::string& BroadcastMsg::msg_str() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void BroadcastMsg::set_msg_str(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   _impl_.msg_str_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:caster.core.BroadcastMsg.msg_str)
 }
 inline ::std::string* PROTOBUF_NONNULL BroadcastMsg::mutable_msg_str()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   ::std::string* _s = _internal_mutable_msg_str();
   // @@protoc_insertion_point(field_mutable:caster.core.BroadcastMsg.msg_str)
   return _s;
@@ -521,10 +603,10 @@ inline ::std::string* PROTOBUF_NONNULL BroadcastMsg::_internal_mutable_msg_str()
 inline ::std::string* PROTOBUF_NULLABLE BroadcastMsg::release_msg_str() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:caster.core.BroadcastMsg.msg_str)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   auto* released = _impl_.msg_str_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.msg_str_.Set("", GetArena());
@@ -534,9 +616,9 @@ inline ::std::string* PROTOBUF_NULLABLE BroadcastMsg::release_msg_str() {
 inline void BroadcastMsg::set_allocated_msg_str(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
   _impl_.msg_str_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.msg_str_.IsDefault()) {
@@ -545,12 +627,12 @@ inline void BroadcastMsg::set_allocated_msg_str(::std::string* PROTOBUF_NULLABLE
   // @@protoc_insertion_point(field_set_allocated:caster.core.BroadcastMsg.msg_str)
 }
 
-// string reason_str = 4;
+// string reason_str = 5;
 inline void BroadcastMsg::clear_reason_str() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.reason_str_.ClearToEmpty();
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000004U);
 }
 inline const ::std::string& BroadcastMsg::reason_str() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -560,13 +642,13 @@ inline const ::std::string& BroadcastMsg::reason_str() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void BroadcastMsg::set_reason_str(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   _impl_.reason_str_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:caster.core.BroadcastMsg.reason_str)
 }
 inline ::std::string* PROTOBUF_NONNULL BroadcastMsg::mutable_reason_str()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::std::string* _s = _internal_mutable_reason_str();
   // @@protoc_insertion_point(field_mutable:caster.core.BroadcastMsg.reason_str)
   return _s;
@@ -586,10 +668,10 @@ inline ::std::string* PROTOBUF_NONNULL BroadcastMsg::_internal_mutable_reason_st
 inline ::std::string* PROTOBUF_NULLABLE BroadcastMsg::release_reason_str() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:caster.core.BroadcastMsg.reason_str)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   auto* released = _impl_.reason_str_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.reason_str_.Set("", GetArena());
@@ -599,9 +681,9 @@ inline ::std::string* PROTOBUF_NULLABLE BroadcastMsg::release_reason_str() {
 inline void BroadcastMsg::set_allocated_reason_str(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
   _impl_.reason_str_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.reason_str_.IsDefault()) {
