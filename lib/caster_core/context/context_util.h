@@ -59,7 +59,7 @@ bool JsonToProto(const std::string &json, T &msg)
 
 
 // 将十六进制字符串解析为十进制整数
-int hexToDec(const std::string &hexStr)
+inline int hexToDec(const std::string &hexStr)
 {
     int value;
     std::stringstream ss;
@@ -69,7 +69,7 @@ int hexToDec(const std::string &hexStr)
 }
 
 // 从16进制字符串还原IP和端口
-void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, std::string &clientIP, int &clientPort)
+inline void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, std::string &clientIP, int &clientPort)
 {
     if (key.size() != 24)
     {
@@ -103,8 +103,7 @@ void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, s
     clientPort = hexToDec(hexPort2);
 }
 
-
-std::string convert_mount_info_to_string(mount_info i)
+inline std::string convert_mount_info_to_string(mount_info i)
 {
     std::string item;
 
@@ -131,7 +130,7 @@ std::string convert_mount_info_to_string(mount_info i)
     return item;
 }
 
-mount_info build_default_mount_info(std::string mount_point)
+inline mount_info build_default_mount_info(std::string mount_point)
 {
     // STR;              STR;
     // mountpoint;       KORO996;
