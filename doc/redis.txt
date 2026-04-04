@@ -9,62 +9,68 @@ CASTER:NODE
 作用：记录各个节点上报的状态信息
 
 
-ACT:REC:XXXX
+ACT:REC:XXXX   (XXXX为用户名)
 类型: HASH （Field：UID  Value：上线时刻UTC秒  TTL：周期重置）
 作用：记录使用此账号登录的连接的UID，用于判断当前账号连接数是否已经超过限制，超过限制后踢出账号
 
     
-ACT:UND:XXXX
+ACT:UND:XXXX   (XXXX为用户名)
 类型：HASH （Field：UID  Value：上线时刻UTC秒  TTL：周期重置）
 作用：记录使用此账号匿名登录的连接的UID，用于与注册账号做区分 
 
 
 ACT:ACCOUNT     // 账号注册表
-类型：HASH （Field：UID与用户名一致  Value：Json账号信息  TTL：不过期）
+类型：HASH （Field：UID与用户名一致  Value：AccountRecord.proto  TTL：不过期）
 作用：记录已经注册的账号
 
 ACT:ACTIVE      // 激活账号表
-类型：HASH （Field：UID与用户名一致  Value：Json账号信息  TTL：不过期）
+类型：HASH （Field：UID与用户名一致  Value：AccountActive.proto  TTL：根据账号失效日期）
 作用：记录当前可用的账号（未过期，未失效账号），用户验证的时候会查找这个表
 
-ACT:UNNAMED      // 匿名账号记录表
-类型：HASH （Field：BaseAuth  Value：最后登录时刻UTC秒  TTL：不过期）
-作用：记录登录过的匿名账号
-
+ACT:USAGE       // 账号累计使用表
+类型：HASH （Field：UID与用户名一致  Value：账号累计在线秒数  TTL：不过期）
 
 MPT:LIST
-类型: HASH （Field：挂载点名  Value：上传的挂载点信息  TTL：周期重置）
+类型: HASH （Field：挂载点名  Value：上线时刻UTC秒  TTL：周期重置）
 作用：记录所有在线挂载点的数据流信息，用于构建源列表（这个挂载点信息的来源）
 
 MPT:STAT
-类型：HASH （Field：UID  Value：Json连接状态信息  TTL：周期重置）
+类型：HASH （Field：UID  Value：ServerState.proto  TTL：周期重置）
 作用：记录所有在线基站连接的数据流信息
 
-MPT:REC:XXXX
+MPT:REC:XXXX  (XXXX为挂载点名)
 类型: HASH （Field：UID  Value：上线时刻UTC秒  TTL：周期重置）
 作用：记录使用此挂载点登录的连接的UID，用于多节点解决挂载点重复登录，并实现踢出先登录/后登录账号功能
 
-MPT:SUB:XXXX
+MPT:SUB:XXXX  (XXXX为挂载点名)
 类型: HASH （Field：UID  Value：上线时刻UTC秒  TTL：周期重置）
-作用：记录所有订阅此基站的的连接的UID
+作用：记录所有订阅此基站的的连接的UID,和上线时刻
+
+MPT:SOURCE
+类型: HASH （Field：挂载点名  Value：SourceRecord.proto  TTL：周期重置）
+作用：记录所有通过在线基站数据流解析得到的挂载点信息
+
+MPT:RECORD
+类型: HASH （Field：挂载点名  Value：SourceRecord.proto  TTL：不过期）
+作用：记录所有手动设置的挂载点信息
 
 MPT:GEO
 类型：GEO   （Member：挂载点名  Score：经纬度）
 作用：用于最近点功能（只有解析到坐标的基站才能被订阅到，即使添加进去之后，也会判断是否在线，所以不做删除操作，内部可能存放了无效的挂载点）
 
 USR:LIST
-类型: HASH （Field：用户名  Value：用户上线时刻UTC秒  TTL：周期重置）
+类型: HASH （Field：用户名  Value：上线时刻UTC秒  TTL：周期重置）
 作用：记录所有在线挂载点的数据流信息，用于构建源列表
 
 USR:STAT
-类型：HASH （Field：UID  Value：Json连接状态信息  TTL：周期重置）
+类型：HASH （Field：UID  Value：ClientState.proto  TTL：周期重置）
 作用：记录所有在线基站连接的数据流信息
 
-USR:REC:XXXX
+USR:REC:XXXX  (XXXX为用户名) 
 类型: HASH （Field：UID  Value：上线时刻UTC秒  TTL：周期重置）
 作用：记录使用此用户名的连接的UID
 
-USR:SUB:XXXX
+USR:SUB:XXXX  (XXXX为用户名)
 类型: HASH （Field：UID  Value：上线时刻UTC秒  TTL：周期重置）
 作用：记录所有订阅此用户的连接的UID
 
@@ -72,14 +78,36 @@ USR:GEO
 类型：GEO   （Member：UID  Score：经纬度）
 作用：数据记录
 
+STR:STAT
+类型：HASH （Field：UID  Value：StreamState.proto  TTL：周期重置）
+作用：记录所有数据流的状态（包括基站和用户）
 
+PULL:RECORD
+类型：HASH （Field：UID(挂载点名)  Value：PullRecord.proto  TTL：不过期）
+作用：记录所有拉取数据流任务
 
-GROUP:LIST      // 策略组列表
-类型：HASH （Field：UID  Value：Json分组配置信息  TTL：不过期）
+PULL:STAT
+类型：HASH （Field：UID(挂载点名)  Value：PullState.proto  TTL：周期重置）
+作用：记录所有拉取数据流状态
+
+PUSH:RECORD
+类型：HASH （Field：UID(挂载点名)  Value：PushRecord.proto  TTL：不过期）
+作用：记录所有推送数据流任务
+
+PUSH:STAT
+类型：HASH （Field：UID(挂载点名)  Value：PushState.proto  TTL：周期重置）
+作用：记录所有推送数据流状态
+
+ALIAS:RULE
+类型：HASH （Field：UID(挂载点名)  Value：AliasRule.proto  TTL：不过期）
+作用：记录所有别名挂载点的状态
+
+ACCESS:GROUP      // 策略组列表
+类型：HASH （Field：UID  Value：AccessGroup.proto  TTL：不过期）
 作用：记录所有的策略组
 
-GROUP:MPT:XXXX
-类型：HASH  （Filed：挂载点名  Value： 挂载点配置信息）
+ACCESS:ITEM:XXXX (XXXX为策略组名)
+类型：HASH  （Filed：挂载点名  Value：AccessItem.proto   TTL: 不过期）
 作用：记录指定策略组所有挂载点的行为
         控制这个策略组所有允许使用的挂载点（包括实体挂载点、虚拟挂载点）
         控制每个挂载点的显示策略（上线显示、始终隐藏、始终显示）

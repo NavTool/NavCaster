@@ -10,4 +10,5 @@ message AliasRule {
 
   string source_name = 5; // 使用的源挂载点（当源挂载点上线的时候，别名挂载点也会同步上线）
   string alias_name  = 6; // 挂载点的别名
+  bool   visible     = 7; // 别名挂载点是否在源列表中可见
 }
