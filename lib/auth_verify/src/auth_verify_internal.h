@@ -162,11 +162,11 @@ public:
 class verify_internal
 {
 private:
-    bool _base_anonymous_login = false;    // 是否允许匿名登录
-    bool _base_online_protection = false;  // 在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
-    bool _rover_anonymous_login = false;   // 是否允许匿名登录
-    bool _rover_online_protection = false; // 在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
-    bool _source_anonymous_login = false;  // 是否允许匿名登录
+    bool _server_anonymous_login = true;    // 是否允许匿名登录
+    bool _server_online_protection = false;  // 在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
+    bool _client_anonymous_login = true;   // 是否允许匿名登录
+    bool _client_online_protection = false; // 在线登录保护（true：不允许挤掉当前账号  false：允许挤掉当前账号）
+    bool _source_anonymous_login = true;  // 是否允许匿名登录
 
     std::string _redis_IP;
     int _redis_port;
@@ -181,9 +181,6 @@ private:
     int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
     int _update_intv = 5;
     int _key_expire_time = 10; // Hash键值默认续期时间
-
-    bool _anonymous_server_login = true;
-    bool _anonymous_client_login = false;
 
 private:
     // 本地已经注册的用户

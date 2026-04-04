@@ -20,10 +20,10 @@ verify_internal *verify_internal::getInstance()
 int verify_internal::init(AuthVerifyOpt opt, event_base *base)
 {
 
-    _base_anonymous_login = opt.base_anonymous_login();
-    _base_online_protection = opt.base_online_protection();
-    _rover_anonymous_login = opt.rover_anonymous_login();
-    _rover_online_protection = opt.rover_online_protection();
+    _server_anonymous_login = opt.base_anonymous_login();
+    _server_online_protection = opt.base_online_protection();
+    _client_anonymous_login = opt.rover_anonymous_login();
+    _client_online_protection = opt.rover_online_protection();
     _source_anonymous_login = opt.source_anonymous_login();
 
     _redis_IP = opt.redis_host();
@@ -64,8 +64,8 @@ int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyC
     ctx->cb = cb;
     ctx->arg = arg;
 
-    if ((type == AuthType::SERVER && _base_anonymous_login) ||
-        (type == AuthType::CLIENT && _anonymous_client_login) ||
+    if ((type == AuthType::SERVER && _server_anonymous_login) ||
+        (type == AuthType::CLIENT && _client_anonymous_login) ||
         (type == AuthType::SOURCE && _source_anonymous_login))
     {
         //     如果是匿名模式，那么账户系统就完全失效，只会生效ACT:UNNAMED
@@ -99,7 +99,7 @@ int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyC
 int verify_internal::add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type)
 {
 
-    if ((type == AuthType::SERVER && _anonymous_server_login) || (type == AuthType::CLIENT && _anonymous_client_login))
+    if ((type == AuthType::SERVER && _server_anonymous_login) || (type == AuthType::CLIENT && _client_anonymous_login))
     {
         // 基站匿名登录 || 用户匿名登录
 
@@ -205,7 +205,7 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
 int verify_internal::add_logout_record(const char *user_name, const char *connect_key, AuthType type)
 {
 
-    if ((type == AuthType::SERVER && _anonymous_server_login) || (type == AuthType::CLIENT && _anonymous_client_login))
+    if ((type == AuthType::SERVER && _server_anonymous_login) || (type == AuthType::CLIENT && _client_anonymous_login))
     {
         // 基站匿名登录 || 用户匿名登录
 
@@ -690,8 +690,8 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
 
         while (records.size() > limit_item->second._connect_limit) // 有多个连接记录且设置不允许多个记录
         {
-            if ((ctx->type == AuthType::SERVER && verify_internal::getInstance()->_base_online_protection) ||
-                (ctx->type == AuthType::CLIENT && verify_internal::getInstance()->_rover_online_protection)) // 已在线的优先级高，踢出当前
+            if ((ctx->type == AuthType::SERVER && verify_internal::getInstance()->_server_online_protection) ||
+                (ctx->type == AuthType::CLIENT && verify_internal::getInstance()->_client_online_protection)) // 已在线的优先级高，踢出当前
             {
                 // 发送广播切换这个连接被踢出的连接的状态
                 if (records.rbegin()->second == ctx->connect_key)
