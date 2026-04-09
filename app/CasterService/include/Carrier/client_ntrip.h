@@ -9,8 +9,6 @@
 
 class client_ntrip : public carrier_base
 {
-    decode_nmea _str_decoder;
-
 public:
     client_ntrip(ConnectInfo info) : carrier_base(info)
     {

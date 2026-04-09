@@ -56,6 +56,8 @@ enum PullType : int;
 extern const uint32_t PullType_internal_data_[];
 enum PushType : int;
 extern const uint32_t PushType_internal_data_[];
+enum RelayState : int;
+extern const uint32_t RelayState_internal_data_[];
 enum SourceDecordType : int;
 extern const uint32_t SourceDecordType_internal_data_[];
 enum SourceDisplayType : int;
@@ -71,6 +73,9 @@ internal::EnumTraitsT<::caster::PullType_internal_data_>
 template <>
 internal::EnumTraitsT<::caster::PushType_internal_data_>
     internal::EnumTraitsImpl::value<::caster::PushType>;
+template <>
+internal::EnumTraitsT<::caster::RelayState_internal_data_>
+    internal::EnumTraitsImpl::value<::caster::RelayState>;
 template <>
 internal::EnumTraitsT<::caster::SourceDecordType_internal_data_>
     internal::EnumTraitsImpl::value<::caster::SourceDecordType>;
@@ -168,6 +173,51 @@ template <>
 [[nodiscard]] inline bool PushType_Parse(
     ::absl::string_view name, PushType* PROTOBUF_NONNULL value) {
   return ::google::protobuf::internal::ParseNamedEnum<PushType>(PushType_descriptor(), name,
+                                           value);
+}
+enum RelayState : int {
+  RELAY_STATE_UNKNOWN = 0,
+  RELAY_STATE_ENABLE = 1,
+  RELAY_STATE_DISABLE = 2,
+  RELAY_STATE_ONLINE = 3,
+  RELAY_STATE_OFFLINE = 4,
+  RELAY_STATE_ERROR = 5,
+  RELAY_STATE_RETRY = 6,
+  RelayState_INT_MIN_SENTINEL_DO_NOT_USE_ =
+      ::std::numeric_limits<::int32_t>::min(),
+  RelayState_INT_MAX_SENTINEL_DO_NOT_USE_ =
+      ::std::numeric_limits<::int32_t>::max(),
+};
+
+extern const uint32_t RelayState_internal_data_[];
+inline constexpr RelayState RelayState_MIN =
+    static_cast<RelayState>(0);
+inline constexpr RelayState RelayState_MAX =
+    static_cast<RelayState>(6);
+[[nodiscard]] inline bool RelayState_IsValid(int value) {
+  return 0 <= value && value <= 6;
+}
+inline constexpr int RelayState_ARRAYSIZE = 6 + 1;
+[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
+RelayState_descriptor();
+[[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(RelayState) {
+  return RelayState_descriptor();
+}
+template <typename T>
+[[nodiscard]] const ::std::string& RelayState_Name(T value) {
+  static_assert(::std::is_same<T, RelayState>::value ||
+                    ::std::is_integral<T>::value,
+                "Incorrect type passed to RelayState_Name().");
+  return RelayState_Name(static_cast<RelayState>(value));
+}
+template <>
+[[nodiscard]] inline const ::std::string& RelayState_Name(RelayState value) {
+  return ::google::protobuf::internal::NameOfDenseEnum<RelayState_descriptor, 0, 6>(
+      static_cast<int>(value));
+}
+[[nodiscard]] inline bool RelayState_Parse(
+    ::absl::string_view name, RelayState* PROTOBUF_NONNULL value) {
+  return ::google::protobuf::internal::ParseNamedEnum<RelayState>(RelayState_descriptor(), name,
                                            value);
 }
 enum SourceRecordType : int {
@@ -338,6 +388,12 @@ struct is_proto_enum<::caster::PushType> : std::true_type {};
 template <>
 inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::caster::PushType>() {
   return ::caster::PushType_descriptor();
+}
+template <>
+struct is_proto_enum<::caster::RelayState> : std::true_type {};
+template <>
+inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::caster::RelayState>() {
+  return ::caster::RelayState_descriptor();
 }
 template <>
 struct is_proto_enum<::caster::SourceRecordType> : std::true_type {};

@@ -1,8 +1,19 @@
 syntax = "proto3";
 package caster.core;
+import "Common.proto";
 
 message PullState {
   string uid         = 1;
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
+
+
+  RelayState state = 4; // 数据流状态  // 未知、启用、禁用、在线、离线、错误、重试
+
+  string connect_key = 5; // 连接key
+  string err_msg     = 6; // 错误信息
+
+  string node_uid = 7; // 承担拉取任务的节点uid
+  
+
 }

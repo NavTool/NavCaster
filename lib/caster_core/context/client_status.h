@@ -1,5 +1,7 @@
 #pragma once
 #include "context_util.h"
+#include "stream_status.h"
+#include "decode_nmea.h"
 
 // 移动站连接状态
 class client_status
@@ -27,10 +29,46 @@ private:
     double _diff = 0;    // 差分延迟
     double _distance = 0; // 距离
 
+    stream_status _stream; // 数据流统计信息
+    decode_nmea _decoder;  // NMEA解码器
+
 public:
     client_status(std::string uid)
+        : _stream(uid)
     {
         _uid=uid;
+    }
+
+    int add_recv(const char *data, size_t size)
+    {
+        _stream.add_recv(size);
+        _decoder.Decode(data, size);
+        if (_decoder._has_position)
+        {
+            _ecef_x = _decoder._ecef_x;
+            _ecef_y = _decoder._ecef_y;
+            _ecef_z = _decoder._ecef_z;
+            _quality = _decoder._quality;
+            _sat_num = _decoder._sat_num;
+            _diff = _decoder._diff;
+            _position_update_time = _decoder._position_update_time;
+        }
+        return 0;
+    }
+
+    int add_send(int size)
+    {
+        return _stream.add_send(size);
+    }
+
+    int add_delay(uint64_t delay)
+    {
+        return _stream.add_delay(delay);
+    }
+
+    std::string streamToString()
+    {
+        return _stream.toString();
     }
 
     int set_alias_mpt(std::string alias_mpt)

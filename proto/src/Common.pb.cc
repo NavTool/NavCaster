@@ -28,7 +28,7 @@ namespace _fl = ::google::protobuf::internal::field_layout;
 namespace caster {
 }  // namespace caster
 static const ::_pb::EnumDescriptor* PROTOBUF_NONNULL
-    file_level_enum_descriptors_Common_2eproto[5];
+    file_level_enum_descriptors_Common_2eproto[6];
 static constexpr const ::_pb::ServiceDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
     file_level_service_descriptors_Common_2eproto = nullptr;
 const ::uint32_t TableStruct_Common_2eproto::offsets[1] = {};
@@ -44,25 +44,30 @@ const char descriptor_table_protodef_Common_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "*\207\001\n\010PushType\022\025\n\021PUSH_TYPE_UNKNOWN\020\000\022\027\n\023"
     "PUSH_TYPE_NTRIP_1_0\020\001\022\027\n\023PUSH_TYPE_NTRIP"
     "_2_0\020\002\022\030\n\024PUSH_TYPE_TCP_CLIENT\020\003\022\030\n\024PUSH"
-    "_TYPE_TCP_SERVER\020\004*\310\001\n\020SourceRecordType\022"
-    "\036\n\032SOURCE_RECORD_TYPE_UNKNOWN\020\000\022\033\n\027SOURC"
-    "E_RECORD_TYPE_REAL\020\001\022\036\n\032SOURCE_RECORD_TY"
-    "PE_NEAREST\020\002\022\034\n\030SOURCE_RECORD_TYPE_ALIAS"
-    "\020\003\022\034\n\030SOURCE_RECORD_TYPE_PROXY\020\004\022\033\n\027SOUR"
-    "CE_RECORD_TYPE_GRID\020\005*n\n\020SourceDecordTyp"
-    "e\022\036\n\032SOURCE_DECODE_TYPE_UNKNOWN\020\000\022\033\n\027SOU"
-    "RCE_DECODE_TYPE_AUTO\020\001\022\035\n\031SOURCE_DECODE_"
-    "TYPE_MANUAL\020\002*\234\001\n\021SourceDisplayType\022\034\n\030S"
-    "OURCE_DISP_TYPE_UNKNOWN\020\000\022 \n\034SOURCE_DISP"
-    "_TYPE_ALWAYS_SHOW\020\001\022 \n\034SOURCE_DISP_TYPE_"
-    "ALWAYS_HIDE\020\002\022%\n!SOURCE_DISP_TYPE_SHOW_W"
-    "HEN_ONLINE\020\003b\006proto3"
+    "_TYPE_TCP_SERVER\020\004*\265\001\n\nRelayState\022\027\n\023REL"
+    "AY_STATE_UNKNOWN\020\000\022\026\n\022RELAY_STATE_ENABLE"
+    "\020\001\022\027\n\023RELAY_STATE_DISABLE\020\002\022\026\n\022RELAY_STA"
+    "TE_ONLINE\020\003\022\027\n\023RELAY_STATE_OFFLINE\020\004\022\025\n\021"
+    "RELAY_STATE_ERROR\020\005\022\025\n\021RELAY_STATE_RETRY"
+    "\020\006*\310\001\n\020SourceRecordType\022\036\n\032SOURCE_RECORD"
+    "_TYPE_UNKNOWN\020\000\022\033\n\027SOURCE_RECORD_TYPE_RE"
+    "AL\020\001\022\036\n\032SOURCE_RECORD_TYPE_NEAREST\020\002\022\034\n\030"
+    "SOURCE_RECORD_TYPE_ALIAS\020\003\022\034\n\030SOURCE_REC"
+    "ORD_TYPE_PROXY\020\004\022\033\n\027SOURCE_RECORD_TYPE_G"
+    "RID\020\005*n\n\020SourceDecordType\022\036\n\032SOURCE_DECO"
+    "DE_TYPE_UNKNOWN\020\000\022\033\n\027SOURCE_DECODE_TYPE_"
+    "AUTO\020\001\022\035\n\031SOURCE_DECODE_TYPE_MANUAL\020\002*\234\001"
+    "\n\021SourceDisplayType\022\034\n\030SOURCE_DISP_TYPE_"
+    "UNKNOWN\020\000\022 \n\034SOURCE_DISP_TYPE_ALWAYS_SHO"
+    "W\020\001\022 \n\034SOURCE_DISP_TYPE_ALWAYS_HIDE\020\002\022%\n"
+    "!SOURCE_DISP_TYPE_SHOW_WHEN_ONLINE\020\003b\006pr"
+    "oto3"
 };
 static ::absl::once_flag descriptor_table_Common_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_Common_2eproto = {
     false,
     false,
-    780,
+    964,
     descriptor_table_protodef_Common_2eproto,
     "Common.proto",
     &descriptor_table_Common_2eproto_once,
@@ -91,23 +96,30 @@ PushType_descriptor() {
 PROTOBUF_CONSTINIT const uint32_t PushType_internal_data_[] = {
     327680u, 0u, };
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-SourceRecordType_descriptor() {
+RelayState_descriptor() {
   ::google::protobuf::internal::AssignDescriptors(&descriptor_table_Common_2eproto);
   return file_level_enum_descriptors_Common_2eproto[2];
+}
+PROTOBUF_CONSTINIT const uint32_t RelayState_internal_data_[] = {
+    458752u, 0u, };
+[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
+SourceRecordType_descriptor() {
+  ::google::protobuf::internal::AssignDescriptors(&descriptor_table_Common_2eproto);
+  return file_level_enum_descriptors_Common_2eproto[3];
 }
 PROTOBUF_CONSTINIT const uint32_t SourceRecordType_internal_data_[] = {
     393216u, 0u, };
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
 SourceDecordType_descriptor() {
   ::google::protobuf::internal::AssignDescriptors(&descriptor_table_Common_2eproto);
-  return file_level_enum_descriptors_Common_2eproto[3];
+  return file_level_enum_descriptors_Common_2eproto[4];
 }
 PROTOBUF_CONSTINIT const uint32_t SourceDecordType_internal_data_[] = {
     196608u, 0u, };
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
 SourceDisplayType_descriptor() {
   ::google::protobuf::internal::AssignDescriptors(&descriptor_table_Common_2eproto);
-  return file_level_enum_descriptors_Common_2eproto[4];
+  return file_level_enum_descriptors_Common_2eproto[5];
 }
 PROTOBUF_CONSTINIT const uint32_t SourceDisplayType_internal_data_[] = {
     262144u, 0u, };

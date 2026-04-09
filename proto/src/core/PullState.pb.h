@@ -30,6 +30,7 @@
 #include "google/protobuf/repeated_field.h"  // IWYU pragma: export
 #include "google/protobuf/extension_set.h"  // IWYU pragma: export
 #include "google/protobuf/unknown_field_set.h"
+#include "Common.pb.h"
 // @@protoc_insertion_point(includes)
 
 // Must be included last.
@@ -220,8 +221,12 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PullState final : public ::google::
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
+    kConnectKeyFieldNumber = 5,
+    kErrMsgFieldNumber = 6,
+    kNodeUidFieldNumber = 7,
     kCreateTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
+    kStateFieldNumber = 4,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -236,6 +241,51 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PullState final : public ::google::
   const ::std::string& _internal_uid() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_uid(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
+
+  public:
+  // string connect_key = 5;
+  void clear_connect_key() ;
+  [[nodiscard]] const ::std::string& connect_key() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_connect_key(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_connect_key();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_connect_key();
+  void set_allocated_connect_key(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_connect_key() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_connect_key(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_connect_key();
+
+  public:
+  // string err_msg = 6;
+  void clear_err_msg() ;
+  [[nodiscard]] const ::std::string& err_msg() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_err_msg(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_err_msg();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_err_msg();
+  void set_allocated_err_msg(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_err_msg() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_err_msg(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_err_msg();
+
+  public:
+  // string node_uid = 7;
+  void clear_node_uid() ;
+  [[nodiscard]] const ::std::string& node_uid() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_node_uid(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_node_uid();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_node_uid();
+  void set_allocated_node_uid(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_node_uid() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_node_uid(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_node_uid();
 
   public:
   // uint64 create_time = 2;
@@ -258,12 +308,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PullState final : public ::google::
   void _internal_set_update_time(::uint64_t value);
 
   public:
+  // .caster.RelayState state = 4;
+  void clear_state() ;
+  [[nodiscard]] ::caster::RelayState state() const;
+  void set_state(::caster::RelayState value);
+
+  private:
+  ::caster::RelayState _internal_state() const;
+  void _internal_set_state(::caster::RelayState value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.core.PullState)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 33,
+  static const ::google::protobuf::internal::TcParseTable<3, 7,
+                                   0, 59,
                                    2>
       _table_;
 
@@ -287,8 +347,12 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PullState final : public ::google::
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
+    ::google::protobuf::internal::ArenaStringPtr connect_key_;
+    ::google::protobuf::internal::ArenaStringPtr err_msg_;
+    ::google::protobuf::internal::ArenaStringPtr node_uid_;
     ::uint64_t create_time_;
     ::uint64_t update_time_;
+    int state_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -383,7 +447,7 @@ inline void PullState::clear_create_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.create_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000010U);
 }
 inline ::uint64_t PullState::create_time() const {
   // @@protoc_insertion_point(field_get:caster.core.PullState.create_time)
@@ -391,7 +455,7 @@ inline ::uint64_t PullState::create_time() const {
 }
 inline void PullState::set_create_time(::uint64_t value) {
   _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   // @@protoc_insertion_point(field_set:caster.core.PullState.create_time)
 }
 inline ::uint64_t PullState::_internal_create_time() const {
@@ -408,7 +472,7 @@ inline void PullState::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000020U);
 }
 inline ::uint64_t PullState::update_time() const {
   // @@protoc_insertion_point(field_get:caster.core.PullState.update_time)
@@ -416,7 +480,7 @@ inline ::uint64_t PullState::update_time() const {
 }
 inline void PullState::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   // @@protoc_insertion_point(field_set:caster.core.PullState.update_time)
 }
 inline ::uint64_t PullState::_internal_update_time() const {
@@ -426,6 +490,226 @@ inline ::uint64_t PullState::_internal_update_time() const {
 inline void PullState::_internal_set_update_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = value;
+}
+
+// .caster.RelayState state = 4;
+inline void PullState::clear_state() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.state_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000040U);
+}
+inline ::caster::RelayState PullState::state() const {
+  // @@protoc_insertion_point(field_get:caster.core.PullState.state)
+  return _internal_state();
+}
+inline void PullState::set_state(::caster::RelayState value) {
+  _internal_set_state(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  // @@protoc_insertion_point(field_set:caster.core.PullState.state)
+}
+inline ::caster::RelayState PullState::_internal_state() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::caster::RelayState>(_impl_.state_);
+}
+inline void PullState::_internal_set_state(::caster::RelayState value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.state_ = value;
+}
+
+// string connect_key = 5;
+inline void PullState::clear_connect_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.connect_key_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& PullState::connect_key() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PullState.connect_key)
+  return _internal_connect_key();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PullState::set_connect_key(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.connect_key_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PullState.connect_key)
+}
+inline ::std::string* PROTOBUF_NONNULL PullState::mutable_connect_key()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_connect_key();
+  // @@protoc_insertion_point(field_mutable:caster.core.PullState.connect_key)
+  return _s;
+}
+inline const ::std::string& PullState::_internal_connect_key() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.connect_key_.Get();
+}
+inline void PullState::_internal_set_connect_key(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.connect_key_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PullState::_internal_mutable_connect_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.connect_key_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PullState::release_connect_key() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PullState.connect_key)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.connect_key_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.connect_key_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PullState::set_allocated_connect_key(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.connect_key_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.connect_key_.IsDefault()) {
+    _impl_.connect_key_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PullState.connect_key)
+}
+
+// string err_msg = 6;
+inline void PullState::clear_err_msg() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.err_msg_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline const ::std::string& PullState::err_msg() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PullState.err_msg)
+  return _internal_err_msg();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PullState::set_err_msg(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.err_msg_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PullState.err_msg)
+}
+inline ::std::string* PROTOBUF_NONNULL PullState::mutable_err_msg()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_err_msg();
+  // @@protoc_insertion_point(field_mutable:caster.core.PullState.err_msg)
+  return _s;
+}
+inline const ::std::string& PullState::_internal_err_msg() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.err_msg_.Get();
+}
+inline void PullState::_internal_set_err_msg(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.err_msg_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PullState::_internal_mutable_err_msg() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.err_msg_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PullState::release_err_msg() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PullState.err_msg)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.err_msg_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.err_msg_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PullState::set_allocated_err_msg(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.err_msg_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.err_msg_.IsDefault()) {
+    _impl_.err_msg_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PullState.err_msg)
+}
+
+// string node_uid = 7;
+inline void PullState::clear_node_uid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.node_uid_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline const ::std::string& PullState::node_uid() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.PullState.node_uid)
+  return _internal_node_uid();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void PullState::set_node_uid(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.node_uid_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.PullState.node_uid)
+}
+inline ::std::string* PROTOBUF_NONNULL PullState::mutable_node_uid()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_node_uid();
+  // @@protoc_insertion_point(field_mutable:caster.core.PullState.node_uid)
+  return _s;
+}
+inline const ::std::string& PullState::_internal_node_uid() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.node_uid_.Get();
+}
+inline void PullState::_internal_set_node_uid(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.node_uid_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL PullState::_internal_mutable_node_uid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.node_uid_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE PullState::release_node_uid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.PullState.node_uid)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.node_uid_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.node_uid_.Set("", GetArena());
+  }
+  return released;
+}
+inline void PullState::set_allocated_node_uid(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.node_uid_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.node_uid_.IsDefault()) {
+    _impl_.node_uid_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.PullState.node_uid)
 }
 
 #ifdef __GNUC__

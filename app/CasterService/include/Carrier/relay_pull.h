@@ -9,8 +9,6 @@
 
 class relay_pull : public carrier_base
 {
-    decode_rtcm _str_decoder;
-
 public:
     relay_pull(ConnectInfo info) : carrier_base(info)
     {

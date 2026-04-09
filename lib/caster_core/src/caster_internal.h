@@ -25,7 +25,6 @@ using json = nlohmann::json;
 #include "push_status.h"
 #include "server_status.h"
 #include "source_record.h"
-#include "stream_status.h"
 
 /*
     库内维护的Redis表和结构说明
@@ -272,7 +271,6 @@ private:
     std::unordered_map<std::string, caster_cb_item> _base_near_sub_map;                                   // 连接key/cb_arg
 
     // 本节点维护的状态信息 挂载点解析的状态信息
-    std::unordered_map<std::string, stream_status> _stream_status_map; // 记录每个连接的数据流统计信息(基站和用户的连接都记录在这里, 连接key为Mount_Point-ConnectKey)
     std::unordered_map<std::string, server_status> _server_status_map; // 基站的状态信息
     std::unordered_map<std::string, client_status> _client_status_map; // 用户的状态信息
 
@@ -314,44 +312,44 @@ public:
     // 判断是否是别名挂载点
     bool is_alias_mpt(std::string mount_point);
 
-    // 注册基站频道 MPT:XXXXXX
-    int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
-    // 注销频道
-    int withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key);
-    // 向频道发布数据
-    int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
-    // 订阅指定频道
-    int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
-    // 订阅最近频道
-    int sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
-    // 订阅别名频道
-    int sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
-    // 取消订阅频道
-    int unsub_base_channel(const char *channel, const char *connect_key);
-    // 设置基站坐标信息
-    int set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z);
-
-    // 设置基站挂载点信息
-    int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
-
-    // 注册移动站频道 USR:XXXXXX
-    int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
-    // 注销频道
-    int withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key);
-    // 向频道发布数据
-    int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length);
-    // 订阅指定频道
-    int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
-    // 取消订阅频道
-    int unsub_rover_channel(const char *channel, const char *connect_key);
-    // 设置用户坐标信息
-    int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, int Q, int sat, double diff);
+    // 统一接口（按 CasterRegisterType 区分基站/移动站）
+    int register_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
+    int withdraw_channel(const char *channel, const char *user_name, const char *connect_key, CasterRegisterType type);
+    int pub_channel(const char *mount_point, const char *user_name, const char *connect_key, const char *data, size_t data_length, CasterRegisterType type);
+    int sub_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, double lat = 0.0, double lon = 0.0);
+    int unsub_channel(const char *channel, const char *user_name, const char *connect_key, CasterRegisterType type);
+    int set_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, CasterRegisterType type, int Q = 0, int sat = 0, double diff = 0.0);
+    int update_relay_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state, CasterRegisterType type);
 
     // 设置延迟信息
     int set_connect_delay_info(const char *connect_key, uint64_t delay);
 
     // 获取挂载点列表正文
     std::string get_source_list_text();
+
+private:
+    // 基站频道内部实现
+    int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
+    int withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key);
+    int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
+    int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    int sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int unsub_base_channel(const char *channel, const char *connect_key);
+    int set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z);
+    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+
+    // 设置基站挂载点信息
+    int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
+
+    // 移动站频道内部实现
+    int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
+    int withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key);
+    int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length);
+    int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int unsub_rover_channel(const char *channel, const char *connect_key);
+    int set_rover_coord_info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, int Q, int sat, double diff);
+    int update_push_rover_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
 private:
     // 向注册的基站频道发送状态消息
@@ -497,10 +495,6 @@ private:
     // 设置节点 NX，获取节点，判断自己是不是主节点，如果是主节点，给主节点续期，执行主节点任务
 
     // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
-
-public:
-    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
-    int update_push_rover_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
 
 private:
     // 上报任务执行状态

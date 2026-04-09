@@ -9,8 +9,6 @@
 
 class server_ntrip : public carrier_base
 {
-    decode_rtcm _str_decoder;
-
 public:
     server_ntrip(ConnectInfo info) : carrier_base(info)
     {

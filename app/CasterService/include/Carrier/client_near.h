@@ -9,15 +9,6 @@
 
 class client_near : public carrier_base
 {
-    std::string _alias_mpt;
-    double _ecef_x = 0.0;
-    double _ecef_y = 0.0;
-    double _ecef_z = 0.0;
-    double _lon = 0.0;
-    double _lat = 0.0;
-
-    decode_nmea _str_decoder;
-
 public:
     client_near(ConnectInfo info) : carrier_base(info)
     {
