@@ -44,18 +44,8 @@ inline constexpr PullState::Impl_::Impl_(
         uid_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        connect_key_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        err_msg_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        node_uid_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
         create_time_{::uint64_t{0u}},
-        update_time_{::uint64_t{0u}},
-        state_{static_cast< ::caster::RelayState >(0)} {}
+        update_time_{::uint64_t{0u}} {}
 
 template <typename>
 constexpr PullState::PullState(::_pbi::ConstantInitialized)
@@ -87,21 +77,13 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_._has_bits_),
-        10, // hasbit index offset
+        6, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_.update_time_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_.state_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_.connect_key_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_.err_msg_),
-        PROTOBUF_FIELD_OFFSET(::caster::core::PullState, _impl_.node_uid_),
         0,
-        4,
-        5,
-        6,
         1,
         2,
-        3,
 };
 
 static const ::_pbi::MigrationSchema
@@ -113,27 +95,20 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_core_2fPullState_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\024core/PullState.proto\022\013caster.core\032\014Com"
-    "mon.proto\"\235\001\n\tPullState\022\013\n\003uid\030\001 \001(\t\022\023\n\013"
-    "create_time\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004\022!"
-    "\n\005state\030\004 \001(\0162\022.caster.RelayState\022\023\n\013con"
-    "nect_key\030\005 \001(\t\022\017\n\007err_msg\030\006 \001(\t\022\020\n\010node_"
-    "uid\030\007 \001(\tb\006proto3"
-};
-static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
-    descriptor_table_core_2fPullState_2eproto_deps[1] = {
-        &::descriptor_table_Common_2eproto,
+    "\n\024core/PullState.proto\022\013caster.core\"B\n\tP"
+    "ullState\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_time\030\002 \001"
+    "(\004\022\023\n\013update_time\030\003 \001(\004b\006proto3"
 };
 static ::absl::once_flag descriptor_table_core_2fPullState_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fPullState_2eproto = {
     false,
     false,
-    217,
+    111,
     descriptor_table_protodef_core_2fPullState_2eproto,
     "core/PullState.proto",
     &descriptor_table_core_2fPullState_2eproto_once,
-    descriptor_table_core_2fPullState_2eproto_deps,
-    1,
+    nullptr,
+    0,
     1,
     schemas,
     file_default_instances,
@@ -168,10 +143,7 @@ PROTOBUF_NDEBUG_INLINE PullState::Impl_::Impl_(
     [[maybe_unused]] const ::caster::core::PullState& from_msg)
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
-        uid_(arena, from.uid_),
-        connect_key_(arena, from.connect_key_),
-        err_msg_(arena, from.err_msg_),
-        node_uid_(arena, from.node_uid_) {}
+        uid_(arena, from.uid_) {}
 
 PullState::PullState(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -190,9 +162,9 @@ PullState::PullState(
                offsetof(Impl_, create_time_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, create_time_),
-           offsetof(Impl_, state_) -
+           offsetof(Impl_, update_time_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::state_));
+               sizeof(Impl_::update_time_));
 
   // @@protoc_insertion_point(copy_constructor:caster.core.PullState)
 }
@@ -200,19 +172,16 @@ PROTOBUF_NDEBUG_INLINE PullState::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
-        uid_(arena),
-        connect_key_(arena),
-        err_msg_(arena),
-        node_uid_(arena) {}
+        uid_(arena) {}
 
 inline void PullState::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, create_time_),
            0,
-           offsetof(Impl_, state_) -
+           offsetof(Impl_, update_time_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::state_));
+               sizeof(Impl_::update_time_));
 }
 PullState::~PullState() {
   // @@protoc_insertion_point(destructor:caster.core.PullState)
@@ -226,9 +195,6 @@ inline void PullState::SharedDtor(MessageLite& self) {
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.uid_.Destroy();
-  this_._impl_.connect_key_.Destroy();
-  this_._impl_.err_msg_.Destroy();
-  this_._impl_.node_uid_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -293,16 +259,16 @@ PullState::GetClassData() const {
   return PullState_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<3, 7, 0, 59, 2>
+const ::_pbi::TcParseTable<2, 3, 0, 33, 2>
 PullState::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(PullState, _impl_._has_bits_),
     0, // no _extensions_
-    7, 56,  // max_field_number, fast_idx_mask
+    3, 24,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967168,  // skipmap
+    4294967288,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    7,  // num_field_entries
+    3,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     PullState_class_data_.base(),
@@ -318,55 +284,28 @@ PullState::_table_ = {
      {10, 0, 0,
       PROTOBUF_FIELD_OFFSET(PullState, _impl_.uid_)}},
     // uint64 create_time = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PullState, _impl_.create_time_), 4>(),
-     {16, 4, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PullState, _impl_.create_time_), 1>(),
+     {16, 1, 0,
       PROTOBUF_FIELD_OFFSET(PullState, _impl_.create_time_)}},
     // uint64 update_time = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PullState, _impl_.update_time_), 5>(),
-     {24, 5, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(PullState, _impl_.update_time_), 2>(),
+     {24, 2, 0,
       PROTOBUF_FIELD_OFFSET(PullState, _impl_.update_time_)}},
-    // .caster.RelayState state = 4;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(PullState, _impl_.state_), 6>(),
-     {32, 6, 0,
-      PROTOBUF_FIELD_OFFSET(PullState, _impl_.state_)}},
-    // string connect_key = 5;
-    {::_pbi::TcParser::FastUS1,
-     {42, 1, 0,
-      PROTOBUF_FIELD_OFFSET(PullState, _impl_.connect_key_)}},
-    // string err_msg = 6;
-    {::_pbi::TcParser::FastUS1,
-     {50, 2, 0,
-      PROTOBUF_FIELD_OFFSET(PullState, _impl_.err_msg_)}},
-    // string node_uid = 7;
-    {::_pbi::TcParser::FastUS1,
-     {58, 3, 0,
-      PROTOBUF_FIELD_OFFSET(PullState, _impl_.node_uid_)}},
   }}, {{
     65535, 65535
   }}, {{
     // string uid = 1;
     {PROTOBUF_FIELD_OFFSET(PullState, _impl_.uid_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // uint64 create_time = 2;
-    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.create_time_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.create_time_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // uint64 update_time = 3;
-    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.update_time_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
-    // .caster.RelayState state = 4;
-    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.state_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
-    // string connect_key = 5;
-    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.connect_key_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string err_msg = 6;
-    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.err_msg_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
-    // string node_uid = 7;
-    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.node_uid_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    {PROTOBUF_FIELD_OFFSET(PullState, _impl_.update_time_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
   }},
   // no aux_entries
   {{
-    "\25\3\0\0\0\13\7\10"
+    "\25\3\0\0\0\0\0\0"
     "caster.core.PullState"
     "uid"
-    "connect_key"
-    "err_msg"
-    "node_uid"
   }},
 };
 PROTOBUF_NOINLINE void PullState::Clear() {
@@ -377,24 +316,13 @@ PROTOBUF_NOINLINE void PullState::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      _impl_.uid_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      _impl_.connect_key_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      _impl_.err_msg_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      _impl_.node_uid_.ClearNonDefaultToEmpty();
-    }
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    _impl_.uid_.ClearNonDefaultToEmpty();
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000070U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000006U)) {
     ::memset(&_impl_.create_time_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.state_) -
-        reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.state_));
+        reinterpret_cast<char*>(&_impl_.update_time_) -
+        reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.update_time_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -430,7 +358,7 @@ PROTOBUF_NOINLINE void PullState::Clear() {
   }
 
   // uint64 create_time = 2;
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
     if (this_._internal_create_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -439,50 +367,11 @@ PROTOBUF_NOINLINE void PullState::Clear() {
   }
 
   // uint64 update_time = 3;
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     if (this_._internal_update_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
           3, this_._internal_update_time(), target);
-    }
-  }
-
-  // .caster.RelayState state = 4;
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-    if (this_._internal_state() != 0) {
-      target = stream->EnsureSpace(target);
-      target = ::_pbi::WireFormatLite::WriteEnumToArray(
-          4, this_._internal_state(), target);
-    }
-  }
-
-  // string connect_key = 5;
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-    if (!this_._internal_connect_key().empty()) {
-      const ::std::string& _s = this_._internal_connect_key();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PullState.connect_key");
-      target = stream->WriteStringMaybeAliased(5, _s, target);
-    }
-  }
-
-  // string err_msg = 6;
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-    if (!this_._internal_err_msg().empty()) {
-      const ::std::string& _s = this_._internal_err_msg();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PullState.err_msg");
-      target = stream->WriteStringMaybeAliased(6, _s, target);
-    }
-  }
-
-  // string node_uid = 7;
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-    if (!this_._internal_node_uid().empty()) {
-      const ::std::string& _s = this_._internal_node_uid();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.PullState.node_uid");
-      target = stream->WriteStringMaybeAliased(7, _s, target);
     }
   }
 
@@ -511,7 +400,7 @@ PROTOBUF_NOINLINE void PullState::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
     // string uid = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_uid().empty()) {
@@ -519,46 +408,18 @@ PROTOBUF_NOINLINE void PullState::Clear() {
                                         this_._internal_uid());
       }
     }
-    // string connect_key = 5;
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      if (!this_._internal_connect_key().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_connect_key());
-      }
-    }
-    // string err_msg = 6;
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      if (!this_._internal_err_msg().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_err_msg());
-      }
-    }
-    // string node_uid = 7;
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (!this_._internal_node_uid().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_node_uid());
-      }
-    }
     // uint64 create_time = 2;
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (this_._internal_create_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_create_time());
       }
     }
     // uint64 update_time = 3;
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (this_._internal_update_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_update_time());
-      }
-    }
-    // .caster.RelayState state = 4;
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (this_._internal_state() != 0) {
-        total_size += 1 +
-                      ::_pbi::WireFormatLite::EnumSize(this_._internal_state());
       }
     }
   }
@@ -580,7 +441,7 @@ void PullState::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_uid().empty()) {
         _this->_internal_set_uid(from._internal_uid());
@@ -591,45 +452,13 @@ void PullState::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      if (!from._internal_connect_key().empty()) {
-        _this->_internal_set_connect_key(from._internal_connect_key());
-      } else {
-        if (_this->_impl_.connect_key_.IsDefault()) {
-          _this->_internal_set_connect_key("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
-      if (!from._internal_err_msg().empty()) {
-        _this->_internal_set_err_msg(from._internal_err_msg());
-      } else {
-        if (_this->_impl_.err_msg_.IsDefault()) {
-          _this->_internal_set_err_msg("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
-      if (!from._internal_node_uid().empty()) {
-        _this->_internal_set_node_uid(from._internal_node_uid());
-      } else {
-        if (_this->_impl_.node_uid_.IsDefault()) {
-          _this->_internal_set_node_uid("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (from._internal_create_time() != 0) {
         _this->_impl_.create_time_ = from._impl_.create_time_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       if (from._internal_update_time() != 0) {
         _this->_impl_.update_time_ = from._impl_.update_time_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (from._internal_state() != 0) {
-        _this->_impl_.state_ = from._impl_.state_;
       }
     }
   }
@@ -653,12 +482,9 @@ void PullState::InternalSwap(PullState* PROTOBUF_RESTRICT PROTOBUF_NONNULL other
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uid_, &other->_impl_.uid_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.connect_key_, &other->_impl_.connect_key_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.err_msg_, &other->_impl_.err_msg_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.node_uid_, &other->_impl_.node_uid_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(PullState, _impl_.state_)
-      + sizeof(PullState::_impl_.state_)
+      PROTOBUF_FIELD_OFFSET(PullState, _impl_.update_time_)
+      + sizeof(PullState::_impl_.update_time_)
       - PROTOBUF_FIELD_OFFSET(PullState, _impl_.create_time_)>(
           reinterpret_cast<char*>(&_impl_.create_time_),
           reinterpret_cast<char*>(&other->_impl_.create_time_));

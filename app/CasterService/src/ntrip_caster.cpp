@@ -1,6 +1,5 @@
 #include "ntrip_caster.h"
-#include "core/PullRecord.pb.h"
-#include "core/PushRecord.pb.h"
+#include "broadcast_msg.h"
 
 #include <event2/listener.h>
 #include <event2/bufferevent.h>
@@ -80,7 +79,7 @@
 //     svr->_compat_listener->enable_accept_new_connect();
 // }
 
-void ntrip_caster::Relay_Request_Callback(void *arg, const CasterRelayMsg &msg)
+void ntrip_caster::Relay_Request_Callback(void *arg, const broadcast_msg &msg)
 {
     auto svr = static_cast<ntrip_caster *>(arg);
     svr->process_relay(msg);
@@ -274,11 +273,11 @@ int ntrip_caster::process_request(ConnectInfo req)
     return 0;
 }
 
-int ntrip_caster::process_relay(const CasterRelayMsg &msg)
+int ntrip_caster::process_relay(const broadcast_msg &msg)
 {
     ConnectInfo req;
 
-    if (msg.type == CasterRelayType::PULL_OPERATE)
+    if (msg.type == caster::core::BOARDCAST_TYPE_PULL_OPERATE)
     {
         // 解析PullRecord
         caster::core::PullRecord record;
@@ -309,13 +308,13 @@ int ntrip_caster::process_relay(const CasterRelayMsg &msg)
 
         switch (msg.operate)
         {
-        case CasterRelayOperate::ACTIVE:
+        case caster::core::BOARDCAST_OPERATR_ACTIVE:
             req.set_operate(OPERATE_TYPE_CREATE);
             break;
-        case CasterRelayOperate::INACTIVE:
+        case caster::core::BOARDCAST_OPERATR_INACTIVE:
             req.set_operate(OPERATE_TYPE_DESTORY);
             break;
-        case CasterRelayOperate::UPDATE:
+        case caster::core::BOARDCAST_OPERATE_UPDATE:
             req.set_operate(OPERATE_TYPE_UPDATE);
             break;
         default:
@@ -324,7 +323,7 @@ int ntrip_caster::process_relay(const CasterRelayMsg &msg)
 
         Pulls.operateObject(req);
     }
-    else if (msg.type == CasterRelayType::PUSH_OPERATE)
+    else if (msg.type == caster::core::BOARDCAST_TYPE_RUSH_OPERATE)
     {
         // 解析PushRecord
         caster::core::PushRecord record;
@@ -355,13 +354,13 @@ int ntrip_caster::process_relay(const CasterRelayMsg &msg)
 
         switch (msg.operate)
         {
-        case CasterRelayOperate::ACTIVE:
+        case caster::core::BOARDCAST_OPERATR_ACTIVE:
             req.set_operate(OPERATE_TYPE_CREATE);
             break;
-        case CasterRelayOperate::INACTIVE:
+        case caster::core::BOARDCAST_OPERATR_INACTIVE:
             req.set_operate(OPERATE_TYPE_DESTORY);
             break;
-        case CasterRelayOperate::UPDATE:
+        case caster::core::BOARDCAST_OPERATE_UPDATE:
             req.set_operate(OPERATE_TYPE_UPDATE);
             break;
         default:

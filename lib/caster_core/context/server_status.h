@@ -1,7 +1,5 @@
 #pragma once
 #include "context_util.h"
-#include "stream_status.h"
-#include "decode_rtcm.h"
 
 // 基站连接状态
 class server_status
@@ -23,45 +21,12 @@ public:
     double _ecef_z = 0;
     std::time_t _position_update_time = 0; // 定时上报
 
-    stream_status _stream; // 数据流统计信息
-    decode_rtcm _decoder;  // RTCM解码器
-
 public:
     server_status(std::string uid)
-        : _stream(uid)
     {
         _uid = uid;
 
         _online_time = util_get_now_second();
-    }
-
-    int add_recv(const char *data, size_t size)
-    {
-        _stream.add_recv(size);
-        _decoder.Decode(data, size);
-        if (_decoder._has_position)
-        {
-            _ecef_x = _decoder._ecef_x;
-            _ecef_y = _decoder._ecef_y;
-            _ecef_z = _decoder._ecef_z;
-            _position_update_time = _decoder._position_update_time;
-        }
-        return 0;
-    }
-
-    int add_send(int size)
-    {
-        return _stream.add_send(size);
-    }
-
-    int add_delay(uint64_t delay)
-    {
-        return _stream.add_delay(delay);
-    }
-
-    std::string streamToString()
-    {
-        return _stream.toString();
     }
 
     int set_info(std::string login_mpt, int type, std::string account)
