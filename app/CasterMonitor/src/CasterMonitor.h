@@ -27,7 +27,7 @@
 #include "core/AccessGroup.pb.h"
 #include "core/AccessItem.pb.h"
 #include "core/AliasRule.pb.h"
-#include "core/BoardcastMsg.pb.h"
+#include "core/BroadcastMsg.pb.h"
 #include "core/ClientState.pb.h"
 #include "core/PullRecord.pb.h"
 #include "core/PullState.pb.h"
