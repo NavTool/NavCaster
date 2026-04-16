@@ -46,8 +46,8 @@ ntrip_config::~ntrip_config()
 
 ntrip_config *ntrip_config::getInstance()
 {
-    static ntrip_config *instance = new ntrip_config();
-    return instance;
+    static ntrip_config instance;
+    return &instance;
 }
 
 int ntrip_config::Init(int argc, char **argv, std::string conf_path)

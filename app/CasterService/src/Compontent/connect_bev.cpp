@@ -16,8 +16,8 @@ connect_bev::~connect_bev()
 
 connect_bev *connect_bev::getInstance()
 {
-    static connect_bev *instance = new connect_bev();
-    return instance;
+    static connect_bev instance;
+    return &instance;
 }
 
 int connect_bev::init(event_base *base)
@@ -180,10 +180,10 @@ int connect_bev::set_timer(std::string connect_key, time_t read_timeout_sec, tim
     }
     else
     {
-        auto timer = new timeval;
+        auto timer = std::make_unique<timeval>();
         timer->tv_sec = read_timeout_sec;
         timer->tv_usec = 0;
-        _read_timer_map.insert(std::pair<std::string, timeval *>(connect_key, timer));
+        _read_timer_map.emplace(connect_key, std::move(timer));
     }
 
     auto write_timer_item = _write_timer_map.find(connect_key);
@@ -194,14 +194,14 @@ int connect_bev::set_timer(std::string connect_key, time_t read_timeout_sec, tim
     }
     else
     {
-        auto timer = new timeval;
+        auto timer = std::make_unique<timeval>();
         timer->tv_sec = write_timeout_sec;
         timer->tv_usec = 0;
-        _write_timer_map.insert(std::pair<std::string, timeval *>(connect_key, timer));
+        _write_timer_map.emplace(connect_key, std::move(timer));
     }
 
-    auto read_timer = _read_timer_map.find(connect_key)->second;
-    auto write_timer = _write_timer_map.find(connect_key)->second;
+    timeval *read_timer = _read_timer_map.find(connect_key)->second.get();
+    timeval *write_timer = _write_timer_map.find(connect_key)->second.get();
     if (read_timeout_sec <= 0)
     {
         read_timer = NULL;
@@ -228,17 +228,7 @@ int connect_bev::del_timer(std::string connect_key)
 
     bufferevent_set_timeouts(bev, NULL, NULL); // 清除定时器
 
-    auto read_timer_item = _read_timer_map.find(connect_key);
-    if (read_timer_item != _read_timer_map.end())
-    {
-        delete read_timer_item->second;
-        _read_timer_map.erase(read_timer_item);
-    }
-    auto write_timer_item = _write_timer_map.find(connect_key);
-    if (write_timer_item != _write_timer_map.end())
-    {
-        delete write_timer_item->second;
-        _write_timer_map.erase(write_timer_item);
-    }
+    _read_timer_map.erase(connect_key);
+    _write_timer_map.erase(connect_key);
     return 0;
 }

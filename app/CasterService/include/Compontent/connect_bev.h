@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <memory>
 #include <unordered_map>
 #include "event2/bufferevent.h"
 
@@ -9,8 +10,8 @@ private:
     event_base *_base;
 
     std::unordered_map<std::string, bufferevent *> _connect_map; // Connect_Key,bev
-    std::unordered_map<std::string, timeval *> _read_timer_map;
-    std::unordered_map<std::string, timeval *> _write_timer_map;
+    std::unordered_map<std::string, std::unique_ptr<timeval>> _read_timer_map;
+    std::unordered_map<std::string, std::unique_ptr<timeval>> _write_timer_map;
 
 public:
     connect_bev(/* args */);

@@ -449,12 +449,10 @@ std::vector<uint8_t> carrier_base::read_data_from_evbuf()
 
     size_t length = evbuffer_get_length(_recv_evbuf);
 
-    char *data = new char[length + 1];
-    data[length] = '\0';
-    evbuffer_remove(_recv_evbuf, data, length);
+    std::vector<char> buf(length);
+    evbuffer_remove(_recv_evbuf, buf.data(), length);
 
-    datas.insert(datas.end(), data, data + length);
-    delete[] data;
+    datas.insert(datas.end(), buf.begin(), buf.end());
 
     return datas;
 }
@@ -476,6 +474,7 @@ std::vector<uint8_t> carrier_base::read_data_from_chunk()
             return datas;
         }
         sscanf(chunk_head_data, "%zx", &chunk_head_size);
+        free(chunk_head_data); // evbuffer_readln 内部使用 malloc 分配，需要 free 释放
 
         _chunked_size = chunk_head_size;
     }
@@ -485,15 +484,15 @@ std::vector<uint8_t> carrier_base::read_data_from_chunk()
 
     if (_chunked_size + 2 <= length) // 还有回车换行
     {
-        char *data = new char[_chunked_size + 3];
-        data[_chunked_size + 2] = '\0';
+        std::vector<char> buf(_chunked_size);
+        evbuffer_remove(_recv_evbuf, buf.data(), _chunked_size);
 
-        evbuffer_remove(_recv_evbuf, data, _chunked_size);
+        datas.insert(datas.end(), buf.begin(), buf.end());
 
-        datas.insert(datas.end(), data, data + _chunked_size);
+        // 消费 chunk 数据后的 CRLF 终止符
+        evbuffer_drain(_recv_evbuf, 2);
 
         _chunked_size = 0;
-        delete[] data;
     }
     else
     {

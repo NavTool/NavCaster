@@ -21,8 +21,8 @@ ntrip_listener::~ntrip_listener()
 
 ntrip_listener *ntrip_listener::getInstance()
 {
-    static ntrip_listener *instance = new ntrip_listener();
-    return instance;
+    static ntrip_listener instance;
+    return &instance;
 }
 
 int ntrip_listener::init(ListenerOpt opt, event_base *base)
@@ -187,7 +187,7 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
         if (len < 255)
         {
             spdlog::warn("[{}:{}]: header dont'have CRLF, but Set [Header_No_CRLF], accept this header", __class__, __func__);
-            header = new char[len + 1];
+            header = (char *)malloc(len + 1);
             header[len] = '\0';
             header_len = len;
             evbuffer_remove(evbuf, header, header_len);

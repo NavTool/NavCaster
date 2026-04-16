@@ -97,8 +97,8 @@ ntrip_caster::~ntrip_caster()
 
 ntrip_caster *ntrip_caster::getInstance()
 {
-    static ntrip_caster *instance = new ntrip_caster();
-    return instance;
+    static ntrip_caster instance;
+    return &instance;
 }
 
 int ntrip_caster::start()
