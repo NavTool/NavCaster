@@ -217,12 +217,12 @@ public:
 };
 
 // ============================================================================
-//  HashConetxt —— Redis Hash 表的本地上下文管理（模板类，非 QObject）
+//  HashContext —— Redis Hash 表的本地上下文管理（模板类，非 QObject）
 //  T     : protobuf 消息类型
 //  Table : 编译期 Redis Hash key 名
 // ============================================================================
 template <typename T, const char *Table>
-class HashConetxt
+class HashContext
 {
 public:
     using HashOperateFinishedHandler = std::function<void(HashOperateType, QString, bool, QVariantMap)>;
@@ -432,7 +432,13 @@ private:
         // 提交到 EventWorker 执行
         if (m_worker)
         {
-            m_worker->postRedisTask(hash_operate);
+            QString result = m_worker->postRedisTask(hash_operate);
+            if (result.isEmpty())
+            {
+                // Worker 的 redisCtx 为空，操作无法执行，清理避免泄漏
+                Operaters::getInstance()->deleteRedisOperate(hash_operate->id().toStdString());
+                return {};
+            }
         }
 
         return hash_operate->id().toStdString();

@@ -23,7 +23,7 @@ public:
             {
                 Q_EMIT loadDataStart();
 
-                m_data.clear();  //清除数据
+                QList<QVariantMap> result;
 
 
                 for(int i=100;i<120;i++)
@@ -34,11 +34,14 @@ public:
 
                     data["mpt"]=i;
 
-                    m_data.append(data);
+                    result.append(data);
                 }
 
 
-                Q_EMIT loadDataSuccess();
+                QMetaObject::invokeMethod(this, [this, result = std::move(result)]() {
+                    data(result);
+                    Q_EMIT loadDataSuccess();
+                });
             });
     }
 

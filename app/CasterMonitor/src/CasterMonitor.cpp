@@ -1,7 +1,6 @@
 #include <sstream>
 #include "CasterMonitor.h"
-#include "excute/connectOperate.h"
-#include "excute/updateOperate.h"
+#include "knt.h"
 
 
 CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
@@ -11,7 +10,7 @@ CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
     _caster_mgr->start();
     _auth_mgr->start();
 
-    // ==================== 绑定 EventWorker 到 HashConetxt ====================
+    // ==================== 绑定 EventWorker 到 HashContext ====================
 
     // Auth 相关 → _auth_mgr
     AccountRecords.setWorker(_auth_mgr.get());
@@ -33,7 +32,7 @@ CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
     // Service 相关 → _caster_mgr
     CasterNodes.setWorker(_caster_mgr.get());
 
-    // ==================== 注册 HashConetxt 回调 ====================
+    // ==================== 注册 HashContext 回调 ====================
     AccountRecords.setNoticeHashOperateFinishedHandler(
         [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAccountRecordsUpdated(t, uid, ok, info); });
     AccountActives.setNoticeHashOperateFinishedHandler(
@@ -69,330 +68,81 @@ CasterMonitor *CasterMonitor::create(QQmlEngine *, QJSEngine *) {
     return getInstance();
 }
 
-QVariantMap CasterMonitor::getNtripServerInfo(QString UID)
-{
-    auto ptr = m_ntrip_servers.getObjectPtr(UID);
-    if (!ptr)
-    {
-        ntrip_server obj;
-        return JsonToQVariantMap(obj.info());
-    }
-    return JsonToQVariantMap(ptr->info());
-}
-
-QVariantMap CasterMonitor::getNtripClientInfo(QString UID)
-{
-    auto ptr = m_ntrip_clients.getObjectPtr(UID);
-    if (!ptr)
-    {
-        ntrip_client obj;
-        return JsonToQVariantMap(obj.info());
-    }
-    return JsonToQVariantMap(ptr->info());
-}
-
-QVariantMap CasterMonitor::getUserAccountInfo(QString UID)
-{
-    auto ptr = m_user_accounts.getObjectPtr(UID);
-    if (!ptr)
-    {
-        user_account obj;
-        return JsonToQVariantMap(obj.info());
-    }
-    return JsonToQVariantMap(ptr->info());
-}
-
-QVariantMap CasterMonitor::getRelayPullInfo(QString UID)
-{
-    auto ptr = m_relay_pull_items.getObjectPtr(UID);
-    if (!ptr)
-    {
-        relay_pull_item obj;
-        return JsonToQVariantMap(obj.info());
-    }
-    return JsonToQVariantMap(ptr->info());
-}
-
-QVariantMap CasterMonitor::getRelayPushInfo(QString UID)
-{
-    auto ptr = m_relay_push_items.getObjectPtr(UID);
-    if (!ptr)
-    {
-        relay_push_item obj;
-        return JsonToQVariantMap(obj.info());
-    }
-    return JsonToQVariantMap(ptr->info());
-}
-
-QVariantMap CasterMonitor::genConnectCasterTemp()
-{
-    QVariantMap item;
-    item["type"] = "ConnectCaster_Op";
-
-    item["solution_UID"] = "";
-    item["output_path"] = "";
-    item["output_format"] = 0;
-
-    return item;
-}
-
-QString CasterMonitor::addConnectCasterOperate(QVariantMap connect_info)
+void CasterMonitor::connectCaster(const QString &ip, int port, const QString &auth)
 {
     if(_caster_connected)
     {
         noticeError("Caster Network is already in a connected state!");
-        return "";
+        return;
     }
 
-    // 创建一个处理任务
-    auto op = std::make_shared<EventConnectRedis>();
+    _caster_connect_op = std::make_shared<EventConnectRedis>();
+    _caster_connect_op->ip(ip);
+    _caster_connect_op->port(port);
+    _caster_connect_op->auth(auth);
 
-    // 设置参数
-    op->ip(connect_info["ip"].toString());
-    op->port(connect_info["port"].toInt());
-    op->auth(connect_info["auth"].toString());
+    connect(_caster_connect_op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateCasterRedisCtx,Qt::UniqueConnection);
+    connect(_caster_connect_op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectCasterSuccess,Qt::UniqueConnection);
+    connect(_caster_connect_op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectCasterFailed,Qt::UniqueConnection);
 
-
-    // // 添加事件保存到上下文
-    // _event_map.insert(std::pair(id,op));
-    // 连接op的信号到CasterMonitor的槽函数
-    connect(op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateCasterRedisCtx,Qt::UniqueConnection); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectCasterSuccess,Qt::UniqueConnection); //,Qt::QueuedConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectCasterFailed,Qt::UniqueConnection); //,Qt::QueuedConnection);
-
-    auto UID = generate_UniqueKey();
-    _caster_event_map.insert(std::pair(UID, op));
-
-    return UID;
+    _caster_mgr->postTask(_caster_connect_op);
 }
 
-QString CasterMonitor::addDisconnectCasterOperate()
+void CasterMonitor::disconnectCaster()
 {
     if(!_caster_connected)
     {
         noticeError("Caster Network is already in a disconnected state!");
-        return "";
+        return;
     }
 
-    auto UID = generate_UniqueKey();
-
     auto op = std::make_shared<EventDisconnectRedis>();
-    op->id(UID);
     op->set_redis_ctx(_caster_mgr->redisCtx());
-
-    auto id= _caster_mgr->postTask(op);
-    _caster_event_map.insert(std::pair(id,op));
-    return id;
+    _caster_mgr->postTask(op);
 }
 
-QVariantMap CasterMonitor::genConnectAuthTemp()
-{
-    QVariantMap item;
-    item["type"] = "ConnectAuth_Op";
-
-    item["solution_UID"] = "";
-    item["output_path"] = "";
-    item["output_format"] = 0;
-
-    return item;
-}
-
-QString CasterMonitor::addConnectAuthOperate(QVariantMap connect_info)
+void CasterMonitor::connectAuth(const QString &ip, int port, const QString &auth)
 {
     if(_auth_connected)
     {
         noticeError("Auth Network is already in a connected state!");
-        return "";
+        return;
     }
 
-    // 创建一个处理任务
-    auto op = std::make_shared<EventConnectRedis>();
+    _auth_connect_op = std::make_shared<EventConnectRedis>();
+    _auth_connect_op->ip(ip);
+    _auth_connect_op->port(port);
+    _auth_connect_op->auth(auth);
 
-    // 设置参数
-    op->ip(connect_info["ip"].toString());
-    op->port(connect_info["port"].toInt());
-    op->auth(connect_info["auth"].toString());
+    connect(_auth_connect_op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateAuthRedisCtx,Qt::UniqueConnection);
+    connect(_auth_connect_op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectAuthSuccess,Qt::UniqueConnection);
+    connect(_auth_connect_op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectAuthFailed,Qt::UniqueConnection);
 
-
-    // // 添加事件保存到上下文
-    // _event_map.insert(std::pair(id,op));
-    // 连接op的信号到CasterMonitor的槽函数
-    connect(op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateAuthRedisCtx,Qt::UniqueConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectAuthSuccess,Qt::UniqueConnection);
-    connect(op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectAuthFailed,Qt::UniqueConnection);
-
-
-    auto UID = generate_UniqueKey();
-    _auth_event_map.insert(std::pair(UID, op));
-
-    return UID;
+    _auth_mgr->postTask(_auth_connect_op);
 }
 
-QString CasterMonitor::addDisconnectAuthOperate()
+void CasterMonitor::disconnectAuth()
 {
     if(!_auth_connected)
     {
         noticeError("Auth Network is already in a disconnected state!");
-        return "";
+        return;
     }
-
-    auto UID = generate_UniqueKey();
 
     auto op = std::make_shared<EventDisconnectRedis>();
-    op->id(UID);
     op->set_redis_ctx(_auth_mgr->redisCtx());
-
-    auto id= _auth_mgr->postTask(op);
-    _auth_event_map.insert(std::pair(id,op));
-    return id;
-}
-
-QString CasterMonitor::addRefreshNodeOperate()
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventUpdateNodeData>();
-
-    // 设置对象属性
-    op->id(UID);
-
-    // 连接信号和槽
-    connect(op.get(),&EventUpdateServerData::operateFinished,this,&CasterMonitor::onUpdateNodeMap);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addRefreshServerOperate()
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventUpdateServerData>();
-
-    // 设置对象属性
-    op->id(UID);
-
-    // 连接信号和槽
-    connect(op.get(),&EventUpdateServerData::operateFinished,this,&CasterMonitor::onUpdataServerMap);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addRefreshClientOperate()
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventUpdateClientData>();
-
-    // 设置对象属性
-    op->id(UID);
-
-    // 连接信号和槽
-    connect(op.get(),&EventUpdateClientData::operateFinished,this,&CasterMonitor::onUpdataClientMap);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addRefreshAccountOperate()
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventUpdateAccountData>();
-
-    // 设置对象属性
-    op->id(UID);
-
-    // 连接信号和槽
-    connect(op.get(),&EventUpdateAccountData::operateFinished,this,&CasterMonitor::onUpdateAccountMap);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addRefreshRelayPullOperate()
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventUpdateRelayPullData>();
-
-    // 设置对象属性
-    op->id(UID);
-
-    // 连接信号和槽
-    connect(op.get(),&EventUpdateRelayPullData::updateListFinished,this,&CasterMonitor::onUpdatePullListMap);
-    connect(op.get(),&EventUpdateRelayPullData::updateStatFinished,this,&CasterMonitor::onUpdatePullStatMap);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addRefreshRelayPushOperate()
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventUpdateRelayPushData>();
-
-    // 设置对象属性
-    op->id(UID);
-
-    // 连接信号和槽
-    connect(op.get(),&EventUpdateRelayPushData::updateListFinished,this,&CasterMonitor::onUpdatePushListMap);
-    connect(op.get(),&EventUpdateRelayPushData::updateStatFinished,this,&CasterMonitor::onUpdatePushStatMap);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-QString CasterMonitor::addRefreshAlisaRuleOperate()
-{
-    auto UID = generate_UniqueKey();
-    // 创建对象
-    auto op = std::make_shared<EventUpdateAliasRuleData>();
-
-    // 设置对象属性
-    op->id(UID);
-
-    // 连接信号和槽
-    connect(op.get(),&EventUpdateAliasRuleData::operateFinished,this,&CasterMonitor::onUpdateAliasMap);
-
-    // 添加到MAP中，等待任务执行
-    _caster_redis_map.insert(std::pair(UID,op));
-    return UID;
-}
-
-
-QString CasterMonitor::excuteOperate(QString op_uid)
-{
-    if(_caster_event_map.find(op_uid)!=_caster_event_map.end())
-    {
-        return _caster_mgr->postTask(_caster_event_map.find(op_uid)->second);
-    }
-    if(_caster_redis_map.find(op_uid)!=_caster_redis_map.end())
-    {
-        return _caster_mgr->postRedisTask(_caster_redis_map.find(op_uid)->second);
-    }
-    if(_auth_event_map.find(op_uid)!=_auth_event_map.end())
-    {
-        return _auth_mgr->postTask(_auth_event_map.find(op_uid)->second);
-    }
-    if(_auth_redis_map.find(op_uid)!=_auth_redis_map.end())
-    {
-        return _auth_mgr->postRedisTask(_auth_redis_map.find(op_uid)->second);
-    }
-
-    return QString();
+    _auth_mgr->postTask(op);
 }
 
 void CasterMonitor::onConnectCasterSuccess()
 {
+    // 直接从连接操作对象读取 redisAsyncContext*，
+    // 避免依赖 updateRedisCtx(redisAsyncContext*) 的跨线程 QueuedConnection
+    // （该信号的指针参数可能因未注册 metatype 而被静默丢弃）
+    if (_caster_connect_op && _caster_connect_op->_redis_context) {
+        _caster_mgr->setRedisCtx(_caster_connect_op->_redis_context);
+    }
+    _caster_connected = true;
     emit connectCasterSuccess();
 }
 
@@ -403,6 +153,10 @@ void CasterMonitor::onConnectCasterFailed()
 
 void CasterMonitor::onConnectAuthSuccess()
 {
+    if (_auth_connect_op && _auth_connect_op->_redis_context) {
+        _auth_mgr->setRedisCtx(_auth_connect_op->_redis_context);
+    }
+    _auth_connected = true;
     emit connectAuthSuccess();
 }
 
@@ -428,171 +182,105 @@ void CasterMonitor::onUpdateAuthRedisCtx(redisAsyncContext *ctx)
     _auth_mgr->setRedisCtx(ctx);
 }
 
-void CasterMonitor::onUpdateNodeMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_caster_nodes.syncFromRedis(info);
-    emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onUpdataServerMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_ntrip_servers.syncFromRedis(info);
-
-    // 额外维护挂载点-Connect_key映射表
-    _ntrip_serverUID_map.clear();
-    m_ntrip_servers.forEach([this](const QString &key, const std::shared_ptr<ntrip_server> &obj) {
-        QString alias_mpt = QString::fromStdString(obj->alias_mpt());
-        _ntrip_serverUID_map[alias_mpt] = key;
-    });
-
-    emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onUpdataClientMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_ntrip_clients.syncFromRedis(info);
-
-    // 补充计算与基站的距离
-    m_ntrip_clients.forEach([this](const QString &key, const std::shared_ptr<ntrip_client> &client) {
-        auto server = get_ntrip_server_by_mpt(QString::fromStdString(client->alias_mpt()));
-        if (server->position_update_time() != 0 && client->position_update_time() != 0)
-        {
-            client->distance(util_dist3d(
-                server->ecef_x(), server->ecef_y(), server->ecef_z(),
-                client->ecef_x(), client->ecef_y(), client->ecef_z()));
-        }
-    });
-
-    emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onUpdateAccountMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_user_accounts.syncFromRedis(info);
-    emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onUpdatePullListMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_relay_pull_items.syncFromRedis(info);
-    // emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onUpdatePullStatMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_relay_pull_stats.syncFromRedis(info);
-    emit operateFinished(OP_UID,success,info);
-}
-
-
-void CasterMonitor::onUpdatePushListMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_relay_push_items.syncFromRedis(info);
-    // emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onUpdatePushStatMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_relay_push_stats.syncFromRedis(info);
-    emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onUpdateAliasMap(QString OP_UID, bool success, QVariantMap info)
-{
-    m_alias_rules.syncFromRedis(info);
-    emit operateFinished(OP_UID,success,info);
-}
-
-void CasterMonitor::onOperateFinished(QString OP_UID, bool success, QVariantMap info)
-{
-    emit operateFinished(OP_UID,success,info);
-}
-
 void CasterMonitor::onTimeout()
 {
 
 }
 
-std::shared_ptr<ntrip_server> CasterMonitor::get_ntrip_server_by_mpt(QString Mpt)
-{
-    auto map_item= _ntrip_serverUID_map.find(Mpt);
-    if(map_item==_ntrip_serverUID_map.end())
-    {
-        return std::make_shared<ntrip_server>();
-    }
-
-    auto ptr = m_ntrip_servers.getObjectPtr(map_item->second);
-    return ptr ? ptr : std::make_shared<ntrip_server>();
-}
-
 void CasterMonitor::onAccountRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onAccountActivesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onAccessGroupsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onAccessItemsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onSourceRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onSourceStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    // 重建挂载点 → Connect_Key 映射表
+    if (success && (type == HashOperateType::GET_ALL || type == HashOperateType::GET))
+    {
+        _ntrip_serverUID_map.clear();
+        SourceStates.forEach([this](const std::string &key, const std::shared_ptr<ServerState> &obj) {
+            QString alias_mpt = QString::fromStdString(obj->alias_mpt());
+            _ntrip_serverUID_map[alias_mpt] = QString::fromStdString(key);
+        });
+    }
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onClientStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    // 计算客户端与基站的距离
+    if (success && (type == HashOperateType::GET_ALL || type == HashOperateType::GET))
+    {
+        ClientStates.forEach([this](const std::string &key, const std::shared_ptr<ClientState> &client) {
+            auto map_item = _ntrip_serverUID_map.find(QString::fromStdString(client->alias_mpt()));
+            if (map_item != _ntrip_serverUID_map.end())
+            {
+                auto server = SourceStates.getLocalObject(map_item->second.toStdString());
+                if (server && server->position_update_time() != 0 && client->position_update_time() != 0)
+                {
+                    client->set_distance(util_dist3d(
+                        server->ecef_x(), server->ecef_y(), server->ecef_z(),
+                        client->ecef_x(), client->ecef_y(), client->ecef_z()));
+                }
+            }
+        });
+    }
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onStreamStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onAliasRulesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onPullRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onPullStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onPushRecordsUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onPushStatesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 void CasterMonitor::onCasterNodesUpdated(HashOperateType type, QString OP_UID, bool success, QVariantMap info)
 {
-
+    emit operateFinished(OP_UID, success, info);
 }
 
 QString CasterMonitor::generate_UniqueKey(int key_length)

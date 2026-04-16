@@ -418,19 +418,7 @@ ContentPage {
 
                     onClicked:
                     {
-
-                        //设置IP 端口 和密码
-
-                        //调用接口
-
-                        var info= {};
-
-                        info.ip  = root.login_ip
-                        info.port= root.login_port
-                        info.auth=  root.login_auth
-
-                        var loginOpUid= CasterMonitor.addConnectCasterOperate(info)
-                        CasterMonitor.excuteOperate( loginOpUid)
+                        CasterMonitor.connectCaster(root.login_ip, root.login_port, root.login_auth)
                     }
 
                 }

@@ -8,7 +8,7 @@
 #include "Caster_Core.h"
 #include "Auth_Verify.h"
 
-#include "Compontent/connect_bev.h"
+#include "Component/connect_bev.h"
 
 #include "google/protobuf/json/json.h"
 #include "proto_json.h"
@@ -26,65 +26,68 @@ using namespace caster::service;
 // #define SOFTWARE_VERSION "0.0.2"
 
 // 挂载点类型
-
-#define MOUNT_TYPE_COMMON 1
-#define MOUNT_TYPE_NEAREST 2
-#define MOUNT_TYPE_RELAY 3
-#define MOUNT_TYPE_VIRTUAL 4
+enum class MountType : int {
+    Common  = 1,
+    Nearest = 2,
+    Relay   = 3,
+    Virtual = 4,
+};
 
 // 开关
-#define ENABLE_SYS_NTRIP_RELAY 101
-#define DISABLE_SYS_NTRIP_RELAY 102
-#define ENABLE_TRD_NTRIP_RELAY 103
-#define DISABLE_TRD_NTRIP_RELAY 104
-#define ENABLE_HTTP_SERVER 105
-#define DISABLE_HTTP_SERVER 106
+enum class SwitchType : int {
+    EnableSysNtripRelay  = 101,
+    DisableSysNtripRelay = 102,
+    EnableTrdNtripRelay  = 103,
+    DisableTrdNtripRelay = 104,
+    EnableHttpServer     = 105,
+    DisableHttpServer    = 106,
+};
 
 // 核心部件操作请求
 
 // 一般ntrip请求
-#define REQUEST_SOURCE_LOGIN 301 // 获取源列表请求
-#define CLOSE_NTRIP_SOURCE 302
-
-#define REQUEST_CLIENT_LOGIN 303 // 移动站
-#define CLOSE_NTRIP_CLIENT 307
-
-#define REQUEST_NEAREST_LOGIN 304 // 最近挂载点
-#define CLOSE_NEAREST_CLIENT 305
-
-#define REQUEST_SERVER_LOGIN 308 // 基站
-#define CLOSE_NTRIP_SERVER 309
-
-#define REQUEST_ALIAS_LOGIN 304 // 最近挂载点
-#define CLOSE_ALIAS_CLIENT 305
+enum class NtripRequestType : int {
+    SourceLogin  = 301,
+    CloseSource  = 302,
+    ClientLogin  = 303,
+    NearestLogin = 304,
+    CloseNearest = 305,
+    CloseClient  = 307,
+    ServerLogin  = 308,
+    CloseServer  = 309,
+    AliasLogin   = 304, // 与 NearestLogin 共用
+    CloseAlias   = 305, // 与 CloseNearest 共用
+};
 
 // RELAY请求
-#define REQUEST_RELAY_PULL 601 // 数据拉取
-#define STOP_RELAY_PULL 602    // 停止数据拉取
-#define UPDATE_RELAY_PULL 603  // 停止数据拉取
-#define CLOSE_RELAY_PULL 604   // 删除这个任务
-
-#define REQUEST_RELAY_PUSH 701 // 数据拉取
-#define STOP_RELAY_PUSH 702    // 停止数据拉取
-#define UPDATE_RELAY_PUSH 703  // 停止数据拉取
-#define CLOSE_RELAY_PUSH 704   // 删除这个任务
-
-// 连接操作请求
-// #define CLOSE_NTRIP_SERVER 307
+enum class RelayRequestType : int {
+    PullRequest = 601,
+    PullStop    = 602,
+    PullUpdate  = 603,
+    PullClose   = 604,
+    PushRequest = 701,
+    PushStop    = 702,
+    PushUpdate  = 703,
+    PushClose   = 704,
+};
 
 // relay服务相关
-#define CREATE_RELAY_SERVER 402
-#define CLOSE_RELAY_SERVER 403
-#define ADD_RELAY_MOUNT_TO_LISTENER 404
-#define CLOSE_RELAY_REQ_CONNECT 405
-#define ADD_RELAY_MOUNT_TO_SOURCELIST 406
+enum class RelayServiceType : int {
+    CreateServer          = 402,
+    CloseServer           = 403,
+    AddMountToListener    = 404,
+    CloseReqConnect       = 405,
+    AddMountToSourceList  = 406,
+};
 
 // 验证相关
-#define MOUNT_NOT_ONLINE_CLOSE_CONNCET 501
-#define MOUNT_ALREADY_ONLINE_CLOSE_CONNCET 502
-#define NO_IDEL_RELAY_ACCOUNT_CLOSE_CONNCET 503
-#define CREATE_RELAY_CONNECT_FAIL_CLOSE_CONNCET 504
-#define ALREADY_SEND_SOURCELIST_CLOSE_CONNCET 505
+enum class VerifyCloseType : int {
+    MountNotOnline         = 501,
+    MountAlreadyOnline     = 502,
+    NoIdleRelayAccount     = 503,
+    CreateRelayConnectFail = 504,
+    AlreadySentSourceList  = 505,
+};
 
 template <typename T>
 class Carrier
@@ -101,7 +104,7 @@ public:
         return 0;
     }
 
-    int destoryObject(ConnectInfo req)
+    int destroyObject(ConnectInfo req)
     {
         auto iter = m_obj_map.find(req.connect_key());
         if (iter != m_obj_map.end())
@@ -122,8 +125,8 @@ public:
         {
         case OPERATE_TYPE_CREATE:
             return createObject(req);
-        case OPERATE_TYPE_DESTORY:
-            return destoryObject(req);
+        case OPERATE_TYPE_DESTROY:
+            return destroyObject(req);
         case OPERATE_TYPE_PAUSE:
             /* code */
             break;

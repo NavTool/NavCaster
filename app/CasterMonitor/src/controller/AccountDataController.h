@@ -28,10 +28,9 @@ public:
 
         m_data.clear();
 
-        CasterMonitor::getInstance()->m_user_accounts.forEach(
-            [this](const QString &key, const std::shared_ptr<user_account> &obj) {
-                QVariantMap data = JsonToQVariantMap(obj->info());
-                m_data.append(data);
+        CasterMonitor::getInstance()->AccountRecords.forEach(
+            [this](const std::string &key, const std::shared_ptr<AccountRecord> &obj) {
+                m_data.append(PrototoQml(*obj));
             });
 
         Q_EMIT loadDataSuccess();

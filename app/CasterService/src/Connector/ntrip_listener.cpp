@@ -6,6 +6,8 @@
 #include <arpa/inet.h>
 #endif
 
+#include <stdexcept>
+
 #define __class__ "ntrip_listener"
 
 #include "nlohmann/json.hpp"
@@ -196,7 +198,7 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
 
     try
     {
-        if (header == NULL | header_len > 255 | header_len < 9) // HTTP请求最短长度也要15 "GET / HTTP/1.0"  NTRIP1.0请求最短长度为9  "SOURCE  1"
+        if (header == NULL || header_len > 255 || header_len < 9) // HTTP请求最短长度也要15 "GET / HTTP/1.0"  NTRIP1.0请求最短长度为9  "SOURCE  1"
         {
             size_t evbuf_len = evbuffer_get_length(evbuf);
             spdlog::warn("[{}:{}]: error header, from: [ip: {} port: {}] ,data length: {}", __class__, __func__, ip, port, evbuf_len + header_len);
@@ -210,7 +212,7 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
                 spdlog::warn("[{}:{}]: error header, header is length error, header length: {} ", __class__, __func__, header_len);
             }
 
-            throw 1;
+            throw std::runtime_error("invalid header");
         }
 
         spdlog::info("[{}]: receive request header: [{}], from: [ip: {} port: {}]", __class__, header, ip, port);
@@ -231,18 +233,18 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
 
             if (ele[3][0] != '\0') // 处理四个参数的情况 SOURCE password MPT HTTP/1.1，只有一种报文格式符合
             {
-                if (strcmp(ele[3], "HTTP/1.1") == 0 | strcmp(ele[3], "HTTP/1.0") == 0)
+                if (strcmp(ele[3], "HTTP/1.1") == 0 || strcmp(ele[3], "HTTP/1.0") == 0)
                 {
                     Process_SOURCE_Request(bev, connect_key, ele[2], ele[1]);
                 }
                 else
                 {
-                    throw 1;
+                    throw std::runtime_error("unsupported SOURCE format");
                 }
             }
             else if (ele[2][0] != '\0') // 处理三个参数的情况
             {
-                if (strcmp(ele[2], "HTTP/1.1") == 0 | strcmp(ele[2], "HTTP/1.0") == 0) //  SOURCE  MTP HTTP/1.1
+                if (strcmp(ele[2], "HTTP/1.1") == 0 || strcmp(ele[2], "HTTP/1.0") == 0) //  SOURCE  MTP HTTP/1.1
                 {
                     Process_SOURCE_Request(bev, connect_key, ele[1], "");
                 }
@@ -253,9 +255,9 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
             }
             else if (ele[1][0] != '\0') // 处理两个参数的情况  SOURCE  MPT   SOURCE  HTTP/1.1
             {
-                if (strcmp(ele[1], "HTTP/1.1") == 0 | strcmp(ele[1], "HTTP/1.0") == 0) //  SOURCE  HTTP/1.1   但是对于其他形式比如 HTTP/2.0什么的，那就过滤不掉了
+                if (strcmp(ele[1], "HTTP/1.1") == 0 || strcmp(ele[1], "HTTP/1.0") == 0) //  SOURCE  HTTP/1.1   但是对于其他形式比如 HTTP/2.0什么的，那就过滤不掉了
                 {
-                    throw 1;
+                    throw std::runtime_error("SOURCE with only HTTP version");
                 }
                 else //  SOURCE  MPT
                 {
@@ -265,10 +267,10 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
             else // 处理一个参数的情况  如：SOURCE后面跟了很多个空格
             {
                 // 不支持的方法
-                throw 1;
+                throw std::runtime_error("SOURCE with no mountpoint");
             }
         }
-        else if (strcmp(ele[2], "HTTP/1.1") == 0 | strcmp(ele[2], "HTTP/1.0") == 0) // 判断第三个请求头是否是HTTP/1.X,这样可以过滤请求的url为空的情况
+        else if (strcmp(ele[2], "HTTP/1.1") == 0 || strcmp(ele[2], "HTTP/1.0") == 0) // 判断第三个请求头是否是HTTP/1.X,这样可以过滤请求的url为空的情况
         {
             if (strcmp(ele[0], "GET") == 0)
             {
@@ -281,18 +283,18 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
             else
             {
                 // 不支持的方法
-                throw 1;
+                throw std::runtime_error("unsupported HTTP method");
             }
         }
         else
         {
             // 不支持的方法
-            throw 1;
+            throw std::runtime_error("unsupported request format");
         }
     }
-    catch (int i)
+    catch (const std::runtime_error &e)
     {
-        spdlog::warn("[{}:{}]: process error request, from: [ip: {} port: {}] ", __class__, __func__, ip, port);
+        spdlog::warn("[{}:{}]: process error request: {}, from: [ip: {} port: {}] ", __class__, __func__, e.what(), ip, port);
         Process_Unsupport_Request(bev, connect_key);
     }
     catch (std::exception &e)

@@ -215,7 +215,7 @@ Item{
 
         }
 
-        function onDisconnectCaster()
+        function onCasterDisconnected()
         {
 
         }

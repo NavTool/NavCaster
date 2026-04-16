@@ -124,6 +124,9 @@ namespace CASTER
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
 
+    // 更新基站源列表解析信息(根据RTCM数据流自动解析出的报文类型和卫星系统)
+    int Set_Base_Source_Info(const char *mount_point, const char *connect_key, const std::string &format_details, const std::string &nav_system);
+
     // 将移动站注册到Caster中（Client上线的时候主动调用）
     int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
     // 将移动站从Caster中注销（Client下线的时候主动调用）

@@ -23,26 +23,30 @@ public:
             {
                 Q_EMIT loadDataStart();
 
-                m_data.clear();
+                QList<QVariantMap> result;
 
-                auto data_map = CasterMonitor::getInstance()->m_relay_pull_items.getSnapshot();
-                auto stat_map = CasterMonitor::getInstance()->m_relay_pull_stats.getSnapshot();
+                CasterMonitor::getInstance()->PullRecords.forEach(
+                    [&result](const std::string &key, const std::shared_ptr<PullRecord> &obj) {
+                        QVariantMap data = PrototoQml(*obj);
 
-                for(auto &[key, obj] : data_map)
-                {
-                    QVariantMap data = JsonToQVariantMap(obj->info());
+                        auto stat = CasterMonitor::getInstance()->PullStates.getLocalObject(key);
+                        if (stat)
+                        {
+                            auto stat_data = PrototoQml(*stat);
+                            for (auto it = stat_data.begin(); it != stat_data.end(); ++it)
+                            {
+                                if (it.key() != "uid")
+                                    data[it.key()] = it.value();
+                            }
+                        }
 
-                    auto stat_item = stat_map.find(key);
-                    if(stat_item != stat_map.end())
-                    {
-                        data["connect_key"] = stat_item->second->connect_key().c_str();
-                        data["state"] = stat_item->second->state();
-                    }
+                        result.append(data);
+                    });
 
-                    m_data.append(data);
-                }
-
-                Q_EMIT loadDataSuccess();
+                QMetaObject::invokeMethod(this, [this, result = std::move(result)]() {
+                    data(result);
+                    Q_EMIT loadDataSuccess();
+                });
             });
     }
 

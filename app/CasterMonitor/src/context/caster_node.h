@@ -71,7 +71,7 @@ public:
     json info()
     {
         json info;
-        info["UID"] = UID();
+        info["uid"] = UID();
         info["node_name"] = node_name();
         info["set_version"] = set_version();
         info["tag_version"] = tag_version();
@@ -90,7 +90,7 @@ public:
         info["recv_speed"] = recv_speed();
 
 
-        info["connnect_count"] = connnect_count();
+        info["connect_count"] = connnect_count();
         info["server_count"] = server_count();
         info["client_count"] = client_count();
 
@@ -106,7 +106,7 @@ public:
     int setInfo(json info)
     {
 
-        UID(info, "UID");
+        UID(info, "uid");
         node_name(info, "node_name");
         set_version(info, "set_version");
         tag_version(info, "tag_version");
@@ -124,7 +124,7 @@ public:
         recv_total(info, "recv_total");
         recv_speed(info, "recv_speed");
 
-        connnect_count(info, "connnect_count");
+        connnect_count(info, "connect_count");
         server_count(info, "server_count");
         client_count(info, "client_count");
 

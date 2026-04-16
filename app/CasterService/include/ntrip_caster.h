@@ -60,8 +60,8 @@ private:
 
 private:
     // 程序启动和停止
-    int compontent_init();
-    int compontent_stop();
+    int component_init();
+    int component_stop();
 
     int extra_init();
     int extra_stop();

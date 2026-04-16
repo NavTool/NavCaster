@@ -2,7 +2,7 @@
 #include "knt.h"
 #include "base64.h"
 
-std::string build_nrtip_reply(ConnectType type, bool version2, bool chuncked)
+std::string build_nrtip_reply(ConnectType type, bool version2, bool chunked)
 {
     std::string str;
     if (type == CONNECT_TYPE_SERVER)
@@ -13,7 +13,7 @@ std::string build_nrtip_reply(ConnectType type, bool version2, bool chuncked)
             str += fmt::format("Ntrip-Version: Ntrip/2.0\r\n");
             str += fmt::format("Server: Ntrip {}_{}/2.0\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
             str += fmt::format("Date: {}\r\n", util_get_http_date());
-            if (chuncked)
+            if (chunked)
             {
                 str += fmt::format("Transfer-Encoding: chunked\r\n");
             }
@@ -37,7 +37,7 @@ std::string build_nrtip_reply(ConnectType type, bool version2, bool chuncked)
             str += fmt::format("Cache-Control: no-store, no-cache, max-age=0\r\n");
             str += fmt::format("Pragma: no-cache\r\n");
             str += fmt::format("Connection: close\r\n");
-            if (chuncked)
+            if (chunked)
             {
                 str += fmt::format("Transfer-Encoding: chunked\r\n");
             }
@@ -101,7 +101,7 @@ std::string build_ntrip_request(ConnectType type, bool version2, std::string mpt
     return str;
 }
 
-bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &chuncked)
+bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &chunked)
 {
 
     return false;
@@ -157,7 +157,7 @@ int carrier_base::stop()
 
     _events.close();
 
-    _info.set_operate(OPERATE_TYPE_DESTORY);
+    _info.set_operate(OPERATE_TYPE_DESTROY);
     QUEUE::Push(_info);
 
     spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]",
@@ -292,7 +292,7 @@ std::string carrier_base::create_bev(std::string addr, int port)
     return connect_bev::getInstance()->new_bev(addr, port);
 }
 
-int carrier_base::destory_bev(std::string connect_key)
+int carrier_base::destroy_bev(std::string connect_key)
 {
     return connect_bev::getInstance()->del_bev(connect_key);
 }
@@ -386,9 +386,9 @@ int carrier_base::caster_withdraw()
     return 0;
 }
 
-std::vector<uint8_t> carrier_base::read_data(bool chuncked)
+std::vector<uint8_t> carrier_base::read_data(bool chunked)
 {
-    if (chuncked)
+    if (chunked)
     {
         return read_data_from_chunk();
     }
@@ -398,15 +398,19 @@ std::vector<uint8_t> carrier_base::read_data(bool chuncked)
     }
 }
 
-int carrier_base::send_data(const char *data, size_t len, bool chuncked)
+int carrier_base::send_data(const char *data, size_t len, bool chunked)
 {
-    if (chuncked)
+    if (chunked)
     {
         evbuffer_add_printf(_send_evbuf, "%lx\r\n", len);
         evbuffer_add(_send_evbuf, data, len);
+        evbuffer_add(_send_evbuf, "\r\n", 2);
+    }
+    else
+    {
+        evbuffer_add(_send_evbuf, data, len);
     }
 
-    evbuffer_add(_send_evbuf, data, len);
     bufferevent_write_buffer(_bev, _send_evbuf);
 
     return 0;

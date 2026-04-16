@@ -1,4 +1,5 @@
 #include "PerformanceMonitor.h"
+#include "SysUsage.h"
 
 #include <QQuickWindow>
 
@@ -32,4 +33,7 @@ int PerformanceMonitor::setUpdateIntv(int ms)
 
 void PerformanceMonitor::updateUsage()
 {
+    auto *sys = SysUsage::getInstance();
+    cpu(static_cast<int>(sys->getProcessCPU()));
+    memory(static_cast<int>(sys->getProcessMemory() / (1024 * 1024))); // bytes -> MB
 }

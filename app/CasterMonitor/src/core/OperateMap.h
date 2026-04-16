@@ -11,8 +11,8 @@ public:
 
     static Operaters *getInstance()
     {
-        static Operaters *instance = new Operaters();
-        return instance;
+        static Operaters instance;
+        return &instance;
     }
 
     std::string addEventOperate(std::shared_ptr<EventOperationBase> op)

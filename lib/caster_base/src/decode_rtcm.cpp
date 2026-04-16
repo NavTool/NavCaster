@@ -1,5 +1,7 @@
 #include "decode_rtcm.h"
 #include "knt.h"
+#include <algorithm>
+#include <cmath>
 
 static uint32_t calCRC24(const uint8_t *buf, size_t size)
 {
@@ -245,6 +247,48 @@ int decode_rtcm::get_message(size_t msg_length)
 
 int decode_rtcm::decode_message(int id)
 {
+    // 记录报文统计
+    auto now = util_get_now_second();
+    auto &stat = _msg_stats[id];
+    if (stat.count == 0)
+        stat.first_time = now;
+    stat.last_time = now;
+    stat.count++;
+
+    // 滑动窗口计算播发间隔
+    stat.window_count++;
+    if (stat.window_count == 1)
+    {
+        stat.window_start = now;
+    }
+    else
+    {
+        auto elapsed = now - stat.window_start;
+        if (elapsed >= 300) // 300秒窗口
+        {
+            stat.interval = static_cast<int>(std::round(static_cast<double>(elapsed) / (stat.window_count - 1)));
+            if (stat.interval < 1) stat.interval = 1;
+            // 重置窗口
+            stat.window_count = 1;
+            stat.window_start = now;
+        }
+    }
+
+    // 根据MSM报文推断卫星系统
+    if (id >= 1071 && id <= 1077)
+        _gps_indicator = true;
+    else if (id >= 1081 && id <= 1087)
+        _glo_indicator = true;
+    else if (id >= 1091 && id <= 1097)
+        _gal_indicator = true;
+    else if (id >= 1101 && id <= 1107)
+        _sbas_indicator = true;
+    else if (id >= 1111 && id <= 1117)
+        _qzss_indicator = true;
+    else if (id >= 1121 && id <= 1127)
+        _bds_indicator = true;
+    else if (id >= 1131 && id <= 1137)
+        _navic_indicator = true;
 
     if ((id >= 1057 && id <= 1068) ||
         (id >= 1240 && id <= 1270) ||
@@ -321,6 +365,11 @@ int decode_rtcm::decode_M1005()
     util_getbitu_64_auto(_msg, ctx, 2);
     double ecef_z = util_getbits_64_auto(_msg, ctx, 38) * 0.0001;
 
+    // 更新卫星系统标志
+    if (GPS_indicator) _gps_indicator = true;
+    if (GLO_indicator) _glo_indicator = true;
+    if (GAL_indicator) _gal_indicator = true;
+
     _position_update_time=util_get_now_second();
     _has_position = true;
     _ecef_x = ecef_x;
@@ -350,6 +399,11 @@ int decode_rtcm::decode_M1006()
     double ecef_z = util_getbits_64_auto(_msg, ctx, 38) * 0.0001;
     double ant_h = util_getbitu_64_auto(_msg, ctx, 16) * 0.0001;
 
+    // 更新卫星系统标志
+    if (GPS_indicator) _gps_indicator = true;
+    if (GLO_indicator) _glo_indicator = true;
+    if (GAL_indicator) _gal_indicator = true;
+
     _position_update_time=util_get_now_second();
     _has_position = true;
     _ecef_x = ecef_x;
@@ -378,4 +432,38 @@ int decode_rtcm::decode_M1032()
     _ecef_z = ecef_z;
 
     return 0;
+}
+
+std::string decode_rtcm::get_format_details() const
+{
+    // 按报文ID排序输出，括号内为播发间隔(秒/条)，如 "1005(10),1074(1)" 表示1005每10秒一条，1074每秒一条
+    std::vector<std::pair<int, int>> sorted_msgs;
+    for (const auto &item : _msg_stats)
+    {
+        sorted_msgs.emplace_back(item.first, item.second.interval);
+    }
+    std::sort(sorted_msgs.begin(), sorted_msgs.end(),
+              [](const auto &a, const auto &b) { return a.first < b.first; });
+
+    std::string result;
+    for (const auto &item : sorted_msgs)
+    {
+        if (!result.empty())
+            result += ",";
+        result += std::to_string(item.first) + "(" + std::to_string(item.second) + ")";
+    }
+    return result;
+}
+
+std::string decode_rtcm::get_nav_system() const
+{
+    std::string result;
+    if (_gps_indicator) result += "GPS";
+    if (_glo_indicator) { if (!result.empty()) result += "+"; result += "GLO"; }
+    if (_gal_indicator) { if (!result.empty()) result += "+"; result += "GAL"; }
+    if (_bds_indicator) { if (!result.empty()) result += "+"; result += "BDS"; }
+    if (_qzss_indicator) { if (!result.empty()) result += "+"; result += "QZSS"; }
+    if (_sbas_indicator) { if (!result.empty()) result += "+"; result += "SBAS"; }
+    if (_navic_indicator) { if (!result.empty()) result += "+"; result += "NavIC"; }
+    return result;
 }

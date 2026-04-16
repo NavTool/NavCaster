@@ -422,8 +422,15 @@ int caster_internal::set_connect_delay_info(const char *connect_key, uint64_t de
 
 std::string caster_internal::get_source_list_text()
 {
+    // 合并自动解析和手动设置的源列表，手动设置的优先级更高
+    std::unordered_map<std::string, source_record> merged_map = _source_decode_map;
+    for (const auto &item : _source_record_map)
+    {
+        merged_map.insert_or_assign(item.first, item.second); // 手动设置覆盖自动解析
+    }
+
     std::string str;
-    for (auto iter : _source_decode_map)
+    for (const auto &iter : merged_map)
     {
         str += iter.second.toSourceItem();
     }
@@ -452,6 +459,17 @@ int caster_internal::set_base_coord_info(const char *mount_point, const char *co
 
 int caster_internal::Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info)
 {
+    return 0;
+}
+
+int caster_internal::set_base_source_info(const char *mount_point, const char *connect_key, const std::string &format_details, const std::string &nav_system)
+{
+    auto item = _server_status_map.find(connect_key);
+    if (item == _server_status_map.end())
+    {
+        return 1;
+    }
+    item->second.set_source_info(format_details, nav_system);
     return 0;
 }
 
@@ -1075,7 +1093,10 @@ int caster_internal::upload_record_item()
     for (auto &str : _server_status_map)
     {
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toString().c_str());
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " SOURCE_DECODE_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.first.c_str(), str.second.toSource().c_str());
+        if (!str.second._login_mpt.empty())
+        {
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " SOURCE_DECODE_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), str.second._login_mpt.c_str(), str.second.toSource().c_str());
+        }
     }
 
     // 用户状态   ConnectKey/用户状态
@@ -1131,8 +1152,8 @@ int caster_internal::download_active_item()
 {
     redisAsyncCommand(_pub_context, Redis_Update_Active_Base_Callback, this, "HGETALL " MPT_ONLINE_LIST);
     redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL " USR_ONLINE_LIST);
-    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL " USR_ONLINE_LIST);
-    // redisAsyncCommand(_pub_context, Redis_Update_Active_Rover_Callback, this, "HGETALL " USR_ONLINE_LIST);
+    redisAsyncCommand(_pub_context, Redis_Update_Decode_Source_Callback, this, "HGETALL " SOURCE_DECODE_LIST);
+    redisAsyncCommand(_pub_context, Redis_Update_Record_Source_Callback, this, "HGETALL " SOURCE_RECORD_LIST);
 
     redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_server_connection_count, "HLEN " MPT_STATUS_LIST);
     redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_client_connection_count, "HLEN " USR_STATUS_LIST);
@@ -1292,6 +1313,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     {
         // 创建一条新的连接记录
         server_status conn(connect_key);
+        conn.set_info(channel, static_cast<int>(type), user_name);
 
         _server_status_map.insert(std::pair<std::string, server_status>(connect_key, conn));
 
@@ -2297,7 +2319,9 @@ void caster_internal::Redis_Update_Decode_Source_Callback(redisAsyncContext *c, 
     {
         auto field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
-        svr->_source_decode_map.insert(std::pair<std::string, std::string>(field, value));
+        source_record record(field);
+        record.fromString(value);
+        svr->_source_decode_map.insert(std::pair<std::string, source_record>(field, record));
     }
 }
 
@@ -2334,7 +2358,9 @@ void caster_internal::Redis_Update_Record_Source_Callback(redisAsyncContext *c, 
     {
         auto field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
-        svr->_source_record_map.insert(std::pair<std::string, std::string>(field, value));
+        source_record record(field);
+        record.fromString(value);
+        svr->_source_record_map.insert(std::pair<std::string, source_record>(field, record));
     }
 }
 

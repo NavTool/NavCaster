@@ -104,26 +104,15 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
 
-    QVariantMap redis_info;
-
-    redis_info["ip"]="127.0.0.1";
-    redis_info["port"]=16379;
-    redis_info["auth"]="koro_redis";
-
-    QString op_uid=CasterMonitor::getInstance()->addConnectCasterOperate(redis_info);
-
-
-    CasterMonitor::getInstance()->excuteOperate(op_uid);
-
-
+    CasterMonitor::getInstance()->connectCaster("127.0.0.1", 16379, "koro_redis");
 
 
     QObject::connect(CasterMonitor::getInstance(),
                      &CasterMonitor::connectCasterSuccess,
                      CasterMonitor::getInstance(),
                      [=](){
-                         QString   op_uid=  CasterMonitor::getInstance()->addRefreshServerOperate();
-                         CasterMonitor::getInstance()->excuteOperate(op_uid); }
+                         // TODO: refresh via new HashContext API
+                     }
                      );
 
 

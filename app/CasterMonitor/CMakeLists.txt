@@ -42,7 +42,7 @@ endforeach()
 
 set(QML_SINGLETONS
     qml/Global.qml
-    qml/Mointor.qml
+    qml/Monitor.qml
     qml/Util.qml
 )
 
@@ -186,7 +186,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/context
     ${CMAKE_CURRENT_SOURCE_DIR}/src/controller
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/excute
     ${CMAKE_BINARY_DIR}
 )
 

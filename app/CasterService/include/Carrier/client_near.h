@@ -33,7 +33,7 @@ public:
         unsubscribe();
         caster_withdraw();
 
-        _info.set_operate(OPERATE_TYPE_DESTORY);
+        _info.set_operate(OPERATE_TYPE_DESTROY);
         QUEUE::Push(_info);
 
         spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());

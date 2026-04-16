@@ -45,7 +45,7 @@ Item {
 
     Component.onCompleted: {
 
-        account_info = CasterMonitor.genAccountTemp()
+        account_info = CasterMonitor.generateAccountRecordTemp()
 
         console.log(Util.safeStringify(account_info))
 
@@ -94,30 +94,30 @@ Item {
 
                     // 填充用户信息
 
-                    account_info.UID            = root.access===4 ? root.password:root.account
+                    account_info.uid            = root.access===4 ? root.password:root.account
                     account_info.account        = root.access===4 ? root.password:root.account
                     account_info.password       = root.password
 
                     account_info.type           = root.account_type
                     account_info.state          = root.account_state
 
-                    account_info.access         = root.access
-                    account_info.access_limit   = root.access_limit
-                    account_info.access_group   = root.access_group
+                    account_info.active         = root.access
+                    account_info.connection_limit   = root.access_limit
+                    account_info.group_uid   = root.access_group
 
-                    account_info.time_valid     = root.account_type  === 2 ? root.time_valid : 0
-                    account_info.time_limit     = root.account_type  === 3 ? root.time_limit : 0
-                    account_info.time_active    = root.account_state === 1 ? utc : 0
-                    account_info.time_expired   = root.time_expired
-                    account_info.time_register  = utc
+                    account_info.available_days     = root.account_type  === 2 ? root.time_valid : 0
+                    account_info.available_seconds     = root.account_type  === 3 ? root.time_limit : 0
+                    account_info.active_time    = root.account_state === 1 ? utc : 0
+                    account_info.expire_time   = root.time_expired
+                    account_info.register_time  = utc
 
                     account_info.contact_name   = root.contact_name
                     account_info.contact_person = root.contact_person
                     account_info.contact_info   = root.contact_info
 
-                    account_info.remarks        = root.remarks
+                    account_info.remark        = root.remarks
 
-                    account_info.time_modified  = utc
+                    account_info.update_time  = utc
 
                     console.log(Util.safeStringify(account_info))
 
@@ -142,12 +142,12 @@ Item {
                         confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("非永久账号需要输入账号过期/失效日期，请检查！"))
                         return
                     }
-                    if(account_info.type===2 && account_info.time_time_valid <= 0)
+                    if(account_info.type===2 && account_info.available_days <= 0)
                     {
                         confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("期限账号输入有效天数异常，请检查！"))
                         return
                     }
-                    if(account_info.type===3 && account_info.time_limit <= 0)
+                    if(account_info.type===3 && account_info.available_seconds <= 0)
                     {
                         confirmationDialog.open_with_msg(qsTr("信息异常"),qsTr("期限账号输入可用时长异常，请检查！"))
                         return
@@ -160,9 +160,7 @@ Item {
                         return
                     }
 
-                    root.opUid=CasterMonitor.addAddAccountOperate(account_info);
-
-                    CasterMonitor.excuteOperate(root.opUid)
+                    root.opUid=CasterMonitor.addAccountRecord(account_info.uid, account_info);
 
 
                     // root.task_UID=  GNSS_API.createConvRinexTask(data)

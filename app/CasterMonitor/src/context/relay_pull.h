@@ -52,7 +52,7 @@ public:
     json info()
     {
         json info;
-        info["UID"] = UID();
+        info["uid"] = UID();
         info["login_mpt"] = login_mpt();
 
         info["type"] = type();
@@ -63,7 +63,7 @@ public:
         info["target_account"] = target_account();
         info["target_password"] = target_password();
 
-        info["modify_time"] = modify_time();
+        info["update_time"] = modify_time();
 
         info["update_flag"] = update_flag();
 
@@ -73,7 +73,7 @@ public:
     int setInfo(json info)
     {
 
-        UID(info, "UID");
+        UID(info, "uid");
         login_mpt(info, "login_mpt");
 
         type(info, "type");
@@ -84,7 +84,7 @@ public:
         target_account(info, "target_account");
         target_password(info, "target_password");
 
-        modify_time(info, "modify_time");
+        modify_time(info, "update_time");
 
         return 0;
     }
@@ -122,8 +122,8 @@ public:
     json info()
     {
         json info;
-        info["UID"] = UID();
-        info["modify_time"] = modify_time();
+        info["uid"] = UID();
+        info["update_time"] = modify_time();
 
         info["node"] = node();
         info["connect_key"] = connect_key();
@@ -136,8 +136,8 @@ public:
 
     int setInfo(json info)
     {
-        UID(info, "UID");
-        modify_time(info, "modify_time");
+        UID(info, "uid");
+        modify_time(info, "update_time");
 
         node(info,"node");
         connect_key(info, "connect_key");

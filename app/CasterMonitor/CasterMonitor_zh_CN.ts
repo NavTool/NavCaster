@@ -58,93 +58,93 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="203"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="201"/>
         <source>用户信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="211"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="209"/>
         <source>用户名/机构名:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="217"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="215"/>
         <source>请输入该账号使用者的归属机构(个人/公司名/公司机构)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="228"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="226"/>
         <source>联系人:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="234"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="232"/>
         <source>输入联系人姓名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="241"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="239"/>
         <source>联系方式:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="247"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="245"/>
         <source>输入联系方式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="258"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="256"/>
         <source>备注信息:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="264"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="262"/>
         <source>请求来源、用途、及特殊情况说明等</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="274"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="272"/>
         <source>账号配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="290"/>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="306"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="288"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="304"/>
         <source>请设置账号，并点击右侧验证账号是否冲突</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="301"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="299"/>
         <source>不支持设置账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="324"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="322"/>
         <source>请设置密码</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="385"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="383"/>
         <source>访问权限:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="401"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="399"/>
         <source>有效期配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="409"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="407"/>
         <source>账号类型:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="470"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="468"/>
         <source>有效天数:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="610"/>
+        <location filename="qml/dialog/Monitor/Dialog_Account_AddAccount.qml" line="608"/>
         <source>账户信息异常！</source>
         <translation type="unfinished"></translation>
     </message>
@@ -201,93 +201,93 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="195"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="193"/>
         <source>用户信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="203"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="201"/>
         <source>用户名/机构名:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="209"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="207"/>
         <source>请输入该账号使用者的归属机构(个人/公司名/公司机构)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="220"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="218"/>
         <source>联系人:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="226"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="224"/>
         <source>输入联系人姓名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="233"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="231"/>
         <source>联系方式:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="239"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="237"/>
         <source>输入联系方式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="250"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="248"/>
         <source>备注信息:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="256"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="254"/>
         <source>请求来源、用途、及特殊情况说明等</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="266"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="264"/>
         <source>账号配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="282"/>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="298"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="280"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="296"/>
         <source>请设置账号，并点击右侧验证账号是否冲突</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="293"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="291"/>
         <source>不支持设置账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="316"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="314"/>
         <source>请设置密码</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="377"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="375"/>
         <source>访问权限:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="393"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="391"/>
         <source>有效期配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="401"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="399"/>
         <source>账号类型:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="462"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="460"/>
         <source>有效天数:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="602"/>
+        <location filename="qml/dialog/Monitor/Dialog_Alias_AddAlias.qml" line="600"/>
         <source>账户信息异常！</source>
         <translation type="unfinished"></translation>
     </message>
@@ -344,93 +344,93 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="195"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="193"/>
         <source>用户信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="203"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="201"/>
         <source>用户名/机构名:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="209"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="207"/>
         <source>请输入该账号使用者的归属机构(个人/公司名/公司机构)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="220"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="218"/>
         <source>联系人:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="226"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="224"/>
         <source>输入联系人姓名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="233"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="231"/>
         <source>联系方式:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="239"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="237"/>
         <source>输入联系方式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="250"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="248"/>
         <source>备注信息:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="256"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="254"/>
         <source>请求来源、用途、及特殊情况说明等</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="266"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="264"/>
         <source>账号配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="282"/>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="298"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="280"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="296"/>
         <source>请设置账号，并点击右侧验证账号是否冲突</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="293"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="291"/>
         <source>不支持设置账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="316"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="314"/>
         <source>请设置密码</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="377"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="375"/>
         <source>访问权限:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="393"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="391"/>
         <source>有效期配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="401"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="399"/>
         <source>账号类型:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="462"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="460"/>
         <source>有效天数:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="602"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPull.qml" line="600"/>
         <source>账户信息异常！</source>
         <translation type="unfinished"></translation>
     </message>
@@ -487,93 +487,93 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="195"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="193"/>
         <source>用户信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="203"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="201"/>
         <source>用户名/机构名:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="209"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="207"/>
         <source>请输入该账号使用者的归属机构(个人/公司名/公司机构)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="220"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="218"/>
         <source>联系人:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="226"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="224"/>
         <source>输入联系人姓名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="233"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="231"/>
         <source>联系方式:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="239"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="237"/>
         <source>输入联系方式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="250"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="248"/>
         <source>备注信息:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="256"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="254"/>
         <source>请求来源、用途、及特殊情况说明等</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="266"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="264"/>
         <source>账号配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="282"/>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="298"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="280"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="296"/>
         <source>请设置账号，并点击右侧验证账号是否冲突</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="293"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="291"/>
         <source>不支持设置账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="316"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="314"/>
         <source>请设置密码</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="377"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="375"/>
         <source>访问权限:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="393"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="391"/>
         <source>有效期配置</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="401"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="399"/>
         <source>账号类型:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="462"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="460"/>
         <source>有效天数:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="602"/>
+        <location filename="qml/dialog/Monitor/Dialog_Relay_AddPush.qml" line="600"/>
         <source>账户信息异常！</source>
         <translation type="unfinished"></translation>
     </message>
@@ -674,226 +674,216 @@
 <context>
     <name>Page_Account</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="192"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="189"/>
         <source>Search</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="355"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="350"/>
         <source>操作站点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="283"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="280"/>
         <source>账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="286"/>
-        <source>准入类型</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="287"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="284"/>
         <source>账号类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="288"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="285"/>
         <source>启用状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="289"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="286"/>
         <source>激活状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="290"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="287"/>
         <source>可用状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="376"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="371"/>
         <source>确认删除账号:[ %1 ] ？</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="482"/>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="596"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="470"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="584"/>
         <source>账号状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="852"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="840"/>
         <source>长期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="854"/>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="856"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="842"/>
         <source>期限</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="858"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="844"/>
         <source>时限</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="869"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="857"/>
         <source>已停用</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="882"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="859"/>
+        <source>已过期</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="871"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="873"/>
         <source>未激活</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="887"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="869"/>
         <source>已激活</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="431"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="419"/>
         <source>账号信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="62"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="59"/>
         <source>账号已添加</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="70"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="67"/>
         <source>账号已移除</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="77"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="74"/>
         <source>账号已修改</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="363"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="283"/>
+        <source>访问组</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="358"/>
         <source>删除账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="381"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="376"/>
         <source>删除</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="470"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="458"/>
         <source>基本信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="494"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="482"/>
         <source>账号归属</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="527"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="515"/>
         <source>账号ID</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="534"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="522"/>
         <source>接入类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="603"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="591"/>
         <source>在线连接数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="610"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="598"/>
         <source>剩余有效期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="617"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="605"/>
         <source>累计在线时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="641"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="629"/>
         <source>数据供应商</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="860"/>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="931"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="846"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="861"/>
         <source>未知</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="874"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="855"/>
         <source>已启用</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="923"/>
-        <source>Ntrip Server/Client</source>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="907"/>
+        <source>未分组</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="925"/>
-        <source>Ntrip1.0/2.0 Client</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="927"/>
-        <source>Ntrip1.0 Server</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="929"/>
-        <source>Ntrip2.0 Server</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="285"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="282"/>
         <source>支持连接数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="291"/>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="541"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="288"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="529"/>
         <source>注册日期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="548"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="536"/>
         <source>激活日期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="555"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="543"/>
         <source>失效日期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="284"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="281"/>
         <source>用户名/机构名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="647"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="635"/>
         <source>联系人</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="654"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="642"/>
         <source>联系方式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Account.qml" line="292"/>
+        <location filename="qml/page/Monitor/Page_Account.qml" line="289"/>
         <source>记录修改日期</source>
         <translation type="unfinished"></translation>
     </message>
@@ -901,290 +891,279 @@
 <context>
     <name>Page_Client</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="310"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="305"/>
         <source>操作站点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="318"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="313"/>
         <source>站点详情</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="163"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="160"/>
         <source>Search</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="239"/>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="403"/>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="501"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="236"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="398"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="496"/>
         <source>定位状态</source>
         <oldsource>数据格式</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="602"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="597"/>
         <source>上线时刻</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="635"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="630"/>
         <source>登录账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="608"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="603"/>
         <source>接入IP</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="614"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="609"/>
         <source>接入端口</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="236"/>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="475"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="233"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="470"/>
         <source>接入挂载点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="235"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="232"/>
         <source>账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="238"/>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="590"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="235"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="585"/>
         <source>在线时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="243"/>
-        <source>高程</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="415"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="410"/>
         <source>连接信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="427"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="422"/>
         <source>账号信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="510"/>
-        <source>用户经度</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="517"/>
-        <source>用户纬度</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="524"/>
-        <source>用户高程</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="531"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="526"/>
         <source>基线长度</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="538"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="533"/>
         <source>使用卫星数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="566"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="561"/>
         <source>累计接收</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="572"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="567"/>
         <source>接收速度</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="241"/>
-        <source>纬度</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="240"/>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="545"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="237"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="540"/>
         <source>差分延迟</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="237"/>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="482"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="234"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="477"/>
         <source>使用挂载点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="578"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="573"/>
         <source>累计发送</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="584"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="579"/>
         <source>发送速度</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="242"/>
-        <source>经度</source>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="239"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="512"/>
+        <source>ECEF Y</source>
+        <oldsource>经度</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="244"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="238"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="505"/>
+        <source>ECEF X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="240"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="519"/>
+        <source>ECEF Z</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="241"/>
         <source>数据更新时间</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="352"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="347"/>
         <source>用户信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="391"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="386"/>
         <source>基本信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="450"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="445"/>
         <source>用户名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="457"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="452"/>
         <source>接入类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="464"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="459"/>
         <source>未知类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="465"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="460"/>
         <source>用户接入 (Ntrip Client)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="466"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="461"/>
         <source>用户接入 (最近挂载点模式)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="467"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="462"/>
         <source>数据转发 (Ntrip Server)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="468"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="463"/>
         <source>数据转发 (TCP Client)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="469"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="464"/>
         <source>数据转发 (TCP Server)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="470"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="465"/>
         <source>代理模式 (Ntrip Client)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="596"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="591"/>
         <source>网络延迟</source>
         <oldsource>数据延迟</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="641"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="636"/>
         <source>账号类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="647"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="642"/>
         <source>归属用户/机构</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="653"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="648"/>
         <source>剩余有效期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="655"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="650"/>
         <source>永久账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="659"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="654"/>
         <source>账号失效日期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="661"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="656"/>
         <source>永不失效</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1029"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1043"/>
         <source>未定位</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1031"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1045"/>
         <source>单点定位</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1033"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1047"/>
         <source>差分定位</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1035"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1049"/>
         <source>PPS fix</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1037"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1051"/>
         <source>固定解</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1039"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1053"/>
         <source>浮点解</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1041"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1055"/>
         <source>估计模式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1043"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1057"/>
         <source>手工输入</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1045"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1059"/>
         <source>仿真模式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Client.qml" line="1047"/>
+        <location filename="qml/page/Monitor/Page_Client.qml" line="1061"/>
         <source>未知状态</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1264,88 +1243,88 @@
 <context>
     <name>Page_Mpt_Alias</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="71"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="68"/>
         <source>任务添加完成</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="79"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="76"/>
         <source>任务已移除</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="86"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="83"/>
         <source>任务已更新</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="194"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="191"/>
         <source>Search</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="322"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="319"/>
         <source>挂载点名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="323"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="320"/>
         <source>数据地址</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="324"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="321"/>
         <source>任务状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="325"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="322"/>
         <source>连接时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="326"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="323"/>
         <source>Action</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="378"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="375"/>
         <source>操作站点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="386"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="383"/>
         <source>站点详情</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="675"/>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="684"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="667"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="676"/>
         <source>启动任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="691"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="683"/>
         <source>停止任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="702"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="694"/>
         <source>修改任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="719"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="711"/>
         <source>删除任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="732"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="724"/>
         <source>确认删除任务?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="736"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Alias.qml" line="728"/>
         <source>删除</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1370,89 +1349,89 @@
 <context>
     <name>Page_Mpt_Pull</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="71"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="69"/>
         <source>任务添加完成</source>
         <oldsource>账号添加完成</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="79"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="77"/>
         <source>任务已移除</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="86"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="84"/>
         <source>任务已更新</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="194"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="193"/>
         <source>Search</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="322"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="321"/>
         <source>挂载点名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="323"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="322"/>
         <source>数据地址</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="324"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="323"/>
         <source>任务状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="325"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="324"/>
         <source>连接时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="326"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="325"/>
         <source>Action</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="378"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="377"/>
         <source>操作站点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="386"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="385"/>
         <source>站点详情</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="901"/>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="910"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="898"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="907"/>
         <source>启动任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="917"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="914"/>
         <source>停止任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="945"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="942"/>
         <source>删除任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="958"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="955"/>
         <source>确认删除任务?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="962"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="959"/>
         <source>删除</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="928"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Pull.qml" line="925"/>
         <source>修改任务</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1460,89 +1439,89 @@
 <context>
     <name>Page_Mpt_Push</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="71"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="69"/>
         <source>任务添加完成</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="79"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="77"/>
         <source>任务已移除</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="86"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="84"/>
         <source>任务已更新</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="194"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="193"/>
         <source>Search</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="322"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="321"/>
         <source>挂载点名</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="323"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="322"/>
         <source>推送地址</source>
         <oldsource>数据地址</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="324"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="323"/>
         <source>任务状态</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="325"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="324"/>
         <source>连接时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="326"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="325"/>
         <source>Action</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="378"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="377"/>
         <source>操作站点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="386"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="385"/>
         <source>站点详情</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="901"/>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="910"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="898"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="907"/>
         <source>启动任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="917"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="914"/>
         <source>停止任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="927"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="924"/>
         <source>修改任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="944"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="941"/>
         <source>删除任务</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="957"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="954"/>
         <source>确认删除任务?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="961"/>
+        <location filename="qml/page/Monitor/Page_Mpt_Push.qml" line="958"/>
         <source>删除</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1567,287 +1546,273 @@
 <context>
     <name>Page_Server</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="310"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="299"/>
         <source>操作站点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="318"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="307"/>
         <source>站点详情</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="240"/>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="639"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="237"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="628"/>
         <source>在线时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="243"/>
-        <source>纬度</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="244"/>
-        <source>经度</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="238"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="235"/>
         <source>接入挂载点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="239"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="236"/>
         <source>实际挂载点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="242"/>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="615"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="604"/>
         <source>累计接收</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="241"/>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="621"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="610"/>
         <source>接收速度</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="169"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="166"/>
         <source>Search</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="245"/>
-        <source>高程</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="247"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="242"/>
         <source>数据更新时间</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="352"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="341"/>
         <source>挂载点信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="391"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="380"/>
         <source>基本信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="403"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="392"/>
         <source>数据详情</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="415"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="404"/>
         <source>设备信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="427"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="416"/>
         <source>连接信息</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="439"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="428"/>
         <source>数据来源</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="472"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="461"/>
         <source>挂载点名称</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="479"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="468"/>
         <source>接入类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="486"/>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="883"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="475"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="891"/>
         <source>未知类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="487"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="476"/>
         <source>基站接入 (Ntrip Server)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="488"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="477"/>
         <source>系统生成 (最近挂载点模式)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="489"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="478"/>
         <source>数据转发 (Ntrip Client)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="490"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="479"/>
         <source>数据转发 (TCP Client)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="491"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="480"/>
         <source>数据转发 (TCP Server)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="492"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="481"/>
         <source>代理模式 (Ntrip Client)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="493"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="482"/>
         <source>系统生成 (挂载点中转模式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="533"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="522"/>
         <source>数据格式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="645"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="634"/>
         <source>网络延迟</source>
         <oldsource>数据延迟</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="696"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="685"/>
         <source>剩余有效期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="698"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="687"/>
         <source>永久账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="702"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="691"/>
         <source>账号失效日期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="704"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="693"/>
         <source>永不失效</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="884"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="892"/>
         <source>实体站点</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="885"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="893"/>
         <source>最近基站模式</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="886"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="894"/>
         <source>Ntrip Client接入</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="887"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="895"/>
         <source>转发挂载点(TCP Client)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="888"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="896"/>
         <source>转发挂载点(Ntrip)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="507"/>
-        <source>站点经度</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="500"/>
-        <source>站点纬度</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="514"/>
-        <source>站点高程</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="651"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="640"/>
         <source>上线时刻</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="683"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="672"/>
         <source>数据供应商</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="689"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="678"/>
         <source>登录账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="657"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="646"/>
         <source>接入IP</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="536"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="238"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="489"/>
+        <source>ECEF X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="239"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="496"/>
+        <source>ECEF Y</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="240"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="503"/>
+        <source>ECEF Z</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="525"/>
         <source>RTCM 3.3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="540"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="529"/>
         <source>数据流</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="552"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="541"/>
         <source>信号类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="561"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="550"/>
         <source>信号计数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="627"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="616"/>
         <source>累计发送</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="633"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="622"/>
         <source>发送速度</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="663"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="652"/>
         <source>接入端口</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="581"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="570"/>
         <source>接收机类型</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="587"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="576"/>
         <source>接收机版本号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Server.qml" line="593"/>
+        <location filename="qml/page/Monitor/Page_Server.qml" line="582"/>
         <source>接收机/SN</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1986,133 +1951,133 @@
 <context>
     <name>Page_Status</name>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="84"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="126"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="82"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="124"/>
         <source>负载</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="88"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="127"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="86"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="125"/>
         <source>在线基站</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="92"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="128"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="90"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="126"/>
         <source>在线移动站</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="104"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="102"/>
         <source>输入</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="108"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="106"/>
         <source>输出</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="131"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="129"/>
         <source>下行</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="233"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="231"/>
         <source>概览</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="255"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="253"/>
         <source>已注册账号数</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="256"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="254"/>
         <source>即将过期</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="257"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="255"/>
         <source>已过期账号</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="258"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="256"/>
         <source>数据接入</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="253"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="254"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="255"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="256"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="257"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="258"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="259"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="260"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="261"/>
         <source>0</source>
         <oldsource>4</oldsource>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="124"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="125"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="126"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="127"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="128"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="129"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="130"/>
         <location filename="qml/page/Monitor/Page_Status.qml" line="131"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="132"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="133"/>
         <source>-</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="259"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="257"/>
         <source>数据推送</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="260"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="258"/>
         <source>策略组</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="261"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="259"/>
         <source>异常事件</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="349"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="347"/>
         <source>节点ID: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="100"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="130"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="98"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="128"/>
         <source>内存占用</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="132"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="130"/>
         <source>上行</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="112"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="133"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="110"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="131"/>
         <source>运行时长</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="185"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="183"/>
         <source>%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="96"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="129"/>
-        <location filename="qml/page/Monitor/Page_Status.qml" line="296"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="94"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="127"/>
+        <location filename="qml/page/Monitor/Page_Status.qml" line="294"/>
         <source>节点状态</source>
         <translation type="unfinished"></translation>
     </message>

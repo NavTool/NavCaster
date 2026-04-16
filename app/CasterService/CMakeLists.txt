@@ -17,7 +17,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #包含的源文件和头文件
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Carrier)
-include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Compontent)
+include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Component)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Connector)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/extra)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)

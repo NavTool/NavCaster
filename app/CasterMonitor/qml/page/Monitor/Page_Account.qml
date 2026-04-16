@@ -35,14 +35,11 @@ Frame {
 
     Component.onCompleted: {
 
-        // focusItem= CasterMonitor.getNtripServerInfo("")  //初始化，填充空白数据
+        // focusItem= CasterMonitor.getAccountRecord("")  //初始化，填充空白数据
 
         //创建刷新数据操作
-        refreshDataOpUid = CasterMonitor.addRefreshAccountOperate()
+        refreshDataOpUid = CasterMonitor.refreshAllAccountRecord()
         console.log("refreshDataOpUid: ", refreshDataOpUid)
-
-        // 执行这个指令
-        CasterMonitor.excuteOperate(refreshDataOpUid)
 
         // 启动定时器，定期刷新数据
         data_refresh_timer.start()
@@ -114,7 +111,7 @@ Frame {
             // 恢复上下文
             dataGrid.view.contentY = oldY
             for (var i = 0; i < dataModel.count; ++i) {
-                if (dataModel.get(i).UID === focusItemUID) {
+                if (dataModel.get(i).uid === focusItemUID) {
                     dataGrid.view.currentIndex = i
                     dataGrid.selectionModel.select(dataModel.index(i, 0),
                                                    ItemSelectionModel.Select)
@@ -123,14 +120,14 @@ Frame {
             }
 
             //刷新选定条目的数据
-            focusItem=CasterMonitor.getUserAccountInfo(focusItemUID);
+            focusItem=CasterMonitor.getAccountRecord(focusItemUID);
         }
     }
 
     onFocusItemUIDChanged: {
         console.log("onFocusItemUIDChanged: " + focusItemUID)
 
-        focusItem=CasterMonitor.getUserAccountInfo(focusItemUID);
+        focusItem=CasterMonitor.getAccountRecord(focusItemUID);
 
     }
 
@@ -143,7 +140,7 @@ Frame {
         repeat: true
         interval: 1000
         onTriggered: {
-            CasterMonitor.excuteOperate(refreshDataOpUid)
+            refreshDataOpUid = CasterMonitor.refreshAllAccountRecord()
         }
     }
 
@@ -214,10 +211,10 @@ Frame {
                             }
                         }
                         onTap: item => {
-                                   focusItemUID=item.UID
+                                   focusItemUID=item.uid
 
                                    for (var i = 0; i < dataModel.count; ++i) {
-                                       if (dataModel.get(i).UID === focusItemUID) {
+                                       if (dataModel.get(i).uid === focusItemUID) {
                                            dataGrid.view.currentIndex = i
                                            // dataGrid.selected_items.clear()
                                            dataGrid.selectionModel.select(dataModel.index(i, 0),
@@ -282,14 +279,14 @@ Frame {
                     columnSourceModel: ListModel {
                         ListElement { frozen: false; width: 120 ; dataIndex: "account"       ; title: qsTr("账号")}
                         ListElement { frozen: false; width: 180 ; dataIndex: "contact_name"  ; title: qsTr("用户名/机构名")}
-                        ListElement { frozen: false; width: 90 ; dataIndex: "access_limit"  ; title: qsTr("支持连接数")}
-                        ListElement { frozen: false; width: 200 ; dataIndex: "access"        ; title: qsTr("准入类型");}
+                        ListElement { frozen: false; width: 90 ; dataIndex: "connection_limit"  ; title: qsTr("支持连接数")}
+                        ListElement { frozen: false; width: 200 ; dataIndex: "group_uid"     ; title: qsTr("访问组");}
                         ListElement { frozen: false; width: 100 ; dataIndex: "type"          ; title: qsTr("账号类型")}
                         ListElement { frozen: false; width: 120 ; dataIndex: "state"         ; title: qsTr("启用状态")}
-                        ListElement { frozen: false; width: 120 ; dataIndex: "time_active"   ; title: qsTr("激活状态");}
-                        ListElement { frozen: false; width: 120 ; dataIndex: "time_expired"  ; title: qsTr("可用状态")}
-                        ListElement { frozen: false; width: 200 ; dataIndex: "time_register" ; title: qsTr("注册日期")}
-                        ListElement { frozen: false; width: 200 ; dataIndex: "time_modified" ; title: qsTr("记录修改日期")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "active"        ; title: qsTr("激活状态");}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "expire_time"   ; title: qsTr("可用状态")}
+                        ListElement { frozen: false; width: 200 ; dataIndex: "register_time" ; title: qsTr("注册日期")}
+                        ListElement { frozen: false; width: 200 ; dataIndex: "update_time"   ; title: qsTr("记录修改日期")}
 
                     }
 
@@ -297,18 +294,16 @@ Frame {
                     delegateProvider:
                         (dataIndex)=>{
                             switch(dataIndex){
-                                case "access":
-                                return comp_access_label
                                 case "type":
                                 return comp_type_label
                                 case "state":
                                 return comp_state_label
-                                case "time_active":
+                                case "active":
                                 return comp_active_label
-                                case "time_expired":
+                                case "expire_time":
                                 return comp_expired_label
-                                case "time_register":
-                                case "time_modified":
+                                case "register_time":
+                                case "update_time":
                                 return comp_date_label
                                 default:
                                 return comp_mid_label
@@ -338,12 +333,12 @@ Frame {
                     onRowClicked: model => {
                                       // console.debug(model.station_name)
                                       Global.visable_right_side=true
-                                      root.focusItemUID = model.UID
+                                      root.focusItemUID = model.uid
                                       console.log(Util.safeStringify(model))
                                   }
                     onRowRightClicked: model => {
                                            // console.debug(model.station_name)
-                                           root.focusItemUID = model.UID
+                                           root.focusItemUID = model.uid
                                            operate_item_menu.open_with_ctx(
                                                model)
                                        }
@@ -380,14 +375,7 @@ Frame {
                                     Button {
                                         text: qsTr("删除")
                                         onClicked: {
-                                            var item= CasterMonitor.genAccountTemp()
-                                            item.UID = root.focusItemUID
-
-                                            console.log(Util.safeStringify(item))
-
-                                            root.delAccountOpUid= CasterMonitor.addDelAccountOperate(item)
-
-                                            CasterMonitor.excuteOperate(delAccountOpUid)
+                                            root.delAccountOpUid= CasterMonitor.delAccountRecord(root.focusItemUID)
 
                                             confirm_dialog.close()
 
@@ -534,28 +522,28 @@ Frame {
                     item_name:qsTr("接入类型")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":formatAccess(focusItem.access)
+                        placeholderText : focusItemUID===""?"":focusItem.group_uid
                     }
                 }
                 ComItem{
                     item_name:qsTr("注册日期")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.time_register)
+                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.register_time)
                     }
                 }
                 ComItem{
                     item_name:qsTr("激活日期")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.time_active)
+                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.active_time)
                     }
                 }
                 ComItem{
                     item_name:qsTr("失效日期")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.time_expired)
+                        placeholderText : focusItemUID===""?"":getLocalTime(focusItem.expire_time)
                     }
                 }
             }
@@ -596,21 +584,21 @@ Frame {
                     item_name:qsTr("账号状态")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : formatState(focusItem.UID)
+                        placeholderText : focusItemUID===""?"":formatState(focusItem.state)
                     }
                 }
                 ComItem{
                     item_name:qsTr("在线连接数")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : formatState(focusItem.UID)
+                        placeholderText : focusItemUID===""?"":focusItem.connection_limit
                     }
                 }
                 ComItem{
                     item_name:qsTr("剩余有效期")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : formatResTime(focusItem.time_expired)
+                        placeholderText : formatResTime(focusItem.expire_time)
                     }
                 }
                 ComItem{
@@ -841,20 +829,18 @@ Frame {
         id: comp_access_label
 
         DataItem {
-            itemtext: formatAccess(display) // 传入 UTC 秒数
+            itemtext: display
         }
     }
 
     function formatType(type)
     {
         switch (type) {
-        case 0:
+        case "ACCOUNT_TYPE_LONG_TERM":
             return qsTr("长期")
-        case 1:
+        case "ACCOUNT_TYPE_EXPIRE_BY_DATE":
             return qsTr("期限")
-        case 2:
-            return qsTr("期限")
-        case 3:
+        case "ACCOUNT_TYPE_EXPIRE_BY_USAGE":
             return qsTr("时限")
         default:
             return qsTr("未知")
@@ -864,27 +850,27 @@ Frame {
 
     function formatState(state)
     {
-        if(state===0)
-        {
-            return qsTr("已停用")
-        }
-        else
-        {
-            // 已经启用
+        switch (state) {
+        case "ACCOUNT_STATE_TYPE_NORMAL":
             return qsTr("已启用")
+        case "ACCOUNT_STATE_TYPE_FROZEN":
+            return qsTr("已停用")
+        case "ACCOUNT_STATE_TYPE_EXPIRED":
+            return qsTr("已过期")
+        default:
+            return qsTr("未知")
         }
     }
 
     function formatActive(state)
     {
-        if(state===0)
-        {
-            return qsTr("未激活")
-        }
-        else
-        {
-            // 已经启用
+        switch (state) {
+        case "ACCOUNT_ACTIVE_STATE_ACTIVE":
             return qsTr("已激活")
+        case "ACCOUNT_ACTIVE_STATE_INACTIVE":
+            return qsTr("未激活")
+        default:
+            return qsTr("未激活")
         }
     }
     function formatExpired(expireUtcSeconds)
@@ -915,21 +901,11 @@ Frame {
 
 
 
-    function formatAccess(type)
+    function formatAccess(groupUid)
     {
-
-        switch (type) {
-        case 1:
-            return qsTr("Ntrip Server/Client")
-        case 2:
-            return qsTr("Ntrip1.0/2.0 Client")
-        case 3:
-            return qsTr("Ntrip1.0 Server")
-        case 4:
-            return qsTr("Ntrip2.0 Server")
-        default:
-            return qsTr("未知")
-        }
+        if (groupUid === "" || groupUid === undefined)
+            return qsTr("未分组")
+        return groupUid
     }
 
     function getLocalTime(utcSeconds) {

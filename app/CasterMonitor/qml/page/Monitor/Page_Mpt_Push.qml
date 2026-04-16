@@ -45,11 +45,9 @@ Item {
 
 
         //创建刷新数据操作
-        refreshDataOpUid = CasterMonitor.addRefreshRelayPushOperate()
+        CasterMonitor.refreshAllPushState()
+        refreshDataOpUid = CasterMonitor.refreshAllPushRecord()
         console.log("refreshDataOpUid: ", refreshDataOpUid)
-
-        // 执行这个指令
-        CasterMonitor.excuteOperate(refreshDataOpUid)
 
         // 启动定时器，定期刷新数据
         data_refresh_timer.start()
@@ -135,14 +133,14 @@ Item {
             // }
 
             //刷新选定条目的数据
-            focusItem=CasterMonitor.getUserAccountInfo(focusItemUID);
+            focusItem=CasterMonitor.getAccountRecord(focusItemUID);
         }
     }
 
     onFocusItemUIDChanged: {
         console.log("onFocusItemUIDChanged: " + focusItemUID)
 
-        focusItem=CasterMonitor.getUserAccountInfo(focusItemUID);
+        focusItem=CasterMonitor.getAccountRecord(focusItemUID);
 
     }
 
@@ -154,7 +152,8 @@ Item {
         repeat: true
         interval: 1000
         onTriggered: {
-            CasterMonitor.excuteOperate(refreshDataOpUid)
+            CasterMonitor.refreshAllPushState()
+            refreshDataOpUid = CasterMonitor.refreshAllPushRecord()
         }
     }
 
@@ -193,7 +192,7 @@ Item {
                 implicitHeight: 35
                 placeholderText: qsTr("Search")
                 items: controllerData.data
-                textRole: "UID"
+                textRole: "uid"
                 trailing: RowLayout {
                     IconButton {
                         implicitWidth: 30
@@ -216,10 +215,10 @@ Item {
                     }
                 }
                 onTap: item => {
-                           focusItemUID=item.UID
+                           focusItemUID=item.uid
 
                            for (var i = 0; i < dataModel.count; ++i) {
-                               if (dataModel.get(i).UID === focusItemUID) {
+                               if (dataModel.get(i).uid === focusItemUID) {
                                    dataGrid.view.currentIndex = i
                                    // dataGrid.selected_items.clear()
                                    dataGrid.selectionModel.select(dataModel.index(i, 0),
@@ -320,9 +319,9 @@ Item {
 
                     columnSourceModel: ListModel {
                         ListElement { frozen: false; width: 200 ; dataIndex: "login_mpt"    ; title: qsTr("挂载点名")}
-                        ListElement { frozen: false; width: 300 ; dataIndex: "UID"          ; title: qsTr("推送地址")}
-                        ListElement { frozen: false; width: 120 ; dataIndex: "UID"   ; title: qsTr("任务状态");}
-                        ListElement { frozen: false; width: 120 ; dataIndex: "UID"  ; title: qsTr("连接时长")}
+                        ListElement { frozen: false; width: 300 ; dataIndex: "uid"          ; title: qsTr("推送地址")}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "uid"   ; title: qsTr("任务状态");}
+                        ListElement { frozen: false; width: 120 ; dataIndex: "uid"  ; title: qsTr("连接时长")}
                         ListElement { frozen: true; width: 180 ; dataIndex: "action"  ; title: qsTr("Action")}
                     }
 
@@ -330,7 +329,7 @@ Item {
                     delegateProvider:
                         (dataIndex)=>{
                             switch(dataIndex){
-                                case "UID":
+                                case "uid":
                                 return comp_addr_label
                                 case "action":
                                 return comp_row_action
@@ -362,7 +361,7 @@ Item {
                     onRowClicked: model => {
                                       // console.debug(model.station_name)
                                       Global.visable_right_side=true
-                                      root.focusItemUID = model.UID
+                                      root.focusItemUID = model.uid
                                       console.log(Util.safeStringify(model))
                                   }
                     onRowRightClicked: model => {
@@ -407,7 +406,7 @@ Item {
             Component.onCompleted: {
 
 
-                var item= CasterMonitor.genPullStreamTemp()
+                var item= CasterMonitor.generatePushRecordTemp()
 
                 console.log(Util.safeStringify(item))
 
@@ -752,7 +751,7 @@ Item {
                     onClicked: {
                         // root.visable_right_side=false;
 
-                        var item= CasterMonitor.genPushStreamTemp()
+                        var item= CasterMonitor.generatePushRecordTemp()
 
                         item.type           = root.type
                         item.target_ip      = root.target_ip
@@ -761,14 +760,12 @@ Item {
                         item.target_account = root.target_account
                         item.target_password= root.target_password
                         item.login_mpt      = root.login_mpt
-                        item.UID= root.target_ip+"_"+root.target_port+"_"+root.target_mpt
+                        item.uid= root.target_ip+"_"+root.target_port+"_"+root.target_mpt
 
                         console.log(Util.safeStringify(item))
 
 
-                        root.addTaskOpUid= CasterMonitor.addAddPushStreamOperate(item)
-
-                        CasterMonitor.excuteOperate(addTaskOpUid)
+                        root.addTaskOpUid= CasterMonitor.addPushRecord(item.uid, item)
 
                     }
 
@@ -875,7 +872,7 @@ Item {
 
             function genAddr(UID)
             {
-                var info= CasterMonitor.getRelayPushInfo(display)
+                var info= CasterMonitor.getPushRecord(display)
 
                 return info.target_ip+":"+info.target_port +"/"+info.target_mpt
             }
@@ -961,22 +958,7 @@ Item {
                                 text: qsTr("删除")
                                 onClicked: {
 
-                                    var item= CasterMonitor.genPushStreamTemp()
-
-                                    item.type           = rowModel.type
-                                    item.target_ip      = rowModel.target_ip
-                                    item.target_port    = rowModel.target_port
-                                    item.target_mpt     = rowModel.target_mpt
-                                    item.target_account = rowModel.target_account
-                                    item.target_password= rowModel.target_password
-                                    item.login_mpt      = rowModel.login_mpt
-                                    item.UID= rowModel.UID
-
-                                    console.log(Util.safeStringify(item))
-
-                                    root.delTaskOpUid= CasterMonitor.addDelPushStreamOperate(item)
-
-                                    CasterMonitor.excuteOperate(delTaskOpUid)
+                                    root.delTaskOpUid= CasterMonitor.delPushRecord(rowModel.uid)
 
                                     confirm_dialog.close()
 

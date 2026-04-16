@@ -398,6 +398,11 @@ int CASTER::Set_Base_Source_Info(const char *mount_point, const char *connect_ke
     return 0;
 }
 
+int CASTER::Set_Base_Source_Info(const char *mount_point, const char *connect_key, const std::string &format_details, const std::string &nav_system)
+{
+    return caster_internal::getInstance()->set_base_source_info(mount_point, connect_key, format_details, nav_system);
+}
+
 int CASTER::Register_Grid_Record(const char *mount_point, const char *connect_key, CasterCallback cb, void *arg)
 {
     return 0;

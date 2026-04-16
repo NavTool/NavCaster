@@ -27,14 +27,11 @@ Frame {
 
     Component.onCompleted: {
 
-        // focusItem= CasterMonitor.getNtripServerInfo("")  //初始化，填充空白数据
+        // focusItem= CasterMonitor.getServerState("")  //初始化，填充空白数据
 
         //创建刷新数据操作
-        refreshDataOpUid = CasterMonitor.addRefreshServerOperate()
+        refreshDataOpUid = CasterMonitor.refreshAllServerState()
         console.log("refreshDataOpUid: ", refreshDataOpUid)
-
-        // 执行这个指令
-        CasterMonitor.excuteOperate(refreshDataOpUid)
 
         // 启动定时器，定期刷新数据
         data_refresh_timer.start()
@@ -85,7 +82,7 @@ Frame {
             // 恢复上下文
             dataGrid.view.contentY = oldY
             for (var i = 0; i < dataModel.count; ++i) {
-                if (dataModel.get(i).UID === focusItemUID) {
+                if (dataModel.get(i).uid === focusItemUID) {
                     dataGrid.view.currentIndex = i
                     // dataGrid.selected_items.clear()
                     dataGrid.selectionModel.select(dataModel.index(i, 0),
@@ -98,14 +95,14 @@ Frame {
             }
 
             //刷新选定条目的数据
-            focusItem=CasterMonitor.getNtripServerInfo(focusItemUID);
+            focusItem=CasterMonitor.getServerState(focusItemUID);
         }
     }
 
     onFocusItemUIDChanged: {
         console.log("onFocusItemUIDChanged: " + focusItemUID)
 
-        focusItem=CasterMonitor.getNtripServerInfo(focusItemUID);
+        focusItem=CasterMonitor.getServerState(focusItemUID);
 
     }
 
@@ -118,7 +115,7 @@ Frame {
         repeat: true
         interval: 1000
         onTriggered: {
-            CasterMonitor.excuteOperate(refreshDataOpUid)
+            refreshDataOpUid = CasterMonitor.refreshAllServerState()
         }
     }
     SplitView {
@@ -191,10 +188,10 @@ Frame {
                             }
                         }
                         onTap: item => {
-                                focusItemUID=item.UID
+                                focusItemUID=item.uid
 
                                    for (var i = 0; i < dataModel.count; ++i) {
-                                       if (dataModel.get(i).UID === focusItemUID) {
+                                       if (dataModel.get(i).uid === focusItemUID) {
                                            dataGrid.view.currentIndex = i
                                            // dataGrid.selected_items.clear()
                                            dataGrid.selectionModel.select(dataModel.index(i, 0),
@@ -238,11 +235,9 @@ Frame {
                         ListElement { frozen: false; width: 120 ; dataIndex: "login_mpt"    ; title: qsTr("接入挂载点")}
                         ListElement { frozen: false; width: 120 ; dataIndex: "alias_mpt"    ; title: qsTr("实际挂载点")}
                         ListElement { frozen: false; width: 120 ; dataIndex: "online_time"  ; title: qsTr("在线时长")}
-                        ListElement { frozen: false; width: 150 ; dataIndex: "recv_speed"   ; title: qsTr("接收速度");}
-                        ListElement { frozen: false; width: 150 ; dataIndex: "recv_total"   ; title: qsTr("累计接收");}
-                        ListElement { frozen: false; width: 180 ; dataIndex: "llh_lat"      ; title: qsTr("纬度")}
-                        ListElement { frozen: false; width: 180 ; dataIndex: "llh_lon"      ; title: qsTr("经度")}
-                        ListElement { frozen: false; width: 100 ; dataIndex: "llh_height"   ; title: qsTr("高程")}
+                        ListElement { frozen: false; width: 150 ; dataIndex: "ecef_x"       ; title: qsTr("ECEF X")}
+                        ListElement { frozen: false; width: 150 ; dataIndex: "ecef_y"       ; title: qsTr("ECEF Y")}
+                        ListElement { frozen: false; width: 150 ; dataIndex: "ecef_z"       ; title: qsTr("ECEF Z")}
 
                         ListElement { frozen: false; width: 200 ; dataIndex: "update_time"  ; title: qsTr("数据更新时间")}
                     }
@@ -252,16 +247,10 @@ Frame {
                                 case "online_time":
                                 return comp_time_label
 
-                                case "llh_lat":
-                                return comp_lat2dms
-                                case "llh_lon":
-                                return comp_lon2dms
-                                case "llh_height":
-                                return comp_height
-                                case "recv_speed":
-                                return comp_str_speed
-                                case "recv_total":
-                                return comp_str_count
+                                case "ecef_x":
+                                case "ecef_y":
+                                case "ecef_z":
+                                return comp_fix4
                                 case "update_time":
                                 return comp_date_label
                                 default:
@@ -294,7 +283,7 @@ Frame {
                                       // console.debug(model.station_name)
 
                                       Global.visable_right_side=true
-                                      root.focusItemUID = model.UID
+                                      root.focusItemUID = model.uid
                                       console.log(Util.safeStringify(model))
                                   }
                     onRowRightClicked: model => {
@@ -497,24 +486,24 @@ Frame {
                     }
                 }
                 ComItem{
-                    item_name:qsTr("站点纬度")
+                    item_name:qsTr("ECEF X")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":lattoDMS(focusItem.llh_lat)
+                        placeholderText : focusItemUID===""?"":(focusItem.ecef_x.toFixed(4) + " m")
                     }
                 }
                 ComItem{
-                    item_name:qsTr("站点经度")
+                    item_name:qsTr("ECEF Y")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":lontoDMS(focusItem.llh_lon)
+                        placeholderText : focusItemUID===""?"":(focusItem.ecef_y.toFixed(4) + " m")
                     }
                 }
                 ComItem{
-                    item_name:qsTr("站点高程")
+                    item_name:qsTr("ECEF Z")
                     delegate:TextField{
                         // placeholderText:GNSS.focusObsFile.station_name
-                        placeholderText : focusItemUID===""?"":(focusItem.llh_height.toFixed(4) + " m")
+                        placeholderText : focusItemUID===""?"":(focusItem.ecef_z.toFixed(4) + " m")
                     }
                 }
             }
@@ -614,25 +603,25 @@ Frame {
                 ComItem{
                     item_name:qsTr("累计接收")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.recv_total)
+                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.recv_total ?? 0)
                     }
                 }
                 ComItem{
                     item_name:qsTr("接收速度")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.recv_speed)+"/s")
+                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.recv_speed ?? 0)+"/s")
                     }
                 }
                 ComItem{
                     item_name:qsTr("累计发送")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.send_total)
+                        placeholderText: focusItemUID===""?"":formatBytes(focusItem.send_total ?? 0)
                     }
                 }
                 ComItem{
                     item_name:qsTr("发送速度")
                     delegate:TextField{
-                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.send_speed)+"/s")
+                        placeholderText: focusItemUID===""?"":(formatBytes(focusItem.send_speed ?? 0)+"/s")
                     }
                 }
                 ComItem{
@@ -837,6 +826,25 @@ Frame {
         Item{
             Label{
                 text: String(display.toFixed(4)) + " m"
+                elide: Label.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                anchors{
+                    verticalCenter: parent.verticalCenter
+                    left: parent.left
+                    leftMargin: 10
+                    right: parent.right
+                    rightMargin: 10
+                }
+            }
+        }
+    }
+
+    Component{
+        id:comp_fix4
+        Item{
+            Label{
+                text: String(display.toFixed(4))
                 elide: Label.ElideRight
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter

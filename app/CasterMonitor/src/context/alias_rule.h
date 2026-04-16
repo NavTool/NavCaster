@@ -35,7 +35,7 @@ public:
     json info()
     {
         json info;
-        info["UID"] = UID();
+        info["uid"] = UID();
         info["alias_mpt"] = alias_mpt();
         info["state"] = state();
 
@@ -47,7 +47,7 @@ public:
     int setInfo(json info)
     {
 
-        UID(info, "UID");
+        UID(info, "uid");
         alias_mpt(info, "alias_mpt");
         state(info, "state");
 

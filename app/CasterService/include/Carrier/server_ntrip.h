@@ -56,6 +56,9 @@ public:
                 // 基站上传数据，发布到 caster
                 auto data = read_data(_transfer_with_chunked);
                 publish_data(reinterpret_cast<const char *>(data.data()), data.size());
+
+                // 解析RTCM数据流，提取坐标和报文统计
+                _str_decoder.Decode(reinterpret_cast<const char *>(data.data()), data.size());
                 break;
             }
 
@@ -83,7 +86,8 @@ public:
                 co_return;
 
             case CarrierEventType::Timeout:
-                // 发送心跳或其他定时任务
+                // 定时上报解析出的源列表信息
+                update_source_info();
                 break;
 
             default:
@@ -92,5 +96,25 @@ public:
         }
 
         co_return;
+    }
+
+private:
+    void update_source_info()
+    {
+        // 上报坐标信息
+        if (_str_decoder._has_position)
+        {
+            CASTER::Set_Base_Coord_Info(
+                _mount_point.c_str(), _connect_key.c_str(),
+                _str_decoder._ecef_x, _str_decoder._ecef_y, _str_decoder._ecef_z);
+        }
+
+        // 上报RTCM解析出的源列表信息（报文类型、卫星系统）
+        if (!_str_decoder._msg_stats.empty())
+        {
+            CASTER::Set_Base_Source_Info(
+                _mount_point.c_str(), _connect_key.c_str(),
+                _str_decoder.get_format_details(), _str_decoder.get_nav_system());
+        }
     }
 };

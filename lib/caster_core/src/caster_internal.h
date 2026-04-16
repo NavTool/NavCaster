@@ -276,8 +276,9 @@ private:
     std::unordered_map<std::string, server_status> _server_status_map; // 基站的状态信息
     std::unordered_map<std::string, client_status> _client_status_map; // 用户的状态信息
 
+    // 云端维护的状态信息 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, source_record> _source_decode_map;  // 解析的挂载点信息
-    std::unordered_map<std::string, source_record> _source_record_map;  // 设置的挂载点信息
+    std::unordered_map<std::string, source_record> _source_record_map;  // 手动设置的挂载点信息
 
     // 集群数据 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON
@@ -333,6 +334,9 @@ public:
 
     // 设置基站挂载点信息
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);
+
+    // 设置基站源列表解析信息(RTCM自动解析)
+    int set_base_source_info(const char *mount_point, const char *connect_key, const std::string &format_details, const std::string &nav_system);
 
     // 注册移动站频道 USR:XXXXXX
     int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);

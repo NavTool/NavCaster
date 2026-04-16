@@ -13,8 +13,8 @@ verify_internal::~verify_internal()
 
 verify_internal *verify_internal::getInstance()
 {
-    static verify_internal *instance = new verify_internal();
-    return instance;
+    static verify_internal instance;
+    return &instance;
 }
 
 int verify_internal::init(AuthVerifyOpt opt, event_base *base)

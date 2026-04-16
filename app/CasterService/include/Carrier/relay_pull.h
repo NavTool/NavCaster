@@ -10,6 +10,10 @@
 class relay_pull : public carrier_base
 {
     decode_rtcm _str_decoder;
+    int _retry_delay = 5; // exponential backoff: 5 → 10 → 20 → 40 → 60 (cap)
+
+    void backoff() { _retry_delay = std::min(_retry_delay * 2, 60); }
+    void reset_backoff() { _retry_delay = 5; }
 
 public:
     relay_pull(ConnectInfo info) : carrier_base(info)
@@ -31,9 +35,10 @@ public:
             auto events = co_await co_wait_bev_event();
             if (!(events & BEV_EVENT_CONNECTED))
             {
-                spdlog::warn("[{}]: connect failed, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
-                destory_bev(_connect_key);
-                co_await co_sleep(5);
+                spdlog::warn("[{}]: connect failed, mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
+                destroy_bev(_connect_key);
+                co_await co_sleep(_retry_delay);
+                backoff();
                 continue;
             }
 
@@ -49,9 +54,10 @@ public:
             auto resp_data = co_await co_wait_bev_read();
             if (resp_data.empty())
             {
-                spdlog::warn("[{}]: handshake failed (no data), mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
-                destory_bev(_connect_key);
-                co_await co_sleep(5);
+                spdlog::warn("[{}]: handshake failed (no data), mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
+                destroy_bev(_connect_key);
+                co_await co_sleep(_retry_delay);
+                backoff();
                 continue;
             }
 
@@ -59,9 +65,10 @@ public:
             bool ok = verify_ntrip_response(reinterpret_cast<const char *>(resp_data.data()), resp_data.size(), v2, chunked);
             if (!ok)
             {
-                spdlog::warn("[{}]: handshake verify failed, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
-                destory_bev(_connect_key);
-                co_await co_sleep(5);
+                spdlog::warn("[{}]: handshake verify failed, mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
+                destroy_bev(_connect_key);
+                co_await co_sleep(_retry_delay);
+                backoff();
                 continue;
             }
             _ntrip_version2 = v2;
@@ -71,13 +78,15 @@ public:
             auto reg = co_await co_caster_register(CasterRegisterType::PULL);
             if (reg.type != CasterReply::OK)
             {
-                spdlog::warn("[{}]: caster register failed, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
-                destory_bev(_connect_key);
-                co_await co_sleep(5);
+                spdlog::warn("[{}]: caster register failed, mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
+                destroy_bev(_connect_key);
+                co_await co_sleep(_retry_delay);
+                backoff();
                 continue;
             }
 
             // 6. 进入 running 状态
+            reset_backoff();
             start_bev(true, 0, false, 0);
             spdlog::info("[{}]: running, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
 
@@ -114,12 +123,13 @@ public:
             }
 
             // 重连准备
-            spdlog::info("[{}]: disconnected, will retry, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
+            spdlog::info("[{}]: disconnected, will retry in {}s, mount [{}], addr:[{}:{}]", __class__, _retry_delay, _info.mount_point(), _info.addr(), _info.port());
             stop_bev();
             caster_withdraw();
-            destory_bev(_connect_key);
+            destroy_bev(_connect_key);
             _events.reset();
-            co_await co_sleep(5);
+            co_await co_sleep(_retry_delay);
+            backoff();
         }
     }
 };

@@ -112,7 +112,7 @@ int ntrip_caster::start()
     _timeout_ev = event_new(_base, -1, EV_PERSIST, TimeoutCallback, this);
 
     // 核心模块初始化（核心业务）
-    compontent_init();
+    component_init();
 
     // 附加模块初始化
     extra_init();
@@ -130,7 +130,7 @@ int ntrip_caster::stop()
     // 删除定超时事件
     event_del(_timeout_ev);
     // 核心模块停止
-    compontent_stop();
+    component_stop();
     // 关闭所有连接，关闭listener;
     event_base_loopexit(_base, NULL);
 
@@ -178,7 +178,7 @@ int ntrip_caster::periodic_task()
 
     return 0;
 }
-int ntrip_caster::compontent_init()
+int ntrip_caster::component_init()
 {
     // 初始化请求处理队列
     _process_event = event_new(_base, -1, EV_PERSIST, Request_Process_Cb, this);
@@ -203,7 +203,7 @@ int ntrip_caster::compontent_init()
     return 0;
 }
 
-int ntrip_caster::compontent_stop()
+int ntrip_caster::component_stop()
 {
     // _compat_listener->stop();
     // delete _compat_listener;
@@ -312,7 +312,7 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
             req.set_operate(OPERATE_TYPE_CREATE);
             break;
         case caster::core::BOARDCAST_OPERATR_INACTIVE:
-            req.set_operate(OPERATE_TYPE_DESTORY);
+            req.set_operate(OPERATE_TYPE_DESTROY);
             break;
         case caster::core::BOARDCAST_OPERATE_UPDATE:
             req.set_operate(OPERATE_TYPE_UPDATE);
@@ -358,7 +358,7 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
             req.set_operate(OPERATE_TYPE_CREATE);
             break;
         case caster::core::BOARDCAST_OPERATR_INACTIVE:
-            req.set_operate(OPERATE_TYPE_DESTORY);
+            req.set_operate(OPERATE_TYPE_DESTROY);
             break;
         case caster::core::BOARDCAST_OPERATE_UPDATE:
             req.set_operate(OPERATE_TYPE_UPDATE);

@@ -16,8 +16,8 @@ class SysUsage
 public:
     static SysUsage *getInstance()
     {
-        static SysUsage *instance = new SysUsage();
-        return instance;
+        static SysUsage instance;
+        return &instance;
     }
 
     SysUsage()

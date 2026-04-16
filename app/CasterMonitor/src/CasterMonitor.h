@@ -6,17 +6,10 @@
 
 #include "EventOperationBase.h"
 #include "EventWorker.h"
+#include "ConnectOperate.h"
 
 #include "template/HashOperate.h"
-#include "template/Context.h"
 
-#include "context/user_account.h"
-#include "context/caster_node.h"
-#include "context/ntrip_client.h"
-#include "context/ntrip_server.h"
-#include "context/relay_pull.h"
-#include "context/relay_push.h"
-#include "context/alias_rule.h"
 #include "stdafx.h"
 #include "spdlog/spdlog.h"
 
@@ -52,10 +45,10 @@ using namespace caster::service;
 
 
 // ============================================================================
-//  Q_HASH_CRUD_API —— 为 HashConetxt 成员自动生成 QML 可调用的完整 CRUD 接口
+//  Q_HASH_CRUD_API —— 为 HashContext 成员自动生成 QML 可调用的完整 CRUD 接口
 //
 //  NAME   : 实体名称（如 AccountRecord），用于拼接函数名
-//  MEMBER : CasterMonitor 中对应的 HashConetxt 成员变量名
+//  MEMBER : CasterMonitor 中对应的 HashContext 成员变量名
 //
 //  生成的 QML 接口：
 //      generateXxxTemp()          → 返回 Proto 默认值的 QVariantMap 模板
@@ -122,38 +115,13 @@ public:
     static CasterMonitor *create(QQmlEngine *, QJSEngine *);
 
 public:
-    // 查询函数（本地缓存，兼容旧接口）
-    Q_INVOKABLE QVariantMap getNtripServerInfo(QString UID);
-    Q_INVOKABLE QVariantMap getNtripClientInfo(QString UID);
-    Q_INVOKABLE QVariantMap getUserAccountInfo(QString UID);
-    Q_INVOKABLE QVariantMap getRelayPullInfo(QString UID);
-    Q_INVOKABLE QVariantMap getRelayPushInfo(QString UID);
-
-    // 全量刷新数据（旧事件系统，保留兼容）
-    Q_INVOKABLE QString addRefreshNodeOperate();
-    Q_INVOKABLE QString addRefreshServerOperate();
-    Q_INVOKABLE QString addRefreshClientOperate();
-    Q_INVOKABLE QString addRefreshAccountOperate();
-    Q_INVOKABLE QString addRefreshRelayPullOperate();
-    Q_INVOKABLE QString addRefreshRelayPushOperate();
-    Q_INVOKABLE QString addRefreshAlisaRuleOperate();
-
-public:
     // ==================== 连接管理 ====================
 
-    // 连接Caster
-    Q_INVOKABLE QVariantMap genConnectCasterTemp();
-    Q_INVOKABLE QString addConnectCasterOperate(QVariantMap connect_info);
-    Q_INVOKABLE QString addDisconnectCasterOperate();
+    Q_INVOKABLE void connectCaster(const QString &ip, int port, const QString &auth);
+    Q_INVOKABLE void disconnectCaster();
 
-    // 连接Auth
-    Q_INVOKABLE QVariantMap genConnectAuthTemp();
-    Q_INVOKABLE QString addConnectAuthOperate(QVariantMap connect_info);
-    Q_INVOKABLE QString addDisconnectAuthOperate();
-
-    // ==================== 旧事件任务执行 ====================
-
-    Q_INVOKABLE QString excuteOperate(QString op_uid);  // 执行指令
+    Q_INVOKABLE void connectAuth(const QString &ip, int port, const QString &auth);
+    Q_INVOKABLE void disconnectAuth();
 
 public:
     // 通用执行操作通知(这些
@@ -165,12 +133,12 @@ public:
     Q_SIGNAL void connectCasterSuccess(); // 连接成功
     Q_SIGNAL void connectCasterFailed();  // 连接失败
     Q_SIGNAL void reconnectCaster();      // 重连
-    Q_SIGNAL void disconnectCaster();     // 断开连接
+    Q_SIGNAL void casterDisconnected();   // 已断开连接
 
     Q_SIGNAL void connectAuthSuccess(); // 连接成功
     Q_SIGNAL void connectAuthFailed();  // 连接失败
     Q_SIGNAL void reconnectAuth();      // 重连
-    Q_SIGNAL void disconnectAuth();     // 断开连接
+    Q_SIGNAL void authDisconnected();   // 已断开连接
 
     // 操作执行结果信号
     Q_SIGNAL void operateFinished(QString OP_UID, bool success, QVariantMap info);
@@ -184,50 +152,23 @@ private slots:
     void onConnectAuthFailed();                        // 用于处理连接完成
     void onUpdateAuthRedisCtx(redisAsyncContext *ctx); // 用于处理连接完成
 
-    void onUpdateNodeMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdataServerMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdataClientMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdateAccountMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdatePullListMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdatePullStatMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdatePushListMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdatePushStatMap(QString OP_UID, bool success, QVariantMap info);
-    void onUpdateAliasMap(QString OP_UID, bool success, QVariantMap info);
-
-    // 任务操作发送的信号通过这个转发
-    void onOperateFinished(QString OP_UID, bool success, QVariantMap info);
-
     void onTimeout(); // 定时任务执行函数
-
-private:
-    std::shared_ptr<ntrip_server> get_ntrip_server_by_mpt(QString Mpt);
 
 public:
     std::shared_ptr<spdlog::logger> _logger; // 模块日志器
 
     std::shared_ptr<EventWorker> _caster_mgr = std::make_shared<EventWorker>(); // CasterCore事件管理
     std::shared_ptr<EventWorker> _auth_mgr = std::make_shared<EventWorker>();   // AuthVerify事件管理
-    std::map<QString, std::shared_ptr<EventOperationBase>> _caster_event_map;
-    std::map<QString, std::shared_ptr<RedisOperationBase>> _caster_redis_map;
-    std::map<QString, std::shared_ptr<EventOperationBase>> _auth_event_map;
-    std::map<QString, std::shared_ptr<RedisOperationBase>> _auth_redis_map;
 
     bool _caster_connected = false;
     bool _auth_connected = false;
 
+    // 当前连接操作（保持 shared_ptr 生命周期直至回调完成）
+    std::shared_ptr<EventConnectRedis> _caster_connect_op;
+    std::shared_ptr<EventConnectRedis> _auth_connect_op;
+
 public:
     std::unordered_map<QString, QString> _ntrip_serverUID_map; // 挂载点 → Connect_Key 映射
-
-    // 本地数据上下文（线程安全，带 flag 同步）
-    Context<caster_node>    m_caster_nodes;
-    Context<ntrip_server>   m_ntrip_servers;
-    Context<ntrip_client>   m_ntrip_clients;
-    Context<user_account>   m_user_accounts;
-    Context<relay_pull_item> m_relay_pull_items;
-    Context<relay_push_item> m_relay_push_items;
-    Context<relay_pull_stat> m_relay_pull_stats;
-    Context<relay_push_stat> m_relay_push_stats;
-    Context<alias_rule>     m_alias_rules;
 
 public:
 
@@ -236,8 +177,8 @@ public:
     static constexpr char AccountRecordTableName[] = "ACT:RECORD";
     static constexpr char AccountActiveTableName[] = "STR:ACTIVE";
 
-    HashConetxt<AccountRecord,AccountRecordTableName>  AccountRecords;
-    HashConetxt<AccountActive,AccountActiveTableName>  AccountActives;
+    HashContext<AccountRecord,AccountRecordTableName>  AccountRecords;
+    HashContext<AccountActive,AccountActiveTableName>  AccountActives;
 
     // Redis同步数据和操作（core）
     static constexpr char AccessGroupTableName[] = "ACCESS:GROUP";
@@ -252,22 +193,22 @@ public:
     static constexpr char PushRecordsTableName[] = "STR:PUSH:LIST";
     static constexpr char PushStatesTableName[]  = "STR:PUSH:STAT";
 
-    HashConetxt<AccessGroup,AccessGroupTableName>  AccessGroups;
-    HashConetxt<AccessItem,AccessItemTableName>  AccessItems;
-    HashConetxt<SourceRecord,SourceRecordTableName>  SourceRecords;
-    HashConetxt<ServerState,ServerStateTableName>  SourceStates;
-    HashConetxt<ClientState,ClientStateTableName>  ClientStates;
-    HashConetxt<StreamState,StreamStateTableName>  StreamStates;
-    HashConetxt<AliasRule,AliasRuleTableName>  AliasRules;
-    HashConetxt<PullRecord,PullRecordsTableName>  PullRecords;
-    HashConetxt<PullState,PullStatesTableName>  PullStates;
-    HashConetxt<PushRecord,PushRecordsTableName>  PushRecords;
-    HashConetxt<PushState,PushStatesTableName>  PushStates;
+    HashContext<AccessGroup,AccessGroupTableName>  AccessGroups;
+    HashContext<AccessItem,AccessItemTableName>  AccessItems;
+    HashContext<SourceRecord,SourceRecordTableName>  SourceRecords;
+    HashContext<ServerState,ServerStateTableName>  SourceStates;
+    HashContext<ClientState,ClientStateTableName>  ClientStates;
+    HashContext<StreamState,StreamStateTableName>  StreamStates;
+    HashContext<AliasRule,AliasRuleTableName>  AliasRules;
+    HashContext<PullRecord,PullRecordsTableName>  PullRecords;
+    HashContext<PullState,PullStatesTableName>  PullStates;
+    HashContext<PushRecord,PushRecordsTableName>  PushRecords;
+    HashContext<PushState,PushStatesTableName>  PushStates;
 
     // Redis同步数据和操作（service）
     static constexpr char CasterNodeTableName[] = "CASTER:NODE";
 
-    HashConetxt<CasterNode,CasterNodeTableName>  CasterNodes;
+    HashContext<CasterNode,CasterNodeTableName>  CasterNodes;
 
 
 

@@ -206,19 +206,19 @@ void DataGridModelEx::sortByKey(const QString &key, bool ascending)
         QVariant vb = b.toMap().value(key);
 
         // 根据 QVariant 的类型进行排序
-        if (va.type() == QVariant::String && vb.type() == QVariant::String) {
+        if (va.typeId() == QMetaType::QString && vb.typeId() == QMetaType::QString) {
             // 字符串类型，直接用字符串比较
             return ascending ? va.toString() < vb.toString() : va.toString() > vb.toString();
         }
-        else if (va.type() == QVariant::Int && vb.type() == QVariant::Int) {
+        else if (va.typeId() == QMetaType::Int && vb.typeId() == QMetaType::Int) {
             // 整型类型，转换为 int 进行比较
             return ascending ? va.toInt() < vb.toInt() : va.toInt() > vb.toInt();
         }
-        else if (va.type() == QVariant::Double && vb.type() == QVariant::Double) {
+        else if (va.typeId() == QMetaType::Double && vb.typeId() == QMetaType::Double) {
             // 浮动类型，转换为 double 进行比较
             return ascending ? va.toDouble() < vb.toDouble() : va.toDouble() > vb.toDouble();
         }
-        else if (va.type() == QVariant::Date && vb.type() == QVariant::Date) {
+        else if (va.typeId() == QMetaType::QDate && vb.typeId() == QMetaType::QDate) {
             // 日期类型，直接用日期比较
             return ascending ? va.toDate() < vb.toDate() : va.toDate() > vb.toDate();
         }

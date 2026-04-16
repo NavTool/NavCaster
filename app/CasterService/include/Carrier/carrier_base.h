@@ -188,10 +188,10 @@ struct TimerAwaitable
 // 自由函数声明
 // ============================================================================
 
-std::string build_nrtip_reply(ConnectType type, bool version2, bool chuncked);
+std::string build_nrtip_reply(ConnectType type, bool version2, bool chunked);
 std::string build_ntrip_request(ConnectType type, bool version2, std::string mpt, std::string host, std::string auth);
 
-bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &chuncked);
+bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &chunked);
 
 // ============================================================================
 // carrier_base: 所有 Carrier 的统一基类
@@ -271,7 +271,7 @@ public:
     // ============ 工具方法（通用操作，供派生类调用）============
 public:
     std::string create_bev(std::string addr, int port);
-    int destory_bev(std::string connect_key);
+    int destroy_bev(std::string connect_key);
     int start_bev(bool enable_read_cb, time_t read_timeout_sec, bool enable_write_cb, time_t write_timeout_sec);
     int stop_bev();
 
@@ -284,8 +284,8 @@ public:
     int caster_register(CasterRegisterType type);
     int caster_withdraw();
 
-    std::vector<uint8_t> read_data(bool chuncked);
-    int send_data(const char *data, size_t len, bool chuncked);
+    std::vector<uint8_t> read_data(bool chunked);
+    int send_data(const char *data, size_t len, bool chunked);
 
     int publish_data(const char *data, size_t len);
     int subscribe();

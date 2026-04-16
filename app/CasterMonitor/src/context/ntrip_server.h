@@ -77,7 +77,7 @@ public:
     json info()
     {
         json info;
-        info["UID"] = UID();
+        info["uid"] = UID();
         info["login_mpt"] = login_mpt();
         info["alias_mpt"] = alias_mpt();
 
@@ -103,24 +103,13 @@ public:
 
         info["update_flag"] = update_flag();
 
-
-        double lat = 0.0, lon = 0.0, alt = 0.0;
-        if(position_update_time()!=0) // 证明更新了坐标
-        {
-            util_ecef2pos(m_ecef_x, m_ecef_y, m_ecef_z, lat, lon, alt);
-        }
-
-        info["llh_lat"]=lat;
-        info["llh_lon"]= lon;
-        info["llh_height"]= alt;
-
         return info;
     }
 
     int setInfo(json info)
     {
 
-        UID(info, "UID");
+        UID(info, "uid");
         login_mpt(info, "login_mpt");
         alias_mpt(info, "alias_mpt");
 
@@ -131,10 +120,11 @@ public:
         online_time(info, "online_time");
         online_seconds(info, "online_seconds");
 
-        send_total(info, "send_total");
-        send_speed(info, "send_speed");
-        recv_total(info, "recv_total");
-        recv_speed(info, "recv_speed");
+        // send/recv stats moved to StreamState proto, not in ServerState
+        // send_total(info, "send_total");
+        // send_speed(info, "send_speed");
+        // recv_total(info, "recv_total");
+        // recv_speed(info, "recv_speed");
         tcp_delay(info,"tcp_delay");
 
         ecef_x(info, "ecef_x");

@@ -23,16 +23,17 @@ public:
             {
                 Q_EMIT loadDataStart();
 
-                m_data.clear();
+                QList<QVariantMap> result;
 
-                auto snapshot = CasterMonitor::getInstance()->m_ntrip_clients.getSnapshot();
-                for (auto &[key, obj] : snapshot)
-                {
-                    QVariantMap data = JsonToQVariantMap(obj->info());
-                    m_data.append(data);
-                }
+                CasterMonitor::getInstance()->ClientStates.forEach(
+                    [&result](const std::string &key, const std::shared_ptr<ClientState> &obj) {
+                        result.append(PrototoQml(*obj));
+                    });
 
-                Q_EMIT loadDataSuccess();
+                QMetaObject::invokeMethod(this, [this, result = std::move(result)]() {
+                    data(result);
+                    Q_EMIT loadDataSuccess();
+                });
             });
 
     }

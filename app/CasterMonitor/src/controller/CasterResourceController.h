@@ -61,68 +61,87 @@ public:
             {
                 Q_EMIT updateNodeDataStart();
 
-                m_cluster_cpu=0;
-                m_cluster_mem=0;
-                m_cluster_recv_total=0;
-                m_cluster_recv_speed=0;
-                m_cluster_send_total=0;
-                m_cluster_send_speed=0;
-                m_cluster_runsec=0;
-                m_node_online=0;
-                m_node_count=0;
-                m_connect_online=0;
-                m_server_online=0;
-                m_server_limit=0;
-                m_client_online=0;
-                m_client_limit=0;
+                double l_cluster_cpu=0;
+                double l_cluster_mem=0;
+                double l_cluster_recv_total=0;
+                double l_cluster_recv_speed=0;
+                double l_cluster_send_total=0;
+                double l_cluster_send_speed=0;
+                int l_cluster_runsec=0;
+                int l_node_online=0;
+                int l_node_count=0;
+                int l_connect_online=0;
+                int l_server_online=0;
+                int l_server_limit=0;
+                int l_client_online=0;
+                int l_client_limit=0;
 
-                m_node_status_data.clear();
+                QList<QVariantMap> l_node_status_data;
 
-                auto snapshot = CasterMonitor::getInstance()->m_caster_nodes.getSnapshot();
-
-                for(auto &[key, obj] : snapshot)
-                {
-                    auto info = obj->info();
-                    QVariantMap data= JsonToQVariantMap(info);
-
-                    m_node_count++;
-
-                    if(data["update_flag"].toBool() == false)
+                CasterMonitor::getInstance()->CasterNodes.forEach(
+                    [&](const std::string &key, const std::shared_ptr<CasterNode> &obj)
                     {
-                        // continue;
-                    }
+                        QVariantMap data = PrototoQml(*obj);
 
-                    m_cluster_cpu += obj->cpu_usage();
-                    m_cluster_mem += obj->mem_usage();
-                    m_cluster_recv_total+=obj->recv_total();
-                    m_cluster_recv_speed+=obj->recv_speed();
-                    m_cluster_send_total+=obj->send_total();
-                    m_cluster_send_speed+= obj->send_speed();
-                    m_connect_online+=obj->connnect_count();
-                    m_server_online+=obj->server_count();
-                    m_client_online+=obj->client_count();
+                        l_node_count++;
+
+                        l_cluster_cpu += obj->cpu_usage();
+                        l_cluster_mem += obj->mem_usage();
+                        l_cluster_recv_total+=obj->recv_total();
+                        l_cluster_recv_speed+=obj->recv_speed();
+                        l_cluster_send_total+=obj->send_total();
+                        l_cluster_send_speed+= obj->send_speed();
+                        l_connect_online+=obj->connect_count();
+                        l_server_online+=obj->server_count();
+                        l_client_online+=obj->client_count();
 
 
-                    if(obj->online_time()!=0)
-                    {
-                        if(m_cluster_runsec==0)
+                        if(obj->online_time()!=0)
                         {
-                            m_cluster_runsec=obj->online_time();
+                            if(l_cluster_runsec==0)
+                            {
+                                l_cluster_runsec=obj->online_time();
+                            }
+                            else if(l_cluster_runsec>obj->online_time())
+                            {
+                                l_cluster_runsec=obj->online_time();
+                            }
                         }
-                        else if(m_cluster_runsec>obj->online_time())
-                        {
-                            m_cluster_runsec=obj->online_time();
-                        }
-                    }
 
-                    m_node_online++;
+                        l_node_online++;
 
-                    m_node_status_data.append(data);
-                }
+                        l_node_status_data.append(data);
+                    });
 
-                m_cluster_cpu/=m_node_online*1.0;
+                if(l_node_online > 0)
+                    l_cluster_cpu/=l_node_online*1.0;
 
-                Q_EMIT updateNodeDataSuccess();
+                QMetaObject::invokeMethod(this, [this,
+                    l_cluster_cpu, l_cluster_mem,
+                    l_cluster_recv_total, l_cluster_recv_speed,
+                    l_cluster_send_total, l_cluster_send_speed,
+                    l_cluster_runsec,
+                    l_node_online, l_node_count,
+                    l_connect_online, l_server_online, l_server_limit,
+                    l_client_online, l_client_limit,
+                    l_node_status_data = std::move(l_node_status_data)]() {
+                    cluster_cpu(l_cluster_cpu);
+                    cluster_mem(l_cluster_mem);
+                    cluster_recv_total(l_cluster_recv_total);
+                    cluster_recv_speed(l_cluster_recv_speed);
+                    cluster_send_total(l_cluster_send_total);
+                    cluster_send_speed(l_cluster_send_speed);
+                    cluster_runsec(l_cluster_runsec);
+                    node_online(l_node_online);
+                    node_count(l_node_count);
+                    connect_online(l_connect_online);
+                    server_online(l_server_online);
+                    server_limit(l_server_limit);
+                    client_online(l_client_online);
+                    client_limit(l_client_limit);
+                    node_status_data(l_node_status_data);
+                    Q_EMIT updateNodeDataSuccess();
+                });
             });
 
     }

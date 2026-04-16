@@ -24,10 +24,9 @@ public:
 
         m_data.clear();
 
-        CasterMonitor::getInstance()->m_ntrip_servers.forEach(
-            [this](const QString &key, const std::shared_ptr<ntrip_server> &obj) {
-                QVariantMap data = JsonToQVariantMap(obj->info());
-                m_data.append(data);
+        CasterMonitor::getInstance()->SourceStates.forEach(
+            [this](const std::string &key, const std::shared_ptr<ServerState> &obj) {
+                m_data.append(PrototoQml(*obj));
             });
 
         Q_EMIT loadDataSuccess();

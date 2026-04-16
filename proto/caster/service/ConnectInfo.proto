@@ -21,7 +21,7 @@ enum OperateType
 {
   OPERATE_TYPE_UNKNOWN = 0; // 未知
   OPERATE_TYPE_CREATE  = 1; // 创建对象
-  OPERATE_TYPE_DESTORY = 2; // 释放对象
+  OPERATE_TYPE_DESTROY = 2; // 释放对象
   OPERATE_TYPE_PAUSE   = 3; // 暂停
   OPERATE_TYPE_UPDATE  = 4; // 更新
 

@@ -28,10 +28,8 @@ ScrollablePage{
 
     Component.onCompleted: {
         //创建刷新数据操作
-        refreshDataOpUid = CasterMonitor.addRefreshNodeOperate()
+        refreshDataOpUid = CasterMonitor.refreshAllCasterNode()
         console.log("refreshDataOpUid: ", refreshDataOpUid)
-        // 执行这个指令
-        CasterMonitor.excuteOperate(refreshDataOpUid)
         // 启动定时器，定期刷新数据
         data_refresh_timer.start()
     }
@@ -45,7 +43,7 @@ ScrollablePage{
         repeat: true
         interval: 1000
         onTriggered: {
-            CasterMonitor.excuteOperate(refreshDataOpUid)
+            refreshDataOpUid = CasterMonitor.refreshAllCasterNode()
         }
     }
 
@@ -346,7 +344,7 @@ ScrollablePage{
                 IconButton
                 {
                     anchors.centerIn: parent
-                    text: qsTr("节点ID: ")+ model.UID
+                    text: qsTr("节点ID: ")+ model.uid
                     font.pixelSize: 15         // 设置字体大小（像素）
                     font.bold: true            // 加粗
                     onClicked:
@@ -376,7 +374,7 @@ ScrollablePage{
                     font.bold: true            // 加粗
                 }
                 Label{
-                    text: "连接数量: "+model.connnect_count+ " ( " +model.server_count + " 基站 " + model.client_count +" 移动站)";
+                    text: "连接数量: "+model.connect_count+ " ( " +model.server_count + " 基站 " + model.client_count +" 移动站)";
                     font.bold: true            // 加粗
                 }
                 Label{

@@ -21,6 +21,10 @@ public:
     double _ecef_z = 0;
     std::time_t _position_update_time = 0; // 定时上报
 
+    // 从RTCM解析出的源列表信息
+    std::string _format_details;  // RTCM报文类型列表，如 "1005(1),1074(120),1084(120)"
+    std::string _nav_system;      // 卫星系统，如 "GPS+GLO+GAL+BDS"
+
 public:
     server_status(std::string uid)
     {
@@ -60,6 +64,16 @@ public:
         return 0;
     }
 
+    int set_source_info(const std::string &format_details, const std::string &nav_system)
+    {
+        if (!format_details.empty())
+            _format_details = format_details;
+        if (!nav_system.empty())
+            _nav_system = nav_system;
+        _update_time = util_get_now_second();
+        return 0;
+    }
+
     int fromString(const std::string &str)
     {
         return 0;
@@ -80,6 +94,22 @@ public:
         caster::core::SourceRecord proto;
         // 设置信息
         proto.set_uid(_uid);
+        proto.set_mountpoint(_login_mpt);
+        proto.set_update_time(static_cast<uint64_t>(_update_time));
+        proto.set_decode_type(caster::SOURCE_DECODE_TYPE_AUTO);
+        // RTCM解析出的报文和卫星系统信息
+        if (!_format_details.empty())
+            proto.set_format_details(_format_details);
+        if (!_nav_system.empty())
+            proto.set_nav_system(_nav_system);
+        // 如果有坐标信息，转换为经纬度
+        if (_position_update_time > 0)
+        {
+            double lat = 0.0, lon = 0.0, alt = 0.0;
+            util_ecef2pos(_ecef_x, _ecef_y, _ecef_z, lat, lon, alt);
+            proto.set_latitude(std::to_string(lat));
+            proto.set_longitude(std::to_string(lon));
+        }
         // 生成json
         return ProtoToJson(proto);
     }
