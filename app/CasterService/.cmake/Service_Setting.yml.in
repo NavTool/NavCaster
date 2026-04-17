@@ -66,6 +66,15 @@ Register_Info:
   Register_Flie_Path: default
   License_Flie_Path: default
 
+#HTTP API 设置
+HTTP_API_Setting:
+  Port: 8080                    #HTTP API 监听端口
+  Bind_Addr: "0.0.0.0"         #绑定地址
+  CORS_Origin: "*"              #CORS 允许的源(* 允许所有)
+  Admin_User: "admin"           #管理员用户名
+  Admin_Password: "admin"       #管理员密码
+  Web_Root: ""                  #Web前端静态文件目录(空=禁用)
+
 
 #上传信息设置
 

@@ -4,11 +4,7 @@
 #include <set>
 #include "util.h"
 
-#include "EventOperationBase.h"
-#include "EventWorker.h"
-#include "ConnectOperate.h"
-
-#include "template/HashOperate.h"
+#include "template/HttpHashOperate.h"
 
 #include "stdafx.h"
 #include "spdlog/spdlog.h"
@@ -120,6 +116,7 @@ public:
     Q_INVOKABLE void connectCaster(const QString &ip, int port, const QString &auth);
     Q_INVOKABLE void disconnectCaster();
 
+    // connectAuth 不再需要独立调用（HTTP API 统一鉴权），保留接口兼容
     Q_INVOKABLE void connectAuth(const QString &ip, int port, const QString &auth);
     Q_INVOKABLE void disconnectAuth();
 
@@ -144,28 +141,18 @@ public:
     Q_SIGNAL void operateFinished(QString OP_UID, bool success, QVariantMap info);
 
 private slots:
-    void onConnectCasterSuccess();                       // 用于处理连接完成
-    void onConnectCasterFailed();                        // 用于处理连接完成
-    void onUpdateCasterRedisCtx(redisAsyncContext *ctx); // 用于处理连接完成
-
-    void onConnectAuthSuccess();                       // 用于处理连接完成
-    void onConnectAuthFailed();                        // 用于处理连接完成
-    void onUpdateAuthRedisCtx(redisAsyncContext *ctx); // 用于处理连接完成
+    void onLoginSuccess();
+    void onLoginFailed(const QString &error);
+    void onLogoutFinished();
 
     void onTimeout(); // 定时任务执行函数
 
 public:
     std::shared_ptr<spdlog::logger> _logger; // 模块日志器
 
-    std::shared_ptr<EventWorker> _caster_mgr = std::make_shared<EventWorker>(); // CasterCore事件管理
-    std::shared_ptr<EventWorker> _auth_mgr = std::make_shared<EventWorker>();   // AuthVerify事件管理
+    std::unique_ptr<HttpClient> _http_client; // HTTP API 客户端
 
-    bool _caster_connected = false;
-    bool _auth_connected = false;
-
-    // 当前连接操作（保持 shared_ptr 生命周期直至回调完成）
-    std::shared_ptr<EventConnectRedis> _caster_connect_op;
-    std::shared_ptr<EventConnectRedis> _auth_connect_op;
+    bool _connected = false;
 
 public:
     std::unordered_map<QString, QString> _ntrip_serverUID_map; // 挂载点 → Connect_Key 映射
@@ -173,42 +160,25 @@ public:
 public:
 
 
-    // Redis同步数据和操作(auth）
-    static constexpr char AccountRecordTableName[] = "ACT:RECORD";
-    static constexpr char AccountActiveTableName[] = "STR:ACTIVE";
+    // HTTP API 数据上下文（auth）
+    HttpHashContext<AccountRecord>  AccountRecords;
+    HttpHashContext<AccountActive>  AccountActives;
 
-    HashContext<AccountRecord,AccountRecordTableName>  AccountRecords;
-    HashContext<AccountActive,AccountActiveTableName>  AccountActives;
+    // HTTP API 数据上下文（core）
+    HttpHashContext<AccessGroup>   AccessGroups;
+    HttpHashContext<AccessItem>    AccessItems;
+    HttpHashContext<SourceRecord>  SourceRecords;
+    HttpHashContext<ServerState>   SourceStates;
+    HttpHashContext<ClientState>   ClientStates;
+    HttpHashContext<StreamState>   StreamStates;
+    HttpHashContext<AliasRule>     AliasRules;
+    HttpHashContext<PullRecord>    PullRecords;
+    HttpHashContext<PullState>     PullStates;
+    HttpHashContext<PushRecord>    PushRecords;
+    HttpHashContext<PushState>     PushStates;
 
-    // Redis同步数据和操作（core）
-    static constexpr char AccessGroupTableName[] = "ACCESS:GROUP";
-    static constexpr char AccessItemTableName[]  = "ACCESS:ACCESS:XXX";
-    static constexpr char SourceRecordTableName[] = "MPT:RECORD";
-    static constexpr char ServerStateTableName[]  = "MPT:STAT";
-    static constexpr char ClientStateTableName[]  = "USR:STAT";
-    static constexpr char StreamStateTableName[]  = "STR:STAT";
-    static constexpr char AliasRuleTableName[]   = "STR:ALIAS:LIST";
-    static constexpr char PullRecordsTableName[] = "STR:PULL:LIST";
-    static constexpr char PullStatesTableName[]  = "STR:PULL:STAT";
-    static constexpr char PushRecordsTableName[] = "STR:PUSH:LIST";
-    static constexpr char PushStatesTableName[]  = "STR:PUSH:STAT";
-
-    HashContext<AccessGroup,AccessGroupTableName>  AccessGroups;
-    HashContext<AccessItem,AccessItemTableName>  AccessItems;
-    HashContext<SourceRecord,SourceRecordTableName>  SourceRecords;
-    HashContext<ServerState,ServerStateTableName>  SourceStates;
-    HashContext<ClientState,ClientStateTableName>  ClientStates;
-    HashContext<StreamState,StreamStateTableName>  StreamStates;
-    HashContext<AliasRule,AliasRuleTableName>  AliasRules;
-    HashContext<PullRecord,PullRecordsTableName>  PullRecords;
-    HashContext<PullState,PullStatesTableName>  PullStates;
-    HashContext<PushRecord,PushRecordsTableName>  PushRecords;
-    HashContext<PushState,PushStatesTableName>  PushStates;
-
-    // Redis同步数据和操作（service）
-    static constexpr char CasterNodeTableName[] = "CASTER:NODE";
-
-    HashContext<CasterNode,CasterNodeTableName>  CasterNodes;
+    // HTTP API 数据上下文（service）
+    HttpHashContext<CasterNode>    CasterNodes;
 
 
 

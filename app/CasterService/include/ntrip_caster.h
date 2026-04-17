@@ -15,6 +15,7 @@
 
 // #include "../extra/heart_beat/heart_beat.h"
 #include "../extra/license_check/license_check.h"
+#include "HttpServer/http_handler.h"
 
 #include <event2/util.h>
 #include <event2/event.h>
@@ -107,6 +108,12 @@ private:
 
 private:
     // 扩展模块，Relay请求处理
+
+private:
+    // 扩展模块，HTTP API
+    http_handler _http_handler;
+    redis_adapter _http_caster_redis;
+    redis_adapter _http_auth_redis;
 
     // private:
     //     // 扩展模块 心跳上传功能--------------------------------------------------------------------------

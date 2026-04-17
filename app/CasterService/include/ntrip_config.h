@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ntrip_global.h"
+#include "HttpServer/http_handler.h"
 
 class ntrip_config
 {
@@ -12,6 +13,8 @@ public:
     ServiceOpt _service_opt;
     NtripServerOpt _ntrip_server_opt;
     NtripClientOpt _ntrip_client_opt;
+
+    HttpApiConfig _http_api_config;
 
 public:
     ntrip_config(/* args */);

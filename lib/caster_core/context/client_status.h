@@ -5,16 +5,16 @@
 class client_status
 {
 private:
-    std::string _uid;         // connect_key
-    std::time_t _online_time; // 上线时刻
-    std::time_t _update_time; // 更新时刻
+    std::string _uid;              // connect_key
+    std::time_t _online_time = 0;  // 上线时刻
+    std::time_t _update_time = 0;  // 更新时刻
 
     std::string _login_mpt; // 接入的挂载点
     std::string _alias_mpt; // 对外服务的名称
-    int _type;              // 接入类型
+    int _type = 0;           // 接入类型
     std::string _account;   // 账户名
     std::string _ip;        // 连接IP
-    int _port;              // 连接端口
+    int _port = 0;           // 连接端口
 
 
     double _ecef_x = 0;
@@ -31,6 +31,22 @@ public:
     client_status(std::string uid)
     {
         _uid=uid;
+        _online_time = util_get_now_second();
+    }
+
+    int set_info(std::string login_mpt, int type, std::string account)
+    {
+        _login_mpt = login_mpt;
+        _alias_mpt = _login_mpt;
+        _type = type;
+        _account = account;
+
+        std::string server_ip;
+        int server_port;
+        decodeKey(_uid, server_ip, server_port, _ip, _port);
+
+        _update_time = util_get_now_second();
+        return 0;
     }
 
     int set_alias_mpt(std::string alias_mpt)
@@ -64,11 +80,27 @@ public:
     }
     std::string toString()
     {
-        // 创建一个proto
+        _update_time = util_get_now_second();
+
         caster::core::ClientState proto;
-        // 设置信息
         proto.set_uid(_uid);
-        // 生成json
+        proto.set_online_time(static_cast<uint64_t>(_online_time));
+        proto.set_update_time(static_cast<uint64_t>(_update_time));
+        proto.set_login_mpt(_login_mpt);
+        proto.set_alias_mpt(_alias_mpt);
+        proto.set_type(_type);
+        proto.set_account(_account);
+        proto.set_ip(_ip);
+        proto.set_port(_port);
+        proto.set_online_seconds(static_cast<uint64_t>(_online_time > 0 ? _update_time - _online_time : 0));
+        proto.set_ecef_x(_ecef_x);
+        proto.set_ecef_y(_ecef_y);
+        proto.set_ecef_z(_ecef_z);
+        proto.set_position_update_time(static_cast<int64_t>(_position_update_time));
+        proto.set_quality(_quality);
+        proto.set_sat_num(_sat_num);
+        proto.set_diff(_diff);
+        proto.set_distance(_distance);
         return ProtoToJson(proto);
     }
 };

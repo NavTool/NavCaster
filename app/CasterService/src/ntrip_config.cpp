@@ -155,6 +155,24 @@ int ntrip_config::load_Caster_Conf(std::string conf_file_path)
     _service_opt.set_cord_dump(Debug_Mode["Core_Dump"].as<bool>());
     _service_opt.set_output_debug_info(Debug_Mode["Output_Debug"].as<bool>());
 
+    // HTTP API 设置
+    if (Conf["HTTP_API_Setting"])
+    {
+        auto Http_Setting = Conf["HTTP_API_Setting"];
+        if (Http_Setting["Port"])
+            _http_api_config.port = Http_Setting["Port"].as<int>();
+        if (Http_Setting["Bind_Addr"])
+            _http_api_config.bind_addr = Http_Setting["Bind_Addr"].as<std::string>();
+        if (Http_Setting["CORS_Origin"])
+            _http_api_config.cors_origin = Http_Setting["CORS_Origin"].as<std::string>();
+        if (Http_Setting["Admin_User"])
+            _http_api_config.admin_user = Http_Setting["Admin_User"].as<std::string>();
+        if (Http_Setting["Admin_Password"])
+            _http_api_config.admin_password = Http_Setting["Admin_Password"].as<std::string>();
+        if (Http_Setting["Web_Root"])
+            _http_api_config.web_root = Http_Setting["Web_Root"].as<std::string>();
+    }
+
     return 0;
 }
 

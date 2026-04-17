@@ -23,7 +23,7 @@ add_definitions(-DAPP_VERSION=${VERSION_STR})
 
 set(QML_IMPORT_PATH ${CMAKE_SOURCE_DIR}/imports CACHE STRING "" FORCE)
 
-find_package(Qt6 COMPONENTS Quick REQUIRED)
+find_package(Qt6 COMPONENTS Quick Network REQUIRED)
 
 set(QT_SDK_DIR "${Qt6_DIR}/../../..")
 cmake_path(SET QT_SDK_DIR NORMALIZE ${QT_SDK_DIR})
@@ -145,6 +145,7 @@ include_directories(${PROJECT_NAME}  ${JSON_INCLUDE_PATH})
 target_link_libraries(
     ${PROJECT_NAME} PRIVATE
     Qt6::Quick
+    Qt6::Network
     FluentUI
     FluentUIImpl
     FluentUIControls

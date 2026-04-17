@@ -19,6 +19,7 @@ include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Carrier)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Component)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/Connector)
+include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include/HttpServer)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/extra)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)
 
@@ -77,6 +78,7 @@ target_link_libraries(${PROJECT_NAME}
     casterbase
     castercore
     authverify
+    hiredis
     event
     event_extra
     event_core

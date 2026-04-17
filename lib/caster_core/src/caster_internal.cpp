@@ -1384,6 +1384,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
     {
         // 创建一条新的连接记录
         client_status conn(connect_key);
+        conn.set_info(channel, static_cast<int>(type), user_name);
 
         _client_status_map.insert(std::pair<std::string, client_status>(connect_key, conn));
 

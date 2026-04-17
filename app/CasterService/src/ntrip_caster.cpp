@@ -216,6 +216,47 @@ int ntrip_caster::extra_init()
 {
     // init_license_check();
 
+    // Initialize HTTP API server
+    auto *conf = ntrip_config::getInstance();
+    auto &http_conf = conf->_http_api_config;
+
+    // Initialize Redis adapters for HTTP API
+    auto &core_opt = conf->_caster_core_opt;
+    auto &auth_opt = conf->_auth_verify_opt;
+
+    // Pass Redis params to HTTP API config for sync_redis
+    http_conf.redis_host = core_opt.redis_host();
+    http_conf.redis_port = core_opt.redis_port();
+    http_conf.redis_password = core_opt.redis_password();
+
+    int ret = _http_caster_redis.init(_base,
+                                       core_opt.redis_host(),
+                                       core_opt.redis_port(),
+                                       core_opt.redis_password());
+    if (ret != 0)
+    {
+        spdlog::warn("[ntrip_caster::extra_init]: HTTP API caster Redis adapter init failed");
+    }
+
+    ret = _http_auth_redis.init(_base,
+                                 auth_opt.redis_host(),
+                                 auth_opt.redis_port(),
+                                 auth_opt.redis_password());
+    if (ret != 0)
+    {
+        spdlog::warn("[ntrip_caster::extra_init]: HTTP API auth Redis adapter init failed");
+    }
+
+    ret = _http_handler.init(_base, &_http_caster_redis, &_http_auth_redis, http_conf);
+    if (ret != 0)
+    {
+        spdlog::error("[ntrip_caster::extra_init]: HTTP API handler init failed on port {}", http_conf.port);
+    }
+    else
+    {
+        spdlog::info("[ntrip_caster::extra_init]: HTTP API server started on {}:{}", http_conf.bind_addr, http_conf.port);
+    }
+
     return 0;
 }
 

@@ -1,4 +1,5 @@
 #include <sstream>
+#include <random>
 #include "CasterMonitor.h"
 #include "knt.h"
 
@@ -7,32 +8,61 @@ CasterMonitor::CasterMonitor(QObject *parent) : QObject(parent)
 {
     _logger = spdlog::default_logger();
 
-    _caster_mgr->start();
-    _auth_mgr->start();
+    // ==================== 创建 HTTP 客户端 ====================
+    _http_client = std::make_unique<HttpClient>(this);
 
-    // ==================== 绑定 EventWorker 到 HashContext ====================
+    connect(_http_client.get(), &HttpClient::loginSuccess,  this, &CasterMonitor::onLoginSuccess);
+    connect(_http_client.get(), &HttpClient::loginFailed,   this, &CasterMonitor::onLoginFailed);
+    connect(_http_client.get(), &HttpClient::logoutFinished, this, &CasterMonitor::onLogoutFinished);
 
-    // Auth 相关 → _auth_mgr
-    AccountRecords.setWorker(_auth_mgr.get());
-    AccountActives.setWorker(_auth_mgr.get());
+    // ==================== 绑定 HttpClient 到所有 HttpHashContext ====================
 
-    // Core 相关 → _caster_mgr
-    AccessGroups.setWorker(_caster_mgr.get());
-    AccessItems.setWorker(_caster_mgr.get());
-    SourceRecords.setWorker(_caster_mgr.get());
-    SourceStates.setWorker(_caster_mgr.get());
-    ClientStates.setWorker(_caster_mgr.get());
-    StreamStates.setWorker(_caster_mgr.get());
-    AliasRules.setWorker(_caster_mgr.get());
-    PullRecords.setWorker(_caster_mgr.get());
-    PullStates.setWorker(_caster_mgr.get());
-    PushRecords.setWorker(_caster_mgr.get());
-    PushStates.setWorker(_caster_mgr.get());
+    // Auth 相关
+    AccountRecords.setClient(_http_client.get());
+    AccountRecords.setApiPath("/api/accounts");
 
-    // Service 相关 → _caster_mgr
-    CasterNodes.setWorker(_caster_mgr.get());
+    AccountActives.setClient(_http_client.get());
+    AccountActives.setApiPath("/api/accounts/active");
 
-    // ==================== 注册 HashContext 回调 ====================
+    // Core 相关
+    AccessGroups.setClient(_http_client.get());
+    AccessGroups.setApiPath("/api/access/groups");
+
+    AccessItems.setClient(_http_client.get());
+    AccessItems.setApiPath("/api/access/items");
+
+    SourceRecords.setClient(_http_client.get());
+    SourceRecords.setApiPath("/api/sources");
+
+    SourceStates.setClient(_http_client.get());
+    SourceStates.setApiPath("/api/servers");
+
+    ClientStates.setClient(_http_client.get());
+    ClientStates.setApiPath("/api/clients");
+
+    StreamStates.setClient(_http_client.get());
+    StreamStates.setApiPath("/api/streams");
+
+    AliasRules.setClient(_http_client.get());
+    AliasRules.setApiPath("/api/aliases");
+
+    PullRecords.setClient(_http_client.get());
+    PullRecords.setApiPath("/api/relays/pull");
+
+    PullStates.setClient(_http_client.get());
+    PullStates.setApiPath("/api/relays/pull/status");
+
+    PushRecords.setClient(_http_client.get());
+    PushRecords.setApiPath("/api/relays/push");
+
+    PushStates.setClient(_http_client.get());
+    PushStates.setApiPath("/api/relays/push/status");
+
+    // Service 相关
+    CasterNodes.setClient(_http_client.get());
+    CasterNodes.setApiPath("/api/nodes");
+
+    // ==================== 注册 HttpHashContext 回调 ====================
     AccountRecords.setNoticeHashOperateFinishedHandler(
         [this](HashOperateType t, QString uid, bool ok, QVariantMap info) { onAccountRecordsUpdated(t, uid, ok, info); });
     AccountActives.setNoticeHashOperateFinishedHandler(
@@ -70,116 +100,86 @@ CasterMonitor *CasterMonitor::create(QQmlEngine *, QJSEngine *) {
 
 void CasterMonitor::connectCaster(const QString &ip, int port, const QString &auth)
 {
-    if(_caster_connected)
+    if(_connected)
     {
-        noticeError("Caster Network is already in a connected state!");
+        noticeError("Already connected to API server!");
         return;
     }
 
-    _caster_connect_op = std::make_shared<EventConnectRedis>();
-    _caster_connect_op->ip(ip);
-    _caster_connect_op->port(port);
-    _caster_connect_op->auth(auth);
+    QString baseUrl = QString("http://%1:%2").arg(ip).arg(port);
+    _http_client->setBaseUrl(baseUrl);
 
-    connect(_caster_connect_op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateCasterRedisCtx,Qt::UniqueConnection);
-    connect(_caster_connect_op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectCasterSuccess,Qt::UniqueConnection);
-    connect(_caster_connect_op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectCasterFailed,Qt::UniqueConnection);
+    // auth 格式：  "username:password"  或  "password"（默认用户 admin）
+    QString username = "admin";
+    QString password = auth;
+    int colonIdx = auth.indexOf(':');
+    if (colonIdx > 0)
+    {
+        username = auth.left(colonIdx);
+        password = auth.mid(colonIdx + 1);
+    }
 
-    _caster_mgr->postTask(_caster_connect_op);
+    _http_client->login(username, password);
 }
 
 void CasterMonitor::disconnectCaster()
 {
-    if(!_caster_connected)
+    if(!_connected)
     {
-        noticeError("Caster Network is already in a disconnected state!");
+        noticeError("Not connected!");
         return;
     }
-
-    auto op = std::make_shared<EventDisconnectRedis>();
-    op->set_redis_ctx(_caster_mgr->redisCtx());
-    _caster_mgr->postTask(op);
+    _http_client->logout();
 }
 
-void CasterMonitor::connectAuth(const QString &ip, int port, const QString &auth)
+void CasterMonitor::connectAuth(const QString &, int, const QString &)
 {
-    if(_auth_connected)
-    {
-        noticeError("Auth Network is already in a connected state!");
-        return;
-    }
-
-    _auth_connect_op = std::make_shared<EventConnectRedis>();
-    _auth_connect_op->ip(ip);
-    _auth_connect_op->port(port);
-    _auth_connect_op->auth(auth);
-
-    connect(_auth_connect_op.get(),&EventConnectRedis::updateRedisCtx,this,&CasterMonitor::onUpdateAuthRedisCtx,Qt::UniqueConnection);
-    connect(_auth_connect_op.get(),&EventConnectRedis::connectRedisSuccess,this,&CasterMonitor::onConnectAuthSuccess,Qt::UniqueConnection);
-    connect(_auth_connect_op.get(),&EventConnectRedis::connectRedisFailed,this,&CasterMonitor::onConnectAuthFailed,Qt::UniqueConnection);
-
-    _auth_mgr->postTask(_auth_connect_op);
+    // Auth 已通过 HTTP API 统一鉴权，直接发射成功信号保持向后兼容
+    emit connectAuthSuccess();
 }
 
 void CasterMonitor::disconnectAuth()
 {
-    if(!_auth_connected)
-    {
-        noticeError("Auth Network is already in a disconnected state!");
-        return;
-    }
-
-    auto op = std::make_shared<EventDisconnectRedis>();
-    op->set_redis_ctx(_auth_mgr->redisCtx());
-    _auth_mgr->postTask(op);
+    // 无需独立断开 auth 连接
+    emit authDisconnected();
 }
 
-void CasterMonitor::onConnectCasterSuccess()
+void CasterMonitor::onLoginSuccess()
 {
-    // 直接从连接操作对象读取 redisAsyncContext*，
-    // 避免依赖 updateRedisCtx(redisAsyncContext*) 的跨线程 QueuedConnection
-    // （该信号的指针参数可能因未注册 metatype 而被静默丢弃）
-    if (_caster_connect_op && _caster_connect_op->_redis_context) {
-        _caster_mgr->setRedisCtx(_caster_connect_op->_redis_context);
-    }
-    _caster_connected = true;
+    _connected = true;
     emit connectCasterSuccess();
-}
-
-void CasterMonitor::onConnectCasterFailed()
-{
-    emit connectCasterFailed();
-}
-
-void CasterMonitor::onConnectAuthSuccess()
-{
-    if (_auth_connect_op && _auth_connect_op->_redis_context) {
-        _auth_mgr->setRedisCtx(_auth_connect_op->_redis_context);
-    }
-    _auth_connected = true;
+    // 同时触发 auth 成功（向后兼容）
     emit connectAuthSuccess();
 }
 
-void CasterMonitor::onConnectAuthFailed()
+void CasterMonitor::onLoginFailed(const QString &error)
 {
-    emit connectAuthFailed();
+    _logger->error("HTTP API login failed: {}", error.toStdString());
+    emit connectCasterFailed();
 }
 
-void CasterMonitor::onUpdateCasterRedisCtx(redisAsyncContext *ctx)
+void CasterMonitor::onLogoutFinished()
 {
-    // 更新
-    _caster_mgr->setRedisCtx(ctx);
+    _connected = false;
 
-    // 启动定时刷新数据
+    // 清理所有本地缓存
+    AccountRecords.clear();
+    AccountActives.clear();
+    AccessGroups.clear();
+    AccessItems.clear();
+    SourceRecords.clear();
+    SourceStates.clear();
+    ClientStates.clear();
+    StreamStates.clear();
+    AliasRules.clear();
+    PullRecords.clear();
+    PullStates.clear();
+    PushRecords.clear();
+    PushStates.clear();
+    CasterNodes.clear();
+    _ntrip_serverUID_map.clear();
 
-    // 刷新在线基站列表
-    // 刷新基站订阅列表
-
-}
-
-void CasterMonitor::onUpdateAuthRedisCtx(redisAsyncContext *ctx)
-{
-    _auth_mgr->setRedisCtx(ctx);
+    emit casterDisconnected();
 }
 
 void CasterMonitor::onTimeout()

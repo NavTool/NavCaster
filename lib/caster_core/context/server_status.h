@@ -80,11 +80,23 @@ public:
     }
     std::string toString()
     {
-        // 创建一个proto
+        _update_time = util_get_now_second();
+
         caster::core::ServerState proto;
-        // 设置信息
         proto.set_uid(_uid);
-        // 生成json
+        proto.set_online_time(static_cast<uint64_t>(_online_time));
+        proto.set_update_time(static_cast<uint64_t>(_update_time));
+        proto.set_login_mpt(_login_mpt);
+        proto.set_alias_mpt(_alias_mpt);
+        proto.set_type(_type);
+        proto.set_account(_account);
+        proto.set_ip(_ip);
+        proto.set_port(_port);
+        proto.set_online_seconds(static_cast<uint64_t>(_update_time - _online_time));
+        proto.set_ecef_x(_ecef_x);
+        proto.set_ecef_y(_ecef_y);
+        proto.set_ecef_z(_ecef_z);
+        proto.set_position_update_time(static_cast<int64_t>(_position_update_time));
         return ProtoToJson(proto);
     }
 
