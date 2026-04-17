@@ -4,9 +4,6 @@
 [submodule "rely/libevent"]
 	path = rely/libevent
 	url = ../libevent.git
-[submodule "rely/FluentUI-Pro"]
-	path = rely/FluentUI-Pro
-	url = ../FluentUI-Pro.git
 [submodule "rely/spdlog"]
 	path = rely/spdlog
 	url = ../spdlog.git
