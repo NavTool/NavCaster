@@ -37,11 +37,7 @@ else()
 
 endif()
 
-if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-else()
-    set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
-endif()
+
 
 # 设置默认版本号
 set(VERSION_MAJOR 1)
@@ -168,20 +164,21 @@ if(MSVC)
 endif()
 set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
 set(ABSL_PROPAGATE_CXX_STD ON CACHE INTERNAL "")
-add_subdirectory(rely/abseil-cpp/)
+add_subdirectory(third_party/abseil-cpp/)
 
 #protobuf
 if(MSVC)
     set(protobuf_BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
 endif()
 set(protobuf_LOCAL_DEPENDENCIES_ONLY ON CACHE BOOL "Prevent downloading any dependencies from GitHub. If this option is set, the dependency must be available locally as an installed package." FORCE)
-add_subdirectory(rely/protobuf/)
+add_subdirectory(third_party/protobuf/)
 if(MSVC)
     target_compile_options(libupb PRIVATE /wd5287)    # 忽略编译libupb时候的警告
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/proto/src)
 add_subdirectory(proto)
+
 
 
 #libevent option
@@ -192,40 +189,38 @@ set(EVENT__DISABLE_BENCHMARK ON CACHE BOOL "force set this option" FORCE)
 set(EVENT__DISABLE_TESTS ON CACHE BOOL "force set this option" FORCE)
 set(EVENT__DISABLE_REGRESS ON CACHE BOOL "force set this option" FORCE)
 set(EVENT__DISABLE_SAMPLES ON CACHE BOOL "force set this option" FORCE)
-add_subdirectory(rely/libevent)
+add_subdirectory(third_party/libevent)
 
 #hiredis option
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
 set(DISABLE_TESTS ON CACHE BOOL "force set this option"  FORCE)
-add_subdirectory(rely/hiredis)
+add_subdirectory(third_party/hiredis)
 
 #yaml-cpp option
 set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
 set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "force set this option"  FORCE)
-add_subdirectory(rely/yaml-cpp)
+add_subdirectory(third_party/yaml-cpp)
 
 #json
-set(JSON_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/rely/json/include")
+set(JSON_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/third_party/json/include")
 
 #spdlog
-set(SPDLOG_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/rely/spdlog/include")
+set(SPDLOG_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
 
 #rtklib
-add_subdirectory(rely/rtklib)
+add_subdirectory(third_party/rtklib)
 
 
-add_subdirectory(lib)
-add_subdirectory(dev)
+add_subdirectory(src)
+add_subdirectory(tools)
 
-if(BUILD_CASTER_SERVICE)
-    add_subdirectory(app/CasterService)
-endif()
+
 
 
 
 
 #基于version.h.in 生成 version.h
-configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
 
 
 

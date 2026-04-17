@@ -1,24 +1,24 @@
 [submodule "rely/hiredis"]
-	path = rely/hiredis
+	path = third_party/hiredis
 	url = ../hiredis.git
 [submodule "rely/libevent"]
-	path = rely/libevent
+	path = third_party/libevent
 	url = ../libevent.git
 [submodule "rely/spdlog"]
-	path = rely/spdlog
+	path = third_party/spdlog
 	url = ../spdlog.git
 [submodule "rely/json"]
-	path = rely/json
+	path = third_party/json
 	url = ../json.git
 [submodule "rely/rtklib"]
-	path = rely/rtklib
+	path = third_party/rtklib
 	url = ../rtklib-2.4.3b34.git
 [submodule "rely/yaml-cpp"]
-	path = rely/yaml-cpp
+	path = third_party/yaml-cpp
 	url = ../yaml-cpp.git
 [submodule "rely/abseil-cpp"]
-	path = rely/abseil-cpp
+	path = third_party/abseil-cpp
 	url = ../abseil-cpp.git
 [submodule "rely/protobuf"]
-	path = rely/protobuf
+	path = third_party/protobuf
 	url = ../protobuf.git
