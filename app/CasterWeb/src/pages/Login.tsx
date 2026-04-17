@@ -33,12 +33,22 @@ const Login: React.FC = () => {
   return (
     <div style={{
       display: 'flex', justifyContent: 'center', alignItems: 'center',
-      minHeight: '100vh', background: '#f0f2f5',
+      minHeight: '100vh', background: '#141625',
     }}>
-      <Card style={{ width: 420, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
-        <Title level={3} style={{ textAlign: 'center', marginBottom: 32 }}>
-          NavCaster 管理平台
-        </Title>
+      <Card style={{ width: 420, background: '#1e2235', border: '1px solid #2e3450' }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12, background: '#4a8eff',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 700, fontSize: 20, marginBottom: 12,
+          }}>NC</div>
+          <Title level={3} style={{ margin: 0 }}>
+            NavCaster 管理平台
+          </Title>
+          <div style={{ color: '#6b7194', fontSize: 13, marginTop: 4 }}>
+            GNSS 差分数据基础设施管理
+          </div>
+        </div>
         <Form onFinish={onFinish} initialValues={{ host: defaultHost, port: defaultPort, username: 'admin', password: '' }} size="large">
           <Form.Item label="服务器" style={{ marginBottom: 16 }}>
             <Space.Compact style={{ width: '100%' }}>

@@ -1,5 +1,0 @@
-#!/bin/sh
-
-if [ -f /usr/share/applications/${PROJECT_APP_NAME}.desktop ]; then
-    rm /usr/share/applications/${PROJECT_APP_NAME}.desktop
-fi

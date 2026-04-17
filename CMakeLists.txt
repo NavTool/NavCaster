@@ -3,7 +3,6 @@ project(NavCaster)
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.21)
 
-option(BUILD_CASTER_MONITOR "Build Caster Monitor." ON)
 option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
 option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 
@@ -223,55 +222,16 @@ if(BUILD_CASTER_SERVICE)
 endif()
 
 
-if(BUILD_CASTER_MONITOR)
 
-    # -------------------------获取Qt版本和编译器信息-------------------------------------------------
-    find_package(Qt6 COMPONENTS Quick QUIET)
-    if (NOT Qt6_FOUND)
-        find_package(Qt5 COMPONENTS Core REQUIRED)
-    endif()
-
-    # 获取并显示 Qt 版本（包括子版本）
-    if (Qt6Core_VERSION)
-        set(QtVersion ${Qt6Core_VERSION})
-    elseif (Qt5Core_VERSION)
-        set(QtVersion ${Qt5Core_VERSION})
-    else()
-        message(FATAL_ERROR "Qt not found")
-    endif()
-
-    # 输出完整的版本信息
-    set(QT_COMPILER_VERSION "Qt ${QtVersion} (${Compiler}, ${Arch})")
-
-    #FluentUI-Pro
-    option(FLUENTUI_BUILD_STATIC_LIB "Build FluentUI static library." ON)
-    option(FLUENTUI_UNIVERSAL_BUILD_MACOS "Universal build FluentUI for macOS." ON)
-    if(APPLE AND FLUENTUI_UNIVERSAL_BUILD_MACOS)
-        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
-    else()
-        set(FLUENTUI_UNIVERSAL_BUILD_MACOS OFF)
-    endif()
-
-    add_subdirectory(rely/FluentUI-Pro/FluentUI)
-    add_subdirectory(app/CasterMonitor)
-
-endif()
 
 #基于version.h.in 生成 version.h
 configure_file(${CMAKE_SOURCE_DIR}/.cmake/version.h.in ${CMAKE_BINARY_DIR}/version.h @ONLY)
 
 
 
-message("---------------------------- FluentUI ----------------------------")
-message("Build FluentUI static library: ${FLUENTUI_BUILD_STATIC_LIB}")
-message("Universal build FluentUI for macOS: ${FLUENTUI_UNIVERSAL_BUILD_MACOS}")
-message("------------------------------------------------------------------")
-
-
 message("---------------------------- NavTool ----------------------------")
 message("Enable hot reload   : ${HOTLOAD_ENABLED}")
 message("Build Caster Service: ${BUILD_CASTER_SERVICE}")
-message("Build Caster Monitor: ${BUILD_CASTER_MONITOR}")
 message("------------------------------------------------------------------")
 
 

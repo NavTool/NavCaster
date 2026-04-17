@@ -1,4 +1,0 @@
-#include <windows.h>
-
-IDI_ICON1 ICON "${CMAKE_CURRENT_SOURCE_DIR}/deploy/windows/icon.ico"
-

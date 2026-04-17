@@ -8,7 +8,7 @@
 
 #define __class__ "http_handler"
 
-// Redis key constants — matching CasterMonitor and caster_internal
+// Redis key constants — matching CasterWeb and caster_internal
 static const char *KEY_ACCOUNT_RECORD = "ACT:RECORD";
 static const char *KEY_ACCOUNT_ACTIVE = "STR:ACTIVE";
 static const char *KEY_SOURCE_RECORD = "MPT:RECORD";

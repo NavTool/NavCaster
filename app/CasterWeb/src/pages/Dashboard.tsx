@@ -1,14 +1,16 @@
 import React from 'react';
-import { Card, Col, Row, Statistic, Tag, Typography, Spin, Alert, Descriptions, Progress } from 'antd';
+import { Card, Col, Row, Statistic, Typography, Spin, Alert, Progress } from 'antd';
 import {
   CloudServerOutlined, UserOutlined, ClusterOutlined,
-  ArrowUpOutlined, ArrowDownOutlined,
+  ArrowUpOutlined, ArrowDownOutlined, DashboardOutlined,
+  HddOutlined, ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useMultiSSE } from '../hooks/useSSE';
+import StatusIndicator from '../components/StatusIndicator';
 import type { CasterNode, ServerState, ClientState } from '../api/types';
 import { formatBytes, formatMbps, formatOnlineTime, formatDelay, formatUsage, formatSpeed } from '../utils/format';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const { data: sseData, connected } = useMultiSSE<{
@@ -34,81 +36,191 @@ const Dashboard: React.FC = () => {
 
   if (nodesLoading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
 
+  const cpuColor = avgCpu > 85 ? '#ff4d4f' : avgCpu > 50 ? '#faad14' : '#52c41a';
+
   return (
     <div>
-      <Title level={4}>集群概览</Title>
+      <div style={{ marginBottom: 20 }}>
+        <Title level={4} style={{ margin: 0 }}>NtripCaster Dashboard</Title>
+        <Text style={{ color: '#6b7194', fontSize: 13 }}>监控和管理您的 GNSS 差分数据基础设施</Text>
+      </div>
+
+      {/* Spark-style metric cards */}
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={8} lg={6}>
-          <Card>
-            <Statistic title="负载" value={formatUsage(avgCpu)} />
-            <Progress percent={Math.round(avgCpu)} size="small" showInfo={false}
-              strokeColor={avgCpu > 85 ? '#ff4d4f' : avgCpu > 50 ? '#faad14' : '#52c41a'} />
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>负载</div>
+                <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>{formatUsage(avgCpu)}</div>
+              </div>
+              <DashboardOutlined style={{ fontSize: 28, color: '#4a8eff', opacity: 0.5 }} />
+            </div>
+            <Progress percent={Math.round(avgCpu)} size="small" showInfo={false} strokeColor={cpuColor}
+              style={{ marginTop: 8 }} />
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
-          <Card>
-            <Statistic title="在线基站" value={serverCount} prefix={<CloudServerOutlined />} valueStyle={{ color: '#3f8600' }} />
-            <Progress percent={Math.min(serverCount, 100)} size="small" showInfo={false} />
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>在线基站</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{serverCount}</div>
+              </div>
+              <CloudServerOutlined style={{ fontSize: 28, color: '#52c41a', opacity: 0.5 }} />
+            </div>
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
-          <Card>
-            <Statistic title="在线移动站" value={clientCount} prefix={<UserOutlined />} valueStyle={{ color: '#1677ff' }} />
-            <Progress percent={Math.min(clientCount, 100)} size="small" showInfo={false} strokeColor="#1677ff" />
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>在线移动站</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{clientCount}</div>
+              </div>
+              <UserOutlined style={{ fontSize: 28, color: '#4a8eff', opacity: 0.5 }} />
+            </div>
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
-          <Card>
-            <Statistic title="节点状态" value={`${nodeList.length} / ${nodeList.length}`} prefix={<ClusterOutlined />} />
-            <Progress percent={100} size="small" showInfo={false} strokeColor="#52c41a" />
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>节点状态</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{nodeList.length}/{nodeList.length}</div>
+              </div>
+              <ClusterOutlined style={{ fontSize: 28, color: '#52c41a', opacity: 0.5 }} />
+            </div>
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
-          <Card><Statistic title="内存占用" value={formatBytes(totalMem)} /></Card>
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>内存占用</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{formatBytes(totalMem)}</div>
+              </div>
+              <HddOutlined style={{ fontSize: 28, color: '#8b90a8', opacity: 0.5 }} />
+            </div>
+          </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
-          <Card><Statistic title="输入" value={formatMbps(totalRecvSpeed)} prefix={<ArrowDownOutlined />} valueStyle={{ color: '#cf1322' }} /></Card>
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>输入</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#ff7875' }}>{formatMbps(totalRecvSpeed)}</div>
+              </div>
+              <ArrowDownOutlined style={{ fontSize: 28, color: '#ff7875', opacity: 0.5 }} />
+            </div>
+          </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
-          <Card><Statistic title="输出" value={formatMbps(totalSendSpeed)} prefix={<ArrowUpOutlined />} valueStyle={{ color: '#3f8600' }} /></Card>
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>输出</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#52c41a' }}>{formatMbps(totalSendSpeed)}</div>
+              </div>
+              <ArrowUpOutlined style={{ fontSize: 28, color: '#52c41a', opacity: 0.5 }} />
+            </div>
+          </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
-          <Card><Statistic title="运行时长" value={formatOnlineTime(minOnlineTime)} /></Card>
+          <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>运行时长</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{formatOnlineTime(minOnlineTime)}</div>
+              </div>
+              <ClockCircleOutlined style={{ fontSize: 28, color: '#8b90a8', opacity: 0.5 }} />
+            </div>
+          </Card>
         </Col>
       </Row>
 
+      {/* Spark-style node cards */}
       <Title level={4} style={{ marginTop: 24 }}>节点状态</Title>
       <Row gutter={[16, 16]}>
         {nodeList.map((node: CasterNode) => (
           <Col xs={24} sm={12} lg={8} key={node.uid}>
-            <Card
-              title={`节点ID: ${node.node_name || node.uid}`}
-              extra={<Tag color="green">在线</Tag>}
-              size="small"
-            >
-              <Descriptions column={1} size="small" labelStyle={{ fontWeight: 'bold', width: 90 }}>
-                <Descriptions.Item label="节点版本">{node.tag_version || node.set_version}</Descriptions.Item>
-                <Descriptions.Item label="运行平台">{node.run_platform}</Descriptions.Item>
-                <Descriptions.Item label="连接数量">
-                  {node.connect_count} ({node.server_count} 基站 {node.client_count} 移动站)
-                </Descriptions.Item>
-                <Descriptions.Item label="节点负载">{(node.cpu_usage || 0).toFixed(2)}%</Descriptions.Item>
-                <Descriptions.Item label="内存占用">{formatBytes(node.mem_usage || 0)}</Descriptions.Item>
-                <Descriptions.Item label="处理延迟">{formatDelay(node.queue_delay || 0)}</Descriptions.Item>
-                <Descriptions.Item label="网络延迟">
-                  PUB {formatDelay(node.pub_tcp_delay || 0)} / SUB {formatDelay(node.sub_tcp_delay || 0)}
-                </Descriptions.Item>
-                <Descriptions.Item label="数据延迟">
-                  PUB {formatDelay(node.pub_ping_delay || 0)} / SUB {formatDelay(node.sub_ping_delay || 0)}
-                </Descriptions.Item>
-                <Descriptions.Item label="输入流量">
-                  {formatBytes(node.recv_total || 0)} ({formatSpeed(node.recv_speed || 0)})
-                </Descriptions.Item>
-                <Descriptions.Item label="输出流量">
-                  {formatBytes(node.send_total || 0)} ({formatSpeed(node.send_speed || 0)})
-                </Descriptions.Item>
-                <Descriptions.Item label="运行时长">{formatOnlineTime(node.online_time || 0)}</Descriptions.Item>
-              </Descriptions>
+            <Card className="node-card" style={{ borderColor: '#2e3450' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <ClusterOutlined style={{ fontSize: 22, color: '#4a8eff' }} />
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>{node.node_name || node.uid}</div>
+                    <div style={{ fontSize: 12, color: '#6b7194', fontFamily: 'monospace' }}>
+                      v{node.tag_version || node.set_version}
+                    </div>
+                  </div>
+                </div>
+                <StatusIndicator status="online" pulse size="md" />
+              </div>
+
+              {/* Quick stats row like Spark's NodesView */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7194', marginBottom: 2 }}>
+                    <CloudServerOutlined style={{ fontSize: 12 }} />
+                    <span>基站</span>
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>{node.server_count}</div>
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7194', marginBottom: 2 }}>
+                    <UserOutlined style={{ fontSize: 12 }} />
+                    <span>移动站</span>
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>{node.client_count}</div>
+                </div>
+              </div>
+
+              {/* CPU bar */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ color: '#6b7194' }}>CPU 负载</span>
+                  <span style={{ fontWeight: 500 }}>{(node.cpu_usage || 0).toFixed(1)}%</span>
+                </div>
+                <Progress percent={Math.round(node.cpu_usage || 0)} size="small" showInfo={false}
+                  strokeColor={(node.cpu_usage || 0) > 85 ? '#ff4d4f' : (node.cpu_usage || 0) > 50 ? '#faad14' : '#52c41a'} />
+              </div>
+
+              {/* Memory bar */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ color: '#6b7194' }}>内存</span>
+                  <span style={{ fontWeight: 500 }}>{formatBytes(node.mem_usage || 0)}</span>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div style={{ borderTop: '1px solid #2e3450', paddingTop: 12, display: 'grid', gap: 6, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#6b7194' }}>平台</span>
+                  <span>{node.run_platform}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#6b7194' }}>处理延迟</span>
+                  <span>{formatDelay(node.queue_delay || 0)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#6b7194' }}>网络延迟</span>
+                  <span>PUB {formatDelay(node.pub_tcp_delay || 0)} / SUB {formatDelay(node.sub_tcp_delay || 0)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#6b7194' }}>输入</span>
+                  <span>{formatBytes(node.recv_total || 0)} ({formatSpeed(node.recv_speed || 0)})</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#6b7194' }}>输出</span>
+                  <span>{formatBytes(node.send_total || 0)} ({formatSpeed(node.send_speed || 0)})</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#6b7194' }}>运行时长</span>
+                  <span style={{ fontWeight: 500 }}>{formatOnlineTime(node.online_time || 0)}</span>
+                </div>
+              </div>
             </Card>
           </Col>
         ))}

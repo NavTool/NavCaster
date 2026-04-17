@@ -25,8 +25,8 @@ NavCaster 是一套 NTRIP Caster 系统，支持 NTRIP 1.0/2.0 协议，用于 G
 
 | 组件 | 技术栈 | 说明 |
 |------|--------|------|
-| **CasterService** | C++20 / libevent / hiredis / protobuf | NTRIP 核心服务，处理基站/移动站连接、数据转发 |
-| **CasterMonitor** | Qt6 QML / FluentUI / libevent / hiredis | 管理监控前端，通过 Redis 管理配置和查看状态 |
+| **CasterService** | C++20 / libevent / hiredis / protobuf | NTRIP 核心服务，处理基站/移动站连接、数据转发，内置 HTTP API 服务器 |
+| **CasterWeb** | React 18 / TypeScript / Ant Design / Vite | Web 管理前端，通过 HTTP API + SSE 监控和管理配置 |
 | **caster_core** (lib) | C++20 / libevent / hiredis | 核心库，挂载点管理、Redis Pub/Sub 数据分发 |
 | **auth_verify** (lib) | C++20 / libevent / hiredis | 认证库，用户验证与登录管理 |
 | **caster_base** (lib) | C++20 | 基础工具库，Base64/NMEA/RTCM 解码、网络工具 |
@@ -41,13 +41,11 @@ NavCaster 是一套 NTRIP Caster 系统，支持 NTRIP 1.0/2.0 协议，用于 G
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    CasterMonitor (Qt6/QML 管理端)                │
+│                    CasterWeb (React/TypeScript 管理端)            │
 │                                                                 │
-│  QML Pages ← Controllers ← Context<T> ← HashConetxt<T>        │
-│         ↕ Q_INVOKABLE                          ↕ Protobuf      │
-│  CasterMonitor Singleton (EventWorker × 2)                     │
+│  Pages ← Hooks (useSSE/useMultiSSE) ← HTTP API + SSE            │
 └────────────────────────────┬────────────────────────────────────┘
-                             │ Redis (hiredis async)
+                             │ HTTP API / SSE
 ┌────────────────────────────▼────────────────────────────────────┐
 │                     Redis (中间件/数据总线)                      │
 │                                                                 │
@@ -93,7 +91,7 @@ NavCaster 是一套 NTRIP Caster 系统，支持 NTRIP 1.0/2.0 协议，用于 G
 | **移动站下行** | Redis SUB → `client_ntrip` 协程 → TCP → 移动站客户端 |
 | **Relay Pull** | 远端 Caster → TCP → `relay_pull` 协程 → `CASTER::Pub_Base_Raw_Data` → 本地 Redis |
 | **Relay Push** | 本地 Redis SUB → `relay_push` 协程 → TCP → 远端 Caster |
-| **监控管理** | `CasterMonitor` → Redis HASH CRUD → `caster_core` / `auth_verify` 响应配置变更 |
+| **监控管理** | `CasterWeb` → HTTP API → `CasterService` → Redis HASH CRUD → `caster_core` / `auth_verify` 响应配置变更 |
 
 ### 2.3 关键设计模式
 
@@ -113,10 +111,8 @@ NavCaster 是一套 NTRIP Caster 系统，支持 NTRIP 1.0/2.0 协议，用于 G
 - **event_base 线程**: `event_base_dispatch()` 驱动所有 Carrier I/O（单线程事件循环）
 - **跨线程通信**: `process_queue` 使用 `event_active()` 唤醒事件循环
 
-**CasterMonitor**:
-- **Qt 主线程**: QML 渲染、UI 事件处理
-- **EventWorker (caster_mgr)**: 独立 libevent 线程处理 caster_core Redis 操作
-- **EventWorker (auth_mgr)**: 独立 libevent 线程处理 auth_verify Redis 操作
+**CasterWeb**:
+- 纯前端应用，通过 HTTP API 和 SSE 与 CasterService 通信，无独立后端线程
 
 ---
 
@@ -159,31 +155,28 @@ NavCaster 是一套 NTRIP Caster 系统，支持 NTRIP 1.0/2.0 协议，用于 G
 | `connect_bev` | bufferevent 注册表，集中管理 TCP 连接、超时定时器 |
 | `ntrip_config` | YAML 配置加载（Service_Setting / Caster_Core / Auth_Verify） |
 
-### 3.2 CasterMonitor
+### 3.2 CasterWeb
 
 #### 3.2.1 核心架构
 
-- **CasterMonitor** (QML Singleton): 中央管理器，持有两个 `EventWorker` 线程
-- **HashConetxt<T>**: 泛型 Redis HASH 操作封装，自动同步本地缓存
-- **Context<T>**: 线程安全的本地数据容器（`recursive_mutex` 保护）
-- **DataController**: QML 数据绑定控制器，将 Context 数据转为 QVariantMap
+- **技术栈**: React 18 + TypeScript + Ant Design + Vite
+- **数据获取**: HTTP REST API + Server-Sent Events (SSE) 实时推送
+- **状态管理**: 自定义 `useSSE` / `useMultiSSE` Hooks 管理实时数据流
+- **认证**: JWT Token 登录，axios 拦截器自动附带
 
-#### 3.2.2 QML 页面结构
+#### 3.2.2 页面结构
 
-| 页面 | 控制器 | 功能 |
+| 页面 | 路由 | 功能 |
 |------|--------|------|
-| Page_Status | CasterResourceController | 集群资源概览（CPU/内存/流量） |
-| Page_Server | ServerDataController | 基站连接列表 |
-| Page_Client | ClientDataController | 移动站连接列表 |
-| Page_Account | AccountDataController | 用户账户管理 |
-| Page_Mpt_Source | SourceRecords | 挂载点管理 |
-| Page_Mpt_Alias | AliasRules | 别名规则 |
-| Page_Mpt_Access | AccessGroups | 访问控制分组 |
-| Page_Mpt_Pull | PullDataController | Pull 中继管理 |
-| Page_Mpt_Push | PushDataController | Push 中继管理 |
-| Page_Map | (GeoData) | 地图可视化 |
-| Page_Event | EventDataController | 事件日志（**Mock 实现**） |
-| Page_Option | SettingsHelper | 应用设置 |
+| Dashboard | /dashboard | 集群资源概览（CPU/内存/流量）+ 节点状态卡片 |
+| Servers | /servers | 基站连接列表 |
+| Clients | /clients | 移动站连接列表 |
+| Accounts | /accounts | 用户账户 CRUD |
+| Sources | /sources | 挂载点管理 |
+| Aliases | /aliases | 别名规则 |
+| AccessGroups | /access | 访问控制分组 |
+| PullRelay | /relay/pull | Pull 中继管理 |
+| PushRelay | /relay/push | Push 中继管理 |
 
 ### 3.3 共享库
 
@@ -282,7 +275,7 @@ NavCaster 是一套 NTRIP Caster 系统，支持 NTRIP 1.0/2.0 协议，用于 G
 | `ACT:UNNAMED` | - | 匿名账户 |
 | `ACT:REC:<NODE>` | HASH | 登录记录 |
 
-### 5.3 CasterMonitor 使用的 Redis 键
+### 5.3 CasterWeb (通过 CasterService HTTP API) 使用的 Redis 键
 
 | Redis 键 | 类型 | 说明 |
 |---------|------|------|

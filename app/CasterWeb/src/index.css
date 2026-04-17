@@ -8,6 +8,97 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #141625;
+  color: #e8eaf0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1e34;
+}
+::-webkit-scrollbar-thumb {
+  background: #3d4260;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4a8eff;
+}
+
+/* Status indicator pulse animation */
+@keyframes status-pulse {
+  0% { opacity: 0.75; transform: scale(1); }
+  50% { opacity: 0; transform: scale(2); }
+  100% { opacity: 0; transform: scale(2); }
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+.status-dot.online {
+  background: #52c41a;
+}
+.status-dot.offline {
+  background: #ff4d4f;
+}
+.status-dot.degraded {
+  background: #faad14;
+}
+.status-dot.pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: status-pulse 2s ease-out infinite;
+}
+
+/* Spark-style metric card */
+.metric-card .ant-card-body {
+  padding: 16px 20px;
+}
+.metric-card .ant-statistic-title {
+  font-size: 13px;
+  color: #8b90a8;
+  margin-bottom: 4px;
+}
+.metric-card .ant-statistic-content {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+/* Spark-style node card */
+.node-card {
+  transition: border-color 0.2s;
+}
+.node-card:hover {
+  border-color: #4a8eff50 !important;
+}
+
+/* Dark table adjustments */
+.ant-table-wrapper .ant-table-thead > tr > th {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+/* Form in dark theme */
+.ant-modal .ant-form-item-label > label {
+  color: #9da1b8;
 }
 
 #root {

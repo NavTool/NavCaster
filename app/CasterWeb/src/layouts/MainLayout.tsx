@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Button, theme } from 'antd';
+import { Layout, Menu, Button } from 'antd';
 import {
   DashboardOutlined,
   CloudServerOutlined,
@@ -34,7 +34,6 @@ const MainLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   const handleLogout = async () => {
     await logout();
@@ -42,14 +41,24 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
+    <Layout style={{ minHeight: '100vh', background: '#141625' }}>
+      <Sider trigger={null} collapsible collapsed={collapsed} width={220}
+        style={{ background: '#12142a', borderRight: '1px solid #1e2245' }}>
         <div style={{
-          height: 48, margin: 12, display: 'flex', alignItems: 'center',
-          justifyContent: 'center', color: '#fff', fontWeight: 'bold', fontSize: collapsed ? 14 : 18,
-          whiteSpace: 'nowrap', overflow: 'hidden',
+          height: 56, margin: '0 16px', display: 'flex', alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start', gap: 10,
+          borderBottom: '1px solid #1e2245',
         }}>
-          {collapsed ? 'NC' : 'NavCaster'}
+          <div style={{
+            width: 32, height: 32, borderRadius: 8, background: '#4a8eff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 700, fontSize: 14, flexShrink: 0,
+          }}>NC</div>
+          {!collapsed && (
+            <span style={{ color: '#e8eaf0', fontWeight: 600, fontSize: 16, letterSpacing: -0.3 }}>
+              NavCaster
+            </span>
+          )}
         </div>
         <Menu
           theme="dark"
@@ -57,20 +66,30 @@ const MainLayout: React.FC = () => {
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
+          style={{ background: 'transparent', borderRight: 'none', marginTop: 8 }}
         />
       </Sider>
-      <Layout>
-        <Header style={{ padding: '0 16px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Layout style={{ background: '#141625' }}>
+        <Header style={{
+          padding: '0 20px', background: '#1a1e34', display: 'flex',
+          alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid #1e2245', height: 56,
+        }}>
           <Button
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
+            style={{ color: '#8b90a8' }}
           />
-          <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}>
+          <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}
+            style={{ color: '#8b90a8' }}>
             退出
           </Button>
         </Header>
-        <Content style={{ margin: 16, padding: 20, background: colorBgContainer, borderRadius: borderRadiusLG, overflow: 'auto' }}>
+        <Content style={{
+          margin: 16, padding: 24, background: '#1a1e34',
+          borderRadius: 12, overflow: 'auto', border: '1px solid #1e2245',
+        }}>
           <Outlet />
         </Content>
       </Layout>
