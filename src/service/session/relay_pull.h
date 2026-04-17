@@ -29,6 +29,13 @@ public:
         {
             // 1. 创建 bufferevent 并发起 TCP 连接
             _connect_key = create_bev(_info.addr(), _info.port());
+            if (_connect_key.empty())
+            {
+                spdlog::warn("[{}]: create_bev failed (DNS/connect), mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
+                co_await co_sleep(_retry_delay);
+                backoff();
+                continue;
+            }
             start_bev(true, 0, false, 0);
 
             // 2. 等待连接建立
@@ -41,6 +48,16 @@ public:
                 backoff();
                 continue;
             }
+
+            // TCP 已连接，重新计算 connect_key（从 fd 获取四元组）
+            auto new_key = connect_bev::getInstance()->recalculate_key(_connect_key);
+            if (new_key != _connect_key)
+            {
+                _connect_key = new_key;
+                _bev = connect_bev::getInstance()->get_bev(_connect_key);
+            }
+            // Relay 连接的账户统一标记为 SYSTEM
+            _user_name = "SYSTEM";
 
             // 3. 发送 NTRIP 拉取请求
             auto req = build_ntrip_request(ConnectType::CONNECT_TYPE_PULL,

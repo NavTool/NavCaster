@@ -2,6 +2,8 @@
 #include "knt.h"
 #include "base64.h"
 
+#include <string_view>
+
 std::string build_nrtip_reply(ConnectType type, bool version2, bool chunked)
 {
     std::string str;
@@ -56,24 +58,36 @@ std::string build_nrtip_reply(ConnectType type, bool version2, bool chunked)
 
 std::string build_ntrip_request(ConnectType type, bool version2, std::string mpt, std::string host, std::string auth)
 {
+    // auth 参数为 "user:password" 明文格式，需要 Base64 编码后用于 Authorization 头
+    // 对于 Ntrip 1.0 SOURCE，密码以明文传递
+    std::string auth_b64 = auth.empty() ? "" : util_base64_encode(auth.c_str());
+
+    // 提取明文密码（SOURCE 命令使用）
+    std::string password;
+    auto colon = auth.find(':');
+    if (colon != std::string::npos)
+        password = auth.substr(colon + 1);
+    else
+        password = auth;
+
     std::string str;
     if (type == CONNECT_TYPE_PULL)
     {
         if (version2) // Ntrip/2.0
         {
-            str += fmt::format("GET {} HTTP/1.1\r\n", mpt);
+            str += fmt::format("GET /{} HTTP/1.1\r\n", mpt);
             str += fmt::format("Host: {}\r\n", host);
             str += fmt::format("Ntrip-Version: Ntrip/2.0\r\n");
-            str += fmt::format("User-Agent: {}/{}\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
-            str += fmt::format("Authorization: Basic {}\r\n", auth);
+            str += fmt::format("User-Agent: NTRIP {}/{}\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
+            str += fmt::format("Authorization: Basic {}\r\n", auth_b64);
             str += fmt::format("Connection: close\r\n");
             str += fmt::format("\r\n");
         }
         else // Ntrip/1.0
         {
-            str += fmt::format("GET {} HTTP/1.0\r\n", mpt);
-            str += fmt::format("User-Agent: {}/{}\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
-            str += fmt::format("Authorization: Basic {}\r\n", auth);
+            str += fmt::format("GET /{} HTTP/1.0\r\n", mpt);
+            str += fmt::format("User-Agent: NTRIP {}/{}\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
+            str += fmt::format("Authorization: Basic {}\r\n", auth_b64);
             str += fmt::format("\r\n");
         }
     }
@@ -84,16 +98,16 @@ std::string build_ntrip_request(ConnectType type, bool version2, std::string mpt
             str += fmt::format("POST /{} HTTP/1.1\r\n", mpt);
             str += fmt::format("Host: {}\r\n", host);
             str += fmt::format("Ntrip-Version: Ntrip/2.0\r\n");
-            str += fmt::format("User-Agent: {}/{}\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
-            str += fmt::format("Authorization: Basic {}\r\n", auth);
-            str += fmt::format("Transfer-Encoding: chunked\r\n"); // 如果使用2.0, 默认使用chunked传输，但具体能不能开启，还要看服务端是否支持
+            str += fmt::format("Authorization: Basic {}\r\n", auth_b64);
+            str += fmt::format("User-Agent: NTRIP {}/{}\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
+            str += fmt::format("Transfer-Encoding: chunked\r\n");
             str += fmt::format("Connection: close\r\n");
             str += fmt::format("\r\n");
         }
         else // Ntrip/1.0
         {
-            str += fmt::format("SOURCE {} /{} HTTP/1.0\r\n", auth, mpt);
-            str += fmt::format("User-Agent: Ntrip {}_{}/1.0\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
+            str += fmt::format("SOURCE {} /{} HTTP/1.1\r\n", password, mpt);
+            str += fmt::format("Source-Agent: NTRIP {}/{}\r\n", PROJECT_SET_NAME, PROJECT_SET_VERSION);
             str += fmt::format("\r\n");
         }
     }
@@ -103,6 +117,64 @@ std::string build_ntrip_request(ConnectType type, bool version2, std::string mpt
 
 bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &chunked)
 {
+    if (!data || len == 0)
+        return false;
+
+    std::string_view resp(data, len);
+
+    // NTRIP 1.0: "ICY 200 OK"
+    if (resp.starts_with("ICY 200 OK"))
+    {
+        version2 = false;
+        chunked = false;
+        return true;
+    }
+
+    // NTRIP 2.0 / HTTP: "HTTP/1.x 200 OK"
+    if (resp.starts_with("HTTP/1."))
+    {
+        // 检查状态码 200
+        auto sp1 = resp.find(' ');
+        if (sp1 == std::string_view::npos || sp1 + 3 >= resp.size())
+            return false;
+        if (resp.substr(sp1 + 1, 3) != "200")
+            return false;
+
+        version2 = true;
+        chunked = false;
+
+        // 检查 Transfer-Encoding: chunked
+        auto pos = resp.find("chunked");
+        if (pos != std::string_view::npos)
+        {
+            // 简单确认出现在 Transfer-Encoding 头中
+            auto line_start = resp.rfind('\n', pos);
+            if (line_start != std::string_view::npos)
+            {
+                auto header_line = resp.substr(line_start + 1, pos - line_start - 1);
+                // 不区分大小写判断 transfer-encoding
+                if (header_line.find("ransfer-") != std::string_view::npos)
+                    chunked = true;
+            }
+        }
+        return true;
+    }
+
+    // NTRIP 1.0 SOURCE 推送请求的简单回复
+    if (resp.starts_with("OK"))
+    {
+        version2 = false;
+        chunked = false;
+        return true;
+    }
+
+    // NTRIP 1.0 源表响应（挂载点不存在时 Caster 返回源表而非错误码）
+    if (resp.starts_with("SOURCETABLE 200 OK"))
+    {
+        version2 = false;
+        chunked = false;
+        return false; // 收到源表说明挂载点不存在，视为握手失败
+    }
 
     return false;
 }
@@ -289,12 +361,18 @@ int carrier_base::timeout_cb()
 
 std::string carrier_base::create_bev(std::string addr, int port)
 {
-    return connect_bev::getInstance()->new_bev(addr, port);
+    auto key = connect_bev::getInstance()->new_bev(addr, port);
+    if (!key.empty())
+        _bev = connect_bev::getInstance()->get_bev(key);
+    return key;
 }
 
 int carrier_base::destroy_bev(std::string connect_key)
 {
-    return connect_bev::getInstance()->del_bev(connect_key);
+    int ret = connect_bev::getInstance()->del_bev(connect_key);
+    if (connect_key == _connect_key)
+        _bev = nullptr;
+    return ret;
 }
 
 int carrier_base::start_bev(bool enable_read_cb, time_t read_timeout_sec, bool enable_write_cb, time_t write_timeout_sec)

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Typography, Space, message, Popconfirm } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Table, Button, Modal, Form, Input, InputNumber, Select, AutoComplete, Typography, Space, Tag, message, Popconfirm, Tooltip } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, PlayCircleOutlined, PauseCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { usePolling } from '../hooks/usePolling';
-import { pullRecordsApi, pullStatesApi } from '../api';
-import type { PullRecord } from '../api/types';
+import { pullRecordsApi, pullStatesApi, fetchRemoteSourcetable, relayStart, relayStop } from '../api';
+import type { PullRecord, PullState } from '../api/types';
 import { PullType } from '../api/types';
+import { formatOnlineTime } from '../utils/format';
 
 const { Title } = Typography;
 
@@ -23,6 +24,15 @@ const PullRelay: React.FC = () => {
   const [editing, setEditing] = useState<PullRecord | null>(null);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+  const [mptOptions, setMptOptions] = useState<{ value: string; label: string }[]>([]);
+  const [fetchingMpts, setFetchingMpts] = useState(false);
+  const [, setTick] = useState(0);
+
+  // 1秒刷新在线时长
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const dataSource = data
     ? Object.entries(data).map(([key, val]) => ({ ...val, key }))
@@ -32,12 +42,14 @@ const PullRelay: React.FC = () => {
     setEditing(null);
     form.resetFields();
     form.setFieldsValue({ type: PullType.PULL_TYPE_NTRIP_1_0, target_port: 2101 });
+    setMptOptions([]);
     setModalOpen(true);
   };
 
   const handleEdit = (record: PullRecord) => {
     setEditing(record);
     form.setFieldsValue(record);
+    setMptOptions([]);
     setModalOpen(true);
   };
 
@@ -48,6 +60,52 @@ const PullRelay: React.FC = () => {
       refresh();
     } catch {
       message.error('删除失败');
+    }
+  };
+
+  const handleStart = async (uid: string) => {
+    try {
+      await relayStart('pull', uid);
+      message.success('启动成功');
+      refresh();
+    } catch {
+      message.error('启动失败');
+    }
+  };
+
+  const handleStop = async (uid: string) => {
+    try {
+      await relayStop('pull', uid);
+      message.success('停止成功');
+      refresh();
+    } catch {
+      message.error('停止失败');
+    }
+  };
+
+  const handleFetchMountpoints = async () => {
+    const ip = form.getFieldValue('target_ip');
+    const port = form.getFieldValue('target_port');
+    if (!ip) { message.warning('请先填写目标 IP'); return; }
+    setFetchingMpts(true);
+    try {
+      const user = form.getFieldValue('target_account') || '';
+      const pass = form.getFieldValue('target_password') || '';
+      const entries = await fetchRemoteSourcetable(ip, port || 2101, user, pass);
+      if (entries.length === 0) {
+        message.info('未获取到挂载点');
+        setMptOptions([]);
+      } else {
+        setMptOptions(entries.map(e => ({
+          value: e.mountpoint,
+          label: `${e.mountpoint}${e.format ? ' (' + e.format + ')' : ''}`,
+        })));
+        message.success(`获取到 ${entries.length} 个挂载点`);
+      }
+    } catch {
+      message.error('获取挂载点失败，请检查目标地址和端口');
+    } finally {
+      setFetchingMpts(false);
     }
   };
 
@@ -65,34 +123,69 @@ const PullRelay: React.FC = () => {
       }
       setModalOpen(false);
       refresh();
-    } catch {
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'errorFields' in e) return;
       message.error('操作失败');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const getState = useCallback((uid: string): PullState | undefined => {
+    return states ? states[uid] : undefined;
+  }, [states]);
+
   const columns: ColumnsType<PullRecord & { key: string }> = [
-    { title: '本地挂载点', dataIndex: 'login_mpt', key: 'login_mpt' },
-    { title: '类型', key: 'type', render: (_, r) => typeLabels[r.type] || '未知' },
-    { title: '目标 IP', dataIndex: 'target_ip', key: 'target_ip' },
-    { title: '目标端口', dataIndex: 'target_port', key: 'target_port' },
-    { title: '目标挂载点', dataIndex: 'target_mpt', key: 'target_mpt' },
-    { title: '账户', dataIndex: 'target_account', key: 'target_account' },
+    { title: '本地挂载点', dataIndex: 'login_mpt', key: 'login_mpt', width: 120 },
+    { title: '类型', key: 'type', width: 100, render: (_, r) => typeLabels[r.type] || '未知' },
+    { title: '目标 IP', dataIndex: 'target_ip', key: 'target_ip', width: 120 },
+    { title: '目标端口', dataIndex: 'target_port', key: 'target_port', width: 80 },
+    { title: '目标挂载点', dataIndex: 'target_mpt', key: 'target_mpt', width: 120 },
+    { title: '账户', dataIndex: 'target_account', key: 'target_account', width: 100 },
     {
-      title: '状态', key: 'state',
-      render: (_, r) => states && states[r.uid] ? '运行中' : '-',
+      title: '运行状态', key: 'state', width: 90,
+      render: (_, r) => {
+        const st = getState(r.uid);
+        if (!r.enabled) return <Tag color="default">已禁用</Tag>;
+        if (st && st.state === 1) return <Tag color="green">运行中</Tag>;
+        return <Tag color="orange">已停止</Tag>;
+      },
     },
     {
-      title: '操作', key: 'action', width: 140,
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
-          <Popconfirm title="确定删除？" onConfirm={() => handleDelete(record.uid)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
+      title: '在线时长', key: 'online_time', width: 120,
+      render: (_, r) => {
+        const st = getState(r.uid);
+        return st && st.create_time ? formatOnlineTime(st.create_time) : '-';
+      },
+    },
+    {
+      title: '节点', key: 'node', width: 120,
+      render: (_, r) => {
+        const st = getState(r.uid);
+        return st?.node_name || '-';
+      },
+    },
+    {
+      title: '操作', key: 'action', width: 200, fixed: 'right',
+      render: (_, record) => {
+        const st = getState(record.uid);
+        const running = st && st.state === 1;
+        return (
+          <Space>
+            {running ? (
+              <Popconfirm title="确定停止？" onConfirm={() => handleStop(record.uid)}>
+                <Button type="link" size="small" icon={<PauseCircleOutlined />}>停止</Button>
+              </Popconfirm>
+            ) : (
+              <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handleStart(record.uid)}>启动</Button>
+            )}
+            <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
+            <Popconfirm title="确定删除？" onConfirm={() => handleDelete(record.uid)}>
+              <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -104,7 +197,7 @@ const PullRelay: React.FC = () => {
       </div>
       <Table columns={columns} dataSource={dataSource} loading={loading} size="small"
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
-        scroll={{ x: 900 }}
+        scroll={{ x: 1200 }}
       />
       <Modal title={editing ? '编辑 Pull' : '新增 Pull'} open={modalOpen} onOk={handleSubmit}
         onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={500}>
@@ -121,14 +214,31 @@ const PullRelay: React.FC = () => {
           <Form.Item name="target_port" label="目标端口" rules={[{ required: true }]}>
             <InputNumber min={1} max={65535} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="target_mpt" label="目标挂载点">
-            <Input />
-          </Form.Item>
           <Form.Item name="target_account" label="账户">
             <Input />
           </Form.Item>
           <Form.Item name="target_password" label="密码">
             <Input.Password />
+          </Form.Item>
+          <Form.Item name="target_mpt" label="目标挂载点">
+            <AutoComplete
+              options={mptOptions}
+              placeholder="输入或从远端获取"
+              filterOption={(input, option) =>
+                (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              <Input
+                suffix={
+                  <Tooltip title="从目标服务器获取挂载点列表">
+                    <CloudDownloadOutlined
+                      onClick={handleFetchMountpoints}
+                      style={{ cursor: 'pointer', color: fetchingMpts ? '#999' : '#1890ff' }}
+                    />
+                  </Tooltip>
+                }
+              />
+            </AutoComplete>
           </Form.Item>
         </Form>
       </Modal>

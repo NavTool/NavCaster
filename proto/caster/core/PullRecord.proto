@@ -19,4 +19,5 @@ message PullRecord {
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
 
+  bool enabled = 11; // 是否启用 (默认false，创建时设为true)
 }

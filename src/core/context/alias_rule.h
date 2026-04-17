@@ -6,24 +6,27 @@ class alias_rule
 {
 private:
     std::string _uid;
+    std::string _json; // 保存完整的 AliasRule JSON
 
 public:
     alias_rule(std::string uid)
+        : _uid(std::move(uid))
     {
-        _uid=uid;
     }
 
     int fromString(const std::string &str)
     {
+        _json = str;
         return 0;
     }
-    std::string toString()
+
+    std::string toString() const
     {
-        // 创建一个proto
+        if (!_json.empty())
+            return _json;
+        // fallback: 仅有 uid 时构造最小 JSON
         caster::core::AliasRule proto;
-        // 设置信息
         proto.set_uid(_uid);
-        // 生成json
         return ProtoToJson(proto);
     }
 };

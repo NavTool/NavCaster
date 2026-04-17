@@ -229,6 +229,11 @@ int ntrip_caster::extra_init()
     http_conf.redis_port = core_opt.redis_port();
     http_conf.redis_password = core_opt.redis_password();
 
+    // Auth redis for account operations
+    http_conf.auth_redis_host = auth_opt.redis_host();
+    http_conf.auth_redis_port = auth_opt.redis_port();
+    http_conf.auth_redis_password = auth_opt.redis_password();
+
     int ret = _http_caster_redis.init(_base,
                                        core_opt.redis_host(),
                                        core_opt.redis_port(),
@@ -255,6 +260,31 @@ int ntrip_caster::extra_init()
     else
     {
         spdlog::info("[ntrip_caster::extra_init]: HTTP API server started on {}:{}", http_conf.bind_addr, http_conf.port);
+
+        // 将当前配置写入 Redis
+        {
+            using json = nlohmann::json;
+            json service_json;
+            service_json["listener"] = json::parse(ProtoToJson(conf->_listener_opt));
+            service_json["server"] = json::parse(ProtoToJson(conf->_ntrip_server_opt));
+            service_json["client"] = json::parse(ProtoToJson(conf->_ntrip_client_opt));
+            service_json["common"] = json::parse(ProtoToJson(conf->_service_opt));
+            service_json["http_api"] = {
+                {"port", http_conf.port},
+                {"bind_addr", http_conf.bind_addr},
+                {"cors_origin", http_conf.cors_origin},
+                {"web_root", http_conf.web_root}
+            };
+            _http_handler.save_config("service", service_json.dump());
+
+            json core_json = json::parse(ProtoToJson(core_opt));
+            _http_handler.save_config("core", core_json.dump());
+
+            json auth_json = json::parse(ProtoToJson(auth_opt));
+            _http_handler.save_config("auth", auth_json.dump());
+
+            spdlog::info("[ntrip_caster::extra_init]: Configuration saved to Redis");
+        }
     }
 
     return 0;
@@ -334,18 +364,21 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
         req.set_addr(record.target_ip());
         req.set_port(record.target_port());
 
-        // 构造认证信息 (Base64编码 account:password)
+        // 构造认证信息 (account:password 明文，由 build_ntrip_request 内部进行 Base64 编码)
         if (!record.target_account().empty())
         {
             std::string auth_raw = record.target_account() + ":" + record.target_password();
             req.set_ntrip_auth(auth_raw);
         }
 
-        // 设置远端挂载点到http_host字段，用于NTRIP请求
+        // 设置远端挂载点
         if (!record.target_mpt().empty())
         {
             req.set_mount_point(record.target_mpt());
         }
+
+        // 设置远端 Host 头 (addr:port)
+        req.set_http_host(record.target_ip() + ":" + std::to_string(record.target_port()));
 
         switch (msg.operate)
         {
@@ -392,6 +425,9 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
         {
             req.set_mount_point(record.target_mpt());
         }
+
+        // 设置远端 Host 头 (addr:port)
+        req.set_http_host(record.target_ip() + ":" + std::to_string(record.target_port()));
 
         switch (msg.operate)
         {

@@ -62,7 +62,8 @@ inline constexpr PullRecord::Impl_::Impl_(
         create_time_{::uint64_t{0u}},
         update_time_{::uint64_t{0u}},
         type_{static_cast< ::caster::PullType >(0)},
-        target_port_{0} {}
+        target_port_{0},
+        enabled_{false} {}
 
 template <typename>
 constexpr PullRecord::PullRecord(::_pbi::ConstantInitialized)
@@ -94,7 +95,7 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_._has_bits_),
-        13, // hasbit index offset
+        14, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_.login_mpt_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_.type_),
@@ -105,6 +106,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_.target_password_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_.update_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::PullRecord, _impl_.enabled_),
         0,
         1,
         8,
@@ -115,6 +117,7 @@ const ::uint32_t
         5,
         6,
         7,
+        10,
 };
 
 static const ::_pbi::MigrationSchema
@@ -127,13 +130,13 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_core_2fPullRecord_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\025core/PullRecord.proto\022\013caster.core\032\014Co"
-    "mmon.proto\"\343\001\n\nPullRecord\022\013\n\003uid\030\001 \001(\t\022\021"
+    "mmon.proto\"\364\001\n\nPullRecord\022\013\n\003uid\030\001 \001(\t\022\021"
     "\n\tlogin_mpt\030\004 \001(\t\022\036\n\004type\030\005 \001(\0162\020.caster"
     ".PullType\022\021\n\ttarget_ip\030\006 \001(\t\022\023\n\013target_p"
     "ort\030\007 \001(\005\022\022\n\ntarget_mpt\030\010 \001(\t\022\026\n\016target_"
     "account\030\t \001(\t\022\027\n\017target_password\030\n \001(\t\022\023"
     "\n\013create_time\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004"
-    "b\006proto3"
+    "\022\017\n\007enabled\030\013 \001(\010b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_core_2fPullRecord_2eproto_deps[1] = {
@@ -143,7 +146,7 @@ static ::absl::once_flag descriptor_table_core_2fPullRecord_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fPullRecord_2eproto = {
     false,
     false,
-    288,
+    305,
     descriptor_table_protodef_core_2fPullRecord_2eproto,
     "core/PullRecord.proto",
     &descriptor_table_core_2fPullRecord_2eproto_once,
@@ -207,9 +210,9 @@ PullRecord::PullRecord(
                offsetof(Impl_, create_time_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, create_time_),
-           offsetof(Impl_, target_port_) -
+           offsetof(Impl_, enabled_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::target_port_));
+               sizeof(Impl_::enabled_));
 
   // @@protoc_insertion_point(copy_constructor:caster.core.PullRecord)
 }
@@ -229,9 +232,9 @@ inline void PullRecord::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, create_time_),
            0,
-           offsetof(Impl_, target_port_) -
+           offsetof(Impl_, enabled_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::target_port_));
+               sizeof(Impl_::enabled_));
 }
 PullRecord::~PullRecord() {
   // @@protoc_insertion_point(destructor:caster.core.PullRecord)
@@ -314,16 +317,16 @@ PullRecord::GetClassData() const {
   return PullRecord_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<4, 10, 0, 99, 2>
+const ::_pbi::TcParseTable<4, 11, 0, 99, 2>
 PullRecord::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(PullRecord, _impl_._has_bits_),
     0, // no _extensions_
-    10, 120,  // max_field_number, fast_idx_mask
+    11, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294966272,  // skipmap
+    4294965248,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    10,  // num_field_entries
+    11,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     PullRecord_class_data_.base(),
@@ -374,7 +377,10 @@ PullRecord::_table_ = {
     {::_pbi::TcParser::FastUS1,
      {82, 5, 0,
       PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.target_password_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // bool enabled = 11;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(PullRecord, _impl_.enabled_), 10>(),
+     {88, 10, 0,
+      PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.enabled_)}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
@@ -402,6 +408,8 @@ PullRecord::_table_ = {
     {PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.target_account_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // string target_password = 10;
     {PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.target_password_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // bool enabled = 11;
+    {PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.enabled_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
   }},
   // no aux_entries
   {{
@@ -448,10 +456,10 @@ PROTOBUF_NOINLINE void PullRecord::Clear() {
         reinterpret_cast<char*>(&_impl_.update_time_) -
         reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.update_time_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000700U)) {
     ::memset(&_impl_.type_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.target_port_) -
-        reinterpret_cast<char*>(&_impl_.type_)) + sizeof(_impl_.target_port_));
+        reinterpret_cast<char*>(&_impl_.enabled_) -
+        reinterpret_cast<char*>(&_impl_.type_)) + sizeof(_impl_.enabled_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -572,6 +580,15 @@ PROTOBUF_NOINLINE void PullRecord::Clear() {
     }
   }
 
+  // bool enabled = 11;
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (this_._internal_enabled() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          11, this_._internal_enabled(), target);
+    }
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -655,7 +672,7 @@ PROTOBUF_NOINLINE void PullRecord::Clear() {
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000700U)) {
     // .caster.PullType type = 5;
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_type() != 0) {
@@ -668,6 +685,12 @@ PROTOBUF_NOINLINE void PullRecord::Clear() {
       if (this_._internal_target_port() != 0) {
         total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
             this_._internal_target_port());
+      }
+    }
+    // bool enabled = 11;
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (this_._internal_enabled() != 0) {
+        total_size += 2;
       }
     }
   }
@@ -755,7 +778,7 @@ void PullRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000700U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (from._internal_type() != 0) {
         _this->_impl_.type_ = from._impl_.type_;
@@ -764,6 +787,11 @@ void PullRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (from._internal_target_port() != 0) {
         _this->_impl_.target_port_ = from._impl_.target_port_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (from._internal_enabled() != 0) {
+        _this->_impl_.enabled_ = from._impl_.enabled_;
       }
     }
   }
@@ -793,8 +821,8 @@ void PullRecord::InternalSwap(PullRecord* PROTOBUF_RESTRICT PROTOBUF_NONNULL oth
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.target_account_, &other->_impl_.target_account_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.target_password_, &other->_impl_.target_password_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.target_port_)
-      + sizeof(PullRecord::_impl_.target_port_)
+      PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.enabled_)
+      + sizeof(PullRecord::_impl_.enabled_)
       - PROTOBUF_FIELD_OFFSET(PullRecord, _impl_.create_time_)>(
           reinterpret_cast<char*>(&_impl_.create_time_),
           reinterpret_cast<char*>(&other->_impl_.create_time_));

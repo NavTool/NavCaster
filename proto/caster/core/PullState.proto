@@ -5,4 +5,9 @@ message PullState {
   string uid         = 1;
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
+
+  string connect_key = 4; // 当前连接的 key
+  int32  state       = 5; // 运行状态: 0=停止, 1=运行中
+  string node_uid    = 6; // 承担任务的节点 UID
+  string node_name   = 7; // 承担任务的节点名称
 }

@@ -6,24 +6,27 @@ class access_group
 {
 private:
     std::string _uid;
+    std::string _json; // 保存完整的 AccessGroup JSON
 
 public:
     access_group(std::string uid)
+        : _uid(std::move(uid))
     {
-        _uid=uid;
     }
 
     int fromString(const std::string &str)
     {
+        _json = str;
         return 0;
     }
-    std::string toString()
+
+    std::string toString() const
     {
-        // 创建一个proto
+        if (!_json.empty())
+            return _json;
+        // fallback: 仅有 uid 时构造最小 JSON
         caster::core::AccessGroup proto;
-        // 设置信息
         proto.set_uid(_uid);
-        // 生成json
         return ProtoToJson(proto);
     }
 };

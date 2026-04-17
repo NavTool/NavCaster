@@ -13,7 +13,12 @@ void decodeKey(const std::string &key, std::string &serverIP, int &serverPort, s
 {
     if (key.size() != 24)
     {
-        throw std::invalid_argument("Invalid key length");
+        // Relay 连接使用随机 key，长度不是 24，无法解析 IP/端口
+        serverIP.clear();
+        serverPort = 0;
+        clientIP.clear();
+        clientPort = 0;
+        return;
     }
 
     // 分离16进制字符串

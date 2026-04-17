@@ -225,12 +225,17 @@ export interface PullRecord {
   target_mpt: string;
   target_account: string;
   target_password: string;
+  enabled: boolean;
 }
 
 export interface PullState {
   uid: string;
   create_time: number;
   update_time: number;
+  connect_key: string;
+  state: number;
+  node_uid: string;
+  node_name: string;
 }
 
 export interface PushRecord {
@@ -244,12 +249,17 @@ export interface PushRecord {
   target_mpt: string;
   target_account: string;
   target_password: string;
+  enabled: boolean;
 }
 
 export interface PushState {
   uid: string;
   create_time: number;
   update_time: number;
+  connect_key: string;
+  state: number;
+  node_uid: string;
+  node_name: string;
 }
 
 export interface CasterNode {

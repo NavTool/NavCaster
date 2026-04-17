@@ -74,6 +74,27 @@ public:
 
     int fromString(const std::string &str)
     {
+        caster::core::CasterNode proto;
+        if (!JsonToProto(str, proto))
+            return 1;
+        _uid = proto.uid();
+        _node_name = proto.node_name();
+        _cpu_usage = proto.cpu_usage();
+        _mem_usage = proto.mem_usage();
+        _queue_delay = proto.queue_delay();
+        _sub_ping_delay = proto.sub_ping_delay();
+        _sub_tcp_delay = proto.sub_tcp_delay();
+        _pub_ping_delay = proto.pub_ping_delay();
+        _pub_tcp_delay = proto.pub_tcp_delay();
+        _send_total = proto.send_total();
+        _send_speed = proto.send_speed();
+        _recv_total = proto.recv_total();
+        _recv_speed = proto.recv_speed();
+        _connect_count = proto.connect_count();
+        _server_count = proto.server_count();
+        _client_count = proto.client_count();
+        _online_time = proto.online_time();
+        _update_time = proto.update_time();
         return 0;
     }
 

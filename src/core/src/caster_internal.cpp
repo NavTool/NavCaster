@@ -596,9 +596,9 @@ int caster_internal::relay_push_task_distribution()
     for (auto &list_iter : _push_record_map)
     {
         auto stat_iter = _push_status_map.find(list_iter.first);
-        if (stat_iter == _push_status_map.end())
+        if (stat_iter == _push_status_map.end() && list_iter.second.is_enabled())
         {
-            // STAT中不包含这个任务，创建任务
+            // STAT中不包含这个任务且已启用，创建任务
             broadcast_msg msg;
             msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
             msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
@@ -611,13 +611,13 @@ int caster_internal::relay_push_task_distribution()
         }
     }
 
-    // 查找STAT中是否有多余的任务（在LIST中不存在的）
+    // 查找STAT中是否有多余的任务（在LIST中不存在的，或已禁用的）
     for (auto &stat_iter : _push_status_map)
     {
         auto list_iter = _push_record_map.find(stat_iter.first);
-        if (list_iter == _push_record_map.end())
+        if (list_iter == _push_record_map.end() || !list_iter->second.is_enabled())
         {
-            // LIST中不包含这个任务，移除任务
+            // LIST中不包含这个任务或已禁用，移除任务
             broadcast_msg msg;
             msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
             msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
@@ -641,9 +641,9 @@ int caster_internal::relay_pull_task_distribution()
     for (auto &list_iter : _pull_record_map)
     {
         auto stat_iter = _pull_status_map.find(list_iter.first);
-        if (stat_iter == _pull_status_map.end())
+        if (stat_iter == _pull_status_map.end() && list_iter.second.is_enabled())
         {
-            // STAT中不包含这个任务，创建任务
+            // STAT中不包含这个任务且已启用，创建任务
             broadcast_msg msg;
             msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
             msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
@@ -656,13 +656,13 @@ int caster_internal::relay_pull_task_distribution()
         }
     }
 
-    // 查找STAT中是否有多余的任务（在LIST中不存在的）
+    // 查找STAT中是否有多余的任务（在LIST中不存在的，或已禁用的）
     for (auto &stat_iter : _pull_status_map)
     {
         auto list_iter = _pull_record_map.find(stat_iter.first);
-        if (list_iter == _pull_record_map.end())
+        if (list_iter == _pull_record_map.end() || !list_iter->second.is_enabled())
         {
-            // LIST中不包含这个任务，移除任务
+            // LIST中不包含这个任务或已禁用，移除任务
             broadcast_msg msg;
             msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
             msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
@@ -699,6 +699,8 @@ int caster_internal::relay_task_response(std::string req_str)
             }
 
             pull_status stat(uid);
+            stat.set_node_info(_node_ID, _node_name);
+            stat.update_state("", 1);
             _pull_status_map.insert({uid, stat});
             _relay_cb(_relay_cb_arg, req);
         }
@@ -733,6 +735,8 @@ int caster_internal::relay_task_response(std::string req_str)
             }
 
             push_status stat(uid);
+            stat.set_node_info(_node_ID, _node_name);
+            stat.update_state("", 1);
             _push_status_map.insert({uid, stat});
             _relay_cb(_relay_cb_arg, req);
         }

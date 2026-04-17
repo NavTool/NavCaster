@@ -46,7 +46,7 @@ int connect_bev::add_bev(std::string connect_key, bufferevent *bev)
 
 std::string connect_bev::new_bev(std::string addr, int port)
 {
-    evutil_addrinfo hints, *res;
+    evutil_addrinfo hints, *res = nullptr;
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = 0;
     hints.ai_family = AF_INET;
@@ -56,16 +56,26 @@ std::string connect_bev::new_bev(std::string addr, int port)
     hints.ai_addr = NULL;
     hints.ai_next = NULL;
 
-    evutil_getaddrinfo(addr.c_str(), std::to_string(port).c_str(), &hints, &res);
+    int gai_ret = evutil_getaddrinfo(addr.c_str(), std::to_string(port).c_str(), &hints, &res);
+    if (gai_ret != 0 || res == nullptr)
+    {
+        spdlog::error("[{}:{}]: DNS resolve failed for {}:{}, error: {}", __class__, __func__, addr, port, gai_ret != 0 ? evutil_gai_strerror(gai_ret) : "null result");
+        if (res)
+            evutil_freeaddrinfo(res);
+        return std::string();
+    }
 
     // 创建一个绑定在base上的buffevent，并建立socket连接
     auto bev = bufferevent_socket_new(_base, -1, BEV_OPT_CLOSE_ON_FREE); //-1表示自动创建fd
     if (bufferevent_socket_connect(bev, res->ai_addr, res->ai_addrlen))
     {
         // 连接建立失败
+        spdlog::warn("[{}:{}]: socket connect failed for {}:{}", __class__, __func__, addr, port);
         bufferevent_free(bev);
+        evutil_freeaddrinfo(res);
         return std::string();
     }
+    evutil_freeaddrinfo(res);
 
     // 连接建立成功。返回port，连接建立失败，返回0
     auto fd = bufferevent_getfd(bev);
@@ -134,6 +144,23 @@ int connect_bev::set_key(std::string old_key, std::string new_key)
     }
 
     return 0;
+}
+
+std::string connect_bev::recalculate_key(const std::string &old_key)
+{
+    auto con = _connect_map.find(old_key);
+    if (con == _connect_map.end())
+        return old_key;
+
+    int fd = bufferevent_getfd(con->second);
+    auto new_key = util_cal_connect_key(fd);
+    if (new_key.empty() || new_key == old_key)
+        return old_key;
+
+    // 更新 map 中的 key
+    _connect_map.insert({new_key, con->second});
+    _connect_map.erase(con);
+    return new_key;
 }
 
 bufferevent *connect_bev::get_bev(std::string connect_key)

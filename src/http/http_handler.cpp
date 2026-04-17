@@ -1,10 +1,14 @@
 #include "http_handler.h"
 #include "SysUsage.h"
 #include "Caster_Core.h"
+#include "base64.h"
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
 
 #define __class__ "http_handler"
 
@@ -23,6 +27,9 @@ static const char *KEY_PULL_STATE = "PULL:STAT";
 static const char *KEY_PUSH_RECORD = "PUSH:RECORD";
 static const char *KEY_PUSH_STATE = "PUSH:STAT";
 static const char *KEY_CASTER_NODE = "CASTER:NODE";
+static const char *KEY_CONF_SERVICE = "CONF:SERVICE";
+static const char *KEY_CONF_CORE = "CONF:CORE";
+static const char *KEY_CONF_AUTH = "CONF:AUTH";
 
 // PRAGMATIC APPROACH: Since all Redis operations are hash operations on local
 // Redis with sub-millisecond latency, and the HTTP API is for management only,
@@ -187,6 +194,67 @@ namespace
             return ok;
         }
 
+        // SET key value (plain string)
+        bool set(const char *key, const std::string &value)
+        {
+            if (!ensure_connected())
+                return false;
+
+            auto *reply = static_cast<redisReply *>(
+                redisCommand(_ctx, "SET %s %s", key, value.c_str()));
+            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
+            if (reply)
+                freeReplyObject(reply);
+            else
+                reconnect();
+            return ok;
+        }
+
+        // GET key → json or null
+        json get(const char *key)
+        {
+            if (!ensure_connected())
+                return nullptr;
+
+            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "GET %s", key));
+            if (!reply)
+            {
+                reconnect();
+                return nullptr;
+            }
+
+            json result = nullptr;
+            if (reply->type == REDIS_REPLY_STRING && reply->str)
+            {
+                try
+                {
+                    result = json::parse(reply->str);
+                }
+                catch (...)
+                {
+                    result = std::string(reply->str);
+                }
+            }
+            freeReplyObject(reply);
+            return result;
+        }
+
+        // PUBLISH channel message
+        bool publish(const char *channel, const std::string &message)
+        {
+            if (!ensure_connected())
+                return false;
+
+            auto *reply = static_cast<redisReply *>(
+                redisCommand(_ctx, "PUBLISH %s %s", channel, message.c_str()));
+            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
+            if (reply)
+                freeReplyObject(reply);
+            else
+                reconnect();
+            return ok;
+        }
+
     private:
         bool ensure_connected()
         {
@@ -233,8 +301,9 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _auth_redis = auth_redis;
     _config = config;
 
-    // Initialize synchronous Redis connection for blocking API operations
+    // Initialize synchronous Redis connections for blocking API operations
     sync_redis::instance().init(config.redis_host, config.redis_port, config.redis_password);
+    sync_redis_auth::instance().init(config.auth_redis_host, config.auth_redis_port, config.auth_redis_password);
 
     // Configure server
     _server.set_cors_origin(config.cors_origin);
@@ -357,6 +426,16 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _server.route(EVHTTP_REQ_DELETE, "/api/relays/push/*", [this](auto &req, auto &resp)
                   { handle_delete_push(req, resp); });
 
+    // ==================== Relay Start/Stop ====================
+    _server.route(EVHTTP_REQ_POST, "/api/relays/pull/start/*", [this](auto &req, auto &resp)
+                  { handle_relay_start(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/relays/pull/stop/*", [this](auto &req, auto &resp)
+                  { handle_relay_stop(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/relays/push/start/*", [this](auto &req, auto &resp)
+                  { handle_relay_start(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/relays/push/stop/*", [this](auto &req, auto &resp)
+                  { handle_relay_stop(req, resp); });
+
     // ==================== Nodes (read-only) ====================
     _server.route(EVHTTP_REQ_GET, "/api/nodes", [this](auto &req, auto &resp)
                   { handle_get_nodes(req, resp); });
@@ -368,6 +447,18 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_get_status(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/status/health", [this](auto &req, auto &resp)
                   { handle_get_health(req, resp); });
+
+    // ==================== Configuration ====================
+    _server.route(EVHTTP_REQ_GET, "/api/config", [this](auto &req, auto &resp)
+                  { handle_get_configs(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/config/*", [this](auto &req, auto &resp)
+                  { handle_get_config(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/config/*", [this](auto &req, auto &resp)
+                  { handle_update_config(req, resp); });
+
+    // ==================== Utilities ====================
+    _server.route(EVHTTP_REQ_POST, "/api/utils/sourcetable", [this](auto &req, auto &resp)
+                  { handle_fetch_sourcetable(req, resp); });
 
     // ==================== Static File Serving ====================
     if (!config.web_root.empty())
@@ -877,6 +968,7 @@ void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
     std::string uid = body.value("uid", "");
     if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing uid"})"; return; }
+    if (!body.contains("enabled")) body["enabled"] = true;
     bool ok = sync_redis::instance().hsetnx(KEY_PULL_RECORD, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Pull record already exists"})"; return; }
     resp.status_code = 201;
@@ -884,7 +976,19 @@ void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp
 }
 
 IMPL_UPDATE(handle_update_pull, KEY_PULL_RECORD)
-IMPL_DELETE(handle_delete_pull, KEY_PULL_RECORD)
+
+void http_handler::handle_delete_pull(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    bool ok = sync_redis::instance().hdel(KEY_PULL_RECORD, id.c_str());
+    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    // Also clean up corresponding state entry
+    sync_redis::instance().hdel(KEY_PULL_STATE, id.c_str());
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
+
 IMPL_GET_ALL(handle_get_pull_states, KEY_PULL_STATE)
 
 // ==================== Push Relays (PUSH:RECORD / PUSH:STAT) ====================
@@ -899,6 +1003,7 @@ void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
     std::string uid = body.value("uid", "");
     if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing uid"})"; return; }
+    if (!body.contains("enabled")) body["enabled"] = true;
     bool ok = sync_redis::instance().hsetnx(KEY_PUSH_RECORD, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Push record already exists"})"; return; }
     resp.status_code = 201;
@@ -906,8 +1011,73 @@ void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp
 }
 
 IMPL_UPDATE(handle_update_push, KEY_PUSH_RECORD)
-IMPL_DELETE(handle_delete_push, KEY_PUSH_RECORD)
+
+void http_handler::handle_delete_push(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    bool ok = sync_redis::instance().hdel(KEY_PUSH_RECORD, id.c_str());
+    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    // Also clean up corresponding state entry
+    sync_redis::instance().hdel(KEY_PUSH_STATE, id.c_str());
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
+
 IMPL_GET_ALL(handle_get_push_states, KEY_PUSH_STATE)
+
+// ==================== Relay Start/Stop ====================
+
+void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp)
+{
+    // URL: /api/relays/{pull|push}/start/{uid}
+    std::string path = req.path;
+    std::string uid = get_resource_id(req);
+    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+
+    bool is_pull = path.find("/pull/") != std::string::npos;
+    const char *key = is_pull ? KEY_PULL_RECORD : KEY_PUSH_RECORD;
+
+    auto val = sync_redis::instance().hget(key, uid.c_str());
+    if (!val.is_string()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
+
+    try {
+        json record = json::parse(val.get<std::string>());
+        record["enabled"] = true;
+        sync_redis::instance().hset(key, uid.c_str(), record.dump());
+        resp.status_code = 200;
+        resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    } catch (...) {
+        resp.status_code = 500; resp.body = R"({"error":"Failed to update record"})";
+    }
+}
+
+void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
+{
+    // URL: /api/relays/{pull|push}/stop/{uid}
+    std::string path = req.path;
+    std::string uid = get_resource_id(req);
+    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+
+    bool is_pull = path.find("/pull/") != std::string::npos;
+    const char *key = is_pull ? KEY_PULL_RECORD : KEY_PUSH_RECORD;
+
+    auto val = sync_redis::instance().hget(key, uid.c_str());
+    if (!val.is_string()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
+
+    try {
+        json record = json::parse(val.get<std::string>());
+        record["enabled"] = false;
+        sync_redis::instance().hset(key, uid.c_str(), record.dump());
+        // Also remove status to trigger immediate stop
+        const char *stat_key = is_pull ? KEY_PULL_STATE : KEY_PUSH_STATE;
+        sync_redis::instance().hdel(stat_key, uid.c_str());
+        resp.status_code = 200;
+        resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    } catch (...) {
+        resp.status_code = 500; resp.body = R"({"error":"Failed to update record"})";
+    }
+}
 
 // ==================== Nodes (CASTER:NODE) read-only ====================
 
@@ -950,6 +1120,198 @@ void http_handler::handle_get_health(const HttpRequest &req, HttpResponse &resp)
 {
     resp.status_code = 200;
     resp.body = R"({"status":"ok"})";
+}
+
+// ==================== Utility: Fetch Remote Sourcetable ====================
+
+void http_handler::handle_fetch_sourcetable(const HttpRequest &req, HttpResponse &resp)
+{
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+
+    std::string host = body.value("host", "");
+    int port = body.value("port", 2101);
+    std::string user = body.value("username", "");
+    std::string pass = body.value("password", "");
+
+    if (host.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing host"})"; return; }
+
+    // Synchronous TCP connect + NTRIP sourcetable request
+    int sock = -1;
+    struct addrinfo hints{}, *res = nullptr;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int gai = getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res);
+    if (gai != 0 || !res)
+    {
+        resp.status_code = 502;
+        resp.body = json{{"error", "DNS resolve failed"}, {"detail", gai_strerror(gai)}}.dump();
+        if (res) freeaddrinfo(res);
+        return;
+    }
+
+    sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sock < 0)
+    {
+        freeaddrinfo(res);
+        resp.status_code = 502;
+        resp.body = R"({"error":"Socket creation failed"})";
+        return;
+    }
+
+    // Set connect timeout (5 seconds)
+    struct timeval tv{5, 0};
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0)
+    {
+        freeaddrinfo(res);
+        close(sock);
+        resp.status_code = 502;
+        resp.body = json{{"error", "Connection failed"}, {"detail", std::string(strerror(errno))}}.dump();
+        return;
+    }
+    freeaddrinfo(res);
+
+    // Build NTRIP sourcetable request (use HTTP/1.1 with Ntrip/2.0 per standard)
+    std::string request_str = "GET / HTTP/1.1\r\nHost: " + host + ":" + std::to_string(port) + "\r\n"
+                              "Ntrip-Version: Ntrip/2.0\r\n"
+                              "User-Agent: NTRIP NavCaster/2.0\r\n"
+                              "Connection: close\r\n";
+    if (!user.empty())
+    {
+        std::string credentials = user + ":" + pass;
+        std::string encoded = util_base64_encode(credentials.c_str());
+        request_str += "Authorization: Basic " + encoded + "\r\n";
+    }
+    request_str += "\r\n";
+
+    ssize_t sent = send(sock, request_str.c_str(), request_str.size(), 0);
+    if (sent <= 0)
+    {
+        close(sock);
+        resp.status_code = 502;
+        resp.body = R"({"error":"Send failed"})";
+        return;
+    }
+
+    // Read response (sourcetable is typically small, 64KB buffer is plenty)
+    std::string response;
+    char buf[4096];
+    ssize_t n;
+    while ((n = recv(sock, buf, sizeof(buf), 0)) > 0)
+    {
+        response.append(buf, n);
+        if (response.size() > 65536) break; // Safety limit
+    }
+    close(sock);
+
+    if (response.empty())
+    {
+        resp.status_code = 502;
+        resp.body = R"({"error":"No response from server"})";
+        return;
+    }
+
+    // Parse STR lines from NTRIP sourcetable
+    json mountpoints = json::array();
+    std::istringstream stream(response);
+    std::string line;
+    while (std::getline(stream, line))
+    {
+        // Remove trailing \r
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+
+        if (line.substr(0, 4) == "STR;")
+        {
+            // STR;mountpoint;identifier;format;...
+            std::vector<std::string> fields;
+            std::string field;
+            std::istringstream lss(line);
+            while (std::getline(lss, field, ';'))
+                fields.push_back(field);
+
+            if (fields.size() >= 2)
+            {
+                json entry;
+                entry["mountpoint"] = fields[1];
+                if (fields.size() > 2) entry["identifier"] = fields[2];
+                if (fields.size() > 3) entry["format"] = fields[3];
+                if (fields.size() > 4) entry["format_details"] = fields[4];
+                if (fields.size() > 8) entry["country"] = fields[8];
+                if (fields.size() > 9) entry["latitude"] = fields[9];
+                if (fields.size() > 10) entry["longitude"] = fields[10];
+                mountpoints.push_back(entry);
+            }
+        }
+        if (line.find("ENDSOURCETABLE") != std::string::npos)
+            break;
+    }
+
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}, {"mountpoints", mountpoints}}.dump();
+}
+
+// ==================== Configuration ====================
+
+void http_handler::save_config(const std::string &section, const std::string &json_str)
+{
+    const char *key = nullptr;
+    if (section == "service") key = KEY_CONF_SERVICE;
+    else if (section == "core") key = KEY_CONF_CORE;
+    else if (section == "auth") key = KEY_CONF_AUTH;
+    else return;
+    sync_redis::instance().set(key, json_str);
+}
+
+void http_handler::handle_get_configs(const HttpRequest &req, HttpResponse &resp)
+{
+    json result = json::object();
+    auto service = sync_redis::instance().get(KEY_CONF_SERVICE);
+    auto core = sync_redis::instance().get(KEY_CONF_CORE);
+    auto auth = sync_redis::instance().get(KEY_CONF_AUTH);
+    if (!service.is_null()) result["service"] = service;
+    if (!core.is_null()) result["core"] = core;
+    if (!auth.is_null()) result["auth"] = auth;
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
+void http_handler::handle_get_config(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    const char *key = nullptr;
+    if (id == "service") key = KEY_CONF_SERVICE;
+    else if (id == "core") key = KEY_CONF_CORE;
+    else if (id == "auth") key = KEY_CONF_AUTH;
+    else { resp.status_code = 404; resp.body = R"({"error":"Unknown config section"})"; return; }
+
+    json data = sync_redis::instance().get(key);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Config not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    const char *key = nullptr;
+    if (id == "service") key = KEY_CONF_SERVICE;
+    else if (id == "core") key = KEY_CONF_CORE;
+    else if (id == "auth") key = KEY_CONF_AUTH;
+    else { resp.status_code = 404; resp.body = R"({"error":"Unknown config section"})"; return; }
+
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+
+    bool ok = sync_redis::instance().set(key, body.dump());
+    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
 }
 
 // ==================== SSE ====================

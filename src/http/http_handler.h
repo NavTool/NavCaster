@@ -21,10 +21,15 @@ struct HttpApiConfig
     std::string admin_password = "admin";
     std::string web_root; // path to static web files (empty = disabled)
 
-    // Redis connection (for sync blocking operations)
+    // Redis connection for caster data (sync blocking)
     std::string redis_host = "127.0.0.1";
     int redis_port = 6379;
     std::string redis_password;
+
+    // Redis connection for auth data (accounts etc.)
+    std::string auth_redis_host = "127.0.0.1";
+    int auth_redis_port = 6379;
+    std::string auth_redis_password;
 };
 
 class http_handler
@@ -35,6 +40,9 @@ public:
 
     // Initialize and register all routes
     int init(event_base *base, redis_adapter *caster_redis, redis_adapter *auth_redis, const HttpApiConfig &config);
+
+    // Save configuration JSON to Redis
+    void save_config(const std::string &section, const std::string &json_str);
 
 private:
     // Auth endpoints
@@ -118,6 +126,10 @@ private:
     void handle_delete_push(const HttpRequest &req, HttpResponse &resp);
     void handle_get_push_states(const HttpRequest &req, HttpResponse &resp);
 
+    // Relay start/stop
+    void handle_relay_start(const HttpRequest &req, HttpResponse &resp);
+    void handle_relay_stop(const HttpRequest &req, HttpResponse &resp);
+
     // Cluster Nodes (CASTER:NODE) — read-only
     void handle_get_nodes(const HttpRequest &req, HttpResponse &resp);
     void handle_get_node(const HttpRequest &req, HttpResponse &resp);
@@ -125,6 +137,14 @@ private:
     // System status
     void handle_get_status(const HttpRequest &req, HttpResponse &resp);
     void handle_get_health(const HttpRequest &req, HttpResponse &resp);
+
+    // Configuration (CONF:*)
+    void handle_get_configs(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_config(const HttpRequest &req, HttpResponse &resp);
+    void handle_update_config(const HttpRequest &req, HttpResponse &resp);
+
+    // Utility endpoints
+    void handle_fetch_sourcetable(const HttpRequest &req, HttpResponse &resp);
 
     // SSE endpoint
     void handle_sse_stream(evhttp_request *raw_req, const HttpRequest &req);

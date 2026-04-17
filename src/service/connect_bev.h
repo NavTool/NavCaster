@@ -31,6 +31,7 @@ public:
                 bufferevent_event_cb eventcb, void *cbarg);
     int del_bev(std::string connect_key);
     int set_key(std::string old_key, std::string new_key);
+    std::string recalculate_key(const std::string &old_key);
 
     int set_timer(std::string connect_key, time_t read_timeout_sec, time_t write_timeout_sec);
     int del_timer(std::string connect_key);

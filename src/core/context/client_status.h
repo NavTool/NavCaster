@@ -76,6 +76,26 @@ public:
 
     int fromString(const std::string &str)
     {
+        caster::core::ClientState proto;
+        if (!JsonToProto(str, proto))
+            return 1;
+        _uid = proto.uid();
+        _online_time = proto.online_time();
+        _update_time = proto.update_time();
+        _login_mpt = proto.login_mpt();
+        _alias_mpt = proto.alias_mpt();
+        _type = proto.type();
+        _account = proto.account();
+        _ip = proto.ip();
+        _port = proto.port();
+        _ecef_x = proto.ecef_x();
+        _ecef_y = proto.ecef_y();
+        _ecef_z = proto.ecef_z();
+        _position_update_time = proto.position_update_time();
+        _quality = proto.quality();
+        _sat_num = proto.sat_num();
+        _diff = proto.diff();
+        _distance = proto.distance();
         return 0;
     }
     std::string toString()

@@ -230,6 +230,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PullRecord final : public ::google:
     kUpdateTimeFieldNumber = 3,
     kTypeFieldNumber = 5,
     kTargetPortFieldNumber = 7,
+    kEnabledFieldNumber = 11,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -361,11 +362,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PullRecord final : public ::google:
   void _internal_set_target_port(::int32_t value);
 
   public:
+  // bool enabled = 11;
+  void clear_enabled() ;
+  [[nodiscard]] bool enabled() const;
+  void set_enabled(bool value);
+
+  private:
+  bool _internal_enabled() const;
+  void _internal_set_enabled(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.core.PullRecord)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 10,
+  static const ::google::protobuf::internal::TcParseTable<4, 11,
                                    0, 99,
                                    2>
       _table_;
@@ -399,6 +410,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PullRecord final : public ::google:
     ::uint64_t update_time_;
     int type_;
     ::int32_t target_port_;
+    bool enabled_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -911,6 +923,31 @@ inline ::uint64_t PullRecord::_internal_update_time() const {
 inline void PullRecord::_internal_set_update_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = value;
+}
+
+// bool enabled = 11;
+inline void PullRecord::clear_enabled() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enabled_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000400U);
+}
+inline bool PullRecord::enabled() const {
+  // @@protoc_insertion_point(field_get:caster.core.PullRecord.enabled)
+  return _internal_enabled();
+}
+inline void PullRecord::set_enabled(bool value) {
+  _internal_set_enabled(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  // @@protoc_insertion_point(field_set:caster.core.PullRecord.enabled)
+}
+inline bool PullRecord::_internal_enabled() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enabled_;
+}
+inline void PullRecord::_internal_set_enabled(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enabled_ = value;
 }
 
 #ifdef __GNUC__

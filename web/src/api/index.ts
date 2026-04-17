@@ -22,6 +22,16 @@ export const nodesApi = createReadOnlyHashApi<CasterNode>('/api/nodes');
 export const pullStatesApi = createReadOnlyHashApi<PullState>('/api/relays/pull/status');
 export const pushStatesApi = createReadOnlyHashApi<PushState>('/api/relays/push/status');
 
+// Relay start/stop
+export async function relayStart(type: 'pull' | 'push', uid: string) {
+  const { data } = await api.post(`/api/relays/${type}/start/${encodeURIComponent(uid)}`);
+  return data;
+}
+export async function relayStop(type: 'pull' | 'push', uid: string) {
+  const { data } = await api.post(`/api/relays/${type}/stop/${encodeURIComponent(uid)}`);
+  return data;
+}
+
 // Access items scoped by group_uid
 export const accessItemsApi = {
   async getAll(groupUid: string) {
@@ -48,4 +58,19 @@ export async function getSystemStatus() {
 export async function getHealthCheck() {
   const { data } = await api.get('/api/status/health');
   return data;
+}
+
+export interface SourcetableEntry {
+  mountpoint: string;
+  identifier?: string;
+  format?: string;
+  format_details?: string;
+  country?: string;
+  latitude?: string;
+  longitude?: string;
+}
+
+export async function fetchRemoteSourcetable(host: string, port: number, username?: string, password?: string): Promise<SourcetableEntry[]> {
+  const { data } = await api.post('/api/utils/sourcetable', { host, port, username, password });
+  return data.mountpoints || [];
 }

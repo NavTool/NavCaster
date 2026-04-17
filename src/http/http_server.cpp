@@ -151,7 +151,10 @@ HttpRequest http_server::parse_request(evhttp_request *req)
         {
             if (!seg.empty())
             {
-                parsed.path_segments.push_back(seg);
+                // Percent-decode each segment so %3A→: %2F→/ etc.
+                char *decoded = evhttp_uridecode(seg.c_str(), 0, nullptr);
+                parsed.path_segments.push_back(decoded ? decoded : seg);
+                if (decoded) free(decoded);
                 seg.clear();
             }
         }
@@ -161,7 +164,11 @@ HttpRequest http_server::parse_request(evhttp_request *req)
         }
     }
     if (!seg.empty())
-        parsed.path_segments.push_back(seg);
+    {
+        char *decoded = evhttp_uridecode(seg.c_str(), 0, nullptr);
+        parsed.path_segments.push_back(decoded ? decoded : seg);
+        if (decoded) free(decoded);
+    }
 
     return parsed;
 }
