@@ -360,7 +360,8 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
 
         req.set_type(CONNECT_TYPE_PULL);
         req.set_connect_key(record.uid());
-        req.set_mount_point(record.login_mpt());
+        req.set_mount_point(record.login_mpt());  // 本地挂载点名称（注册/发布用）
+        req.set_mount_para(record.target_mpt());   // 远端挂载点名称（NTRIP请求用）
         req.set_addr(record.target_ip());
         req.set_port(record.target_port());
 
@@ -369,12 +370,6 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
         {
             std::string auth_raw = record.target_account() + ":" + record.target_password();
             req.set_ntrip_auth(auth_raw);
-        }
-
-        // 设置远端挂载点
-        if (!record.target_mpt().empty())
-        {
-            req.set_mount_point(record.target_mpt());
         }
 
         // 设置远端 Host 头 (addr:port)
@@ -409,7 +404,8 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
 
         req.set_type(CONNECT_TYPE_PUSH);
         req.set_connect_key(record.uid());
-        req.set_mount_point(record.login_mpt());
+        req.set_mount_point(record.login_mpt());  // 本地挂载点名称（订阅用）
+        req.set_mount_para(record.target_mpt());   // 远端挂载点名称（NTRIP请求用）
         req.set_addr(record.target_ip());
         req.set_port(record.target_port());
 
@@ -418,12 +414,6 @@ int ntrip_caster::process_relay(const broadcast_msg &msg)
         {
             std::string auth_raw = record.target_account() + ":" + record.target_password();
             req.set_ntrip_auth(auth_raw);
-        }
-
-        // 设置远端挂载点
-        if (!record.target_mpt().empty())
-        {
-            req.set_mount_point(record.target_mpt());
         }
 
         // 设置远端 Host 头 (addr:port)

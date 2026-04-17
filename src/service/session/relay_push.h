@@ -8,6 +8,7 @@
 
 class relay_push : public carrier_base
 {
+    bool _stopped = false;
     int _retry_delay = 5; // exponential backoff: 5 → 10 → 20 → 40 → 60 (cap)
 
     void backoff() { _retry_delay = std::min(_retry_delay * 2, 60); }
@@ -21,9 +22,25 @@ public:
 
     ~relay_push() = default;
 
+    int stop() override
+    {
+        _stopped = true;
+        stop_bev();
+        stop_timeout_event();
+        unsubscribe();
+        caster_withdraw();
+        _events.close();
+
+        spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]",
+                     __class__, _info.mount_point(), _info.addr(), _info.port());
+        return 0;
+    }
+
     DetachedTask run() override
     {
-        while (true)
+        auto self = shared_from_this(); // 保持 carrier 存活直到协程退出
+
+        while (!_stopped)
         {
             // 1. 创建 bufferevent 并发起 TCP 连接
             _connect_key = create_bev(_info.addr(), _info.port());
@@ -57,10 +74,11 @@ public:
             // Relay 连接的账户统一标记为 SYSTEM
             _user_name = "SYSTEM";
 
-            // 3. 发送 NTRIP 推送请求
+            // 3. 发送 NTRIP 推送请求（使用 mount_para 中的远端挂载点名称）
+            auto target_mpt = _info.mount_para().empty() ? _info.mount_point() : _info.mount_para();
             auto req = build_ntrip_request(ConnectType::CONNECT_TYPE_PUSH,
                                            _ntrip_version2,
-                                           _info.mount_point(),
+                                           target_mpt,
                                            _info.http_host(),
                                            _info.ntrip_auth());
             send_data(req.c_str(), req.size(), false);
@@ -153,7 +171,11 @@ public:
                     break;
             }
 
-            // 重连准备
+            // 外部stop()导致EventChannel关闭 → 退出协程
+            if (_stopped)
+                break;
+
+            // 自然断连 → 重连准备
             spdlog::info("[{}]: disconnected, will retry in {}s, mount [{}], addr:[{}:{}]", __class__, _retry_delay, _info.mount_point(), _info.addr(), _info.port());
             stop_bev();
             caster_withdraw();
@@ -163,5 +185,9 @@ public:
             co_await co_sleep(_retry_delay);
             backoff();
         }
+
+        // 清理动态创建的 bev
+        destroy_bev(_connect_key);
+        co_return;
     }
 };

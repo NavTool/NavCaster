@@ -1325,6 +1325,10 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         stream_status str(connect_key);
 
         _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
+
+        // 创建RTCM解码器，用于解析数据流中的坐标和报文统计
+        _base_decoder_map.emplace(connect_key, decode_rtcm{});
+
         // // 向云端插入记录
 
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str());
@@ -1396,6 +1400,12 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
         stream_status str(connect_key);
 
         _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
+
+        // 为NEAREST类型的用户创建NMEA解码器，用于Core解析GGA坐标并管理最近基站切换
+        if (type == CasterRegisterType::NEAREST)
+        {
+            _rover_decoder_map.emplace(connect_key, decode_nmea{});
+        }
 
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " STR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
@@ -1470,6 +1480,7 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
     }
     _server_status_map.erase(connect_key);
     _stream_status_map.erase(connect_key);
+    _base_decoder_map.erase(connect_key);
     // // 向云端插入记录
     if (_upload_base_stat)
     {
@@ -1509,6 +1520,8 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     }
     _client_status_map.erase(connect_key);
     _stream_status_map.erase(connect_key);
+    _rover_decoder_map.erase(connect_key);
+    _base_near_sub_map.erase(connect_key);
     // 向云端插入记录
     if (_upload_rover_stat)
     {
@@ -1539,6 +1552,28 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
         str->second.add_recv(data_length);
         add_sum_recv(data_length);
     }
+
+    // 解析RTCM数据流，提取坐标和报文统计信息
+    auto dec = _base_decoder_map.find(connect_key);
+    if (dec != _base_decoder_map.end())
+    {
+        dec->second.Decode(data, data_length);
+
+        // 更新坐标信息
+        if (dec->second._has_position)
+        {
+            set_base_coord_info(mount_point, connect_key,
+                                dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z);
+        }
+
+        // 更新源列表解析信息（报文类型、卫星系统）
+        if (!dec->second._msg_stats.empty())
+        {
+            set_base_source_info(mount_point, connect_key,
+                                 dec->second.get_format_details(), dec->second.get_nav_system());
+        }
+    }
+
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH MPT:%s %b", mount_point, data, data_length);
 }
 
@@ -1562,6 +1597,32 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
     {
         str->second.add_recv(data_length);
         add_sum_recv(data_length);
+    }
+
+    // 对于near模式的订阅者，解析NMEA/GGA数据并触发最近基站切换
+    auto near = _base_near_sub_map.find(connect_key);
+    if (near != _base_near_sub_map.end())
+    {
+        auto dec = _rover_decoder_map.find(connect_key);
+        if (dec != _rover_decoder_map.end())
+        {
+            dec->second.Decode(data, data_length);
+            if (dec->second._has_position)
+            {
+                // 更新用户坐标
+                set_rover_coord_info(user_name, connect_key,
+                                     dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z,
+                                     dec->second._quality, dec->second._sat_num, dec->second._diff);
+
+                // 将ECEF转换为经纬度，触发最近基站查询
+                double lat = 0.0, lon = 0.0, alt = 0.0;
+                util_ecef2pos(dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z, lat, lon, alt);
+
+                // 调用sub_near_channel更新最近基站订阅
+                sub_near_channel(near->second.channel.c_str(), near->second.user_name.c_str(),
+                                 lat, lon, connect_key, near->second.cb, near->second.arg);
+            }
+        }
     }
 
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH USR:%s %b", user_name, data, data_length);

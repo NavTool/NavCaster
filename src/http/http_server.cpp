@@ -280,6 +280,13 @@ void http_server::handle_request(evhttp_request *req)
         return;
     }
 
+    // Serve static files before auth check (frontend assets don't need token)
+    if (!_web_root.empty() && parsed.method == EVHTTP_REQ_GET && !parsed.path.starts_with("/api/"))
+    {
+        if (serve_static_file(req, parsed.path))
+            return;
+    }
+
     // Auth check
     if (_auth_validator && !is_public_path(parsed.path))
     {
@@ -340,13 +347,6 @@ void http_server::handle_request(evhttp_request *req)
             send_response(req, resp);
             return;
         }
-    }
-
-    // No route matched — try static file serving
-    if (!_web_root.empty() && parsed.method == EVHTTP_REQ_GET)
-    {
-        if (serve_static_file(req, parsed.path))
-            return;
     }
 
     // Nothing matched

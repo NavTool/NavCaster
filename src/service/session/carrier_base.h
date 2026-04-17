@@ -16,6 +16,7 @@
 
 #include <coroutine>
 #include <deque>
+#include <memory>
 #include <optional>
 
 #include <event2/event.h>
@@ -197,7 +198,7 @@ bool verify_ntrip_response(const char *data, size_t len, bool &version2, bool &c
 // carrier_base: 所有 Carrier 的统一基类
 // ============================================================================
 
-class carrier_base
+class carrier_base : public std::enable_shared_from_this<carrier_base>
 {
 public:
     ConnectInfo _info;

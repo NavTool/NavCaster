@@ -98,6 +98,12 @@ public:
     int createObject(ConnectInfo req)
     {
         auto obj = std::make_shared<T>(req);
+        auto existing = m_obj_map.find(req.connect_key());
+        if (existing != m_obj_map.end())
+        {
+            existing->second->stop(); // properly stop old task
+            m_obj_map.erase(existing);
+        }
         m_obj_map.insert(std::pair(req.connect_key(), obj));
         obj->init();
         obj->start();
@@ -109,6 +115,7 @@ public:
         auto iter = m_obj_map.find(req.connect_key());
         if (iter != m_obj_map.end())
         {
+            iter->second->stop();
             m_obj_map.erase(iter);
         }
         return 0;

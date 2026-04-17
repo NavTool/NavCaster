@@ -100,6 +100,7 @@ const PullRelay: React.FC = () => {
           value: e.mountpoint,
           label: `${e.mountpoint}${e.format ? ' (' + e.format + ')' : ''}`,
         })));
+        form.setFieldValue('target_mpt', undefined);
         message.success(`获取到 ${entries.length} 个挂载点`);
       }
     } catch {

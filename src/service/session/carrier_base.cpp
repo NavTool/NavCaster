@@ -512,6 +512,7 @@ int carrier_base::subscribe()
 
 int carrier_base::subscribe(double lon, double lat)
 {
+    CASTER::Sub_Near_Raw_Data(_mount_point.c_str(), lat, lon, _user_name.c_str(), _connect_key.c_str(), CasterSubscribeCallback, this);
     return 0;
 }
 

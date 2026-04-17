@@ -1,23 +1,14 @@
 /*
     client_near.h — 协程版本的就近接入 Carrier（混合设计）
-    初始化：auth_login → caster_register(NEAREST)（顺序 co_await）
-    running：co_await _events.next() 事件循环（读取NMEA解析坐标 / 订阅数据转发 / 踢下线 / 断连）
+    初始化：auth_login → caster_register(NEAREST) → subscribe_near（顺序 co_await）
+    running：co_await _events.next() 事件循环（上传GGA→Core解析并切换 / 订阅数据转发 / 踢下线 / 断连）
+    数据解析由CasterCore统一管理：Core解析GGA坐标，执行GEORADIUS查询，自动切换最近基站订阅
 */
 #pragma once
 #include "carrier_base.h"
-#include "decode_nmea.h"
 
 class client_near : public carrier_base
 {
-    std::string _alias_mpt;
-    double _ecef_x = 0.0;
-    double _ecef_y = 0.0;
-    double _ecef_z = 0.0;
-    double _lon = 0.0;
-    double _lat = 0.0;
-
-    decode_nmea _str_decoder;
-
 public:
     client_near(ConnectInfo info) : carrier_base(info)
     {
@@ -60,7 +51,10 @@ public:
             co_return;
         }
 
-        // 3. 注册成功，进入 running 状态
+        // 3. 注册成功，初始化最近基站订阅（Core将在收到GGA后自动查找最近基站）
+        subscribe(0, 0);
+
+        // 4. 进入 running 状态
         start_bev(true, 0, false, 0);
         start_timeout_event(5);
         auto reply_str = build_nrtip_reply(CONNECT_TYPE_CLIENT, _ntrip_version2, _transfer_with_chunked);
@@ -74,9 +68,9 @@ public:
             {
             case CarrierEventType::BevRead:
             {
-                // 接收客户端上传的 NMEA 数据
+                // 接收客户端上传的NMEA数据，发布到Core（Core负责解析GGA并管理最近基站切换）
                 auto data = read_data(false);
-                // TODO: 解析 NMEA 坐标，判断位移是否 > 1km，触发 CASTER::Sub_Near_Raw_Data 订阅最近基站
+                publish_data(reinterpret_cast<const char *>(data.data()), data.size());
                 break;
             }
 

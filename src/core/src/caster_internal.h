@@ -19,6 +19,8 @@ using json = nlohmann::json;
 #include "broadcast_msg.h"
 #include "caster_node.h"
 #include "client_status.h"
+#include "decode_rtcm.h"
+#include "decode_nmea.h"
 #include "pull_record.h"
 #include "pull_status.h"
 #include "push_record.h"
@@ -275,6 +277,10 @@ private:
     std::unordered_map<std::string, stream_status> _stream_status_map; // 记录每个连接的数据流统计信息(基站和用户的连接都记录在这里, 连接key为Mount_Point-ConnectKey)
     std::unordered_map<std::string, server_status> _server_status_map; // 基站的状态信息
     std::unordered_map<std::string, client_status> _client_status_map; // 用户的状态信息
+
+    // 数据流解码器 (由Core统一管理, 在register时创建, withdraw时销毁)
+    std::unordered_map<std::string, decode_rtcm> _base_decoder_map;    // connect_key → RTCM解码器 (基站数据解析)
+    std::unordered_map<std::string, decode_nmea> _rover_decoder_map;   // connect_key → NMEA解码器 (用户数据解析, 用于near模式GGA坐标提取)
 
     // 云端维护的状态信息 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, source_record> _source_decode_map;  // 解析的挂载点信息

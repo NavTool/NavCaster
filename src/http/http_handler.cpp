@@ -975,7 +975,20 @@ void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp
     resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
 
-IMPL_UPDATE(handle_update_pull, KEY_PULL_RECORD)
+void http_handler::handle_update_pull(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+    bool ok = sync_redis::instance().hset(KEY_PULL_RECORD, id.c_str(), body.dump());
+    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
+    // Delete status to force task restart with new parameters
+    sync_redis::instance().hdel(KEY_PULL_STATE, id.c_str());
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
 
 void http_handler::handle_delete_pull(const HttpRequest &req, HttpResponse &resp)
 {
@@ -1010,7 +1023,20 @@ void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp
     resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
 
-IMPL_UPDATE(handle_update_push, KEY_PUSH_RECORD)
+void http_handler::handle_update_push(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+    bool ok = sync_redis::instance().hset(KEY_PUSH_RECORD, id.c_str(), body.dump());
+    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
+    // Delete status to force task restart with new parameters
+    sync_redis::instance().hdel(KEY_PUSH_STATE, id.c_str());
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
 
 void http_handler::handle_delete_push(const HttpRequest &req, HttpResponse &resp)
 {
@@ -1039,10 +1065,10 @@ void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp
     const char *key = is_pull ? KEY_PULL_RECORD : KEY_PUSH_RECORD;
 
     auto val = sync_redis::instance().hget(key, uid.c_str());
-    if (!val.is_string()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
+    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
 
     try {
-        json record = json::parse(val.get<std::string>());
+        json record = val.is_string() ? json::parse(val.get<std::string>()) : val;
         record["enabled"] = true;
         sync_redis::instance().hset(key, uid.c_str(), record.dump());
         resp.status_code = 200;
@@ -1063,10 +1089,10 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
     const char *key = is_pull ? KEY_PULL_RECORD : KEY_PUSH_RECORD;
 
     auto val = sync_redis::instance().hget(key, uid.c_str());
-    if (!val.is_string()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
+    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
 
     try {
-        json record = json::parse(val.get<std::string>());
+        json record = val.is_string() ? json::parse(val.get<std::string>()) : val;
         record["enabled"] = false;
         sync_redis::instance().hset(key, uid.c_str(), record.dump());
         // Also remove status to trigger immediate stop
