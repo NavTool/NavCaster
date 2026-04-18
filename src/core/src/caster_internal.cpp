@@ -79,6 +79,9 @@ int caster_internal::start()
 
     _startup_time = util_get_now_second();
 
+    // 启动前清理崩溃残留的历史记录
+    cleanup_stale_history();
+
     pubAttemptReconnect();
     subAttemptReconnect();
 
@@ -94,11 +97,148 @@ int caster_internal::start()
 
 int caster_internal::stop()
 {
+    // 优雅停机: 为所有在线会话写入断开记录
+    flush_online_history();
+
     redisAsyncDisconnect(_sub_context);
-    redisAsyncFree(_sub_context);
     redisAsyncDisconnect(_pub_context);
-    redisAsyncFree(_pub_context);
     return 0;
+}
+
+void caster_internal::flush_online_history()
+{
+    auto now = util_get_now_second();
+    size_t base_count = _base_history_map.size();
+    size_t rover_count = _rover_history_map.size();
+
+    for (auto &[ck, entry] : _base_history_map)
+    {
+        entry["disconnect_time"] = now;
+        entry["last_update"] = now;
+        std::string field = entry["name"].get<std::string>() + ":" + ck;
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+    }
+    _base_history_map.clear();
+
+    for (auto &[ck, entry] : _rover_history_map)
+    {
+        entry["disconnect_time"] = now;
+        entry["last_update"] = now;
+        std::string field = entry["name"].get<std::string>() + ":" + ck;
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+    }
+    _rover_history_map.clear();
+
+    if (base_count > 0 || rover_count > 0)
+    {
+        spdlog::info("[caster_internal::flush_online_history]: Flushed {} base + {} rover disconnect records", base_count, rover_count);
+    }
+}
+
+void caster_internal::cleanup_stale_history()
+{
+    // 使用同步 Redis 连接，在启动阶段补偿崩溃未写入的断开记录
+    struct timeval tv = {2, 0};
+    redisContext *ctx = redisConnectWithTimeout(_redis_IP.c_str(), _redis_port, tv);
+    if (!ctx || ctx->err)
+    {
+        spdlog::warn("[caster_internal::cleanup_stale_history]: Cannot connect to Redis for startup cleanup: {}",
+                     ctx ? ctx->errstr : "null context");
+        if (ctx)
+            redisFree(ctx);
+        return;
+    }
+
+    if (!_redis_Requirepass.empty())
+    {
+        auto *reply = static_cast<redisReply *>(redisCommand(ctx, "AUTH %s", _redis_Requirepass.c_str()));
+        if (reply)
+            freeReplyObject(reply);
+    }
+
+    auto now = util_get_now_second();
+    int compensated = 0;
+
+    // 扫描 LOG:MPT, 补偿崩溃未断开的基站记录
+    {
+        auto *reply = static_cast<redisReply *>(redisCommand(ctx, "HGETALL " LOG_MPT_HISTORY));
+        if (reply && reply->type == REDIS_REPLY_ARRAY)
+        {
+            for (size_t i = 0; i + 1 < reply->elements; i += 2)
+            {
+                std::string field = reply->element[i]->str ? reply->element[i]->str : "";
+                std::string value = reply->element[i + 1]->str ? reply->element[i + 1]->str : "";
+                try
+                {
+                    auto entry = json::parse(value);
+                    if (entry.contains("disconnect_time") && entry["disconnect_time"].get<long long>() == 0 && entry.contains("last_update"))
+                    {
+                        long long last_update = entry["last_update"].get<long long>();
+                        if (now - last_update > _key_expire_time)
+                        {
+                            entry["disconnect_time"] = last_update;
+                            auto *r = static_cast<redisReply *>(
+                                redisCommand(ctx, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str()));
+                            if (r)
+                                freeReplyObject(r);
+                            compensated++;
+                        }
+                    }
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+        if (reply)
+            freeReplyObject(reply);
+    }
+
+    // 扫描 LOG:USR, 补偿崩溃未断开的用户记录
+    {
+        auto *reply = static_cast<redisReply *>(redisCommand(ctx, "HGETALL " LOG_USR_HISTORY));
+        if (reply && reply->type == REDIS_REPLY_ARRAY)
+        {
+            for (size_t i = 0; i + 1 < reply->elements; i += 2)
+            {
+                std::string field = reply->element[i]->str ? reply->element[i]->str : "";
+                std::string value = reply->element[i + 1]->str ? reply->element[i + 1]->str : "";
+                try
+                {
+                    auto entry = json::parse(value);
+                    if (entry.contains("disconnect_time") && entry["disconnect_time"].get<long long>() == 0 && entry.contains("last_update"))
+                    {
+                        long long last_update = entry["last_update"].get<long long>();
+                        if (now - last_update > _key_expire_time)
+                        {
+                            entry["disconnect_time"] = last_update;
+                            auto *r = static_cast<redisReply *>(
+                                redisCommand(ctx, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str()));
+                            if (r)
+                                freeReplyObject(r);
+                            compensated++;
+                        }
+                    }
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+        if (reply)
+            freeReplyObject(reply);
+    }
+
+    redisFree(ctx);
+
+    if (compensated > 0)
+    {
+        spdlog::info("[caster_internal::cleanup_stale_history]: Compensated {} stale connection records (crash recovery)", compensated);
+    }
+    else
+    {
+        spdlog::info("[caster_internal::cleanup_stale_history]: No stale records found, clean startup");
+    }
 }
 
 std::string caster_internal::get_status_str()
@@ -585,7 +725,36 @@ int caster_internal::upload_node_status()
                       _node_ID.c_str(),
                       node.toString().c_str());
 
+    // 节点历史快照 (每 NODE_HISTORY_INTERVAL 次调用记录一次)
+    if (++_node_history_counter >= NODE_HISTORY_INTERVAL)
+    {
+        _node_history_counter = 0;
+        record_node_history();
+    }
+
     return 0;
+}
+
+void caster_internal::record_node_history()
+{
+    json snapshot;
+    snapshot["t"] = util_get_now_second();
+    snapshot["cpu"] = SysUsage::getInstance()->getProcessCPU();
+    snapshot["mem"] = static_cast<double>(SysUsage::getInstance()->getProcessMemory());
+    snapshot["mpt"] = _server_status_map.size();
+    snapshot["usr"] = _client_status_map.size();
+    snapshot["conn"] = _server_status_map.size() + _client_status_map.size();
+    snapshot["send_speed"] = _send_speed;
+    snapshot["recv_speed"] = _recv_speed;
+    snapshot["send_total"] = _send_total;
+    snapshot["recv_total"] = _recv_total;
+    snapshot["q_delay"] = _queue_delay;
+
+    std::string key = std::string(NODE_HISTORY_PREFIX) + _node_ID;
+    std::string value = snapshot.dump();
+
+    redisAsyncCommand(_pub_context, NULL, NULL, "LPUSH %s %s", key.c_str(), value.c_str());
+    redisAsyncCommand(_pub_context, NULL, NULL, "LTRIM %s 0 %d", key.c_str(), NODE_HISTORY_MAX_LEN - 1);
 }
 
 int caster_internal::try_set_master_node()
@@ -1174,6 +1343,23 @@ int caster_internal::upload_record_item()
         }
     }
 
+    // 刷新连接历史记录的 last_update
+    {
+        auto now = util_get_now_second();
+        for (auto &[ck, entry] : _base_history_map)
+        {
+            entry["last_update"] = now;
+            std::string field = entry["name"].get<std::string>() + ":" + ck;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+        }
+        for (auto &[ck, entry] : _rover_history_map)
+        {
+            entry["last_update"] = now;
+            std::string field = entry["name"].get<std::string>() + ":" + ck;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+        }
+    }
+
     return 0;
 }
 
@@ -1359,6 +1545,24 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str());
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " STR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
 
+        // 写入连接历史记录 (持久化, 不设过期)
+        {
+            json log_entry;
+            log_entry["name"] = channel;
+            log_entry["connect_key"] = connect_key;
+            log_entry["node_id"] = _node_ID;
+            log_entry["type"] = static_cast<int>(type);
+            log_entry["account"] = user_name;
+            log_entry["host"] = conn._ip;
+            log_entry["port"] = conn._port;
+            log_entry["connect_time"] = util_get_now_second();
+            log_entry["last_update"] = util_get_now_second();
+            log_entry["disconnect_time"] = 0;
+            std::string log_field = std::string(channel) + ":" + connect_key;
+            _base_history_map[connect_key] = log_entry;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", log_field.c_str(), log_entry.dump().c_str());
+        }
+
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
         cb_item.connect_key = connect_key;
@@ -1434,6 +1638,27 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " STR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
+
+        // 写入连接历史记录 (持久化, 不设过期)
+        {
+            json log_entry;
+            log_entry["name"] = user_name;
+            log_entry["mount"] = channel;
+            log_entry["connect_key"] = connect_key;
+            log_entry["node_id"] = _node_ID;
+            log_entry["type"] = static_cast<int>(type);
+            log_entry["account"] = user_name;
+            std::string _h, _s; int _hp, _sp;
+            decodeKey(connect_key, _s, _sp, _h, _hp);
+            log_entry["host"] = _h;
+            log_entry["port"] = _hp;
+            log_entry["connect_time"] = util_get_now_second();
+            log_entry["last_update"] = util_get_now_second();
+            log_entry["disconnect_time"] = 0;
+            std::string log_field = std::string(user_name) + ":" + connect_key;
+            _rover_history_map[connect_key] = log_entry;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", log_field.c_str(), log_entry.dump().c_str());
+        }
 
         // 将cb注册回调记录到本地
         caster_cb_item cb_item;
@@ -1512,6 +1737,19 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_STATUS_LIST " %s ", connect_key);
     }
 
+    // 更新连接历史记录 (写入断开时间)
+    {
+        auto hit = _base_history_map.find(connect_key);
+        if (hit != _base_history_map.end())
+        {
+            hit->second["disconnect_time"] = util_get_now_second();
+            hit->second["last_update"] = util_get_now_second();
+            std::string log_field = std::string(channel) + ":" + connect_key;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", log_field.c_str(), hit->second.dump().c_str());
+            _base_history_map.erase(hit);
+        }
+    }
+
     return 0;
 }
 
@@ -1551,6 +1789,19 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     if (_upload_rover_stat)
     {
         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_STATUS_LIST " %s", connect_key);
+    }
+
+    // 更新连接历史记录 (写入断开时间)
+    {
+        auto hit = _rover_history_map.find(connect_key);
+        if (hit != _rover_history_map.end())
+        {
+            hit->second["disconnect_time"] = util_get_now_second();
+            hit->second["last_update"] = util_get_now_second();
+            std::string log_field = std::string(user_name) + ":" + connect_key;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", log_field.c_str(), hit->second.dump().c_str());
+            _rover_history_map.erase(hit);
+        }
     }
 
     return 0;
@@ -1665,8 +1916,7 @@ void caster_internal::Redis_Connect_Cb(const redisAsyncContext *c, int status)
 {
     if (status != REDIS_OK)
     {
-        spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, c->errstr);
-        // 直接退出程序
+        spdlog::critical("[{}:{}]: Redis connection failed: {}, terminating", __class__, __func__, c->errstr);
         exit(1);
         return;
     }
@@ -1677,8 +1927,7 @@ void caster_internal::Redis_Disconnect_Cb(const redisAsyncContext *c, int status
 {
     if (status != REDIS_OK)
     {
-        spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, c->errstr);
-        // 直接退出程序
+        spdlog::critical("[{}:{}]: Redis unexpected disconnect: {}, terminating", __class__, __func__, c->errstr);
         exit(1);
         return;
     }
@@ -1699,7 +1948,7 @@ void caster_internal::Redis_Pub_Connect_Cb(const redisAsyncContext *c, int statu
     {
         svr->_is_pub_connected = false;
         svr->_pub_context_errstr = c->err;
-        spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, svr->_pub_context_errstr);
+        spdlog::critical("[{}:{}]: Redis pub connection failed: {}, terminating", __class__, __func__, svr->_pub_context_errstr);
         svr->_pub_context = nullptr; /* avoid stale pointer when callback returns */
 
         exit(1);
@@ -1721,7 +1970,7 @@ void caster_internal::Redis_Sub_Connect_Cb(const redisAsyncContext *c, int statu
     {
         svr->_is_sub_connected = false;
         svr->_sub_context_errstr = c->err;
-        spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, svr->_sub_context_errstr);
+        spdlog::critical("[{}:{}]: Redis sub connection failed: {}, terminating", __class__, __func__, svr->_sub_context_errstr);
         svr->_sub_context = nullptr; /* avoid stale pointer when callback returns */
 
         exit(1);
@@ -2112,7 +2361,7 @@ int caster_internal::subAttemptReconnect()
     if (_sub_context->err)
     {
         /* Let *c leak for now... */
-        spdlog::error("redis eror: {}", _sub_context->errstr);
+        spdlog::critical("[{}:{}]: Redis sub reconnect failed: {}, terminating", __class__, __func__, _sub_context->errstr);
         redisAsyncFree(_sub_context);
         _sub_context = nullptr;
         // 直接退出程序
@@ -2153,7 +2402,7 @@ int caster_internal::pubAttemptReconnect()
     if (_pub_context->err)
     {
         /* Let *c leak for now... */
-        spdlog::error("redis eror: {}", _pub_context->errstr);
+        spdlog::critical("[{}:{}]: Redis pub reconnect failed: {}, terminating", __class__, __func__, _pub_context->errstr);
         redisAsyncFree(_pub_context);
         _pub_context = nullptr;
         // 直接退出程序

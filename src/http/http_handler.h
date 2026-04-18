@@ -142,6 +142,18 @@ private:
     void handle_get_status(const HttpRequest &req, HttpResponse &resp);
     void handle_get_health(const HttpRequest &req, HttpResponse &resp);
 
+    // Connection history (LOG:MPT / LOG:USR)
+    void handle_get_server_logs(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_client_logs(const HttpRequest &req, HttpResponse &resp);
+
+    // Node history (NODE:HISTORY:*)
+    void handle_get_node_history(const HttpRequest &req, HttpResponse &resp);
+
+    // Statistics (based on LOG:MPT / LOG:USR)
+    void handle_get_stats_overview(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_stats_usr_ranking(const HttpRequest &req, HttpResponse &resp);
+
     // Configuration (CONF:*)
     void handle_get_configs(const HttpRequest &req, HttpResponse &resp);
     void handle_get_config(const HttpRequest &req, HttpResponse &resp);

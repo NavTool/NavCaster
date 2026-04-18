@@ -215,6 +215,15 @@ using json = nlohmann::json;
 // 别名维护
 #define ALIAS_RULE_LIST "ALIAS:RULE" // 别名规则列表, 记录别名挂载点和实体挂载点的映射关系
 
+// 连接历史记录 (持久化, 不设过期时间)
+#define LOG_MPT_HISTORY "LOG:MPT" // 基站连接历史, HASH, field = mount:connect_key, value = JSON
+#define LOG_USR_HISTORY "LOG:USR" // 用户连接历史, HASH, field = user:connect_key, value = JSON
+
+// 节点历史状态快照 (LIST, 每 5 秒一条, 保留 17280 条 = 24 小时)
+#define NODE_HISTORY_PREFIX "NODE:HISTORY:" // + node_id
+#define NODE_HISTORY_MAX_LEN 17280
+#define NODE_HISTORY_INTERVAL 5 // 每 5 次 TimeoutCallback 记录一次
+
 class caster_cb_item
 {
 public:
@@ -232,6 +241,7 @@ private:
     int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
     int _update_intv = 1;
     int _key_expire_time = 30; // Hash键值默认续期时间
+    int _node_history_counter = 0; // 节点历史记录计数器, 每 60 次 TimeoutCallback 记录一次
 
     bool _upload_base_stat = true;     // 上报基站数据流统计信息
     bool _upload_rover_stat = true;    // 上报用户数据流统计信息
@@ -296,6 +306,10 @@ private:
     std::unordered_map<std::string, std::list<std::string>> _alias_rule_map; // 映射关系表(alias_name → list of source_names, only enabled)
     std::unordered_map<std::string, std::string> _alias_visible_map; // 可见别名(alias_name → source_name, for source table)
 
+    // 连接历史本地缓存 (connect_key → history JSON), 用于定时刷新 last_update
+    std::unordered_map<std::string, json> _base_history_map;
+    std::unordered_map<std::string, json> _rover_history_map;
+
     std::string _source_list_text;
     std::string _alias_list_text;
     std::string _nearest_list_text;
@@ -313,6 +327,15 @@ public:
 
     int start();
     int stop();
+
+    // 优雅停机: 将所有在线会话的历史记录写入断开时间
+    void flush_online_history();
+
+    // 启动时清理: 补偿崩溃未写入的断开记录
+    void cleanup_stale_history();
+
+    // 记录节点历史状态快照到 Redis List
+    void record_node_history();
 
     // 返回Caster的状态信息
     std::string get_status_str();

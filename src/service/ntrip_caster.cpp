@@ -205,10 +205,10 @@ int ntrip_caster::component_init()
 
 int ntrip_caster::component_stop()
 {
-    // _compat_listener->stop();
-    // delete _compat_listener;
-
-    // CASTER::Free();
+    // 停止接受新连接
+    ntrip_listener::getInstance()->stop();
+    // 停止核心模块 (flush 历史记录 + 断开 Redis)
+    CASTER::Free();
     return 0;
 }
 

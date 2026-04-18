@@ -456,7 +456,7 @@ int carrier_base::caster_register(CasterRegisterType type)
 
 int carrier_base::caster_withdraw()
 {
-    if (_auth_type == AuthType::UNKNOWN)
+    if (_register_type == CasterRegisterType::UNKNOWN)
     {
         return 1; // 无效的Type，无法执行
     }

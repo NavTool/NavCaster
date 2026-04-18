@@ -3,8 +3,10 @@
 #include "Caster_Core.h"
 #include "base64.h"
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
+#include <set>
 #include <sstream>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -32,6 +34,8 @@ static const char *KEY_CONF_CORE = "CONF:CORE";
 static const char *KEY_CONF_AUTH = "CONF:AUTH";
 static const char *KEY_MPT_ONLINE = "MPT:LIST";
 static const char *KEY_MPT_SUB = "MPT:SUB";
+static const char *KEY_LOG_MPT = "LOG:MPT";
+static const char *KEY_LOG_USR = "LOG:USR";
 
 // PRAGMATIC APPROACH: Since all Redis operations are hash operations on local
 // Redis with sub-millisecond latency, and the HTTP API is for management only,
@@ -94,6 +98,7 @@ namespace
             auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "HGETALL %s", key));
             if (!reply)
             {
+                spdlog::warn("[sync_redis]: HGETALL {} failed, reply is null, reconnecting", key);
                 reconnect();
                 return json::object();
             }
@@ -128,6 +133,7 @@ namespace
             auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "HGET %s %s", key, field));
             if (!reply)
             {
+                spdlog::warn("[sync_redis]: HGET {} {} failed, reply is null, reconnecting", key, field);
                 reconnect();
                 return nullptr;
             }
@@ -273,6 +279,40 @@ namespace
             else
                 reconnect();
             return ok;
+        }
+
+        // LRANGE key start stop → json array of parsed values
+        json lrange(const char *key, long long start, long long stop)
+        {
+            if (!ensure_connected())
+                return json::array();
+
+            auto *reply = static_cast<redisReply *>(
+                redisCommand(_ctx, "LRANGE %s %lld %lld", key, start, stop));
+            if (!reply)
+            {
+                reconnect();
+                return json::array();
+            }
+
+            json result = json::array();
+            if (reply->type == REDIS_REPLY_ARRAY)
+            {
+                for (size_t i = 0; i < reply->elements; i++)
+                {
+                    std::string value = reply->element[i]->str ? reply->element[i]->str : "";
+                    try
+                    {
+                        result.push_back(json::parse(value));
+                    }
+                    catch (...)
+                    {
+                        result.push_back(value);
+                    }
+                }
+            }
+            freeReplyObject(reply);
+            return result;
         }
 
     private:
@@ -481,6 +521,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     // ==================== Nodes (read-only) ====================
     _server.route(EVHTTP_REQ_GET, "/api/nodes", [this](auto &req, auto &resp)
                   { handle_get_nodes(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/nodes/history/*", [this](auto &req, auto &resp)
+                  { handle_get_node_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/*", [this](auto &req, auto &resp)
                   { handle_get_node(req, resp); });
 
@@ -493,6 +535,20 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_get_status(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/status/health", [this](auto &req, auto &resp)
                   { handle_get_health(req, resp); });
+
+    // ==================== Connection History ====================
+    _server.route(EVHTTP_REQ_GET, "/api/logs/servers", [this](auto &req, auto &resp)
+                  { handle_get_server_logs(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/logs/clients", [this](auto &req, auto &resp)
+                  { handle_get_client_logs(req, resp); });
+
+    // ==================== Statistics ====================
+    _server.route(EVHTTP_REQ_GET, "/api/stats/overview", [this](auto &req, auto &resp)
+                  { handle_get_stats_overview(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/stats/mountpoints/ranking", [this](auto &req, auto &resp)
+                  { handle_get_stats_mpt_ranking(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/stats/users/ranking", [this](auto &req, auto &resp)
+                  { handle_get_stats_usr_ranking(req, resp); });
 
     // ==================== Configuration ====================
     _server.route(EVHTTP_REQ_GET, "/api/config", [this](auto &req, auto &resp)
@@ -637,6 +693,7 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
         json result = {{"token", token}, {"username", user}};
         resp.status_code = 200;
         resp.body = result.dump();
+        spdlog::info("[{}:{}]: Login success, user: {}", __class__, __func__, user);
     }
     else
     {
@@ -655,6 +712,7 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
         {
             resp.status_code = 401;
             resp.body = R"({"error":"Invalid credentials"})";
+            spdlog::warn("[{}:{}]: Login failed, user: {}", __class__, __func__, user);
         }
     }
 }
@@ -1180,6 +1238,308 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
 
 IMPL_GET_ALL(handle_get_nodes, KEY_CASTER_NODE)
 IMPL_GET_ONE(handle_get_node, KEY_CASTER_NODE)
+
+// ==================== Node History (NODE:HISTORY:*) read-only ====================
+
+void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string node_id = get_resource_id(req);
+    if (node_id.empty())
+    {
+        resp.status_code = 400;
+        resp.body = R"({"error":"Missing node ID"})";
+        return;
+    }
+
+    // Optional query param: limit (default 17280 = 24h at 5s intervals)
+    long long limit = 17280;
+    auto it = req.query_params.find("limit");
+    if (it != req.query_params.end())
+    {
+        try { limit = std::stoll(it->second); } catch (...) {}
+        if (limit <= 0) limit = 17280;
+        if (limit > 20000) limit = 20000;
+    }
+
+    std::string key = "NODE:HISTORY:" + node_id;
+    json data = sync_redis::instance().lrange(key.c_str(), 0, limit - 1);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+// ==================== Connection History (LOG:MPT / LOG:USR) read-only ====================
+
+IMPL_GET_ALL(handle_get_server_logs, KEY_LOG_MPT)
+IMPL_GET_ALL(handle_get_client_logs, KEY_LOG_USR)
+
+// ==================== Statistics ====================
+
+// Helper: parse "YYYY-MM-DD" or unix timestamp from query param, return 0 if absent
+static long long parse_time_param(const std::unordered_map<std::string, std::string> &params, const char *name)
+{
+    auto it = params.find(name);
+    if (it == params.end() || it->second.empty()) return 0;
+    // Try unix timestamp first
+    try { return std::stoll(it->second); } catch (...) {}
+    // Try date string "YYYY-MM-DD"
+    struct tm tm_val{};
+    if (strptime(it->second.c_str(), "%Y-%m-%d", &tm_val))
+        return mktime(&tm_val);
+    return 0;
+}
+
+// GET /api/stats/overview?start=&end=&date=
+// Returns aggregated stats from LOG:MPT + LOG:USR within time range
+void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpResponse &resp)
+{
+    // Determine time range
+    long long now_ts = static_cast<long long>(time(nullptr));
+    long long start_ts = parse_time_param(req.query_params, "start");
+    long long end_ts = parse_time_param(req.query_params, "end");
+
+    // If "date" param given (YYYY-MM-DD), use that day
+    auto date_it = req.query_params.find("date");
+    if (date_it != req.query_params.end() && !date_it->second.empty())
+    {
+        struct tm tm_val{};
+        if (strptime(date_it->second.c_str(), "%Y-%m-%d", &tm_val))
+        {
+            start_ts = mktime(&tm_val);
+            tm_val.tm_mday += 1;
+            end_ts = mktime(&tm_val);
+        }
+    }
+
+    // Default: today
+    if (start_ts == 0)
+    {
+        struct tm tm_today{};
+        time_t t = time(nullptr);
+        localtime_r(&t, &tm_today);
+        tm_today.tm_hour = 0; tm_today.tm_min = 0; tm_today.tm_sec = 0;
+        start_ts = mktime(&tm_today);
+    }
+    if (end_ts == 0) end_ts = now_ts + 1;
+
+    auto &redis = sync_redis::instance();
+    json mpt_logs = redis.hgetall(KEY_LOG_MPT);
+    json usr_logs = redis.hgetall(KEY_LOG_USR);
+
+    // Aggregate
+    long long mpt_connections = 0, usr_connections = 0;
+    long long total_duration_mpt = 0, total_duration_usr = 0;
+    int peak_concurrent_mpt = 0, peak_concurrent_usr = 0;
+    std::set<std::string> unique_mounts, unique_users;
+
+    // Time-slot concurrency (hourly buckets for the queried range, max 168 buckets = 7 days)
+    int num_hours = std::min(168LL, (end_ts - start_ts + 3599) / 3600);
+    if (num_hours <= 0) num_hours = 24;
+    std::vector<int> mpt_hourly(num_hours, 0);
+    std::vector<int> usr_hourly(num_hours, 0);
+
+    auto process_logs = [&](const json &logs, bool is_mpt)
+    {
+        for (auto &[field, entry] : logs.items())
+        {
+            if (!entry.is_object()) continue;
+            long long ct = entry.value("connect_time", 0LL);
+            long long dt = entry.value("disconnect_time", 0LL);
+            if (dt == 0) dt = now_ts; // still online
+
+            // Skip if completely outside range
+            if (dt < start_ts || ct >= end_ts) continue;
+
+            if (is_mpt)
+            {
+                mpt_connections++;
+                std::string name = entry.value("name", "");
+                if (!name.empty()) unique_mounts.insert(name);
+                long long overlap_start = std::max(ct, start_ts);
+                long long overlap_end = std::min(dt, end_ts);
+                total_duration_mpt += (overlap_end - overlap_start);
+            }
+            else
+            {
+                usr_connections++;
+                std::string name = entry.value("name", "");
+                if (!name.empty()) unique_users.insert(name);
+                long long overlap_start = std::max(ct, start_ts);
+                long long overlap_end = std::min(dt, end_ts);
+                total_duration_usr += (overlap_end - overlap_start);
+            }
+
+            // Hourly concurrency: mark each hour this session overlaps
+            long long h_start = std::max(ct, start_ts);
+            long long h_end = std::min(dt, end_ts);
+            int bucket_begin = static_cast<int>((h_start - start_ts) / 3600);
+            int bucket_end = static_cast<int>((h_end - start_ts) / 3600);
+            if (bucket_begin < 0) bucket_begin = 0;
+            if (bucket_end >= num_hours) bucket_end = num_hours - 1;
+            auto &hourly = is_mpt ? mpt_hourly : usr_hourly;
+            for (int b = bucket_begin; b <= bucket_end; b++)
+                hourly[b]++;
+        }
+    };
+
+    process_logs(mpt_logs, true);
+    process_logs(usr_logs, false);
+
+    for (int i = 0; i < num_hours; i++)
+    {
+        if (mpt_hourly[i] > peak_concurrent_mpt) peak_concurrent_mpt = mpt_hourly[i];
+        if (usr_hourly[i] > peak_concurrent_usr) peak_concurrent_usr = usr_hourly[i];
+    }
+
+    // Build hourly trend
+    json hourly_trend = json::array();
+    for (int i = 0; i < num_hours; i++)
+    {
+        json h;
+        h["ts"] = start_ts + i * 3600;
+        h["mpt"] = mpt_hourly[i];
+        h["usr"] = usr_hourly[i];
+        hourly_trend.push_back(h);
+    }
+
+    json result;
+    result["start"] = start_ts;
+    result["end"] = end_ts;
+    result["mpt_connections"] = mpt_connections;
+    result["usr_connections"] = usr_connections;
+    result["peak_concurrent_mpt"] = peak_concurrent_mpt;
+    result["peak_concurrent_usr"] = peak_concurrent_usr;
+    result["avg_duration_mpt"] = mpt_connections > 0 ? total_duration_mpt / mpt_connections : 0;
+    result["avg_duration_usr"] = usr_connections > 0 ? total_duration_usr / usr_connections : 0;
+    result["unique_mountpoints"] = static_cast<int>(unique_mounts.size());
+    result["unique_users"] = static_cast<int>(unique_users.size());
+    result["hourly_trend"] = hourly_trend;
+
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
+// GET /api/stats/mountpoints/ranking?start=&end=&limit=20
+void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResponse &resp)
+{
+    long long now_ts = static_cast<long long>(time(nullptr));
+    long long start_ts = parse_time_param(req.query_params, "start");
+    long long end_ts = parse_time_param(req.query_params, "end");
+    if (start_ts == 0) { struct tm t{}; time_t tt = time(nullptr); localtime_r(&tt, &t); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
+    if (end_ts == 0) end_ts = now_ts + 1;
+
+    int limit = 20;
+    auto lit = req.query_params.find("limit");
+    if (lit != req.query_params.end()) { try { limit = std::stoi(lit->second); } catch (...) {} }
+    if (limit <= 0) limit = 20;
+    if (limit > 100) limit = 100;
+
+    json mpt_logs = sync_redis::instance().hgetall(KEY_LOG_MPT);
+
+    // Aggregate per mountpoint
+    struct MptStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; };
+    std::map<std::string, MptStat> stats;
+
+    for (auto &[field, entry] : mpt_logs.items())
+    {
+        if (!entry.is_object()) continue;
+        long long ct = entry.value("connect_time", 0LL);
+        long long dt = entry.value("disconnect_time", 0LL);
+        if (dt == 0) dt = now_ts;
+        if (dt < start_ts || ct >= end_ts) continue;
+
+        std::string name = entry.value("name", "");
+        if (name.empty()) continue;
+
+        long long overlap = std::min(dt, end_ts) - std::max(ct, start_ts);
+        auto &s = stats[name];
+        s.total_duration += overlap;
+        s.connections++;
+        if (dt > s.last_seen) s.last_seen = dt;
+    }
+
+    // Sort by total_duration desc
+    std::vector<std::pair<std::string, MptStat>> sorted(stats.begin(), stats.end());
+    std::sort(sorted.begin(), sorted.end(), [](auto &a, auto &b) { return a.second.total_duration > b.second.total_duration; });
+
+    json result = json::array();
+    int count = 0;
+    for (auto &[name, s] : sorted)
+    {
+        if (count >= limit) break;
+        json item;
+        item["name"] = name;
+        item["total_duration"] = s.total_duration;
+        item["connections"] = s.connections;
+        item["last_seen"] = s.last_seen;
+        result.push_back(item);
+        count++;
+    }
+
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
+// GET /api/stats/users/ranking?start=&end=&limit=20
+void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResponse &resp)
+{
+    long long now_ts = static_cast<long long>(time(nullptr));
+    long long start_ts = parse_time_param(req.query_params, "start");
+    long long end_ts = parse_time_param(req.query_params, "end");
+    if (start_ts == 0) { struct tm t{}; time_t tt = time(nullptr); localtime_r(&tt, &t); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
+    if (end_ts == 0) end_ts = now_ts + 1;
+
+    int limit = 20;
+    auto lit = req.query_params.find("limit");
+    if (lit != req.query_params.end()) { try { limit = std::stoi(lit->second); } catch (...) {} }
+    if (limit <= 0) limit = 20;
+    if (limit > 100) limit = 100;
+
+    json usr_logs = sync_redis::instance().hgetall(KEY_LOG_USR);
+
+    struct UsrStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; std::set<std::string> mounts; };
+    std::map<std::string, UsrStat> stats;
+
+    for (auto &[field, entry] : usr_logs.items())
+    {
+        if (!entry.is_object()) continue;
+        long long ct = entry.value("connect_time", 0LL);
+        long long dt = entry.value("disconnect_time", 0LL);
+        if (dt == 0) dt = now_ts;
+        if (dt < start_ts || ct >= end_ts) continue;
+
+        std::string name = entry.value("name", "");
+        if (name.empty()) continue;
+        std::string mount = entry.value("mount", "");
+
+        long long overlap = std::min(dt, end_ts) - std::max(ct, start_ts);
+        auto &s = stats[name];
+        s.total_duration += overlap;
+        s.connections++;
+        if (dt > s.last_seen) s.last_seen = dt;
+        if (!mount.empty()) s.mounts.insert(mount);
+    }
+
+    std::vector<std::pair<std::string, UsrStat>> sorted(stats.begin(), stats.end());
+    std::sort(sorted.begin(), sorted.end(), [](auto &a, auto &b) { return a.second.total_duration > b.second.total_duration; });
+
+    json result = json::array();
+    int count = 0;
+    for (auto &[name, s] : sorted)
+    {
+        if (count >= limit) break;
+        json item;
+        item["name"] = name;
+        item["total_duration"] = s.total_duration;
+        item["connections"] = s.connections;
+        item["last_seen"] = s.last_seen;
+        item["mount_count"] = static_cast<int>(s.mounts.size());
+        result.push_back(item);
+        count++;
+    }
+
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
 
 // ==================== Mountpoint Subscribers ====================
 

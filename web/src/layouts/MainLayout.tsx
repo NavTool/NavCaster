@@ -14,6 +14,8 @@ import {
   MenuUnfoldOutlined,
   SettingOutlined,
   TableOutlined,
+  HistoryOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api/auth';
@@ -31,6 +33,8 @@ const menuItems = [
   { key: '/sourcetable', icon: <TableOutlined />, label: '源表视图' },
   { key: '/relay/pull', icon: <SwapOutlined />, label: '数据接入' },
   { key: '/relay/push', icon: <SwapOutlined />, label: '数据推送' },
+  { key: '/history', icon: <HistoryOutlined />, label: '连接历史' },
+  { key: '/statistics', icon: <BarChartOutlined />, label: '数据统计' },
   { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
 

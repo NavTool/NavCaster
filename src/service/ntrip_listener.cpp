@@ -393,7 +393,7 @@ int ntrip_listener::create_request(auth_reply *reply, ConnectInfo req)
     }
     else
     {
-        spdlog::info("[{}:{}]: Auth Verify Failed: {}", __class__, __func__, reply->str); // 验证失败，关闭连接
+        spdlog::warn("[{}:{}]: Auth Verify Failed: {}", __class__, __func__, reply->str); // 验证失败，关闭连接
         // 验证失败，关闭当前连接
         std::string connect_key = req.connect_key();
         // 从connect_map中删除该连接
@@ -470,12 +470,14 @@ int ntrip_listener::Process_POST_Request(bufferevent *bev, std::string connect_k
     if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为最近挂载点，不允许实体基站以该挂载点登录
+        spdlog::warn("[{}:{}]: Rejected POST server login to nearest mount [{}], key: {}", __class__, __func__, extract_path(url), connect_key);
         connect_bev::getInstance()->del_bev(connect_key);
         return 2;
     }
     else if (CASTER::Check_Alias_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为别名挂载点，不允许实体基站以该挂载点登录
+        spdlog::warn("[{}:{}]: Rejected POST server login to alias mount [{}], key: {}", __class__, __func__, extract_path(url), connect_key);
         connect_bev::getInstance()->del_bev(connect_key);
         return 3;
     }
@@ -506,12 +508,14 @@ int ntrip_listener::Process_SOURCE_Request(bufferevent *bev, std::string connect
     if (CASTER::Check_Nearest_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为最近挂载点，不允许实体基站以该挂载点登录
+        spdlog::warn("[{}:{}]: Rejected SOURCE server login to nearest mount [{}], key: {}", __class__, __func__, extract_path(url), connect_key);
         connect_bev::getInstance()->del_bev(connect_key);
         return 2;
     }
     else if (CASTER::Check_Alias_Mpt(extract_path(url).c_str()))
     {
         // 已经定义为别名挂载点，不允许实体基站以该挂载点登录
+        spdlog::warn("[{}:{}]: Rejected SOURCE server login to alias mount [{}], key: {}", __class__, __func__, extract_path(url), connect_key);
         connect_bev::getInstance()->del_bev(connect_key);
         return 3;
     }

@@ -87,3 +87,69 @@ export const resourceApi = {
     return data;
   },
 };
+
+// Node history (time-series snapshots)
+export interface NodeHistorySnapshot {
+  t: number;
+  cpu: number;
+  mem: number;
+  mpt: number;
+  usr: number;
+  conn: number;
+  send_speed: number;
+  recv_speed: number;
+  send_total: number;
+  recv_total: number;
+  q_delay: number;
+}
+
+export async function getNodeHistory(nodeId: string, limit?: number): Promise<NodeHistorySnapshot[]> {
+  const params = limit ? { limit } : {};
+  const { data } = await api.get(`/api/nodes/history/${encodeURIComponent(nodeId)}`, { params });
+  return data as NodeHistorySnapshot[];
+}
+
+// Statistics
+export interface StatsOverview {
+  start: number;
+  end: number;
+  mpt_connections: number;
+  usr_connections: number;
+  peak_concurrent_mpt: number;
+  peak_concurrent_usr: number;
+  avg_duration_mpt: number;
+  avg_duration_usr: number;
+  unique_mountpoints: number;
+  unique_users: number;
+  hourly_trend: { ts: number; mpt: number; usr: number }[];
+}
+
+export interface MptRankingItem {
+  name: string;
+  total_duration: number;
+  connections: number;
+  last_seen: number;
+}
+
+export interface UsrRankingItem {
+  name: string;
+  total_duration: number;
+  connections: number;
+  last_seen: number;
+  mount_count: number;
+}
+
+export async function getStatsOverview(params?: { start?: number; end?: number; date?: string }): Promise<StatsOverview> {
+  const { data } = await api.get('/api/stats/overview', { params });
+  return data as StatsOverview;
+}
+
+export async function getMptRanking(params?: { start?: number; end?: number; limit?: number }): Promise<MptRankingItem[]> {
+  const { data } = await api.get('/api/stats/mountpoints/ranking', { params });
+  return data as MptRankingItem[];
+}
+
+export async function getUsrRanking(params?: { start?: number; end?: number; limit?: number }): Promise<UsrRankingItem[]> {
+  const { data } = await api.get('/api/stats/users/ranking', { params });
+  return data as UsrRankingItem[];
+}

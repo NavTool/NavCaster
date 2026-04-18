@@ -41,6 +41,8 @@ using json = nlohmann::json;
 #include "ntrip_config.h"
 #include "ntrip_caster.h"
 
+#include <csignal>
+
 #define CONF_PATH "conf/"
 
 // trace：最详细的日志级别，提供追踪程序执行流程的信息。
@@ -174,6 +176,16 @@ int main(int argc, char **argv)
 #endif
 
     spdlog::info("Start Server...");
+
+    // 信号处理: 捕获SIGTERM/SIGINT用于优雅停机
+    auto signal_handler = [](int sig)
+    {
+        spdlog::info("Received signal {}, shutting down...", sig);
+        ntrip_caster::getInstance()->stop();
+    };
+    std::signal(SIGTERM, signal_handler);
+    std::signal(SIGINT, signal_handler);
+
     ntrip_caster::getInstance()->start();
 
 #ifdef WIN32

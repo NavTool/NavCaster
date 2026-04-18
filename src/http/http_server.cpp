@@ -305,6 +305,7 @@ void http_server::handle_request(evhttp_request *req)
             HttpResponse resp;
             resp.status_code = 401;
             resp.body = R"({"error":"Unauthorized","message":"Invalid or missing token"})";
+            spdlog::warn("[{}:{}]: Unauthorized access to {}", __class__, __func__, parsed.path);
             send_response(req, resp);
             return;
         }
@@ -344,6 +345,7 @@ void http_server::handle_request(evhttp_request *req)
                 resp.status_code = 500;
                 resp.body = R"({"error":"Internal Server Error"})";
             }
+            spdlog::info("[http]: {} -> {}", parsed.path, resp.status_code);
             send_response(req, resp);
             return;
         }

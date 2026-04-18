@@ -36,7 +36,13 @@ struct DetachedTask
         std::suspend_never initial_suspend() noexcept { return {}; }
         std::suspend_never final_suspend() noexcept { return {}; }
         void return_void() noexcept {}
-        void unhandled_exception() { std::terminate(); }
+        void unhandled_exception()
+        {
+            try { std::rethrow_exception(std::current_exception()); }
+            catch (const std::exception &e) { spdlog::critical("[DetachedTask]: unhandled exception: {}", e.what()); }
+            catch (...) { spdlog::critical("[DetachedTask]: unhandled unknown exception"); }
+            std::terminate();
+        }
     };
 };
 
