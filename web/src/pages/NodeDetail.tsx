@@ -28,6 +28,11 @@ function formatTime(ts: number, longRange?: boolean): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function formatTimestamp(ts: number): string {
+  if (!ts) return '-';
+  return new Date(ts * 1000).toLocaleString('zh-CN');
+}
+
 const chartCardStyle = { borderColor: '#2e3450', marginTop: 16 };
 const chartHeight = 220;
 
@@ -108,6 +113,12 @@ const NodeDetail: React.FC = () => {
             <Descriptions.Item label="节点名称">{nodeConfig.node_name}</Descriptions.Item>
             <Descriptions.Item label="设定版本">{nodeConfig.set_version}</Descriptions.Item>
             <Descriptions.Item label="标签版本">{nodeConfig.tag_version}</Descriptions.Item>
+            <Descriptions.Item label="运行平台">{nodeConfig.runtime.run_platform || '-'}</Descriptions.Item>
+            <Descriptions.Item label="监听端口">{nodeConfig.runtime.listen_port || '-'}</Descriptions.Item>
+            <Descriptions.Item label="HTTP 端口">{nodeConfig.runtime.http_port || '-'}</Descriptions.Item>
+            <Descriptions.Item label="进程 ID">{nodeConfig.runtime.process_id || '-'}</Descriptions.Item>
+            <Descriptions.Item label="上线时间">{formatTimestamp(nodeConfig.runtime.online_time)}</Descriptions.Item>
+            <Descriptions.Item label="最近更新">{formatTimestamp(nodeConfig.runtime.update_time)}</Descriptions.Item>
           </Descriptions>
         </Card>
 

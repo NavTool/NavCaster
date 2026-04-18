@@ -253,7 +253,10 @@ export interface ClusterMonitorInfo {
     pull: number; push: number; conn: number;
     send_speed: number; recv_speed: number;
     send_total: number; recv_total: number;
-    set_version: string; tag_version: string; queue_delay: number;
+    set_version: string; tag_version: string; run_platform: string; queue_delay: number;
+    sub_ping_delay: number; sub_tcp_delay: number; pub_ping_delay: number; pub_tcp_delay: number;
+    listen_port: number; http_port: number; process_id: number;
+    online_time: number; update_time: number; uptime_seconds: number;
   }[];
 }
 
@@ -285,6 +288,14 @@ export interface NodeConfigInfo {
   node_name: string;
   set_version: string;
   tag_version: string;
+  runtime: {
+    run_platform: string;
+    listen_port: number;
+    http_port: number;
+    process_id: number;
+    online_time: number;
+    update_time: number;
+  };
   core: Record<string, unknown>;
   service: Record<string, unknown>;
   schema: Record<string, NodeConfigSchema>;

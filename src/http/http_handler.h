@@ -15,6 +15,7 @@ using json = nlohmann::json;
 struct HttpApiConfig
 {
     int port = 8080;
+    bool enable_on_slave = false;
     std::string bind_addr = "0.0.0.0";
     std::string cors_origin = "*";
     std::string admin_user = "admin";
@@ -41,6 +42,7 @@ public:
 
     // Initialize and register all routes
     int init(event_base *base, redis_adapter *caster_redis, redis_adapter *auth_redis, const HttpApiConfig &config);
+    void stop();
 
     // Save configuration JSON to Redis
     void save_config(const std::string &section, const std::string &json_str);
@@ -200,6 +202,7 @@ private:
     redis_adapter *_caster_redis = nullptr;
     redis_adapter *_auth_redis = nullptr;
     HttpApiConfig _config;
+    bool _routes_registered = false;
 
     // Active tokens
     std::unordered_set<std::string> _active_tokens;

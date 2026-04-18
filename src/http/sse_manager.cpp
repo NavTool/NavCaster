@@ -8,6 +8,11 @@ sse_manager::sse_manager() {}
 
 sse_manager::~sse_manager()
 {
+    stop();
+}
+
+void sse_manager::stop()
+{
     if (_timer_event)
     {
         event_free(_timer_event);

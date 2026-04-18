@@ -164,24 +164,56 @@ int caster_internal::init(CasterCoreOpt opt, event_base *base)
 void caster_internal::init_node_identity()
 {
     char hostname[256] = {0};
-    std::string host_name;
     if (gethostname(hostname, sizeof(hostname) - 1) == 0)
-        host_name = hostname;
+        _node_host_name = hostname;
 
-    if (host_name.empty())
-        host_name = "navcaster";
+    if (_node_host_name.empty())
+        _node_host_name = "navcaster";
 
-    std::string machine_id = read_first_line("/etc/machine-id");
-    if (machine_id.empty())
-        machine_id = read_first_line("/var/lib/dbus/machine-id");
-    if (machine_id.empty())
-        machine_id = host_name;
+    _node_machine_id = read_first_line("/etc/machine-id");
+    if (_node_machine_id.empty())
+        _node_machine_id = read_first_line("/var/lib/dbus/machine-id");
+    if (_node_machine_id.empty())
+        _node_machine_id = _node_host_name;
 
-    size_t stable_hash = std::hash<std::string>{}(machine_id + "@" + host_name);
+    _process_id = static_cast<uint32_t>(getpid());
+    refresh_node_identity();
+}
+
+void caster_internal::refresh_node_identity()
+{
+    std::ostringstream seed;
+    seed << _node_machine_id << '@' << _node_host_name;
+    if (_listen_port > 0)
+        seed << ':' << _listen_port;
+
+    size_t stable_hash = std::hash<std::string>{}(seed.str());
     std::ostringstream os;
     os << std::hex << std::setw(6) << std::setfill('0') << (stable_hash & 0xFFFFFF);
     _node_ID = os.str();
-    _node_name = host_name;
+
+    std::ostringstream node_name;
+    node_name << "Node_";
+
+    std::ostringstream suffix;
+    suffix << std::uppercase << std::hex << std::setw(5) << std::setfill('0')
+           << (stable_hash & 0xFFFFF);
+    node_name << suffix.str();
+    _node_name = node_name.str();
+}
+
+void caster_internal::set_node_runtime_info(uint32_t listen_port, uint32_t http_port, uint32_t process_id)
+{
+    _listen_port = listen_port;
+    _http_port = http_port;
+    if (process_id > 0)
+        _process_id = process_id;
+    refresh_node_identity();
+}
+
+bool caster_internal::is_master_node() const
+{
+    return _is_master;
 }
 
 int caster_internal::start()
@@ -821,6 +853,7 @@ int caster_internal::upload_node_status()
     node.set_delay_info(_queue_delay, _sub_ping_delay, _sub_tcp_delay, _pub_ping_delay, _pub_tcp_delay);
     node.set_traffic_info(_send_total, _send_speed, _recv_total, _recv_speed);
     node.set_connection_count(_server_status_map.size(), _client_status_map.size());
+    node.set_runtime_info(_listen_port, _http_port, _process_id);
 
     redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " CASTER_NODE_INFO_LIST " EX %s FIELDS 1 %s %s",
                       std::to_string(_key_expire_time).c_str(),

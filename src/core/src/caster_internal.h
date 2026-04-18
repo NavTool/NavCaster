@@ -274,6 +274,11 @@ private:
 private:
     std::string _node_ID;
     std::string _node_name;
+    std::string _node_host_name;
+    std::string _node_machine_id;
+    uint32_t _listen_port = 0;
+    uint32_t _http_port = 0;
+    uint32_t _process_id = 0;
     bool _is_master = false;
     std::string _current_master_id; // 当前 master 节点 ID
 
@@ -334,6 +339,9 @@ public:
 
     // 返回单例实例
     static caster_internal *getInstance();
+
+    void set_node_runtime_info(uint32_t listen_port, uint32_t http_port, uint32_t process_id);
+    bool is_master_node() const;
 
     int init(CasterCoreOpt opt, event_base *base);
 
@@ -490,6 +498,7 @@ private:
     int download_alias_rule();  // 下载别名映射规则
     void reload_config_from_redis(); // 从 Redis 重新加载可热更新的配置
     void init_node_identity(); // 初始化稳定节点标识
+    void refresh_node_identity(); // 根据当前元信息刷新节点标识
 
     int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
     int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)

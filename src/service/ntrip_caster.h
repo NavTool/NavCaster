@@ -59,6 +59,8 @@ private:
 
     // 定期任务
     int periodic_task();
+    bool should_enable_http_api() const;
+    int sync_http_api_state();
 
 private:
     // 程序启动和停止
@@ -117,6 +119,7 @@ private:
     http_handler _http_handler;
     redis_adapter _http_caster_redis;
     redis_adapter _http_auth_redis;
+    bool _http_running = false;
 
     // private:
     //     // 扩展模块 心跳上传功能--------------------------------------------------------------------------

@@ -83,6 +83,8 @@ namespace CASTER
     // 基础函数
     int Init(CasterCoreOpt opt, event_base *base);
     int Free();
+    void Set_Node_Runtime_Info(uint32_t listen_port, uint32_t http_port, uint32_t process_id);
+    bool Is_Master_Node();
 
     std::string Get_Status();
 

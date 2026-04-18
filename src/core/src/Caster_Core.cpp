@@ -44,6 +44,11 @@
 //     return CASTER::STATION_COMMON;
 // }
 
+bool CASTER::Is_Master_Node()
+{
+    return caster_internal::getInstance()->is_master_node();
+}
+
 // int CASTER::Set_Base_Station_State_ONLINE(const char *mount_point, const char *user_name, const char *connect_key, Station_type type)
 // {
 //     auto context = caster_svr->_pub_context;
@@ -216,6 +221,11 @@ int CASTER::Free()
 {
     caster_internal::getInstance()->stop();
     return 0;
+}
+
+void CASTER::Set_Node_Runtime_Info(uint32_t listen_port, uint32_t http_port, uint32_t process_id)
+{
+    caster_internal::getInstance()->set_node_runtime_info(listen_port, http_port, process_id);
 }
 
 std::string CASTER::Get_Status()

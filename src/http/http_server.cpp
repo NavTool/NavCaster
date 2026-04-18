@@ -57,6 +57,16 @@ int http_server::init(event_base *base, int port, const std::string &bind_addr)
     return 0;
 }
 
+void http_server::stop()
+{
+    if (_http)
+    {
+        evhttp_free(_http);
+        _http = nullptr;
+        spdlog::info("[{}:{}]: HTTP API server stopped", __class__, __func__);
+    }
+}
+
 void http_server::route(evhttp_cmd_type method, const std::string &pattern, HttpHandlerFunc handler)
 {
     _routes.push_back({method, pattern, handler, nullptr});

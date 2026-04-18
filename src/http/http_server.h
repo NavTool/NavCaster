@@ -51,6 +51,7 @@ public:
 
     // Initialize the HTTP server on the given event_base
     int init(event_base *base, int port, const std::string &bind_addr = "0.0.0.0");
+    void stop();
 
     // Register a route handler
     void route(evhttp_cmd_type method, const std::string &pattern, HttpHandlerFunc handler);

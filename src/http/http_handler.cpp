@@ -549,6 +549,12 @@ namespace
 http_handler::http_handler() {}
 http_handler::~http_handler() {}
 
+void http_handler::stop()
+{
+    _sse.stop();
+    _server.stop();
+}
+
 int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adapter *auth_redis, const HttpApiConfig &config)
 {
     _caster_redis = caster_redis;
@@ -583,16 +589,19 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
 
     // Configure server
     _server.set_cors_origin(config.cors_origin);
-    _server.add_public_path("/api/auth/login");
-    _server.add_public_path("/api/status/health");
     _server.set_auth_validator([this](const std::string &token) -> bool
                                { return validate_token(token); });
 
-    // ==================== Auth ====================
-    _server.route(EVHTTP_REQ_POST, "/api/auth/login", [this](auto &req, auto &resp)
-                  { handle_login(req, resp); });
-    _server.route(EVHTTP_REQ_POST, "/api/auth/logout", [this](auto &req, auto &resp)
-                  { handle_logout(req, resp); });
+    if (!_routes_registered)
+    {
+        _server.add_public_path("/api/auth/login");
+        _server.add_public_path("/api/status/health");
+
+        // ==================== Auth ====================
+        _server.route(EVHTTP_REQ_POST, "/api/auth/login", [this](auto &req, auto &resp)
+                      { handle_login(req, resp); });
+        _server.route(EVHTTP_REQ_POST, "/api/auth/logout", [this](auto &req, auto &resp)
+                      { handle_logout(req, resp); });
 
     // ==================== Accounts ====================
     _server.route(EVHTTP_REQ_GET, "/api/accounts", [this](auto &req, auto &resp)
@@ -786,17 +795,19 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _server.route(EVHTTP_REQ_GET, "/api/utils/sourcetable/local", [this](auto &req, auto &resp)
                   { handle_local_sourcetable(req, resp); });
 
+        // ==================== SSE (Server-Sent Events) ====================
+        _server.route_raw(EVHTTP_REQ_GET, "/api/events/stream",
+                          [this](evhttp_request *raw_req, const HttpRequest &req)
+                          { handle_sse_stream(raw_req, req); });
+        _server.add_public_path("/api/events/stream"); // Auth via query param token
+        _routes_registered = true;
+    }
+
     // ==================== Static File Serving ====================
     if (!config.web_root.empty())
     {
         _server.set_static_root(config.web_root);
     }
-
-    // ==================== SSE (Server-Sent Events) ====================
-    _server.route_raw(EVHTTP_REQ_GET, "/api/events/stream",
-                      [this](evhttp_request *raw_req, const HttpRequest &req)
-                      { handle_sse_stream(raw_req, req); });
-    _server.add_public_path("/api/events/stream"); // Auth via query param token
 
     // Start server
     int ret = _server.init(base, config.port, config.bind_addr);
@@ -1630,6 +1641,25 @@ static json collect_node_connection_logs(sync_redis &redis, const std::string &n
 {
     std::string key = "LOG:NODE:" + node_id + ":" + (is_server ? "MPT" : "USR");
     return redis.hgetall(key.c_str());
+}
+
+static std::unordered_map<std::string, int> count_relay_states_by_node(const json &relay_states)
+{
+    std::unordered_map<std::string, int> counts;
+    if (!relay_states.is_object())
+        return counts;
+
+    for (auto &[uid, state] : relay_states.items())
+    {
+        if (!state.is_object())
+            continue;
+        std::string node_uid = state.value("node_uid", "");
+        if (node_uid.empty())
+            continue;
+        counts[node_uid]++;
+    }
+
+    return counts;
 }
 
 void http_handler::handle_get_server_logs(const HttpRequest &req, HttpResponse &resp)
@@ -2819,6 +2849,8 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
     // Get master node
     auto master_val = redis.get("CASTER:MASTER");
     std::string master_node = master_val.is_string() ? master_val.get<std::string>() : "";
+    auto pull_counts = count_relay_states_by_node(redis.hgetall(KEY_PULL_STATE));
+    auto push_counts = count_relay_states_by_node(redis.hgetall(KEY_PUSH_STATE));
 
     // Get all nodes
     auto nodes_raw = redis.hgetall(KEY_CASTER_NODE);
@@ -2844,14 +2876,17 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
             continue;
 
         bool is_master = (uid == master_node);
-        int mpt = node_info.value("mpt_count", 0);
-        int usr = node_info.value("usr_count", 0);
-        int pull = node_info.value("pull_count", 0);
-        int push = node_info.value("push_count", 0);
+        int mpt = node_info.value("server_count", 0);
+        int usr = node_info.value("client_count", 0);
+        int pull = pull_counts.count(uid) ? pull_counts[uid] : 0;
+        int push = push_counts.count(uid) ? push_counts[uid] : 0;
         double cpu = node_info.value("cpu_usage", 0.0);
         long long mem = node_info.value("mem_usage", 0LL);
         double send_s = node_info.value("send_speed", 0.0);
         double recv_s = node_info.value("recv_speed", 0.0);
+        long long online_time = node_info.value("online_time", 0LL);
+        long long update_time = node_info.value("update_time", 0LL);
+        long long now_ts = static_cast<long long>(time(nullptr));
 
         online_nodes++;
         total_servers += mpt;
@@ -2873,14 +2908,25 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
             {"usr", usr},
             {"pull", pull},
             {"push", push},
-            {"conn", node_info.value("conn_count", 0)},
+            {"conn", node_info.value("connect_count", 0)},
             {"send_speed", send_s},
             {"recv_speed", recv_s},
             {"send_total", node_info.value("send_total", 0)},
             {"recv_total", node_info.value("recv_total", 0)},
             {"set_version", node_info.value("set_version", "")},
             {"tag_version", node_info.value("tag_version", "")},
-            {"queue_delay", node_info.value("queue_delay", 0)}
+            {"run_platform", node_info.value("run_platform", "")},
+            {"queue_delay", node_info.value("queue_delay", 0)},
+            {"sub_ping_delay", node_info.value("sub_ping_delay", 0)},
+            {"sub_tcp_delay", node_info.value("sub_tcp_delay", 0)},
+            {"pub_ping_delay", node_info.value("pub_ping_delay", 0)},
+            {"pub_tcp_delay", node_info.value("pub_tcp_delay", 0)},
+            {"listen_port", node_info.value("listen_port", 0)},
+            {"http_port", node_info.value("http_port", 0)},
+            {"process_id", node_info.value("process_id", 0)},
+            {"online_time", online_time},
+            {"update_time", update_time},
+            {"uptime_seconds", online_time > 0 ? std::max(0LL, now_ts - online_time) : 0}
         });
     }
 
@@ -2972,6 +3018,14 @@ void http_handler::handle_get_node_config(const HttpRequest &req, HttpResponse &
     result["node_name"] = node.value("node_name", "");
     result["set_version"] = node.value("set_version", "");
     result["tag_version"] = node.value("tag_version", "");
+    result["runtime"] = {
+        {"run_platform", node.value("run_platform", "")},
+        {"listen_port", node.value("listen_port", 0)},
+        {"http_port", node.value("http_port", 0)},
+        {"process_id", node.value("process_id", 0)},
+        {"online_time", node.value("online_time", 0)},
+        {"update_time", node.value("update_time", 0)}
+    };
 
     // Core config (hot-updatable fields)
     json hot_config = json::object();
@@ -3018,6 +3072,13 @@ void http_handler::handle_get_node_config(const HttpRequest &req, HttpResponse &
             auto &cl = service_conf["client"];
             svc_config["client_timeout"] = cl.value("connect_timeout", 0);
         }
+        if (service_conf.contains("http_api"))
+        {
+            auto &http = service_conf["http_api"];
+            svc_config["http_port"] = http.value("port", 8080);
+            svc_config["http_bind_addr"] = http.value("bind_addr", "0.0.0.0");
+            svc_config["http_enable_on_slave"] = http.value("enable_on_slave", false);
+        }
     }
     result["service"] = svc_config;
 
@@ -3045,6 +3106,9 @@ void http_handler::handle_get_node_config(const HttpRequest &req, HttpResponse &
     add_schema("service.enable_nearest_login", "Nearest 登录", "boolean", false);
     add_schema("service.enable_proxy_login", "代理协议", "boolean", false);
     add_schema("service.enable_alias_login", "别名功能", "boolean", false);
+    add_schema("service.http_port", "HTTP 端口", "number", true);
+    add_schema("service.http_bind_addr", "HTTP 绑定地址", "string", true);
+    add_schema("service.http_enable_on_slave", "从节点开启 HTTP", "boolean", true);
     result["schema"] = schema;
 
     resp.status_code = 200;

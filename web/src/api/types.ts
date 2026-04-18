@@ -269,6 +269,9 @@ export interface CasterNode {
   set_version: string;
   tag_version: string;
   run_platform: string;
+  listen_port?: number;
+  http_port?: number;
+  process_id?: number;
   cpu_usage: number;
   mem_usage: number;
   queue_delay: number;

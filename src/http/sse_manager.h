@@ -39,6 +39,7 @@ public:
 
     // Initialize with event_base and update interval (seconds)
     int init(event_base *base, int update_interval_sec = 2);
+    void stop();
 
     // Register a data channel with a fetcher function.
     // The fetcher returns a JSON object (the full HGETALL result).
