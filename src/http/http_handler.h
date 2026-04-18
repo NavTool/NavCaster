@@ -162,6 +162,18 @@ private:
     void handle_get_config(const HttpRequest &req, HttpResponse &resp);
     void handle_update_config(const HttpRequest &req, HttpResponse &resp);
 
+    // Monitoring (Redis + Cluster)
+    void handle_get_monitor_redis(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_monitor_redis_keys(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_monitor_cluster(const HttpRequest &req, HttpResponse &resp);
+
+    // Node control
+    void handle_get_node_config(const HttpRequest &req, HttpResponse &resp);
+    void handle_post_node_action(const HttpRequest &req, HttpResponse &resp);
+
+    // Audit log
+    void handle_get_audit_logs(const HttpRequest &req, HttpResponse &resp);
+
     // Utility endpoints
     void handle_fetch_sourcetable(const HttpRequest &req, HttpResponse &resp);
     void handle_local_sourcetable(const HttpRequest &req, HttpResponse &resp);

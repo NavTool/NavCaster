@@ -87,11 +87,17 @@ void ntrip_caster::Relay_Request_Callback(void *arg, const broadcast_msg &msg)
 
 ntrip_caster::ntrip_caster()
 {
+    // 启用 libevent 多线程支持（允许跨线程 event_base_loopbreak）
+    evthread_use_pthreads();
+
     _base = event_base_new();
+    _http_base = event_base_new();
 }
 
 ntrip_caster::~ntrip_caster()
 {
+    if (_http_base)
+        event_base_free(_http_base);
     event_base_free(_base);
 }
 
@@ -114,12 +120,20 @@ int ntrip_caster::start()
     // 核心模块初始化（核心业务）
     component_init();
 
-    // 附加模块初始化
+    // 附加模块初始化（HTTP/SSE 绑定到 _http_base）
     extra_init();
+
+    // 启动 HTTP 线程（独立事件循环）
+    _http_thread = std::thread([this]() {
+        evthread_make_base_notifiable(_http_base);
+        spdlog::info("[ntrip_caster]: HTTP thread started");
+        event_base_dispatch(_http_base);
+        spdlog::info("[ntrip_caster]: HTTP thread stopped");
+    });
 
     // 添加超时事件
     event_add(_timeout_ev, &_timeout_tv);
-    // 启动event_base处理线程
+    // 启动主事件循环（NTRIP 业务）
     start_server_thread();
 
     return 0;
@@ -127,6 +141,9 @@ int ntrip_caster::start()
 
 int ntrip_caster::stop()
 {
+    // 停止 HTTP 线程
+    extra_stop();
+
     // 删除定超时事件
     event_del(_timeout_ev);
     // 核心模块停止
@@ -234,7 +251,8 @@ int ntrip_caster::extra_init()
     http_conf.auth_redis_port = auth_opt.redis_port();
     http_conf.auth_redis_password = auth_opt.redis_password();
 
-    int ret = _http_caster_redis.init(_base,
+    // HTTP 组件绑定到独立的 _http_base，实现与 NTRIP 业务线程分离
+    int ret = _http_caster_redis.init(_http_base,
                                        core_opt.redis_host(),
                                        core_opt.redis_port(),
                                        core_opt.redis_password());
@@ -243,7 +261,7 @@ int ntrip_caster::extra_init()
         spdlog::warn("[ntrip_caster::extra_init]: HTTP API caster Redis adapter init failed");
     }
 
-    ret = _http_auth_redis.init(_base,
+    ret = _http_auth_redis.init(_http_base,
                                  auth_opt.redis_host(),
                                  auth_opt.redis_port(),
                                  auth_opt.redis_password());
@@ -252,7 +270,7 @@ int ntrip_caster::extra_init()
         spdlog::warn("[ntrip_caster::extra_init]: HTTP API auth Redis adapter init failed");
     }
 
-    ret = _http_handler.init(_base, &_http_caster_redis, &_http_auth_redis, http_conf);
+    ret = _http_handler.init(_http_base, &_http_caster_redis, &_http_auth_redis, http_conf);
     if (ret != 0)
     {
         spdlog::error("[ntrip_caster::extra_init]: HTTP API handler init failed on port {}", http_conf.port);
@@ -292,6 +310,16 @@ int ntrip_caster::extra_init()
 
 int ntrip_caster::extra_stop()
 {
+    // 停止 HTTP 事件循环并等待线程退出
+    if (_http_base)
+    {
+        event_base_loopbreak(_http_base);
+    }
+    if (_http_thread.joinable())
+    {
+        _http_thread.join();
+        spdlog::info("[ntrip_caster::extra_stop]: HTTP thread joined");
+    }
     return 0;
 }
 

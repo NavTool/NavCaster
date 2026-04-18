@@ -216,13 +216,18 @@ using json = nlohmann::json;
 #define ALIAS_RULE_LIST "ALIAS:RULE" // 别名规则列表, 记录别名挂载点和实体挂载点的映射关系
 
 // 连接历史记录 (持久化, 不设过期时间)
-#define LOG_MPT_HISTORY "LOG:MPT" // 基站连接历史, HASH, field = mount:connect_key, value = JSON
-#define LOG_USR_HISTORY "LOG:USR" // 用户连接历史, HASH, field = user:connect_key, value = JSON
+#define LOG_MPT_HISTORY "LOG:MPT" // 兼容旧结构: 基站连接历史总表
+#define LOG_USR_HISTORY "LOG:USR" // 兼容旧结构: 用户连接历史总表
 
-// 节点历史状态快照 (LIST, 每 5 秒一条, 保留 17280 条 = 24 小时)
-#define NODE_HISTORY_PREFIX "NODE:HISTORY:" // + node_id
-#define NODE_HISTORY_MAX_LEN 17280
-#define NODE_HISTORY_INTERVAL 5 // 每 5 次 TimeoutCallback 记录一次
+// 节点历史状态快照 — 三级分辨率存储
+#define NODE_HISTORY_PREFIX "NODE:HISTORY:" // + node_id (RAW 5s)
+#define NODE_HISTORY_1M_SUFFIX ":1M"       // 60s 聚合后缀
+#define NODE_HISTORY_5M_SUFFIX ":5M"       // 5min 聚合后缀
+
+#define NODE_HISTORY_RAW_MAX   120960      // 5s × 7天
+#define NODE_HISTORY_1M_MAX    33120       // 60s × 23天 (7d~30d)
+#define NODE_HISTORY_5M_MAX    96480       // 5min × 335天 (30d~365d)
+#define NODE_HISTORY_INTERVAL  5           // 每 5 次 TimeoutCallback 记录一次 (=5s)
 
 class caster_cb_item
 {
@@ -242,7 +247,11 @@ private:
     int _update_intv = 1;
     int _key_expire_time = 30; // Hash键值默认续期时间
     int _master_expire_time = 15; // Master锁TTL, 缩短以加速故障切换
-    int _node_history_counter = 0; // 节点历史记录计数器, 每 60 次 TimeoutCallback 记录一次
+    int _node_history_counter = 0; // 节点历史记录计数器, 每 5 次 TimeoutCallback 记录一次
+    int _1min_agg_counter = 0;     // 每 12 个 RAW 触发 1M 聚合 (12 × 5s = 60s)
+    int _5min_agg_counter = 0;     // 每 5 个 1M 触发 5M 聚合 (5 × 60s = 300s)
+    json _1min_agg_buffer = json::array(); // RAW 样本累加器
+    json _5min_agg_buffer = json::array(); // 1M 样本累加器
 
     bool _upload_base_stat = true;     // 上报基站数据流统计信息
     bool _upload_rover_stat = true;    // 上报用户数据流统计信息
@@ -263,8 +272,8 @@ private:
     std::string _redis_Requirepass;
 
 private:
-    std::string _node_ID = util_generate_random_key(6);
-    std::string _node_name = "NODE-" + _node_ID;
+    std::string _node_ID;
+    std::string _node_name;
     bool _is_master = false;
     std::string _current_master_id; // 当前 master 节点 ID
 
@@ -479,6 +488,8 @@ private:
     int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
     int download_active_item(); // 将云端记录的在线挂载点更新到本地
     int download_alias_rule();  // 下载别名映射规则
+    void reload_config_from_redis(); // 从 Redis 重新加载可热更新的配置
+    void init_node_identity(); // 初始化稳定节点标识
 
     int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
     int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)

@@ -1,24 +1,29 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Typography, Card, Breadcrumb, Row, Col, Statistic, Empty, Segmented } from 'antd';
+import { Typography, Card, Breadcrumb, Row, Col, Statistic, Empty, Segmented, Tabs, Descriptions, Tag, Button, Select, Switch, message, Spin } from 'antd';
 import { useParams, Link } from 'react-router-dom';
 import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { CasterNode } from '../api/types';
 import { formatBytes, formatOnlineTime, formatDelay, formatSpeed } from '../utils/format';
-import { getNodeHistory, type NodeHistorySnapshot } from '../api';
+import { getNodeHistory, getNodeConfig, postNodeAction, type NodeHistorySnapshot, type NodeConfigInfo } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const { Title } = Typography;
 
 const TIME_RANGES = [
-  { label: '1小时', value: 720 },
-  { label: '6小时', value: 4320 },
-  { label: '12小时', value: 8640 },
-  { label: '24小时', value: 17280 },
+  { label: '1小时', value: 720, range: 'raw' as const },
+  { label: '6小时', value: 4320, range: 'raw' as const },
+  { label: '24小时', value: 17280, range: 'raw' as const },
+  { label: '7天', value: 120960, range: 'raw' as const },
+  { label: '30天', value: 33120, range: '1m' as const },
+  { label: '1年', value: 96480, range: '5m' as const },
 ];
 
-function formatTime(ts: number): string {
+function formatTime(ts: number, longRange?: boolean): string {
   const d = new Date(ts * 1000);
+  if (longRange) {
+    return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
@@ -31,25 +36,145 @@ const NodeDetail: React.FC = () => {
   const node = sseData.nodes?.[id || ''];
 
   const [history, setHistory] = useState<NodeHistorySnapshot[]>([]);
-  const [range, setRange] = useState(60);
+  const [selectedRange, setSelectedRange] = useState(0); // index into TIME_RANGES
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Config state
+  const [nodeConfig, setNodeConfig] = useState<NodeConfigInfo | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const currentRange = TIME_RANGES[selectedRange];
 
   const loadHistory = useCallback(async () => {
     if (!id) return;
     try {
-      const data = await getNodeHistory(id, range);
+      const r = TIME_RANGES[selectedRange];
+      const data = await getNodeHistory(id, r.value, r.range);
       // API returns newest-first (LPUSH), reverse for chronological order
       setHistory([...data].reverse());
     } catch { /* ignore */ }
-  }, [id, range]);
+  }, [id, selectedRange]);
 
   useEffect(() => {
     loadHistory();
-    const timer = setInterval(loadHistory, 5000);
+    // 短时间范围(raw)5秒刷新, 长时间范围降低刷新频率
+    const interval = currentRange.range === 'raw' ? 5000 : 30000;
+    const timer = setInterval(loadHistory, interval);
     return () => clearInterval(timer);
-  }, [loadHistory]);
+  }, [loadHistory, currentRange.range]);
+
+  const isLongRange = currentRange.range !== 'raw' || currentRange.value > 17280;
+
+  // Load config when switching to config tab
+  const loadConfig = useCallback(async () => {
+    if (!id) return;
+    setConfigLoading(true);
+    try {
+      const data = await getNodeConfig(id);
+      setNodeConfig(data);
+    } catch { /* ignore */ }
+    finally { setConfigLoading(false); }
+  }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'config') loadConfig();
+  }, [activeTab, loadConfig]);
+
+  const handleAction = async (action: string, params?: Record<string, unknown>) => {
+    if (!id) return;
+    setActionLoading(true);
+    try {
+      await postNodeAction(id, action, params);
+      message.success(`操作 "${action}" 已发送`);
+      if (action === 'config_update') loadConfig();
+    } catch {
+      message.error('操作失败');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const renderConfigTab = () => {
+    if (configLoading) return <Spin />;
+    if (!nodeConfig) return <Empty description="加载配置失败" />;
+
+    return (
+      <>
+        <Card title="节点信息" style={{ borderColor: '#2e3450', marginBottom: 16 }}>
+          <Descriptions column={2}>
+            <Descriptions.Item label="节点 ID">{nodeConfig.node_id}</Descriptions.Item>
+            <Descriptions.Item label="节点名称">{nodeConfig.node_name}</Descriptions.Item>
+            <Descriptions.Item label="设定版本">{nodeConfig.set_version}</Descriptions.Item>
+            <Descriptions.Item label="标签版本">{nodeConfig.tag_version}</Descriptions.Item>
+          </Descriptions>
+        </Card>
+
+        <Card title="核心配置 (可热更新)" style={{ borderColor: '#2e3450', marginBottom: 16 }}>
+          <Descriptions column={2} bordered size="small">
+            {Object.entries(nodeConfig.core).map(([key, value]) => {
+              const schemaKey = `core.${key}`;
+              const schema = nodeConfig.schema[schemaKey];
+              return (
+                <Descriptions.Item key={key} label={schema?.label || key}>
+                  {typeof value === 'boolean' ? (
+                    <Switch size="small" checked={value}
+                      onChange={(checked) => handleAction('config_update', { section: 'core', key, value: checked })} />
+                  ) : (
+                    <>{String(value)}</>
+                  )}
+                  {schema?.restart_required && <Tag color="orange" style={{ marginLeft: 8 }}>需重启</Tag>}
+                </Descriptions.Item>
+              );
+            })}
+          </Descriptions>
+        </Card>
+
+        <Card title="服务配置" style={{ borderColor: '#2e3450', marginBottom: 16 }}>
+          <Descriptions column={2} bordered size="small">
+            {Object.entries(nodeConfig.service).map(([key, value]) => {
+              const schemaKey = `service.${key}`;
+              const schema = nodeConfig.schema[schemaKey];
+              return (
+                <Descriptions.Item key={key} label={schema?.label || key}>
+                  {typeof value === 'boolean' ? (
+                    <Tag color={value ? 'green' : 'default'}>{value ? '启用' : '禁用'}</Tag>
+                  ) : (
+                    <>{String(value)}</>
+                  )}
+                  {schema?.restart_required && <Tag color="orange" style={{ marginLeft: 8 }}>需重启</Tag>}
+                </Descriptions.Item>
+              );
+            })}
+          </Descriptions>
+        </Card>
+
+        <Card title="节点控制" style={{ borderColor: '#2e3450' }}>
+          <Row gutter={[16, 16]}>
+            <Col>
+              <Button onClick={() => handleAction('sync_cluster')} loading={actionLoading}>
+                同步集群状态
+              </Button>
+            </Col>
+            <Col>
+              <Select placeholder="设置日志级别" style={{ width: 160 }}
+                onChange={(level: string) => handleAction('set_log_level', { level })}
+                options={[
+                  { label: 'Trace', value: 'trace' },
+                  { label: 'Debug', value: 'debug' },
+                  { label: 'Info', value: 'info' },
+                  { label: 'Warning', value: 'warn' },
+                  { label: 'Error', value: 'error' },
+                ]} />
+            </Col>
+          </Row>
+        </Card>
+      </>
+    );
+  };
 
   const chartData = history.map(s => ({
-    time: formatTime(s.t),
+    time: formatTime(s.t, isLongRange),
     cpu: +s.cpu.toFixed(1),
     mem: +(s.mem / 1024 / 1024).toFixed(1),
     mpt: s.mpt,
@@ -68,7 +193,12 @@ const NodeDetail: React.FC = () => {
       <Title level={4}>{node?.node_name || id}</Title>
 
       {node ? (
-        <>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
+          {
+            key: 'overview',
+            label: '概览',
+            children: (
+              <>
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col span={6}>
               <Card style={{ borderColor: '#2e3450' }}>
@@ -122,8 +252,8 @@ const NodeDetail: React.FC = () => {
           </Card>
 
           <Card title="历史趋势" style={chartCardStyle}
-            extra={<Segmented options={TIME_RANGES.map(r => ({ label: r.label, value: r.value }))}
-              value={range} onChange={v => setRange(v as number)} size="small" />}>
+            extra={<Segmented options={TIME_RANGES.map((r, i) => ({ label: r.label, value: i }))}
+              value={selectedRange} onChange={v => setSelectedRange(v as number)} size="small" />}>
             {chartData.length > 0 ? (
               <>
                 <Row gutter={16}>
@@ -191,7 +321,15 @@ const NodeDetail: React.FC = () => {
               <Empty description="暂无历史数据，数据每分钟采集一次" />
             )}
           </Card>
-        </>
+              </>
+            ),
+          },
+          {
+            key: 'config',
+            label: '配置与控制',
+            children: renderConfigTab(),
+          },
+        ]} />
       ) : (
         <Card style={{ borderColor: '#2e3450' }}>
           <Empty description={`未找到节点 ${id}`} />

@@ -103,8 +103,10 @@ export interface NodeHistorySnapshot {
   q_delay: number;
 }
 
-export async function getNodeHistory(nodeId: string, limit?: number): Promise<NodeHistorySnapshot[]> {
-  const params = limit ? { limit } : {};
+export async function getNodeHistory(nodeId: string, limit?: number, range?: 'raw' | '1m' | '5m'): Promise<NodeHistorySnapshot[]> {
+  const params: Record<string, string | number> = {};
+  if (limit) params.limit = limit;
+  if (range) params.range = range;
   const { data } = await api.get(`/api/nodes/history/${encodeURIComponent(nodeId)}`, { params });
   return data as NodeHistorySnapshot[];
 }
@@ -184,4 +186,130 @@ export async function getMptHistory(mount: string): Promise<ConnectionHistoryIte
 export async function getUsrHistory(user: string): Promise<ConnectionHistoryItem[]> {
   const { data } = await api.get(`/api/stats/users/history/${encodeURIComponent(user)}`);
   return data as ConnectionHistoryItem[];
+}
+
+// ==================== Monitoring ====================
+
+export interface RedisMonitorInfo {
+  server: { redis_version: string; uptime_in_seconds: number; tcp_port: number; os: string; process_id: number };
+  clients: { connected_clients: number; blocked_clients: number; maxclients: number };
+  memory: {
+    used_memory: number; used_memory_human: string;
+    used_memory_rss: number; used_memory_rss_human: string;
+    used_memory_peak: number; used_memory_peak_human: string;
+    mem_fragmentation_ratio: number;
+  };
+  stats: {
+    total_connections_received: number; total_commands_processed: number;
+    instantaneous_ops_per_sec: number; keyspace_hits: number; keyspace_misses: number;
+    hit_rate: number; instantaneous_input_kbps: number; instantaneous_output_kbps: number;
+  };
+  replication: { role: string; connected_slaves: number };
+  keyspace: Record<string, unknown>;
+  total_keys: number;
+}
+
+export interface RedisKeyCategory {
+  prefix: string;
+  type: string;
+  count: number;
+  fields: number;
+  memory: number;
+  description: string;
+}
+
+export interface RedisKeysAnalysis {
+  categories: RedisKeyCategory[];
+  total_keys: number;
+  total_memory: number;
+}
+
+export interface ClusterMonitorInfo {
+  master_node: string;
+  total_nodes: number;
+  online_nodes: number;
+  total_servers: number;
+  total_clients: number;
+  total_pull: number;
+  total_push: number;
+  total_cpu: number;
+  total_mem: number;
+  total_send_speed: number;
+  total_recv_speed: number;
+  redis_latency_ms: number;
+  nodes: {
+    uid: string; node_name: string; is_master: boolean;
+    cpu: number; mem: number; mpt: number; usr: number;
+    pull: number; push: number; conn: number;
+    send_speed: number; recv_speed: number;
+    send_total: number; recv_total: number;
+    set_version: string; tag_version: string; queue_delay: number;
+  }[];
+}
+
+export async function getRedisMonitor(): Promise<RedisMonitorInfo> {
+  const { data } = await api.get('/api/monitor/redis');
+  return data as RedisMonitorInfo;
+}
+
+export async function getRedisKeys(): Promise<RedisKeysAnalysis> {
+  const { data } = await api.get('/api/monitor/redis/keys');
+  return data as RedisKeysAnalysis;
+}
+
+export async function getClusterMonitor(): Promise<ClusterMonitorInfo> {
+  const { data } = await api.get('/api/monitor/cluster');
+  return data as ClusterMonitorInfo;
+}
+
+// ==================== Node Config & Control ====================
+
+export interface NodeConfigSchema {
+  label: string;
+  type: 'number' | 'boolean' | 'string';
+  restart_required: boolean;
+}
+
+export interface NodeConfigInfo {
+  node_id: string;
+  node_name: string;
+  set_version: string;
+  tag_version: string;
+  core: Record<string, unknown>;
+  service: Record<string, unknown>;
+  schema: Record<string, NodeConfigSchema>;
+}
+
+export async function getNodeConfig(nodeId: string): Promise<NodeConfigInfo> {
+  const { data } = await api.get(`/api/nodes/config/${encodeURIComponent(nodeId)}`);
+  return data as NodeConfigInfo;
+}
+
+export async function postNodeAction(nodeId: string, action: string, params?: Record<string, unknown>) {
+  const { data } = await api.post(`/api/nodes/action/${encodeURIComponent(nodeId)}`, { action, params });
+  return data;
+}
+
+// ==================== Audit Log ====================
+
+export interface AuditLogEntry {
+  ts: number;
+  user: string;
+  action: string;
+  target: string;
+  detail: Record<string, unknown>;
+  ip: string;
+  result: string;
+}
+
+export interface AuditLogResponse {
+  items: AuditLogEntry[];
+  total: number;
+}
+
+export async function getAuditLogs(params?: {
+  limit?: number; offset?: number; action?: string; user?: string;
+}): Promise<AuditLogResponse> {
+  const { data } = await api.get('/api/logs/audit', { params });
+  return data as AuditLogResponse;
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Button } from 'antd';
+import { Layout, Menu, Button, Space, Tag } from 'antd';
 import {
   DashboardOutlined,
   CloudServerOutlined,
@@ -16,32 +16,92 @@ import {
   TableOutlined,
   HistoryOutlined,
   BarChartOutlined,
+  ClusterOutlined,
+  ApiOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api/auth';
+import { useMultiSSE } from '../hooks/useSSE';
+import type { CasterNode } from '../api/types';
 
 const { Header, Sider, Content } = Layout;
 
 const menuItems = [
-  { key: '/dashboard', icon: <DashboardOutlined />, label: '节点状态' },
-  { key: '/servers', icon: <CloudServerOutlined />, label: '基准站' },
-  { key: '/clients', icon: <UserOutlined />, label: '移动站' },
-  { key: '/accounts', icon: <TeamOutlined />, label: '账号管理' },
-  { key: '/sources', icon: <DatabaseOutlined />, label: '源列表' },
-  { key: '/aliases', icon: <BranchesOutlined />, label: '挂载点别名' },
-  { key: '/access', icon: <LockOutlined />, label: '访问管理' },
-  { key: '/sourcetable', icon: <TableOutlined />, label: '源表视图' },
-  { key: '/relay/pull', icon: <SwapOutlined />, label: '数据接入' },
-  { key: '/relay/push', icon: <SwapOutlined />, label: '数据推送' },
-  { key: '/history', icon: <HistoryOutlined />, label: '连接历史' },
-  { key: '/statistics', icon: <BarChartOutlined />, label: '数据统计' },
-  { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
+  {
+    key: 'monitor',
+    icon: <DashboardOutlined />,
+    label: '监控',
+    children: [
+      { key: '/dashboard', icon: <ClusterOutlined />, label: '集群总览' },
+      { key: '/statistics', icon: <BarChartOutlined />, label: '数据统计' },
+      { key: '/monitor', icon: <DashboardOutlined />, label: '系统监控' },
+    ],
+  },
+  {
+    key: 'connection',
+    icon: <ApiOutlined />,
+    label: '连接',
+    children: [
+      { key: '/servers', icon: <CloudServerOutlined />, label: '基准站' },
+      { key: '/clients', icon: <UserOutlined />, label: '移动站' },
+      { key: '/history', icon: <HistoryOutlined />, label: '连接历史' },
+    ],
+  },
+  {
+    key: 'config',
+    icon: <SettingOutlined />,
+    label: '配置',
+    children: [
+      { key: '/sources', icon: <DatabaseOutlined />, label: '源列表' },
+      { key: '/aliases', icon: <BranchesOutlined />, label: '挂载点别名' },
+      { key: '/access', icon: <LockOutlined />, label: '访问管理' },
+      { key: '/accounts', icon: <TeamOutlined />, label: '账号管理' },
+    ],
+  },
+  {
+    key: 'relay',
+    icon: <SwapOutlined />,
+    label: '数据转发',
+    children: [
+      { key: '/relay/pull', icon: <SwapOutlined />, label: '数据接入' },
+      { key: '/relay/push', icon: <SwapOutlined />, label: '数据推送' },
+      { key: '/sourcetable', icon: <TableOutlined />, label: '源表视图' },
+    ],
+  },
+  {
+    key: 'system',
+    icon: <SettingOutlined />,
+    label: '系统',
+    children: [
+      { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
+      { key: '/audit', icon: <FileTextOutlined />, label: '操作日志' },
+    ],
+  },
 ];
 
 const MainLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // 集群状态摘要 (Header 显示)
+  const { data: sseData } = useMultiSSE<{
+    nodes: Record<string, CasterNode>;
+    servers: Record<string, unknown>;
+    clients: Record<string, unknown>;
+  }>(['nodes', 'servers', 'clients']);
+
+  const nodes = sseData.nodes || {};
+  const nodeCount = Object.keys(nodes).length;
+  const masterNode = Object.values(nodes).find(n => n.is_master);
+  const serverCount = Object.keys(sseData.servers || {}).length;
+  const clientCount = Object.keys(sseData.clients || {}).length;
+
+  // 根据当前路径确定展开的菜单组
+  const openKeys = menuItems
+    .filter(group => group.children?.some(c => location.pathname.startsWith(c.key)))
+    .map(group => group.key);
 
   const handleLogout = async () => {
     try { await logout(); } catch { /* ignore */ }
@@ -72,6 +132,7 @@ const MainLayout: React.FC = () => {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
+          defaultOpenKeys={openKeys}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
           style={{ background: 'transparent', borderRight: 'none', marginTop: 8 }}
@@ -83,12 +144,30 @@ const MainLayout: React.FC = () => {
           alignItems: 'center', justifyContent: 'space-between',
           borderBottom: '1px solid #1e2245', height: 56,
         }}>
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ color: '#8b90a8' }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ color: '#8b90a8' }}
+            />
+            <Space size={16} style={{ marginLeft: 8 }}>
+              <span style={{ color: '#8b90a8', fontSize: 13 }}>
+                节点 <Tag color={nodeCount > 0 ? 'green' : 'default'}>{nodeCount}</Tag>
+              </span>
+              <span style={{ color: '#8b90a8', fontSize: 13 }}>
+                基站 <Tag color="blue">{serverCount}</Tag>
+              </span>
+              <span style={{ color: '#8b90a8', fontSize: 13 }}>
+                用户 <Tag color="cyan">{clientCount}</Tag>
+              </span>
+              {masterNode && (
+                <span style={{ color: '#8b90a8', fontSize: 13 }}>
+                  Master <Tag color="gold">{masterNode.node_name}</Tag>
+                </span>
+              )}
+            </Space>
+          </div>
           <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}
             style={{ color: '#8b90a8' }}>
             退出

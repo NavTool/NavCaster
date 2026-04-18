@@ -12,7 +12,7 @@
 |------|------|------|
 | 连接历史 | LOG:MPT / LOG:USR HASH 记录、连接历史页面、基站/用户/账户详情历史表格 | ✅ |
 | 崩溃恢复 | `flush_online_history()` 补偿断线日志、`cleanup_stale_history()` 清理残留、`component_stop()` 优雅关闭 | ✅ |
-| 节点历史 | NODE:HISTORY LIST 5秒采样(24h)、节点详情趋势图(recharts) | ✅ |
+| 节点历史 | NODE:HISTORY LIST 5秒采样(24h)、节点详情趋势图(recharts) | ✅ 待升级分级存储 |
 | 数据统计 | 概览统计、每小时趋势、基站/用户 TOP 排行、每日统计缓存(STAT:DAILY) | ✅ |
 | 多节点同步 | Master TTL 15s、Master 状态跟踪与日志、Dashboard Master 徽章、CASTER:CONF 别名即时同步 | ✅ |
 | 日志优化 | 结构化 spdlog 分级日志（部分关键位置） | ✅ 部分 |
@@ -69,6 +69,102 @@
 - [五、详细信息页面增强](#五详细信息页面增强)
 - [六、系统设置完善](#六系统设置完善)
 - [七、操作日志与安全增强](#七操作日志与安全增强)
+
+---
+
+## 当前进展（2026-04-18）
+
+### 已完成并联调通过
+
+- Phase 1 基础项已完成：HTTP 线程分离、节点历史分级存储、前端主布局与通用监控能力已经落地。
+- Phase 2 已完成：`3.1 Redis INFO API`、`3.2 Key 空间分析`、`3.4 集群状态 API`、`5.5 系统监控页`、`2.1 节点配置查看`、`2.2 节点控制基础能力`、`7.1 审计日志后端`、`7.2 操作日志页面`。
+- 已验证链路：登录、`/api/monitor/redis`、`/api/nodes/config/{id}`、`/api/nodes/action/{id}`、`/api/logs/audit`；其中 `config_update` 已确认触发 `CASTER:CONF -> CONFIG` 并在节点侧热加载。
+
+### 当前实现边界
+
+- 节点控制当前已支持：`sync_cluster`、`set_log_level`、`config_update`。
+- 审计日志当前已覆盖节点控制链路，其他资源的审计补齐仍可继续扩展。
+- 系统监控页当前聚焦 Redis 状态、集群状态、Key 空间分析；Redis 历史趋势依赖 `3.3`，尚未纳入本轮实现。
+
+### 后续工作
+
+- Phase 3 页面增强：`5.1`、`5.2`、`5.4` 以及 `5.3` 中“节点日志”能力仍待完成。
+- Phase 4 系统完善：`6.1-6.3` 设置页完善、`7.3` 安全增强、`3.3` Redis 历史趋势、`2.3` 节点日志查看仍未开始。
+
+---
+
+## 〇、节点历史分级存储
+
+### 目标
+
+将节点历史从当前的单一粒度（5秒/24小时）升级为三级存储策略，覆盖从秒级到年级的完整时间跨度。
+
+### 当前状态
+
+- `NODE:HISTORY:{id}` — LIST，5 秒采样，最多 17280 条（24 小时）
+- 超过 24 小时的数据被丢弃
+
+### 分级存储方案
+
+| 级别 | 粒度 | 保留时长 | 最大条目数 | Redis Key |
+|------|------|----------|------------|----------|
+| RAW | 5 秒 | 7 天 | 120,960 | `NODE:HISTORY:{id}` |
+| 1MIN | 60 秒(聚合) | 30 天(7d~30d) | 33,120 | `NODE:HISTORY:{id}:1M` |
+| 5MIN | 5 分钟(聚合) | 1 年(30d~365d) | 96,480 | `NODE:HISTORY:{id}:5M` |
+
+总计每个节点约 **250,560 条**记录，约 **25MB** Redis 内存。
+
+### 聚合策略
+
+在 `record_node_history()` 中通过计数器驱动聚合：
+
+```
+每 5 秒: LPUSH RAW 快照
+每 60 秒(12 个 RAW): 计算 12 个样本的均值 → LPUSH 1M
+每 5 分钟(5 个 1M):  计算 5 个样本的均值 → LPUSH 5M
+```
+
+**聚合字段**：
+- `cpu`, `q_delay` → 取平均值
+- `mem`, `mpt`, `usr`, `conn` → 取平均值
+- `send_speed`, `recv_speed` → 取平均值
+- `send_total`, `recv_total` → 取最后一个值（累计量）
+- `t` → 取聚合周期的中间时间戳
+
+### 后端实现
+
+```cpp
+// caster_internal.h 新增
+#define NODE_HISTORY_RAW_MAX   120960  // 5s × 7天
+#define NODE_HISTORY_1M_MAX    33120   // 60s × 23天
+#define NODE_HISTORY_5M_MAX    96480   // 5min × 335天
+
+int _1min_agg_counter = 0;     // 每 12 个 RAW 触发 1M 聚合
+int _5min_agg_counter = 0;     // 每 5 个 1M 触发 5M 聚合
+json _1min_agg_buffer;         // RAW 样本累加器
+json _5min_agg_buffer;         // 1M 样本累加器
+```
+
+### API 变更
+
+`GET /api/nodes/history/{id}` 增加 `range` 参数：
+
+| range 值 | 数据源 | 说明 |
+|----------|--------|------|
+| `1h` ~ `7d` | RAW (5s) | 默认行为，从 `NODE:HISTORY:{id}` 读取 |
+| `7d` ~ `30d` | 1M (60s) | 从 `NODE:HISTORY:{id}:1M` 读取 |
+| `30d` ~ `1y` | 5M (5min) | 从 `NODE:HISTORY:{id}:5M` 读取 |
+| 不传 | 自动 | 根据 limit 自动选择层级 |
+
+### 前端变更
+
+`NodeDetail.tsx` 时间范围选择器扩展：
+
+```
+1小时 | 6小时 | 24小时 | 7天 | 30天 | 1年
+```
+
+对于长时间范围（>7天），前端自动降采样显示，最多 2000 个数据点。
 
 ---
 
@@ -169,22 +265,26 @@ void ntrip_caster::component_stop() {
 
 ### 2.1 节点配置查看与热更新
 
+状态：已完成并已联调
+
 #### 后端 API
 
 | Method | Path | 说明 |
 |--------|------|------|
-| GET | `/api/nodes/{id}/config` | 获取指定节点的运行配置 |
-| PUT | `/api/nodes/{id}/config` | 推送配置更新到指定节点 |
-| GET | `/api/nodes/{id}/status/detail` | 获取节点详细运行状态 |
+| GET | `/api/nodes/config/{id}` | 获取指定节点的运行配置（聚合节点信息 + core/service 配置 + schema） |
+| POST | `/api/nodes/action/{id}` | 通过 `action=config_update` 推送配置更新到指定节点 |
 
 #### 实现方案
 
 **配置下发通道**：利用现有 `NODE:{id}` Redis 频道
 
 ```
-Web HTTP → PUBLISH NODE:{id} {"type":"config_update", "key":"...", "value":"..."}
-节点收到 → Redis_NodeChannel_Callback → 应用配置变更
-节点回应 → HSET CASTER:NODE:{id}:CONFIG_ACK {result}
+Web HTTP → POST /api/nodes/action/{id}
+         → 写入 Redis 配置 (`CONF:CORE` / `CONF:SERVICE`)
+         → PUBLISH CASTER:CONF CONFIG
+         → PUBLISH NODE:{id} {"type":"action", "action":"config_update", "params":{...}}
+节点收到 → Redis_ConfChange_Callback / Redis_NodeChannel_Callback
+         → reload_config_from_redis()
 ```
 
 **可热更新的配置项**：
@@ -213,36 +313,28 @@ Web HTTP → PUBLISH NODE:{id} {"type":"config_update", "key":"...", "value":"..
 
 ### 2.2 服务组件控制
 
+状态：基础能力已完成并已联调，更多控制项待扩展
+
 #### 后端 API
 
 | Method | Path | 说明 |
 |--------|------|------|
-| POST | `/api/nodes/{id}/action` | 执行节点操作 |
+| POST | `/api/nodes/action/{id}` | 执行节点操作 |
 
 #### 支持的操作
 
 ```json
-// 暂停接受新连接（不断开现有连接）
-{ "action": "pause_listener" }
-
-// 恢复接受新连接
-{ "action": "resume_listener" }
-
-// 断开所有基站连接
-{ "action": "disconnect_servers" }
-
-// 断开所有用户连接
-{ "action": "disconnect_clients" }
-
-// 断开指定连接
-{ "action": "disconnect", "connect_key": "xxx" }
-
 // 强制刷新集群状态
 { "action": "sync_cluster" }
 
 // 触发日志级别调整
-{ "action": "set_log_level", "level": "debug|info|warn|error" }
+{ "action": "set_log_level", "params": {"level": "debug|info|warn|error"} }
+
+// 热更新配置
+{ "action": "config_update", "params": {"section": "core", "key": "update_intv", "value": 5} }
 ```
+
+其余控制项（暂停监听、批量断开连接、定向断开连接）保留在后续扩展范围内。
 
 #### 实现方案
 
@@ -663,7 +755,21 @@ LTRIM: 保留最近 1440 条（24小时）
 
 ### 5.5 系统监控页（新增 `/monitor`）
 
-全新页面，展示 Redis 和集群深层状态：
+状态：已完成并已联调
+
+当前页面已实现以下内容：
+
+- 集群概览卡片与节点状态列表
+- Redis 服务器、客户端、内存、统计信息展示
+- Key 空间分类分析表
+- 10 秒自动刷新
+
+以下内容顺延到后续与 `3.3 Redis 历史趋势` 一起补充：
+
+- Redis QPS / 内存历史趋势图
+- 更长时间跨度的时序分析
+
+原始设计目标如下：
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -789,6 +895,8 @@ if (topic == "CONFIG") {
 
 ### 7.1 操作日志
 
+状态：基础能力已完成并已联调
+
 #### 数据结构
 
 ```
@@ -812,14 +920,8 @@ Type: LIST (LPUSH + LTRIM ~5000)
 
 | 操作类别 | 具体操作 |
 |----------|----------|
-| 账号管理 | 创建/修改/删除账号 |
-| 源列表 | 创建/修改/删除源记录 |
-| 别名管理 | 创建/修改/删除别名规则 |
-| 访问控制 | 创建/修改/删除访问组/项 |
-| Relay 管理 | 创建/修改/删除/启动/停止 Relay |
-| 配置变更 | 修改系统配置 |
-| 节点控制 | 暂停/恢复/断开/日志级别调整 |
-| 认证事件 | 登录/登出/密码修改 |
+| 节点控制 | `sync_cluster` / `set_log_level` / `config_update`（已实现） |
+| 其他管理操作 | 账号、源列表、别名、访问控制、Relay、认证事件（待补齐） |
 
 #### 后端 API
 
@@ -829,7 +931,7 @@ Type: LIST (LPUSH + LTRIM ~5000)
 
 #### 实现方式
 
-在 `http_handler` 中添加 `audit_log()` 辅助函数：
+当前实现为在 `http_handler` 中添加 `audit_log()` 辅助函数，并将日志写入 Redis LIST：
 
 ```cpp
 void http_handler::audit_log(const HttpRequest &req,
@@ -838,11 +940,11 @@ void http_handler::audit_log(const HttpRequest &req,
                               const json &detail) {
     json entry;
     entry["ts"] = time(nullptr);
-    entry["user"] = get_token_user(req);  // 从 token 解析用户名
+    entry["user"] = ...;
     entry["action"] = action;
     entry["target"] = target;
     entry["detail"] = detail;
-    entry["ip"] = req.remote_host;
+    entry["ip"] = ...;
     entry["result"] = "ok";
     sync_redis::instance().lpush("LOG:AUDIT", entry.dump());
     sync_redis::instance().ltrim("LOG:AUDIT", 0, 4999);
@@ -850,6 +952,8 @@ void http_handler::audit_log(const HttpRequest &req,
 ```
 
 ### 7.2 Web 操作日志页面（新增 `/audit`）
+
+状态：已完成基础版
 
 | 列 | 说明 |
 |----|------|
@@ -861,7 +965,7 @@ void http_handler::audit_log(const HttpRequest &req,
 | IP | 客户端 IP |
 | 结果 | 成功/失败 |
 
-支持按操作类型、用户、时间范围筛选。
+当前已支持按操作类型、用户筛选和分页浏览；时间范围筛选可在后续补充。
 
 ### 7.3 安全增强
 
@@ -881,19 +985,20 @@ void http_handler::audit_log(const HttpRequest &req,
 | 任务 | 预期复杂度 | 说明 |
 |------|------------|------|
 | 1.1 HTTP 线程分离 | 高 | 核心架构变更，后续功能的基础 |
+| 〇 节点历史分级存储 | 中 | 5s/60s/5min 三级聚合，覆盖 1 年 |
 | 4.2 通用组件库 | 中 | PageContainer / MetricCard / DataTable |
 | 4.1 布局改版 | 中 | Header 增强 + 菜单分组 |
 
 ### Phase 2: 监控与控制（P1）
 
-| 任务 | 预期复杂度 | 说明 |
-|------|------------|------|
-| 3.1 Redis INFO API | 中 | `sync_redis::info()` + 解析 |
-| 3.2 Key 空间分析 | 中 | SCAN + 聚合 |
-| 3.4 集群状态 API | 低 | 汇总现有数据 |
-| 5.5 系统监控页面 | 高 | 全新页面，Redis + 集群全览 |
-| 2.1 节点配置查看 | 中 | 读取 Redis 配置 |
-| 2.2 服务组件控制 | 高 | NODE 频道命令扩展 |
+| 任务 | 预期复杂度 | 说明 | 状态 |
+|------|------------|------|------|
+| 3.1 Redis INFO API | 中 | `sync_redis::info()` + 解析 | ✅ 已完成 |
+| 3.2 Key 空间分析 | 中 | SCAN + 聚合 | ✅ 已完成 |
+| 3.4 集群状态 API | 低 | 汇总现有数据 | ✅ 已完成 |
+| 5.5 系统监控页面 | 高 | 全新页面，Redis + 集群全览 | ✅ 已完成 |
+| 2.1 节点配置查看 | 中 | 读取 Redis 配置 | ✅ 已完成 |
+| 2.2 服务组件控制 | 高 | NODE 频道命令扩展 | ✅ 基础能力完成 |
 
 ### Phase 3: 页面增强（P1-P2）
 
@@ -907,13 +1012,13 @@ void http_handler::audit_log(const HttpRequest &req,
 
 ### Phase 4: 系统完善（P2）
 
-| 任务 | 预期复杂度 | 说明 |
-|------|------------|------|
-| 6.1-6.3 设置页完善 | 中 | 配置 Schema + 表单 |
-| 7.1-7.2 操作日志 | 中 | 审计日志记录 + 页面 |
-| 7.3 安全增强 | 中 | Token 过期 + 频率限制 |
-| 3.3 Redis 历史趋势 | 低 | 定时采集 + 存储 |
-| 2.3 节点日志查看 | 中 | Ring Buffer Sink |
+| 任务 | 预期复杂度 | 说明 | 状态 |
+|------|------------|------|------|
+| 6.1-6.3 设置页完善 | 中 | 配置 Schema + 表单 | ⏳ 未开始 |
+| 7.1-7.2 操作日志 | 中 | 审计日志记录 + 页面 | ✅ 基础能力完成 |
+| 7.3 安全增强 | 中 | Token 过期 + 频率限制 | ⏳ 未开始 |
+| 3.3 Redis 历史趋势 | 低 | 定时采集 + 存储 | ⏳ 未开始 |
+| 2.3 节点日志查看 | 中 | Ring Buffer Sink | ⏳ 未开始 |
 
 ---
 
@@ -957,6 +1062,9 @@ ntrip_caster::extra_init()
 
 | Key | 类型 | 说明 |
 |-----|------|------|
+| `NODE:HISTORY:{id}` | LIST | 节点历史 RAW（5s，最近 120,960 条 = 7 天） |
+| `NODE:HISTORY:{id}:1M` | LIST | 节点历史 1MIN 聚合（60s，最近 33,120 条 = 23 天） |
+| `NODE:HISTORY:{id}:5M` | LIST | 节点历史 5MIN 聚合（5min，最近 96,480 条 = 335 天） |
 | `MONITOR:REDIS:HISTORY` | LIST | Redis 指标历史（最近 1440 条） |
 | `LOG:AUDIT` | LIST | 操作审计日志（最近 5000 条） |
 | `NODE:{id}:ACTION_RESULT` | STRING(TTL 60s) | 节点操作执行结果 |

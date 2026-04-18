@@ -29,6 +29,7 @@
 #include <list>
 #include <mutex>
 #include <memory>
+#include <thread>
 #include <unordered_map>
 
 #include <spdlog/spdlog.h>
@@ -81,6 +82,8 @@ private:
 
 private:
     event_base *_base;
+    event_base *_http_base = nullptr;  // HTTP/SSE 独立事件循环
+    std::thread _http_thread;          // HTTP 工作线程
     // process处理事件
     event *_process_event;
     // 定时器和定时事件

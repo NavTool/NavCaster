@@ -18,6 +18,8 @@ import AccountDetail from './pages/AccountDetail';
 import SourceTable from './pages/SourceTable';
 import ConnectionHistory from './pages/ConnectionHistory';
 import Statistics from './pages/Statistics';
+import SystemMonitor from './pages/SystemMonitor';
+import AuditLog from './pages/AuditLog';
 import { getToken, getBaseURL } from './api/client';
 import { getHealthCheck } from './api';
 import { useEffect, useState } from 'react';
@@ -75,6 +77,8 @@ export default function AppRouter() {
           <Route path="relay/push" element={<PushRelay />} />
           <Route path="history" element={<ConnectionHistory />} />
           <Route path="statistics" element={<Statistics />} />
+          <Route path="monitor" element={<SystemMonitor />} />
+          <Route path="audit" element={<AuditLog />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

@@ -53,6 +53,7 @@ target_link_libraries(${PROJECT_NAME}
     event
     event_extra
     event_core
+    event_pthreads
     yaml-cpp
     libprotobuf
     caster_proto
