@@ -10,6 +10,8 @@ import Aliases from './pages/Aliases';
 import AccessGroups from './pages/AccessGroups';
 import PullRelay from './pages/PullRelay';
 import PushRelay from './pages/PushRelay';
+import PullRelayDetail from './pages/PullRelayDetail';
+import PushRelayDetail from './pages/PushRelayDetail';
 import Settings from './pages/Settings';
 import NodeDetail from './pages/NodeDetail';
 import ServerDetail from './pages/ServerDetail';
@@ -74,7 +76,9 @@ export default function AppRouter() {
           <Route path="access" element={<AccessGroups />} />
           <Route path="sourcetable" element={<SourceTable />} />
           <Route path="relay/pull" element={<PullRelay />} />
+          <Route path="relay/pull/:id" element={<PullRelayDetail />} />
           <Route path="relay/push" element={<PushRelay />} />
+          <Route path="relay/push/:id" element={<PushRelayDetail />} />
           <Route path="history" element={<ConnectionHistory />} />
           <Route path="statistics" element={<Statistics />} />
           <Route path="monitor" element={<SystemMonitor />} />

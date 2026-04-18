@@ -88,6 +88,17 @@ export const resourceApi = {
   },
 };
 
+export async function getServerSubscribers(mountpoint: string): Promise<Record<string, ClientState>> {
+  const data = await clientsApi.getAll();
+  const result: Record<string, ClientState> = {};
+  for (const [key, client] of Object.entries(data)) {
+    if (client.login_mpt === mountpoint || client.alias_mpt === mountpoint) {
+      result[key] = client;
+    }
+  }
+  return result;
+}
+
 // Node history (time-series snapshots)
 export interface NodeHistorySnapshot {
   t: number;

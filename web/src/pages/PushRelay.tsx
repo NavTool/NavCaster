@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Select, AutoComplete, Typography, Space, Tag, Row, Col, message, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, PlayCircleOutlined, PauseCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { Link } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { useSSE } from '../hooks/useSSE';
 import { pushRecordsApi, pushStatesApi, relayStart, relayStop } from '../api';
@@ -160,7 +161,7 @@ const PushRelay: React.FC = () => {
   }, [states]);
 
   const columns: ColumnsType<PushRecord & { key: string }> = [
-    { title: '本地挂载点', dataIndex: 'login_mpt', key: 'login_mpt', width: 120 },
+    { title: '本地挂载点', dataIndex: 'login_mpt', key: 'login_mpt', width: 120, render: (value, record) => <Link to={`/relay/push/${encodeURIComponent(record.uid)}`}>{value}</Link> },
     { title: '类型', key: 'type', width: 100, render: (_, r) => typeLabels[r.type] || '未知' },
     { title: '目标 IP', dataIndex: 'target_ip', key: 'target_ip', width: 120 },
     { title: '目标端口', dataIndex: 'target_port', key: 'target_port', width: 80 },
