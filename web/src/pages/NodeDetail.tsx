@@ -173,7 +173,11 @@ const NodeDetail: React.FC = () => {
               return (
                 <Descriptions.Item key={key} label={schema?.label || key}>
                   {typeof value === 'boolean' ? (
-                    <Tag color={value ? 'green' : 'default'}>{value ? '启用' : '禁用'}</Tag>
+                    <Switch
+                      size="small"
+                      checked={value}
+                      onChange={(checked) => handleAction('config_update', { section: 'service', key, value: checked })}
+                    />
                   ) : (
                     <>{String(value)}</>
                   )}

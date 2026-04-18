@@ -1652,6 +1652,42 @@ static std::string build_node_runtime_log_result_key(const std::string &node_id,
     return "NODE:LOGS:RESULT:" + node_id + ":" + request_id;
 }
 
+static bool apply_config_update_value(json &conf, const std::string &section, const std::string &key, const json &value)
+{
+    if (section == "core")
+    {
+        conf[key] = value;
+        return true;
+    }
+
+    if (section != "service")
+        return false;
+
+    auto assign_nested = [&](const char *group, const char *field) {
+        if (!conf.contains(group) || !conf[group].is_object())
+            conf[group] = json::object();
+        conf[group][field] = value;
+        return true;
+    };
+
+    if (key == "listen_port") return assign_nested("listener", "listen_port");
+    if (key == "connect_timeout") return assign_nested("listener", "connect_timeout");
+    if (key == "enable_source_login") return assign_nested("listener", "enable_source_login");
+    if (key == "enable_server_login") return assign_nested("listener", "enable_server_login");
+    if (key == "enable_client_login") return assign_nested("listener", "enable_client_login");
+    if (key == "enable_nearest_login") return assign_nested("listener", "enable_nearest_login");
+    if (key == "enable_proxy_login") return assign_nested("listener", "enable_proxy_login");
+    if (key == "enable_alias_login") return assign_nested("listener", "enable_alias_login");
+    if (key == "server_timeout") return assign_nested("server", "connect_timeout");
+    if (key == "server_heartbeat_interval") return assign_nested("server", "heart_beat_interval");
+    if (key == "client_timeout") return assign_nested("client", "connect_timeout");
+    if (key == "http_port") return assign_nested("http_api", "port");
+    if (key == "http_bind_addr") return assign_nested("http_api", "bind_addr");
+    if (key == "http_enable_on_slave") return assign_nested("http_api", "enable_on_slave");
+
+    return false;
+}
+
 static std::unordered_map<std::string, int> count_relay_states_by_node(const json &relay_states)
 {
     std::unordered_map<std::string, int> counts;
@@ -3268,8 +3304,8 @@ void http_handler::handle_post_node_action(const HttpRequest &req, HttpResponse 
                 json conf = redis.get(conf_key);
                 if (conf.is_object())
                 {
-                    conf[key] = value;
-                    redis.set(conf_key, conf.dump());
+                    if (apply_config_update_value(conf, section, key, value))
+                        redis.set(conf_key, conf.dump());
                 }
             }
 
