@@ -144,6 +144,16 @@ HttpRequest http_server::parse_request(evhttp_request *req)
         parsed.headers[kv->key] = kv->value;
     }
 
+    evhttp_connection *connection = evhttp_request_get_connection(req);
+    if (connection)
+    {
+        char *peer_addr = nullptr;
+        ev_uint16_t peer_port = 0;
+        evhttp_connection_get_peer(connection, &peer_addr, &peer_port);
+        if (peer_addr && parsed.headers.find("X-Client-IP") == parsed.headers.end())
+            parsed.headers["X-Client-IP"] = peer_addr;
+    }
+
     // Parse body
     evbuffer *input = evhttp_request_get_input_buffer(req);
     size_t len = evbuffer_get_length(input);

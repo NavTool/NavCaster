@@ -60,6 +60,50 @@ export async function getHealthCheck() {
   return data;
 }
 
+export interface ConfigSchemaField {
+  label: string;
+  type: 'number' | 'boolean' | 'string';
+  group: 'service' | 'core' | 'auth';
+  restart_required: boolean;
+  path: string[];
+  min?: number;
+  max?: number;
+  default?: unknown;
+}
+
+export interface SystemConfigsResponse {
+  service?: Record<string, unknown>;
+  core?: Record<string, unknown>;
+  auth?: {
+    admin_user?: string;
+  };
+}
+
+export async function getSystemConfigs(): Promise<SystemConfigsResponse> {
+  const { data } = await api.get('/api/config');
+  return data as SystemConfigsResponse;
+}
+
+export async function getConfigSchema(): Promise<Record<string, ConfigSchemaField>> {
+  const { data } = await api.get('/api/config/schema');
+  return (data?.schema || {}) as Record<string, ConfigSchemaField>;
+}
+
+export async function updateConfigSection(section: 'service' | 'core' | 'auth', config: Record<string, unknown>) {
+  const { data } = await api.put(`/api/config/${section}`, config);
+  return data;
+}
+
+export async function validateConfigSection(section: 'service' | 'core' | 'auth', config: Record<string, unknown>) {
+  const { data } = await api.post('/api/config/validate', { section, config });
+  return data;
+}
+
+export async function applySystemConfig(reason = 'settings_page_apply') {
+  const { data } = await api.post('/api/config/apply', { reason });
+  return data;
+}
+
 export interface SourcetableEntry {
   mountpoint: string;
   identifier?: string;
@@ -250,6 +294,18 @@ export interface RedisMonitorInfo {
   total_keys: number;
 }
 
+export interface RedisHistoryItem {
+  ts: number;
+  ops: number;
+  mem: number;
+  clients: number;
+  hits: number;
+  misses: number;
+  hit_rate: number;
+  input_kbps: number;
+  output_kbps: number;
+}
+
 export interface RedisKeyCategory {
   prefix: string;
   type: string;
@@ -294,6 +350,11 @@ export interface ClusterMonitorInfo {
 export async function getRedisMonitor(): Promise<RedisMonitorInfo> {
   const { data } = await api.get('/api/monitor/redis');
   return data as RedisMonitorInfo;
+}
+
+export async function getRedisMonitorHistory(limit = 1440): Promise<RedisHistoryItem[]> {
+  const { data } = await api.get('/api/monitor/redis/history', { params: { limit } });
+  return (data?.items || []) as RedisHistoryItem[];
 }
 
 export async function getRedisKeys(): Promise<RedisKeysAnalysis> {

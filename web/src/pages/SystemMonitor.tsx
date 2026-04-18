@@ -8,10 +8,12 @@ import {
 } from '@ant-design/icons';
 import {
   getRedisMonitor, getRedisKeys, getClusterMonitor,
-  type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo,
+  getRedisMonitorHistory,
+  type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo, type RedisHistoryItem,
 } from '../api';
 import { formatDuration } from '../utils/format';
 import MetricCard from '../components/MetricCard';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 const { Title, Text } = Typography;
 
@@ -38,6 +40,7 @@ const SystemMonitor: React.FC = () => {
   const [redisInfo, setRedisInfo] = useState<RedisMonitorInfo | null>(null);
   const [keysInfo, setKeysInfo] = useState<RedisKeysAnalysis | null>(null);
   const [clusterInfo, setClusterInfo] = useState<ClusterMonitorInfo | null>(null);
+  const [redisHistory, setRedisHistory] = useState<RedisHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
@@ -47,9 +50,11 @@ const SystemMonitor: React.FC = () => {
         getRedisKeys(),
         getClusterMonitor(),
       ]);
+      const history = await getRedisMonitorHistory(1440);
       setRedisInfo(redis);
       setKeysInfo(keys);
       setClusterInfo(cluster);
+      setRedisHistory([...history].reverse());
     } catch {
       /* silent */
     } finally {
@@ -243,6 +248,27 @@ const SystemMonitor: React.FC = () => {
               </Card>
             </Col>
           </Row>
+
+          {redisHistory.length > 0 && (
+            <Card title="Redis 24 小时趋势" size="small" style={{ marginBottom: 24, borderColor: '#2e3450' }}>
+              <div style={{ width: '100%', height: 320 }}>
+                <ResponsiveContainer>
+                  <LineChart data={redisHistory}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#30354a" />
+                    <XAxis dataKey="ts" tickFormatter={formatTimestamp} minTickGap={48} />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <RechartsTooltip labelFormatter={(value) => formatTimestamp(Number(value))} />
+                    <Legend />
+                    <Line yAxisId="left" type="monotone" dataKey="ops" name="QPS" stroke="#4a8eff" dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="clients" name="连接数" stroke="#52c41a" dot={false} />
+                    <Line yAxisId="right" type="monotone" dataKey="mem" name="内存(Byte)" stroke="#faad14" dot={false} />
+                    <Line yAxisId="right" type="monotone" dataKey="hit_rate" name="命中率" stroke="#ff7875" dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
         </>
       )}
 

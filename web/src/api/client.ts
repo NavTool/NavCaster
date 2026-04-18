@@ -7,6 +7,7 @@ const api = axios.create({
 
 // Token management
 let authToken: string | null = localStorage.getItem('token');
+let authUser: string | null = localStorage.getItem('authUser');
 
 export function setToken(token: string | null) {
   authToken = token;
@@ -15,6 +16,19 @@ export function setToken(token: string | null) {
   } else {
     localStorage.removeItem('token');
   }
+}
+
+export function setAuthUser(username: string | null) {
+  authUser = username;
+  if (username) {
+    localStorage.setItem('authUser', username);
+  } else {
+    localStorage.removeItem('authUser');
+  }
+}
+
+export function getAuthUser(): string | null {
+  return authUser;
 }
 
 export function getToken(): string | null {
@@ -35,6 +49,9 @@ api.interceptors.request.use((config) => {
   if (authToken) {
     config.headers.Authorization = `Bearer ${authToken}`;
   }
+  if (authUser) {
+    config.headers['X-Auth-User'] = authUser;
+  }
   return config;
 });
 
@@ -44,6 +61,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       setToken(null);
+      setAuthUser(null);
       window.location.hash = '#/login';
     }
     return Promise.reject(error);

@@ -873,7 +873,21 @@ int caster_internal::upload_node_status()
         record_node_history();
     }
 
+    if (++_redis_history_counter >= REDIS_HISTORY_INTERVAL)
+    {
+        _redis_history_counter = 0;
+        record_redis_history();
+    }
+
     return 0;
+}
+
+void caster_internal::record_redis_history()
+{
+    if (!_pub_context)
+        return;
+
+    redisAsyncCommand(_pub_context, Redis_Record_Redis_Info_Callback, this, "INFO");
 }
 
 void caster_internal::record_node_history()
@@ -2374,6 +2388,68 @@ void caster_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int st
         spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, svr->_sub_context_errstr);
         svr->subAttemptReconnect();
     }
+}
+
+static json parse_redis_history_snapshot(const std::string &info_text)
+{
+    json snapshot;
+    snapshot["ts"] = util_get_now_second();
+
+    std::istringstream stream(info_text);
+    std::string line;
+    std::unordered_map<std::string, std::string> values;
+    while (std::getline(stream, line))
+    {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (line.empty() || line[0] == '#')
+            continue;
+
+        auto pos = line.find(':');
+        if (pos == std::string::npos)
+            continue;
+        values[line.substr(0, pos)] = line.substr(pos + 1);
+    }
+
+    auto read_ll = [&](const char *key) -> long long {
+        auto it = values.find(key);
+        if (it == values.end()) return 0;
+        try { return std::stoll(it->second); } catch (...) { return 0; }
+    };
+    auto read_double = [&](const char *key) -> double {
+        auto it = values.find(key);
+        if (it == values.end()) return 0.0;
+        try { return std::stod(it->second); } catch (...) { return 0.0; }
+    };
+
+    const long long hits = read_ll("keyspace_hits");
+    const long long misses = read_ll("keyspace_misses");
+    const double hit_rate = (hits + misses > 0) ? static_cast<double>(hits) / static_cast<double>(hits + misses) : 0.0;
+
+    snapshot["ops"] = read_ll("instantaneous_ops_per_sec");
+    snapshot["mem"] = read_ll("used_memory");
+    snapshot["clients"] = read_ll("connected_clients");
+    snapshot["hits"] = hits;
+    snapshot["misses"] = misses;
+    snapshot["hit_rate"] = hit_rate;
+    snapshot["input_kbps"] = read_double("instantaneous_input_kbps");
+    snapshot["output_kbps"] = read_double("instantaneous_output_kbps");
+
+    return snapshot;
+}
+
+void caster_internal::Redis_Record_Redis_Info_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto *reply = static_cast<redisReply *>(r);
+    auto *svr = static_cast<caster_internal *>(privdata);
+    if (!reply || reply->type != REDIS_REPLY_STRING || !reply->str)
+        return;
+
+    json snapshot = parse_redis_history_snapshot(reply->str);
+    std::string value = snapshot.dump();
+    redisAsyncCommand(c, NULL, NULL, "LPUSH " REDIS_HISTORY_KEY " %s", value.c_str());
+    redisAsyncCommand(c, NULL, NULL, "LTRIM " REDIS_HISTORY_KEY " 0 %d", REDIS_HISTORY_MAX - 1);
+    (void)svr;
 }
 
 int caster_internal::init_sub_context()

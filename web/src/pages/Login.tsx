@@ -23,8 +23,13 @@ const Login: React.FC = () => {
       await login(values.username, values.password);
       message.success('登录成功');
       navigate('/dashboard');
-    } catch {
-      message.error('登录失败，请检查地址和凭据');
+    } catch (error: any) {
+      const retryAfter = error?.response?.data?.retry_after;
+      if (error?.response?.status === 429 && retryAfter) {
+        message.error(`登录尝试过于频繁，请在 ${retryAfter} 秒后重试`);
+      } else {
+        message.error('登录失败，请检查地址和凭据');
+      }
     } finally {
       setLoading(false);
     }

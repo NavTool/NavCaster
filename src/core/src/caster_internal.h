@@ -228,6 +228,9 @@ using json = nlohmann::json;
 #define NODE_HISTORY_1M_MAX    33120       // 60s × 23天 (7d~30d)
 #define NODE_HISTORY_5M_MAX    96480       // 5min × 335天 (30d~365d)
 #define NODE_HISTORY_INTERVAL  5           // 每 5 次 TimeoutCallback 记录一次 (=5s)
+#define REDIS_HISTORY_KEY      "MONITOR:REDIS:HISTORY"
+#define REDIS_HISTORY_MAX      1440
+#define REDIS_HISTORY_INTERVAL 60
 
 class caster_cb_item
 {
@@ -248,6 +251,7 @@ private:
     int _key_expire_time = 30; // Hash键值默认续期时间
     int _master_expire_time = 15; // Master锁TTL, 缩短以加速故障切换
     int _node_history_counter = 0; // 节点历史记录计数器, 每 5 次 TimeoutCallback 记录一次
+    int _redis_history_counter = 0; // Redis 指标历史计数器, 每 60 次 TimeoutCallback 记录一次
     int _1min_agg_counter = 0;     // 每 12 个 RAW 触发 1M 聚合 (12 × 5s = 60s)
     int _5min_agg_counter = 0;     // 每 5 个 1M 触发 5M 聚合 (5 × 60s = 300s)
     json _1min_agg_buffer = json::array(); // RAW 样本累加器
@@ -356,6 +360,7 @@ public:
 
     // 记录节点历史状态快照到 Redis List
     void record_node_history();
+    void record_redis_history();
 
     // 返回Caster的状态信息
     std::string get_status_str();
@@ -451,6 +456,7 @@ private:
 
     // 查询回调
     static void Redis_Get_Hash_Lenth_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Record_Redis_Info_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // ---------------------- Redis连接相关函数 --------------------------------------
 private:

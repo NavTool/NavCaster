@@ -5,7 +5,6 @@
 #include "sse_manager.h"
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <mutex>
 #include <random>
 
@@ -164,11 +163,15 @@ private:
 
     // Configuration (CONF:*)
     void handle_get_configs(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_config_schema(const HttpRequest &req, HttpResponse &resp);
     void handle_get_config(const HttpRequest &req, HttpResponse &resp);
+    void handle_validate_config(const HttpRequest &req, HttpResponse &resp);
+    void handle_apply_config(const HttpRequest &req, HttpResponse &resp);
     void handle_update_config(const HttpRequest &req, HttpResponse &resp);
 
     // Monitoring (Redis + Cluster)
     void handle_get_monitor_redis(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_monitor_redis_history(const HttpRequest &req, HttpResponse &resp);
     void handle_get_monitor_redis_keys(const HttpRequest &req, HttpResponse &resp);
     void handle_get_monitor_cluster(const HttpRequest &req, HttpResponse &resp);
 
@@ -196,6 +199,23 @@ private:
     std::string generate_token();
     bool validate_token(const std::string &token);
     void invalidate_token(const std::string &token);
+    std::string get_request_ip(const HttpRequest &req) const;
+    bool is_login_rate_limited(const std::string &ip, int &retry_after_seconds);
+    void record_login_attempt(const std::string &ip, bool success);
+    bool validate_password_strength(const std::string &password, std::string &reason) const;
+
+    struct TokenSession
+    {
+        std::string username;
+        time_t expires_at = 0;
+    };
+
+    struct LoginAttemptState
+    {
+        int failed_count = 0;
+        time_t first_failed_at = 0;
+        time_t blocked_until = 0;
+    };
 
 private:
     http_server _server;
@@ -205,7 +225,7 @@ private:
     HttpApiConfig _config;
     bool _routes_registered = false;
 
-    // Active tokens
-    std::unordered_set<std::string> _active_tokens;
-    std::mutex _token_mutex;
+    std::unordered_map<std::string, TokenSession> _active_tokens;
+    std::unordered_map<std::string, LoginAttemptState> _login_attempts;
+    std::mutex _auth_mutex;
 };
