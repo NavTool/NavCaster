@@ -188,6 +188,16 @@ export async function getUsrHistory(user: string): Promise<ConnectionHistoryItem
   return data as ConnectionHistoryItem[];
 }
 
+export async function getNodeServerHistory(nodeId: string): Promise<ConnectionHistoryItem[]> {
+  const { data } = await api.get(`/api/nodes/logs/servers/${encodeURIComponent(nodeId)}`);
+  return data as ConnectionHistoryItem[];
+}
+
+export async function getNodeClientHistory(nodeId: string): Promise<ConnectionHistoryItem[]> {
+  const { data } = await api.get(`/api/nodes/logs/clients/${encodeURIComponent(nodeId)}`);
+  return data as ConnectionHistoryItem[];
+}
+
 // ==================== Monitoring ====================
 
 export interface RedisMonitorInfo {

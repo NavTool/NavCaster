@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Table, Typography, Tabs, Tag, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { HistoryOutlined } from '@ant-design/icons';
 import { usePolling } from '../hooks/usePolling';
 import api from '../api/client';
-import { formatOnlineTime } from '../utils/format';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 interface HistoryRecord {
   name: string;

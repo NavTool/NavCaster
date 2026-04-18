@@ -3,9 +3,10 @@ import { Typography, Card, Breadcrumb, Row, Col, Statistic, Empty, Segmented, Ta
 import { useParams, Link } from 'react-router-dom';
 import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
+import ConnectionHistoryTable from '../components/ConnectionHistoryTable';
 import type { CasterNode } from '../api/types';
 import { formatBytes, formatOnlineTime, formatDelay, formatSpeed } from '../utils/format';
-import { getNodeHistory, getNodeConfig, postNodeAction, type NodeHistorySnapshot, type NodeConfigInfo } from '../api';
+import { getNodeHistory, getNodeConfig, getNodeServerHistory, getNodeClientHistory, postNodeAction, type NodeHistorySnapshot, type NodeConfigInfo } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const { Title } = Typography;
@@ -173,6 +174,38 @@ const NodeDetail: React.FC = () => {
     );
   };
 
+  const renderConnectionHistoryTab = () => {
+    if (!id) return <Empty description="未找到节点 ID" />;
+
+    return (
+      <Tabs
+        items={[
+          {
+            key: 'server-history',
+            label: '基站连接历史',
+            children: (
+              <ConnectionHistoryTable
+                fetchData={() => getNodeServerHistory(id)}
+                showAccount
+              />
+            ),
+          },
+          {
+            key: 'client-history',
+            label: '用户连接历史',
+            children: (
+              <ConnectionHistoryTable
+                fetchData={() => getNodeClientHistory(id)}
+                showMount
+                showAccount
+              />
+            ),
+          },
+        ]}
+      />
+    );
+  };
+
   const chartData = history.map(s => ({
     time: formatTime(s.t, isLongRange),
     cpu: +s.cpu.toFixed(1),
@@ -328,6 +361,11 @@ const NodeDetail: React.FC = () => {
             key: 'config',
             label: '配置与控制',
             children: renderConfigTab(),
+          },
+          {
+            key: 'connections',
+            label: '连接历史',
+            children: renderConnectionHistoryTab(),
           },
         ]} />
       ) : (

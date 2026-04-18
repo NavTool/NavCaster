@@ -10,7 +10,7 @@ import {
   getRedisMonitor, getRedisKeys, getClusterMonitor,
   type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo,
 } from '../api';
-import { formatBytes, formatDuration } from '../utils/format';
+import { formatDuration } from '../utils/format';
 import MetricCard from '../components/MetricCard';
 
 const { Title, Text } = Typography;
@@ -208,7 +208,7 @@ const SystemMonitor: React.FC = () => {
                 共 {keysInfo.total_keys} 个 Key，总内存 {formatMemory(keysInfo.total_memory)}
               </Text>
             </div>
-            <Table
+            <Table<RedisKeysAnalysis['categories'][number]>
               dataSource={keysInfo.categories}
               rowKey="prefix"
               size="small"

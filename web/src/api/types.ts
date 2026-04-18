@@ -265,6 +265,7 @@ export interface PushState {
 export interface CasterNode {
   uid: string;
   node_name: string;
+  is_master?: boolean;
   set_version: string;
   tag_version: string;
   run_platform: string;

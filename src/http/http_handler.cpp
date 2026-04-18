@@ -717,6 +717,10 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_get_nodes(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/config/*", [this](auto &req, auto &resp)
                   { handle_get_node_config(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/servers/*", [this](auto &req, auto &resp)
+                  { handle_get_node_server_history(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/clients/*", [this](auto &req, auto &resp)
+                  { handle_get_node_client_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/history/*", [this](auto &req, auto &resp)
                   { handle_get_node_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/*", [this](auto &req, auto &resp)
@@ -1591,6 +1595,43 @@ static json collect_named_connection_logs(sync_redis &redis, const std::string &
     return result;
 }
 
+static json build_connection_history_array(const json &logs)
+{
+    long long now_ts = static_cast<long long>(time(nullptr));
+    json result = json::array();
+
+    for (auto &[field, entry] : logs.items())
+    {
+        if (!entry.is_object())
+            continue;
+
+        json item = entry;
+
+        long long ct = entry.value("connect_time", 0LL);
+        long long dt = entry.value("disconnect_time", 0LL);
+        bool online = dt == 0;
+        long long duration = online ? (now_ts - ct) : (dt - ct);
+        if (duration < 0)
+            duration = 0;
+
+        item["online"] = online;
+        item["duration"] = duration;
+        result.push_back(item);
+    }
+
+    std::sort(result.begin(), result.end(), [](const json &lhs, const json &rhs) {
+        return lhs.value("connect_time", 0LL) > rhs.value("connect_time", 0LL);
+    });
+
+    return result;
+}
+
+static json collect_node_connection_logs(sync_redis &redis, const std::string &node_id, bool is_server)
+{
+    std::string key = "LOG:NODE:" + node_id + ":" + (is_server ? "MPT" : "USR");
+    return redis.hgetall(key.c_str());
+}
+
 void http_handler::handle_get_server_logs(const HttpRequest &req, HttpResponse &resp)
 {
     auto &redis = sync_redis::instance();
@@ -1605,6 +1646,38 @@ void http_handler::handle_get_client_logs(const HttpRequest &req, HttpResponse &
     json result = collect_connection_logs(redis, "LOG:USR:", KEY_LOG_USR);
     resp.status_code = 200;
     resp.body = result.dump();
+}
+
+void http_handler::handle_get_node_server_history(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string node_id = get_resource_id(req);
+    if (node_id.empty())
+    {
+        resp.status_code = 400;
+        resp.body = R"({"error":"Missing node ID"})";
+        return;
+    }
+
+    auto &redis = sync_redis::instance();
+    json logs = collect_node_connection_logs(redis, node_id, true);
+    resp.status_code = 200;
+    resp.body = build_connection_history_array(logs).dump();
+}
+
+void http_handler::handle_get_node_client_history(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string node_id = get_resource_id(req);
+    if (node_id.empty())
+    {
+        resp.status_code = 400;
+        resp.body = R"({"error":"Missing node ID"})";
+        return;
+    }
+
+    auto &redis = sync_redis::instance();
+    json logs = collect_node_connection_logs(redis, node_id, false);
+    resp.status_code = 200;
+    resp.body = build_connection_history_array(logs).dump();
 }
 
 // ==================== Statistics ====================
