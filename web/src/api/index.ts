@@ -198,6 +198,26 @@ export async function getNodeClientHistory(nodeId: string): Promise<ConnectionHi
   return data as ConnectionHistoryItem[];
 }
 
+export interface NodeRuntimeLogItem {
+  ts: number;
+  timestamp: string;
+  level: string;
+  logger: string;
+  message: string;
+}
+
+export interface NodeRuntimeLogResponse {
+  node_id: string;
+  node_name: string;
+  level: string;
+  items: NodeRuntimeLogItem[];
+}
+
+export async function getNodeRuntimeLogs(nodeId: string, params?: { limit?: number; level?: string }): Promise<NodeRuntimeLogResponse> {
+  const { data } = await api.get(`/api/nodes/logs/runtime/${encodeURIComponent(nodeId)}`, { params });
+  return data as NodeRuntimeLogResponse;
+}
+
 // ==================== Monitoring ====================
 
 export interface RedisMonitorInfo {

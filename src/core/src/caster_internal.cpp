@@ -10,6 +10,7 @@
 #include <sstream>
 #include "knt.h"
 #include "SysUsage.h"
+#include "log_ring_buffer.h"
 #include "version.h"
 
 #define __class__ "caster_internal"
@@ -37,6 +38,11 @@ std::string build_connection_log_key(bool is_base, const std::string &name)
 std::string build_node_connection_log_key(bool is_base, const std::string &node_id)
 {
     return std::string("LOG:NODE:") + sanitize_log_segment(node_id) + ":" + (is_base ? "MPT" : "USR");
+}
+
+std::string build_node_runtime_log_result_key(const std::string &node_id, const std::string &request_id)
+{
+    return std::string("NODE:LOGS:RESULT:") + sanitize_log_segment(node_id) + ":" + sanitize_log_segment(request_id);
 }
 
 void write_connection_log_async(redisAsyncContext *ctx, const json &entry, bool is_base)
@@ -1313,6 +1319,27 @@ void caster_internal::Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, 
                 {
                     spdlog::info("[caster_internal]: Sync cluster requested");
                     // Trigger a cluster sync cycle
+                }
+                else if (action == "get_recent_logs" && cmd.contains("params"))
+                {
+                    auto params = cmd["params"];
+                    std::string request_id = params.value("request_id", "");
+                    std::string level = params.value("level", "info");
+                    std::size_t limit = static_cast<std::size_t>(params.value("limit", 100));
+
+                    if (!request_id.empty())
+                    {
+                        json result = {
+                            {"node_id", svr->_node_ID},
+                            {"node_name", svr->_node_name},
+                            {"level", level},
+                            {"items", navcaster_log::get_recent_logs(level, limit)}
+                        };
+                        std::string key = build_node_runtime_log_result_key(svr->_node_ID, request_id);
+                        std::string payload = result.dump();
+                        redisAsyncCommand(svr->_pub_context, NULL, NULL, "SETEX %s %d %s",
+                                          key.c_str(), 15, payload.c_str());
+                    }
                 }
                 return;
             }

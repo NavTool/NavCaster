@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Typography, Card, Breadcrumb, Row, Col, Statistic, Empty, Segmented, Tabs, Descriptions, Tag, Button, Select, Switch, message, Spin } from 'antd';
+import { Typography, Card, Breadcrumb, Row, Col, Statistic, Empty, Segmented, Tabs, Descriptions, Tag, Button, Select, Switch, message, Spin, Table, Space } from 'antd';
 import { useParams, Link } from 'react-router-dom';
 import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import ConnectionHistoryTable from '../components/ConnectionHistoryTable';
 import type { CasterNode } from '../api/types';
 import { formatBytes, formatOnlineTime, formatDelay, formatSpeed } from '../utils/format';
-import { getNodeHistory, getNodeConfig, getNodeServerHistory, getNodeClientHistory, postNodeAction, type NodeHistorySnapshot, type NodeConfigInfo } from '../api';
+import { getNodeHistory, getNodeConfig, getNodeServerHistory, getNodeClientHistory, getNodeRuntimeLogs, postNodeAction, type NodeHistorySnapshot, type NodeConfigInfo, type NodeRuntimeLogItem } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const { Title } = Typography;
@@ -49,6 +49,9 @@ const NodeDetail: React.FC = () => {
   const [nodeConfig, setNodeConfig] = useState<NodeConfigInfo | null>(null);
   const [configLoading, setConfigLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [runtimeLogs, setRuntimeLogs] = useState<NodeRuntimeLogItem[]>([]);
+  const [runtimeLogsLoading, setRuntimeLogsLoading] = useState(false);
+  const [runtimeLogLevel, setRuntimeLogLevel] = useState('info');
 
   const currentRange = TIME_RANGES[selectedRange];
 
@@ -86,6 +89,26 @@ const NodeDetail: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'config') loadConfig();
   }, [activeTab, loadConfig]);
+
+  const loadRuntimeLogs = useCallback(async () => {
+    if (!id) return;
+    setRuntimeLogsLoading(true);
+    try {
+      const data = await getNodeRuntimeLogs(id, { limit: 100, level: runtimeLogLevel });
+      setRuntimeLogs(data.items ?? []);
+    } catch {
+      message.error('加载节点日志失败');
+    } finally {
+      setRuntimeLogsLoading(false);
+    }
+  }, [id, runtimeLogLevel]);
+
+  useEffect(() => {
+    if (activeTab !== 'logs') return;
+    loadRuntimeLogs();
+    const timer = setInterval(loadRuntimeLogs, 5000);
+    return () => clearInterval(timer);
+  }, [activeTab, loadRuntimeLogs]);
 
   const handleAction = async (action: string, params?: Record<string, unknown>) => {
     if (!id) return;
@@ -214,6 +237,63 @@ const NodeDetail: React.FC = () => {
           },
         ]}
       />
+    );
+  };
+
+  const renderLogsTab = () => {
+    if (!id) return <Empty description="未找到节点 ID" />;
+
+    return (
+      <Card
+        title="节点运行日志"
+        style={{ borderColor: '#2e3450' }}
+        extra={(
+          <Space>
+            <Select
+              value={runtimeLogLevel}
+              style={{ width: 160 }}
+              onChange={setRuntimeLogLevel}
+              options={[
+                { label: 'Info 及以上', value: 'info' },
+                { label: 'Debug 及以上', value: 'debug' },
+                { label: 'Warning 及以上', value: 'warn' },
+                { label: 'Error 及以上', value: 'error' },
+              ]}
+            />
+            <Button onClick={() => loadRuntimeLogs()} loading={runtimeLogsLoading}>刷新</Button>
+          </Space>
+        )}
+      >
+        <Table<NodeRuntimeLogItem>
+          dataSource={runtimeLogs}
+          rowKey={(record) => `${record.ts}-${record.message}`}
+          loading={runtimeLogsLoading}
+          size="small"
+          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          locale={{ emptyText: '暂无日志' }}
+          columns={[
+            { title: '时间', dataIndex: 'timestamp', key: 'timestamp', width: 200 },
+            {
+              title: '级别',
+              dataIndex: 'level',
+              key: 'level',
+              width: 100,
+              render: (value: string) => {
+                const color = value === 'error' || value === 'critical'
+                  ? 'red'
+                  : value === 'warn'
+                    ? 'orange'
+                    : value === 'debug'
+                      ? 'blue'
+                      : 'green';
+                return <Tag color={color}>{value.toUpperCase()}</Tag>;
+              },
+            },
+            { title: 'Logger', dataIndex: 'logger', key: 'logger', width: 120 },
+            { title: '消息', dataIndex: 'message', key: 'message' },
+          ]}
+        />
+      </Card>
     );
   };
 
@@ -377,6 +457,11 @@ const NodeDetail: React.FC = () => {
             key: 'connections',
             label: '连接历史',
             children: renderConnectionHistoryTab(),
+          },
+          {
+            key: 'logs',
+            label: '运行日志',
+            children: renderLogsTab(),
           },
         ]} />
       ) : (

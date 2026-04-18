@@ -37,6 +37,7 @@ using json = nlohmann::json;
 
 #include "yaml-cpp/yaml.h"
 
+#include "log_ring_buffer.h"
 #include "version.h"
 #include "ntrip_config.h"
 #include "ntrip_caster.h"
@@ -121,6 +122,7 @@ int init_log_system()
     // 把所有sink放入logger
     auto logger = std::make_shared<spdlog::logger>("log", begin(sinks), end(sinks));
     spdlog::set_default_logger(logger);
+    navcaster_log::install_ring_buffer_sink(500);
     spdlog::flush_on(spdlog::level::info); // 立即刷新日志
     if (log_debug)                         // 设置输出日志的级别
     {

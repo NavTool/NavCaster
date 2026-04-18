@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -38,6 +39,7 @@ static const char *KEY_LOG_MPT = "LOG:MPT";
 static const char *KEY_LOG_USR = "LOG:USR";
 static const char *KEY_LOG_AUDIT = "LOG:AUDIT";
 static const int AUDIT_LOG_MAX = 5000;
+static const int NODE_LOG_RESULT_TTL = 15;
 
 // PRAGMATIC APPROACH: Since all Redis operations are hash operations on local
 // Redis with sub-millisecond latency, and the HTTP API is for management only,
@@ -726,6 +728,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_get_nodes(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/config/*", [this](auto &req, auto &resp)
                   { handle_get_node_config(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/runtime/*", [this](auto &req, auto &resp)
+                  { handle_get_node_runtime_logs(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/servers/*", [this](auto &req, auto &resp)
                   { handle_get_node_server_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/clients/*", [this](auto &req, auto &resp)
@@ -1643,6 +1647,11 @@ static json collect_node_connection_logs(sync_redis &redis, const std::string &n
     return redis.hgetall(key.c_str());
 }
 
+static std::string build_node_runtime_log_result_key(const std::string &node_id, const std::string &request_id)
+{
+    return "NODE:LOGS:RESULT:" + node_id + ":" + request_id;
+}
+
 static std::unordered_map<std::string, int> count_relay_states_by_node(const json &relay_states)
 {
     std::unordered_map<std::string, int> counts;
@@ -1708,6 +1717,77 @@ void http_handler::handle_get_node_client_history(const HttpRequest &req, HttpRe
     json logs = collect_node_connection_logs(redis, node_id, false);
     resp.status_code = 200;
     resp.body = build_connection_history_array(logs).dump();
+}
+
+void http_handler::handle_get_node_runtime_logs(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string node_id = get_resource_id(req);
+    if (node_id.empty())
+    {
+        resp.status_code = 400;
+        resp.body = R"({"error":"Missing node ID"})";
+        return;
+    }
+
+    auto &redis = sync_redis::instance();
+    json node_info = redis.hget(KEY_CASTER_NODE, node_id.c_str());
+    if (node_info.is_null())
+    {
+        resp.status_code = 404;
+        resp.body = R"({"error":"Node not found"})";
+        return;
+    }
+
+    int limit = 100;
+    auto limit_it = req.query_params.find("limit");
+    if (limit_it != req.query_params.end())
+    {
+        try { limit = std::stoi(limit_it->second); } catch (...) {}
+    }
+    if (limit <= 0) limit = 100;
+    if (limit > 500) limit = 500;
+
+    std::string level = "info";
+    auto level_it = req.query_params.find("level");
+    if (level_it != req.query_params.end() && !level_it->second.empty())
+        level = level_it->second;
+
+    const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+    const std::string request_id = node_id + ":" + std::to_string(now);
+    const std::string result_key = build_node_runtime_log_result_key(node_id, request_id);
+
+    json cmd = {
+        {"type", "action"},
+        {"action", "get_recent_logs"},
+        {"params", {
+            {"request_id", request_id},
+            {"level", level},
+            {"limit", limit}
+        }}
+    };
+
+    if (!redis.publish(("NODE:" + node_id).c_str(), cmd.dump()))
+    {
+        resp.status_code = 500;
+        resp.body = R"({"error":"Failed to publish log request"})";
+        return;
+    }
+
+    for (int attempt = 0; attempt < 40; ++attempt)
+    {
+        json result = redis.get(result_key.c_str());
+        if (!result.is_null())
+        {
+            resp.status_code = 200;
+            resp.body = result.is_string() ? result.get<std::string>() : result.dump();
+            return;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    resp.status_code = 504;
+    resp.body = json{{"error", "Node log request timed out"}, {"ttl", NODE_LOG_RESULT_TTL}}.dump();
 }
 
 // ==================== Statistics ====================

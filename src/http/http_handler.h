@@ -152,6 +152,7 @@ private:
     void handle_get_node_history(const HttpRequest &req, HttpResponse &resp);
     void handle_get_node_server_history(const HttpRequest &req, HttpResponse &resp);
     void handle_get_node_client_history(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_node_runtime_logs(const HttpRequest &req, HttpResponse &resp);
 
     // Statistics (based on LOG:MPT / LOG:USR)
     void handle_get_stats_overview(const HttpRequest &req, HttpResponse &resp);

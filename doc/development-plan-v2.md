@@ -81,6 +81,7 @@
 - 已验证链路：登录、`/api/monitor/redis`、`/api/nodes/config/{id}`、`/api/nodes/action/{id}`、`/api/logs/audit`；其中 `config_update` 已确认触发 `CASTER:CONF -> CONFIG` 并在节点侧热加载。
 - 节点可观测性增强已完成：系统监控页和节点详情页已补充监听端口、HTTP 端口、进程 ID、运行平台、在线时长等运行时信息。
 - 节点身份规范已完成收敛：`node_id` 继续保持稳定哈希，展示名称统一调整为 `Node_XXXXX`；HTTP API 默认仅主节点开放，从节点需显式配置 `HTTP_API_Setting.Enable_On_Slave=true` 才会对外监听。
+- 节点运行日志查看已完成：服务进程已挂载 spdlog ring buffer sink，节点详情页可按级别查看目标节点最近日志，并通过 `NODE:{id}` 指令链路跨节点回收日志结果。
 
 ### 当前实现边界
 
@@ -88,12 +89,13 @@
 - 审计日志当前已覆盖节点控制链路，其他资源的审计补齐仍可继续扩展。
 - 系统监控页当前聚焦 Redis 状态、集群状态、Key 空间分析；Redis 历史趋势依赖 `3.3`，尚未纳入本轮实现。
 - HTTP 管理策略当前为“主节点默认开放、从节点按配置开放”；该策略已支持随主从角色变化动态启停 HTTP 线程，但配置项仍以部署配置/YAML 为主。
+- 节点运行日志当前提供最近 500 条内存日志窗口，支持按最小级别筛选；持久化检索和全文搜索仍不在本轮范围内。
 
 ### 后续工作
 
-- Phase 3 页面增强：`5.1`、`5.2`、`5.4` 以及 `5.3` 中“节点日志”能力仍待完成。
-- Phase 4 系统完善：`6.1-6.3` 设置页完善、`7.3` 安全增强、`3.3` Redis 历史趋势、`2.3` 节点日志查看仍未开始。
-- 下一步迭代重点：补齐节点日志查看、将 `Enable_On_Slave` 纳入前端配置编辑闭环，并继续扩展审计日志覆盖范围。
+- Phase 3 页面增强：`5.1`、`5.2`、`5.4` 仍待完成，`5.3` 中“节点日志”能力已补齐，其他节点详情增强项可继续打磨。
+- Phase 4 系统完善：`6.1-6.3` 设置页完善、`7.3` 安全增强、`3.3` Redis 历史趋势仍未开始。
+- 下一步迭代重点：将 `Enable_On_Slave` 纳入前端配置编辑闭环，继续完成 `5.1`、`5.2`、`5.4` 页面增强，并扩展审计日志覆盖范围。
 
 ---
 
@@ -373,6 +375,8 @@ void caster_internal::handle_node_command(const json &cmd) {
 
 ### 2.3 节点运行日志查看
 
+状态：已完成基础能力，当前支持最近日志查看与级别筛选
+
 #### 后端 API
 
 | Method | Path | 说明 |
@@ -384,6 +388,7 @@ void caster_internal::handle_node_command(const json &cmd) {
 - 在 spdlog 中注册一个 **ring_buffer sink**（内存中保留最近 500 条日志）
 - HTTP API 读取 ring_buffer 返回
 - 支持参数：`level=info&limit=100`
+- 目标节点通过既有 `NODE:{id}` action 通道回传日志结果，管理节点无需依赖从节点开放 HTTP
 
 ```cpp
 // logger.cpp
