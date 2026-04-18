@@ -2,7 +2,7 @@ import React from 'react';
 import { Breadcrumb, Button, Card, Col, Descriptions, Empty, Row, Space, Statistic, Tag, Typography } from 'antd';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
-import { pushRecordsApi, pushStatesApi, relayStart, relayStop } from '../api';
+import { pushRecordsApi, getPushStatesByUid, relayStart, relayStop } from '../api';
 import type { PushRecord, PushState } from '../api/types';
 import { formatOnlineTime } from '../utils/format';
 
@@ -15,7 +15,7 @@ const PushRelayDetail: React.FC = () => {
     async () => (id ? pushRecordsApi.getOne(id) : null),
     3000,
   );
-  const { data: stateMap, refresh: refreshState } = usePolling(() => pushStatesApi.getAll(), 3000);
+  const { data: stateMap, refresh: refreshState } = usePolling(() => getPushStatesByUid(), 3000);
 
   const relayState: PushState | undefined = id ? stateMap?.[id] : undefined;
   const running = !!relayState && relayState.state === 1;

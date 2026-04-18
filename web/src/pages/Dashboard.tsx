@@ -1,22 +1,37 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Typography, Spin, Alert, Progress, Tag } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Card, Col, Row, Typography, Spin, Alert, Progress, Tag, Space, Table } from 'antd';
 import {
   CloudServerOutlined, UserOutlined, ClusterOutlined,
   ArrowUpOutlined, ArrowDownOutlined, DashboardOutlined,
-  HddOutlined, ClockCircleOutlined, CrownOutlined,
+  ClockCircleOutlined, CrownOutlined, DatabaseOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { CasterNode, ServerState, ClientState } from '../api/types';
 import { formatBytes, formatMbps, formatOnlineTime, formatDelay, formatUsage, formatSpeed } from '../utils/format';
 import { useNavigate } from 'react-router-dom';
-import { getSystemStatus } from '../api';
+import { getClusterMonitor, getSystemStatus, type ClusterMonitorInfo } from '../api';
+import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, BarChart, Bar, Legend } from 'recharts';
 
 const { Title, Text } = Typography;
+
+interface ThroughputPoint {
+  ts: number;
+  recv_speed: number;
+  send_speed: number;
+}
+
+function formatChartTime(ts: number): string {
+  const date = new Date(ts);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+}
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [masterNode, setMasterNode] = useState<string | null>(null);
+  const [clusterInfo, setClusterInfo] = useState<ClusterMonitorInfo | null>(null);
+  const [throughputHistory, setThroughputHistory] = useState<ThroughputPoint[]>([]);
   const { data: sseData, connected } = useMultiSSE<{
     nodes: Record<string, CasterNode>;
     servers: Record<string, ServerState>;
@@ -24,16 +39,18 @@ const Dashboard: React.FC = () => {
   }>(['nodes', 'servers', 'clients']);
 
   useEffect(() => {
-    const fetchMaster = async () => {
+    const fetchSummary = async () => {
       try {
-        const status = await getSystemStatus();
+        const [status, cluster] = await Promise.all([getSystemStatus(), getClusterMonitor()]);
         setMasterNode(status?.master_node ?? null);
+        setClusterInfo(cluster ?? null);
       } catch { /* ignore */ }
     };
-    fetchMaster();
-    const interval = setInterval(fetchMaster, 10000);
+    fetchSummary();
+    const interval = setInterval(fetchSummary, 10000);
     return () => clearInterval(interval);
   }, []);
+
   const nodesLoading = !connected && !sseData.nodes;
   const nodes = sseData.nodes ?? null;
   const servers = sseData.servers ?? null;
@@ -49,19 +66,50 @@ const Dashboard: React.FC = () => {
   const avgCpu = nodeList.length > 0 ? nodeList.reduce((s, n) => s + (n.cpu_usage || 0), 0) / nodeList.length : 0;
   const totalMem = nodeList.reduce((s, n) => s + (n.mem_usage || 0), 0);
   const minOnlineTime = nodeList.length > 0 ? Math.min(...nodeList.map(n => n.online_time || 0)) : 0;
+  const alertCount = nodeList.filter((node) => (node.cpu_usage || 0) > 85 || (node.queue_delay || 0) > 100000).length;
+
+  useEffect(() => {
+    if (!connected || nodeList.length === 0) return;
+    const point: ThroughputPoint = {
+      ts: Date.now(),
+      recv_speed: totalRecvSpeed,
+      send_speed: totalSendSpeed,
+    };
+    setThroughputHistory((prev) => [...prev.slice(-59), point]);
+  }, [connected, nodeList.length, totalRecvSpeed, totalSendSpeed]);
+
+  const nodeLoadData = useMemo(() => nodeList.map((node) => ({
+    name: node.node_name || node.uid,
+    cpu: Number((node.cpu_usage || 0).toFixed(1)),
+    mem_mb: Number(((node.mem_usage || 0) / 1024 / 1024).toFixed(1)),
+    mpt: node.server_count || 0,
+    usr: node.client_count || 0,
+  })), [nodeList]);
 
   if (nodesLoading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
 
   const cpuColor = avgCpu > 85 ? '#ff4d4f' : avgCpu > 50 ? '#faad14' : '#52c41a';
+  const masterNodeInfo = nodeList.find((node) => node.uid === masterNode || node.is_master) ?? null;
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <Title level={4} style={{ margin: 0 }}>NtripCaster Dashboard</Title>
-        <Text style={{ color: '#6b7194', fontSize: 13 }}>监控和管理您的 GNSS 差分数据基础设施</Text>
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <Title level={4} style={{ margin: 0 }}>NtripCaster Dashboard</Title>
+          <Text style={{ color: '#6b7194', fontSize: 13 }}>监控和管理您的 GNSS 差分数据基础设施</Text>
+        </div>
+        <Space wrap>
+          {masterNodeInfo && (
+            <Tag color="gold" icon={<CrownOutlined />} style={{ height: 28, display: 'inline-flex', alignItems: 'center', paddingInline: 10 }}>
+              Master {masterNodeInfo.node_name || masterNodeInfo.uid}
+            </Tag>
+          )}
+          <Tag color={alertCount > 0 ? 'error' : 'success'} icon={<WarningOutlined />} style={{ height: 28, display: 'inline-flex', alignItems: 'center', paddingInline: 10 }}>
+            告警 {alertCount}
+          </Tag>
+        </Space>
       </div>
 
-      {/* Spark-style metric cards */}
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={8} lg={6}>
           <Card className="metric-card" style={{ borderColor: '#2e3450' }}>
@@ -72,8 +120,7 @@ const Dashboard: React.FC = () => {
               </div>
               <DashboardOutlined style={{ fontSize: 28, color: '#4a8eff', opacity: 0.5 }} />
             </div>
-            <Progress percent={Math.round(avgCpu)} size="small" showInfo={false} strokeColor={cpuColor}
-              style={{ marginTop: 8 }} />
+            <Progress percent={Math.round(avgCpu)} size="small" showInfo={false} strokeColor={cpuColor} style={{ marginTop: 8 }} />
           </Card>
         </Col>
         <Col xs={12} sm={8} lg={6}>
@@ -116,7 +163,7 @@ const Dashboard: React.FC = () => {
                 <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>内存占用</div>
                 <div style={{ fontSize: 28, fontWeight: 700 }}>{formatBytes(totalMem)}</div>
               </div>
-              <HddOutlined style={{ fontSize: 28, color: '#8b90a8', opacity: 0.5 }} />
+              <DatabaseOutlined style={{ fontSize: 28, color: '#8b90a8', opacity: 0.5 }} />
             </div>
           </Card>
         </Col>
@@ -155,7 +202,6 @@ const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* Spark-style node cards */}
       <Title level={4} style={{ marginTop: 24 }}>节点状态</Title>
       <Row gutter={[16, 16]}>
         {nodeList.map((node: CasterNode) => (
@@ -168,7 +214,7 @@ const Dashboard: React.FC = () => {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontSize: 16, fontWeight: 600 }}>{node.node_name || node.uid}</span>
-                      {masterNode === node.uid && (
+                      {(masterNode === node.uid || node.is_master) && (
                         <Tag color="gold" icon={<CrownOutlined />} style={{ margin: 0, fontSize: 11, lineHeight: '18px', padding: '0 5px' }}>Master</Tag>
                       )}
                     </div>
@@ -180,7 +226,6 @@ const Dashboard: React.FC = () => {
                 <StatusIndicator status="online" pulse size="md" />
               </div>
 
-              {/* Quick stats row like Spark's NodesView */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7194', marginBottom: 2 }}>
@@ -198,7 +243,6 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* CPU bar */}
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: '#6b7194' }}>CPU 负载</span>
@@ -208,7 +252,6 @@ const Dashboard: React.FC = () => {
                   strokeColor={(node.cpu_usage || 0) > 85 ? '#ff4d4f' : (node.cpu_usage || 0) > 50 ? '#faad14' : '#52c41a'} />
               </div>
 
-              {/* Memory bar */}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: '#6b7194' }}>内存</span>
@@ -216,7 +259,6 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Details */}
               <div style={{ borderTop: '1px solid #2e3450', paddingTop: 12, display: 'grid', gap: 6, fontSize: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#6b7194' }}>平台</span>
@@ -247,6 +289,92 @@ const Dashboard: React.FC = () => {
           </Col>
         ))}
         {nodeList.length === 0 && <Col span={24}><Alert message="暂无节点数据" type="info" /></Col>}
+      </Row>
+
+      <Title level={4} style={{ marginTop: 24 }}>扩展分析</Title>
+      <Row gutter={[16, 16]} style={{ marginTop: 4 }}>
+        <Col xs={24} xl={14}>
+          <Card title="实时吞吐量趋势" style={{ borderColor: '#2e3450' }}>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <AreaChart data={throughputHistory}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#30354a" />
+                  <XAxis dataKey="ts" tickFormatter={(value) => formatChartTime(Number(value))} minTickGap={28} />
+                  <YAxis tickFormatter={(value) => formatBytes(Number(value))} />
+                  <RechartsTooltip
+                    labelFormatter={(value) => formatChartTime(Number(value))}
+                      formatter={(value) => formatSpeed(Number(value ?? 0))}
+                  />
+                  <Legend />
+                  <Area type="monotone" dataKey="recv_speed" name="输入" stroke="#ff7875" fill="#ff787540" />
+                  <Area type="monotone" dataKey="send_speed" name="输出" stroke="#52c41a" fill="#52c41a30" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} xl={10}>
+          <Card title="节点负载对比" style={{ borderColor: '#2e3450' }}>
+            <div style={{ width: '100%', height: 300 }}>
+              <ResponsiveContainer>
+                <BarChart data={nodeLoadData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#30354a" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <RechartsTooltip />
+                  <Legend />
+                  <Bar dataKey="cpu" name="CPU %" fill="#4a8eff" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="mem_mb" name="内存 MB" fill="#faad14" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginTop: 8, marginBottom: 24 }}>
+        <Col xs={24} xl={8}>
+          <Card title="集群摘要" style={{ borderColor: '#2e3450', height: '100%' }}>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><Text type="secondary">总内存</Text><Text>{formatBytes(totalMem)}</Text></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><Text type="secondary">平均 CPU</Text><Text>{avgCpu.toFixed(1)}%</Text></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><Text type="secondary">Pull / Push</Text><Text>{clusterInfo?.total_pull ?? 0} / {clusterInfo?.total_push ?? 0}</Text></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><Text type="secondary">Redis 延迟</Text><Text>{clusterInfo?.redis_latency_ms.toFixed(2) ?? '-'} ms</Text></div>
+              <div style={{ marginTop: 4 }}>
+                <Text type="secondary">CPU 健康度</Text>
+                <Progress percent={Math.round(avgCpu)} size="small" showInfo={false} strokeColor={cpuColor} style={{ marginTop: 6 }} />
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} xl={16}>
+          <Card title="节点速览" style={{ borderColor: '#2e3450' }}>
+            <Table
+              dataSource={nodeList}
+              rowKey="uid"
+              size="small"
+              pagination={false}
+              columns={[
+                {
+                  title: '节点',
+                  key: 'node_name',
+                  render: (_, node: CasterNode) => (
+                    <Space>
+                      <a onClick={() => navigate(`/nodes/${encodeURIComponent(node.uid)}`)}>{node.node_name || node.uid}</a>
+                      {(masterNode === node.uid || node.is_master) && <Tag color="gold">Master</Tag>}
+                    </Space>
+                  ),
+                },
+                { title: 'CPU', key: 'cpu', render: (_, node: CasterNode) => `${(node.cpu_usage || 0).toFixed(1)}%` },
+                { title: '内存', key: 'mem', render: (_, node: CasterNode) => formatBytes(node.mem_usage || 0) },
+                { title: '基站', dataIndex: 'server_count', key: 'server_count' },
+                { title: '用户', dataIndex: 'client_count', key: 'client_count' },
+                { title: '输入', key: 'recv_speed', render: (_, node: CasterNode) => formatSpeed(node.recv_speed || 0) },
+                { title: '输出', key: 'send_speed', render: (_, node: CasterNode) => formatSpeed(node.send_speed || 0) },
+              ]}
+            />
+          </Card>
+        </Col>
       </Row>
     </div>
   );

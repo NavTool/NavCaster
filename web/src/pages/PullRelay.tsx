@@ -4,7 +4,7 @@ import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, Play
 import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
-import { pullRecordsApi, pullStatesApi, fetchRemoteSourcetable, relayStart, relayStop } from '../api';
+import { pullRecordsApi, getPullStatesByUid, fetchRemoteSourcetable, relayStart, relayStop } from '../api';
 import type { PullRecord, PullState } from '../api/types';
 import { PullType } from '../api/types';
 import { formatOnlineTime } from '../utils/format';
@@ -20,7 +20,7 @@ const typeLabels: Record<number, string> = {
 
 const PullRelay: React.FC = () => {
   const { data, loading, refresh } = usePolling(() => pullRecordsApi.getAll(), 3000);
-  const { data: states, refresh: refreshStates } = usePolling(() => pullStatesApi.getAll(), 3000);
+  const { data: states, refresh: refreshStates } = usePolling(() => getPullStatesByUid(), 3000);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PullRecord | null>(null);
   const [form] = Form.useForm();

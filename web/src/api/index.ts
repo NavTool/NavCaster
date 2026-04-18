@@ -22,6 +22,25 @@ export const nodesApi = createReadOnlyHashApi<CasterNode>('/api/nodes');
 export const pullStatesApi = createReadOnlyHashApi<PullState>('/api/relays/pull/status');
 export const pushStatesApi = createReadOnlyHashApi<PushState>('/api/relays/push/status');
 
+function mapRelayStatesByUid<T extends { uid: string }>(states: Record<string, T>): Record<string, T> {
+  return Object.values(states || {}).reduce<Record<string, T>>((acc, item) => {
+    if (item?.uid) {
+      acc[item.uid] = item;
+    }
+    return acc;
+  }, {});
+}
+
+export async function getPullStatesByUid(): Promise<Record<string, PullState>> {
+  const states = await pullStatesApi.getAll();
+  return mapRelayStatesByUid(states);
+}
+
+export async function getPushStatesByUid(): Promise<Record<string, PushState>> {
+  const states = await pushStatesApi.getAll();
+  return mapRelayStatesByUid(states);
+}
+
 // Relay start/stop
 export async function relayStart(type: 'pull' | 'push', uid: string) {
   const { data } = await api.post(`/api/relays/${type}/start/${encodeURIComponent(uid)}`);

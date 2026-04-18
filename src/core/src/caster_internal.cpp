@@ -1208,11 +1208,13 @@ int caster_internal::upload_relay_status()
 {
     for (auto iter : _pull_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        const std::string &field = iter.second.uid().empty() ? iter.first : iter.second.uid();
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), field.c_str(), iter.second.toString().c_str());
     }
     for (auto iter : _push_status_map)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        const std::string &field = iter.second.uid().empty() ? iter.first : iter.second.uid();
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), field.c_str(), iter.second.toString().c_str());
     }
     return 0;
 }
@@ -1482,7 +1484,12 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
             // 解析失败
             continue;
         }
-        svr->_pull_status_map.insert(std::pair<std::string, pull_status>(field, item));
+        const std::string normalized_key = item.uid().empty() ? std::string(field) : item.uid();
+        if (normalized_key != field)
+        {
+            redisAsyncCommand(c, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", field);
+        }
+        svr->_pull_status_map.insert(std::pair<std::string, pull_status>(normalized_key, item));
     }
 }
 
@@ -1566,7 +1573,12 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
             // 解析失败
             continue;
         }
-        svr->_push_status_map.insert(std::pair<std::string, push_status>(field, item));
+        const std::string normalized_key = item.uid().empty() ? std::string(field) : item.uid();
+        if (normalized_key != field)
+        {
+            redisAsyncCommand(c, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", field);
+        }
+        svr->_push_status_map.insert(std::pair<std::string, push_status>(normalized_key, item));
     }
 }
 

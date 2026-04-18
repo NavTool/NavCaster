@@ -2,7 +2,7 @@ import React from 'react';
 import { Breadcrumb, Button, Card, Col, Descriptions, Empty, Row, Space, Statistic, Tag, Typography } from 'antd';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
-import { pullRecordsApi, pullStatesApi, relayStart, relayStop } from '../api';
+import { pullRecordsApi, getPullStatesByUid, relayStart, relayStop } from '../api';
 import type { PullRecord, PullState } from '../api/types';
 import { formatOnlineTime } from '../utils/format';
 
@@ -15,7 +15,7 @@ const PullRelayDetail: React.FC = () => {
     async () => (id ? pullRecordsApi.getOne(id) : null),
     3000,
   );
-  const { data: stateMap, refresh: refreshState } = usePolling(() => pullStatesApi.getAll(), 3000);
+  const { data: stateMap, refresh: refreshState } = usePolling(() => getPullStatesByUid(), 3000);
 
   const relayState: PullState | undefined = id ? stateMap?.[id] : undefined;
   const running = !!relayState && relayState.state === 1;

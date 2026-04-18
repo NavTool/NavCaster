@@ -5,7 +5,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { Link } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { useSSE } from '../hooks/useSSE';
-import { pushRecordsApi, pushStatesApi, relayStart, relayStop } from '../api';
+import { pushRecordsApi, getPushStatesByUid, relayStart, relayStop } from '../api';
 import type { PushRecord, PushState, ServerState } from '../api/types';
 import { PushType } from '../api/types';
 import { formatOnlineTime } from '../utils/format';
@@ -21,7 +21,7 @@ const typeLabels: Record<number, string> = {
 
 const PushRelay: React.FC = () => {
   const { data, loading, refresh } = usePolling(() => pushRecordsApi.getAll(), 3000);
-  const { data: states, refresh: refreshStates } = usePolling(() => pushStatesApi.getAll(), 3000);
+  const { data: states, refresh: refreshStates } = usePolling(() => getPushStatesByUid(), 3000);
   const { data: servers } = useSSE<Record<string, ServerState>>('servers');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PushRecord | null>(null);
