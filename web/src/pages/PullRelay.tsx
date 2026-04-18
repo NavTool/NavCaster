@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Select, AutoComplete, Typography, Space, Tag, Row, Col, message, Popconfirm, Tooltip } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, CloudDownloadOutlined, PlayCircleOutlined, PauseCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Link } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
-import { pullRecordsApi, getPullStatesByUid, fetchRemoteSourcetable, relayStart, relayStop } from '../api';
+import { pullRecordsApi, pullStatesApi, fetchRemoteSourcetable, relayStart, relayStop } from '../api';
 import type { PullRecord, PullState } from '../api/types';
 import { PullType } from '../api/types';
 import { formatOnlineTime } from '../utils/format';
@@ -20,7 +19,7 @@ const typeLabels: Record<number, string> = {
 
 const PullRelay: React.FC = () => {
   const { data, loading, refresh } = usePolling(() => pullRecordsApi.getAll(), 3000);
-  const { data: states, refresh: refreshStates } = usePolling(() => getPullStatesByUid(), 3000);
+  const { data: states, refresh: refreshStates } = usePolling(() => pullStatesApi.getAll(), 3000);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PullRecord | null>(null);
   const [form] = Form.useForm();
@@ -239,7 +238,7 @@ const PullRelay: React.FC = () => {
   }, [states]);
 
   const columns: ColumnsType<PullRecord & { key: string }> = [
-    { title: '本地挂载点', dataIndex: 'login_mpt', key: 'login_mpt', width: 120, render: (value, record) => <Link to={`/relay/pull/${encodeURIComponent(record.uid)}`}>{value}</Link> },
+    { title: '本地挂载点', dataIndex: 'login_mpt', key: 'login_mpt', width: 120 },
     { title: '类型', key: 'type', width: 100, render: (_, r) => typeLabels[r.type] || '未知' },
     { title: '目标 IP', dataIndex: 'target_ip', key: 'target_ip', width: 120 },
     { title: '目标端口', dataIndex: 'target_port', key: 'target_port', width: 80 },

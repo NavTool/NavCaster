@@ -6,10 +6,8 @@
 #include <algorithm>
 #include <chrono>
 #include <iomanip>
-#include <optional>
 #include <set>
 #include <sstream>
-#include <thread>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -38,18 +36,6 @@ static const char *KEY_MPT_ONLINE = "MPT:LIST";
 static const char *KEY_MPT_SUB = "MPT:SUB";
 static const char *KEY_LOG_MPT = "LOG:MPT";
 static const char *KEY_LOG_USR = "LOG:USR";
-static const char *KEY_LOG_AUDIT = "LOG:AUDIT";
-static const char *KEY_MONITOR_REDIS_HISTORY = "MONITOR:REDIS:HISTORY";
-static const int AUDIT_LOG_MAX = 5000;
-static const int NODE_LOG_RESULT_TTL = 15;
-static const int TOKEN_TTL_SECONDS = 3600;
-static const int LOGIN_RATE_LIMIT_WINDOW_SECONDS = 300;
-static const int LOGIN_RATE_LIMIT_MAX_FAILURES = 5;
-static const int LOGIN_RATE_LIMIT_BLOCK_SECONDS = 600;
-
-static void audit_log(const HttpRequest &req, const std::string &action,
-                      const std::string &target, const json &detail = json::object(),
-                      const std::string &result = "ok");
 
 // PRAGMATIC APPROACH: Since all Redis operations are hash operations on local
 // Redis with sub-millisecond latency, and the HTTP API is for management only,
@@ -310,38 +296,6 @@ namespace
             return ok;
         }
 
-        // LPUSH key value → number of elements after push
-        long long lpush(const char *key, const std::string &value)
-        {
-            if (!ensure_connected())
-                return -1;
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "LPUSH %s %s", key, value.c_str()));
-            long long count = -1;
-            if (reply && reply->type == REDIS_REPLY_INTEGER)
-                count = reply->integer;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return count;
-        }
-
-        // LTRIM key start stop
-        bool ltrim(const char *key, long long start, long long stop)
-        {
-            if (!ensure_connected())
-                return false;
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "LTRIM %s %lld %lld", key, start, stop));
-            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return ok;
-        }
-
         // LRANGE key start stop → json array of parsed values
         json lrange(const char *key, long long start, long long stop)
         {
@@ -561,12 +515,6 @@ namespace
 http_handler::http_handler() {}
 http_handler::~http_handler() {}
 
-void http_handler::stop()
-{
-    _sse.stop();
-    _server.stop();
-}
-
 int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adapter *auth_redis, const HttpApiConfig &config)
 {
     _caster_redis = caster_redis;
@@ -601,19 +549,16 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
 
     // Configure server
     _server.set_cors_origin(config.cors_origin);
+    _server.add_public_path("/api/auth/login");
+    _server.add_public_path("/api/status/health");
     _server.set_auth_validator([this](const std::string &token) -> bool
                                { return validate_token(token); });
 
-    if (!_routes_registered)
-    {
-        _server.add_public_path("/api/auth/login");
-        _server.add_public_path("/api/status/health");
-
-        // ==================== Auth ====================
-        _server.route(EVHTTP_REQ_POST, "/api/auth/login", [this](auto &req, auto &resp)
-                      { handle_login(req, resp); });
-        _server.route(EVHTTP_REQ_POST, "/api/auth/logout", [this](auto &req, auto &resp)
-                      { handle_logout(req, resp); });
+    // ==================== Auth ====================
+    _server.route(EVHTTP_REQ_POST, "/api/auth/login", [this](auto &req, auto &resp)
+                  { handle_login(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/auth/logout", [this](auto &req, auto &resp)
+                  { handle_logout(req, resp); });
 
     // ==================== Accounts ====================
     _server.route(EVHTTP_REQ_GET, "/api/accounts", [this](auto &req, auto &resp)
@@ -736,14 +681,6 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     // ==================== Nodes (read-only) ====================
     _server.route(EVHTTP_REQ_GET, "/api/nodes", [this](auto &req, auto &resp)
                   { handle_get_nodes(req, resp); });
-    _server.route(EVHTTP_REQ_GET, "/api/nodes/config/*", [this](auto &req, auto &resp)
-                  { handle_get_node_config(req, resp); });
-    _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/runtime/*", [this](auto &req, auto &resp)
-                  { handle_get_node_runtime_logs(req, resp); });
-    _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/servers/*", [this](auto &req, auto &resp)
-                  { handle_get_node_server_history(req, resp); });
-    _server.route(EVHTTP_REQ_GET, "/api/nodes/logs/clients/*", [this](auto &req, auto &resp)
-                  { handle_get_node_client_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/history/*", [this](auto &req, auto &resp)
                   { handle_get_node_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/nodes/*", [this](auto &req, auto &resp)
@@ -782,34 +719,18 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     // ==================== Configuration ====================
     _server.route(EVHTTP_REQ_GET, "/api/config", [this](auto &req, auto &resp)
                   { handle_get_configs(req, resp); });
-    _server.route(EVHTTP_REQ_GET, "/api/config/schema", [this](auto &req, auto &resp)
-                  { handle_get_config_schema(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/config/*", [this](auto &req, auto &resp)
                   { handle_get_config(req, resp); });
-    _server.route(EVHTTP_REQ_POST, "/api/config/validate", [this](auto &req, auto &resp)
-                  { handle_validate_config(req, resp); });
-    _server.route(EVHTTP_REQ_POST, "/api/config/apply", [this](auto &req, auto &resp)
-                  { handle_apply_config(req, resp); });
     _server.route(EVHTTP_REQ_PUT, "/api/config/*", [this](auto &req, auto &resp)
                   { handle_update_config(req, resp); });
 
     // ==================== Monitoring ====================
     _server.route(EVHTTP_REQ_GET, "/api/monitor/redis", [this](auto &req, auto &resp)
                   { handle_get_monitor_redis(req, resp); });
-    _server.route(EVHTTP_REQ_GET, "/api/monitor/redis/history", [this](auto &req, auto &resp)
-                  { handle_get_monitor_redis_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/monitor/redis/keys", [this](auto &req, auto &resp)
                   { handle_get_monitor_redis_keys(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/monitor/cluster", [this](auto &req, auto &resp)
                   { handle_get_monitor_cluster(req, resp); });
-
-    // ==================== Node Control ====================
-    _server.route(EVHTTP_REQ_POST, "/api/nodes/action/*", [this](auto &req, auto &resp)
-                  { handle_post_node_action(req, resp); });
-
-    // ==================== Audit Log ====================
-    _server.route(EVHTTP_REQ_GET, "/api/logs/audit", [this](auto &req, auto &resp)
-                  { handle_get_audit_logs(req, resp); });
 
     // ==================== Utilities ====================
     _server.route(EVHTTP_REQ_POST, "/api/utils/sourcetable", [this](auto &req, auto &resp)
@@ -817,19 +738,17 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _server.route(EVHTTP_REQ_GET, "/api/utils/sourcetable/local", [this](auto &req, auto &resp)
                   { handle_local_sourcetable(req, resp); });
 
-        // ==================== SSE (Server-Sent Events) ====================
-        _server.route_raw(EVHTTP_REQ_GET, "/api/events/stream",
-                          [this](evhttp_request *raw_req, const HttpRequest &req)
-                          { handle_sse_stream(raw_req, req); });
-        _server.add_public_path("/api/events/stream"); // Auth via query param token
-        _routes_registered = true;
-    }
-
     // ==================== Static File Serving ====================
     if (!config.web_root.empty())
     {
         _server.set_static_root(config.web_root);
     }
+
+    // ==================== SSE (Server-Sent Events) ====================
+    _server.route_raw(EVHTTP_REQ_GET, "/api/events/stream",
+                      [this](evhttp_request *raw_req, const HttpRequest &req)
+                      { handle_sse_stream(raw_req, req); });
+    _server.add_public_path("/api/events/stream"); // Auth via query param token
 
     // Start server
     int ret = _server.init(base, config.port, config.bind_addr);
@@ -904,9 +823,8 @@ std::string http_handler::generate_token()
     for (int i = 0; i < 64; ++i)
         token += charset[dist(gen)];
 
-    const time_t now = time(nullptr);
-    std::lock_guard<std::mutex> lock(_auth_mutex);
-    _active_tokens[token] = TokenSession{"admin", now + TOKEN_TTL_SECONDS};
+    std::lock_guard<std::mutex> lock(_token_mutex);
+    _active_tokens.insert(token);
     return token;
 }
 
@@ -914,113 +832,14 @@ bool http_handler::validate_token(const std::string &token)
 {
     if (token.empty())
         return false;
-
-    const time_t now = time(nullptr);
-    std::lock_guard<std::mutex> lock(_auth_mutex);
-    for (auto it = _active_tokens.begin(); it != _active_tokens.end();)
-    {
-        if (it->second.expires_at <= now)
-            it = _active_tokens.erase(it);
-        else
-            ++it;
-    }
-
-    auto it = _active_tokens.find(token);
-    return it != _active_tokens.end() && it->second.expires_at > now;
+    std::lock_guard<std::mutex> lock(_token_mutex);
+    return _active_tokens.count(token) > 0;
 }
 
 void http_handler::invalidate_token(const std::string &token)
 {
-    std::lock_guard<std::mutex> lock(_auth_mutex);
+    std::lock_guard<std::mutex> lock(_token_mutex);
     _active_tokens.erase(token);
-}
-
-std::string http_handler::get_request_ip(const HttpRequest &req) const
-{
-    auto it = req.headers.find("X-Forwarded-For");
-    if (it != req.headers.end() && !it->second.empty())
-        return it->second;
-
-    it = req.headers.find("X-Client-IP");
-    if (it != req.headers.end() && !it->second.empty())
-        return it->second;
-
-    return "unknown";
-}
-
-bool http_handler::is_login_rate_limited(const std::string &ip, int &retry_after_seconds)
-{
-    retry_after_seconds = 0;
-    const time_t now = time(nullptr);
-    std::lock_guard<std::mutex> lock(_auth_mutex);
-
-    for (auto it = _login_attempts.begin(); it != _login_attempts.end();)
-    {
-        const bool expired_window = it->second.blocked_until <= now &&
-            (it->second.first_failed_at == 0 || now - it->second.first_failed_at > LOGIN_RATE_LIMIT_WINDOW_SECONDS);
-        if (expired_window)
-            it = _login_attempts.erase(it);
-        else
-            ++it;
-    }
-
-    auto it = _login_attempts.find(ip);
-    if (it == _login_attempts.end())
-        return false;
-
-    if (it->second.blocked_until > now)
-    {
-        retry_after_seconds = static_cast<int>(it->second.blocked_until - now);
-        return true;
-    }
-
-    return false;
-}
-
-void http_handler::record_login_attempt(const std::string &ip, bool success)
-{
-    const time_t now = time(nullptr);
-    std::lock_guard<std::mutex> lock(_auth_mutex);
-    auto &state = _login_attempts[ip];
-
-    if (success)
-    {
-        _login_attempts.erase(ip);
-        return;
-    }
-
-    if (state.first_failed_at == 0 || now - state.first_failed_at > LOGIN_RATE_LIMIT_WINDOW_SECONDS)
-    {
-        state.failed_count = 0;
-        state.first_failed_at = now;
-        state.blocked_until = 0;
-    }
-
-    state.failed_count++;
-    if (state.failed_count >= LOGIN_RATE_LIMIT_MAX_FAILURES)
-        state.blocked_until = now + LOGIN_RATE_LIMIT_BLOCK_SECONDS;
-}
-
-bool http_handler::validate_password_strength(const std::string &password, std::string &reason) const
-{
-    if (password.size() < 8)
-    {
-        reason = "密码长度至少需要 8 位";
-        return false;
-    }
-
-    const bool has_upper = std::any_of(password.begin(), password.end(), [](unsigned char ch) { return std::isupper(ch) != 0; });
-    const bool has_lower = std::any_of(password.begin(), password.end(), [](unsigned char ch) { return std::islower(ch) != 0; });
-    const bool has_digit = std::any_of(password.begin(), password.end(), [](unsigned char ch) { return std::isdigit(ch) != 0; });
-
-    if (!has_upper || !has_lower || !has_digit)
-    {
-        reason = "密码需同时包含大写字母、小写字母和数字";
-        return false;
-    }
-
-    reason.clear();
-    return true;
 }
 
 // ==================== Auth ====================
@@ -1041,36 +860,13 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
 
     std::string user = body.value("username", "");
     std::string pass = body.value("password", "");
-    const std::string client_ip = get_request_ip(req);
-    int retry_after_seconds = 0;
-
-    if (is_login_rate_limited(client_ip, retry_after_seconds))
-    {
-        resp.status_code = 429;
-        resp.body = json{{"error", "Too many login attempts"}, {"retry_after", retry_after_seconds}}.dump();
-        audit_log(req, "auth_login", user.empty() ? "unknown" : user,
-                  {{"ip", client_ip}, {"retry_after", retry_after_seconds}}, "rate_limited");
-        return;
-    }
-
-    auto issue_login_success = [&](const std::string &username) {
-        std::string token = generate_token();
-        {
-            std::lock_guard<std::mutex> lock(_auth_mutex);
-            auto token_it = _active_tokens.find(token);
-            if (token_it != _active_tokens.end())
-                token_it->second.username = username;
-        }
-        record_login_attempt(client_ip, true);
-        json result = {{"token", token}, {"username", username}, {"expires_in", TOKEN_TTL_SECONDS}};
-        resp.status_code = 200;
-        resp.body = result.dump();
-        audit_log(req, "auth_login", username, {{"ip", client_ip}, {"expires_in", TOKEN_TTL_SECONDS}});
-    };
 
     if (user == _config.admin_user && pass == _config.admin_password)
     {
-        issue_login_success(user);
+        std::string token = generate_token();
+        json result = {{"token", token}, {"username", user}};
+        resp.status_code = 200;
+        resp.body = result.dump();
         spdlog::info("[{}:{}]: Login success, user: {}", __class__, __func__, user);
     }
     else
@@ -1081,15 +877,16 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
         std::string redis_pass = auth_conf.is_object() ? auth_conf.value("admin_password", "") : "";
         if (!redis_user.empty() && user == redis_user && pass == redis_pass)
         {
-            issue_login_success(user);
+            std::string token = generate_token();
+            json result = {{"token", token}, {"username", user}};
+            resp.status_code = 200;
+            resp.body = result.dump();
         }
         else
         {
-            record_login_attempt(client_ip, false);
             resp.status_code = 401;
             resp.body = R"({"error":"Invalid credentials"})";
             spdlog::warn("[{}:{}]: Login failed, user: {}", __class__, __func__, user);
-            audit_log(req, "auth_login", user.empty() ? "unknown" : user, {{"ip", client_ip}}, "fail");
         }
     }
 }
@@ -1102,8 +899,6 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
         std::string token = it->second.substr(7);
         invalidate_token(token);
     }
-    audit_log(req, "auth_logout", req.headers.count("X-Auth-User") ? req.headers.at("X-Auth-User") : "admin",
-              {{"ip", get_request_ip(req)}});
     resp.status_code = 200;
     resp.body = R"({"ok":true})";
 }
@@ -1144,7 +939,7 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
         resp.body = json{{"ok", true}, {"field", field}}.dump();       \
     }
 
-#define IMPL_UPDATE(handler_name, redis_key, action_name)              \
+#define IMPL_UPDATE(handler_name, redis_key)                           \
     void http_handler::handler_name(const HttpRequest &req, HttpResponse &resp) \
     {                                                                  \
         std::string id = get_resource_id(req);                         \
@@ -1154,19 +949,17 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
         catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; } \
         bool ok = sync_redis::instance().hset(redis_key, id.c_str(), body.dump()); \
         if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; } \
-        audit_log(req, action_name, id, body);                         \
         resp.status_code = 200;                                        \
         resp.body = json{{"ok", true}}.dump();                         \
     }
 
-#define IMPL_DELETE(handler_name, redis_key, action_name)              \
+#define IMPL_DELETE(handler_name, redis_key)                           \
     void http_handler::handler_name(const HttpRequest &req, HttpResponse &resp) \
     {                                                                  \
         std::string id = get_resource_id(req);                         \
         if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; } \
         bool ok = sync_redis::instance().hdel(redis_key, id.c_str()); \
         if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; } \
-        audit_log(req, action_name, id, json::object());               \
         resp.status_code = 200;                                        \
         resp.body = json{{"ok", true}}.dump();                         \
     }
@@ -1226,7 +1019,6 @@ void http_handler::handle_create_account(const HttpRequest &req, HttpResponse &r
         resp.body = R"({"error":"Account already exists"})";
         return;
     }
-    audit_log(req, "create_account", account, body);
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"account", account}}.dump();
 }
@@ -1258,7 +1050,6 @@ void http_handler::handle_update_account(const HttpRequest &req, HttpResponse &r
         resp.body = R"({"error":"Redis error"})";
         return;
     }
-    audit_log(req, "update_account", id, body);
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1279,7 +1070,6 @@ void http_handler::handle_delete_account(const HttpRequest &req, HttpResponse &r
         resp.body = R"({"error":"Account not found"})";
         return;
     }
-    audit_log(req, "delete_account", id, json::object());
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1305,13 +1095,12 @@ void http_handler::handle_create_source(const HttpRequest &req, HttpResponse &re
     if (mountpoint.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint"})"; return; }
     bool ok = sync_redis::instance().hsetnx(KEY_SOURCE_RECORD, mountpoint.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Source already exists"})"; return; }
-    audit_log(req, "create_source", mountpoint, body);
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"mountpoint", mountpoint}}.dump();
 }
 
-IMPL_UPDATE(handle_update_source, KEY_SOURCE_RECORD, "update_source")
-IMPL_DELETE(handle_delete_source, KEY_SOURCE_RECORD, "delete_source")
+IMPL_UPDATE(handle_update_source, KEY_SOURCE_RECORD)
+IMPL_DELETE(handle_delete_source, KEY_SOURCE_RECORD)
 
 // ==================== Servers (MPT:STAT) read-only ====================
 
@@ -1351,7 +1140,6 @@ void http_handler::handle_create_alias(const HttpRequest &req, HttpResponse &res
     bool ok = sync_redis::instance().hsetnx(KEY_ALIAS_RULE, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Alias already exists"})"; return; }
     sync_redis::instance().publish("CASTER:CONF", "ALIAS");
-    audit_log(req, "create_alias", uid, body);
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"alias", uid}}.dump();
 }
@@ -1366,7 +1154,6 @@ void http_handler::handle_update_alias(const HttpRequest &req, HttpResponse &res
     bool ok = sync_redis::instance().hset(KEY_ALIAS_RULE, id.c_str(), body.dump());
     if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
     sync_redis::instance().publish("CASTER:CONF", "ALIAS");
-    audit_log(req, "update_alias", id, body);
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1378,7 +1165,6 @@ void http_handler::handle_delete_alias(const HttpRequest &req, HttpResponse &res
     bool ok = sync_redis::instance().hdel(KEY_ALIAS_RULE, id.c_str());
     if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
     sync_redis::instance().publish("CASTER:CONF", "ALIAS");
-    audit_log(req, "delete_alias", id, json::object());
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1398,13 +1184,12 @@ void http_handler::handle_create_access_group(const HttpRequest &req, HttpRespon
     if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing group uid"})"; return; }
     bool ok = sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Group already exists"})"; return; }
-    audit_log(req, "create_access_group", uid, body);
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
 
-IMPL_UPDATE(handle_update_access_group, KEY_ACCESS_GROUP, "update_access_group")
-IMPL_DELETE(handle_delete_access_group, KEY_ACCESS_GROUP, "delete_access_group")
+IMPL_UPDATE(handle_update_access_group, KEY_ACCESS_GROUP)
+IMPL_DELETE(handle_delete_access_group, KEY_ACCESS_GROUP)
 
 // ==================== Access Items (ACCESS:ITEM:<group_uid>) ====================
 
@@ -1468,8 +1253,6 @@ void http_handler::handle_update_access_item(const HttpRequest &req, HttpRespons
     std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
     bool ok = sync_redis::instance().hset(key.c_str(), mount.c_str(), body.dump());
     if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
-    audit_log(req, "create_access_item", group_uid + ":" + mount, body);
-    audit_log(req, "update_access_item", group_uid + ":" + mount, body);
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1493,7 +1276,6 @@ void http_handler::handle_delete_access_item(const HttpRequest &req, HttpRespons
     std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
     bool ok = sync_redis::instance().hdel(key.c_str(), mount.c_str());
     if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Item not found"})"; return; }
-    audit_log(req, "delete_access_item", group_uid + ":" + mount, json::object());
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1513,7 +1295,6 @@ void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp
     if (!body.contains("enabled")) body["enabled"] = true;
     bool ok = sync_redis::instance().hsetnx(KEY_PULL_RECORD, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Pull record already exists"})"; return; }
-    audit_log(req, "create_pull_relay", uid, body);
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
@@ -1529,7 +1310,6 @@ void http_handler::handle_update_pull(const HttpRequest &req, HttpResponse &resp
     if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
     // Delete status to force task restart with new parameters
     sync_redis::instance().hdel(KEY_PULL_STATE, id.c_str());
-    audit_log(req, "update_pull_relay", id, body);
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1542,7 +1322,6 @@ void http_handler::handle_delete_pull(const HttpRequest &req, HttpResponse &resp
     if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
     // Also clean up corresponding state entry
     sync_redis::instance().hdel(KEY_PULL_STATE, id.c_str());
-    audit_log(req, "delete_pull_relay", id, json::object());
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1564,7 +1343,6 @@ void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp
     if (!body.contains("enabled")) body["enabled"] = true;
     bool ok = sync_redis::instance().hsetnx(KEY_PUSH_RECORD, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Push record already exists"})"; return; }
-    audit_log(req, "create_push_relay", uid, body);
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
@@ -1580,7 +1358,6 @@ void http_handler::handle_update_push(const HttpRequest &req, HttpResponse &resp
     if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
     // Delete status to force task restart with new parameters
     sync_redis::instance().hdel(KEY_PUSH_STATE, id.c_str());
-    audit_log(req, "update_push_relay", id, body);
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1593,7 +1370,6 @@ void http_handler::handle_delete_push(const HttpRequest &req, HttpResponse &resp
     if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
     // Also clean up corresponding state entry
     sync_redis::instance().hdel(KEY_PUSH_STATE, id.c_str());
-    audit_log(req, "delete_push_relay", id, json::object());
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1619,7 +1395,6 @@ void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp
         json record = val.is_string() ? json::parse(val.get<std::string>()) : val;
         record["enabled"] = true;
         sync_redis::instance().hset(key, uid.c_str(), record.dump());
-        audit_log(req, is_pull ? "start_pull_relay" : "start_push_relay", uid, record);
         resp.status_code = 200;
         resp.body = json{{"ok", true}, {"uid", uid}}.dump();
     } catch (...) {
@@ -1649,7 +1424,6 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
         // the node running the relay. Premature HDEL causes _pull/_push_status_map
         // to lose the entry on next sync, preventing the INACTIVE from ever firing,
         // which leaves stale MPT:REC records that keep refreshing.
-        audit_log(req, is_pull ? "stop_pull_relay" : "stop_push_relay", uid, record);
         resp.status_code = 200;
         resp.body = json{{"ok", true}, {"uid", uid}}.dump();
     } catch (...) {
@@ -1719,403 +1493,8 @@ void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse 
 
 // ==================== Connection History (LOG:MPT / LOG:USR) read-only ====================
 
-static bool starts_with(const std::string &value, const std::string &prefix)
-{
-    return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
-}
-
-static void merge_log_hash(json &result, const std::string &source_key, const json &entries)
-{
-    if (!entries.is_object())
-        return;
-
-    for (auto &[field, entry] : entries.items())
-    {
-        result[source_key + "|" + field] = entry;
-    }
-}
-
-static json collect_connection_logs(sync_redis &redis, const std::string &hierarchical_prefix, const char *legacy_key)
-{
-    json result = json::object();
-
-    merge_log_hash(result, legacy_key, redis.hgetall(legacy_key));
-
-    auto keys = redis.scan_all_keys();
-    for (const auto &key : keys)
-    {
-        if (starts_with(key, hierarchical_prefix))
-            merge_log_hash(result, key, redis.hgetall(key.c_str()));
-    }
-
-    return result;
-}
-
-static json collect_named_connection_logs(sync_redis &redis, const std::string &hierarchical_key,
-                                          const char *legacy_key, const std::string &name)
-{
-    json result = json::object();
-    merge_log_hash(result, hierarchical_key, redis.hgetall(hierarchical_key.c_str()));
-
-    json legacy = redis.hgetall(legacy_key);
-    if (legacy.is_object())
-    {
-        for (auto &[field, entry] : legacy.items())
-        {
-            if (!entry.is_object())
-                continue;
-            if (entry.value("name", "") != name)
-                continue;
-            result[std::string(legacy_key) + "|" + field] = entry;
-        }
-    }
-
-    return result;
-}
-
-static json build_connection_history_array(const json &logs)
-{
-    long long now_ts = static_cast<long long>(time(nullptr));
-    json result = json::array();
-
-    for (auto &[field, entry] : logs.items())
-    {
-        if (!entry.is_object())
-            continue;
-
-        json item = entry;
-
-        long long ct = entry.value("connect_time", 0LL);
-        long long dt = entry.value("disconnect_time", 0LL);
-        bool online = dt == 0;
-        long long duration = online ? (now_ts - ct) : (dt - ct);
-        if (duration < 0)
-            duration = 0;
-
-        item["online"] = online;
-        item["duration"] = duration;
-        result.push_back(item);
-    }
-
-    std::sort(result.begin(), result.end(), [](const json &lhs, const json &rhs) {
-        return lhs.value("connect_time", 0LL) > rhs.value("connect_time", 0LL);
-    });
-
-    return result;
-}
-
-static json collect_node_connection_logs(sync_redis &redis, const std::string &node_id, bool is_server)
-{
-    std::string key = "LOG:NODE:" + node_id + ":" + (is_server ? "MPT" : "USR");
-    return redis.hgetall(key.c_str());
-}
-
-static std::string build_node_runtime_log_result_key(const std::string &node_id, const std::string &request_id)
-{
-    return "NODE:LOGS:RESULT:" + node_id + ":" + request_id;
-}
-
-static bool apply_config_update_value(json &conf, const std::string &section, const std::string &key, const json &value)
-{
-    if (section == "core")
-    {
-        conf[key] = value;
-        return true;
-    }
-
-    if (section != "service")
-        return false;
-
-    auto assign_nested = [&](const char *group, const char *field) {
-        if (!conf.contains(group) || !conf[group].is_object())
-            conf[group] = json::object();
-        conf[group][field] = value;
-        return true;
-    };
-
-    if (key == "listen_port") return assign_nested("listener", "listen_port");
-    if (key == "connect_timeout") return assign_nested("listener", "connect_timeout");
-    if (key == "enable_source_login") return assign_nested("listener", "enable_source_login");
-    if (key == "enable_server_login") return assign_nested("listener", "enable_server_login");
-    if (key == "enable_client_login") return assign_nested("listener", "enable_client_login");
-    if (key == "enable_nearest_login") return assign_nested("listener", "enable_nearest_login");
-    if (key == "enable_proxy_login") return assign_nested("listener", "enable_proxy_login");
-    if (key == "enable_alias_login") return assign_nested("listener", "enable_alias_login");
-    if (key == "server_timeout") return assign_nested("server", "connect_timeout");
-    if (key == "server_heartbeat_interval") return assign_nested("server", "heart_beat_interval");
-    if (key == "client_timeout") return assign_nested("client", "connect_timeout");
-    if (key == "http_port") return assign_nested("http_api", "port");
-    if (key == "http_bind_addr") return assign_nested("http_api", "bind_addr");
-    if (key == "http_enable_on_slave") return assign_nested("http_api", "enable_on_slave");
-
-    return false;
-}
-
-static void add_config_schema_entry(json &schema,
-                                    const std::string &key,
-                                    const std::string &label,
-                                    const std::string &type,
-                                    bool restart_required,
-                                    const std::string &group,
-                                    std::initializer_list<const char *> path,
-                                    std::optional<double> min_value = std::nullopt,
-                                    std::optional<double> max_value = std::nullopt,
-                                    const json &default_value = nullptr)
-{
-    json entry = {
-        {"label", label},
-        {"type", type},
-        {"group", group},
-        {"restart_required", restart_required},
-        {"path", json::array()}
-    };
-
-    for (const char *segment : path)
-        entry["path"].push_back(segment);
-
-    if (min_value.has_value()) entry["min"] = *min_value;
-    if (max_value.has_value()) entry["max"] = *max_value;
-    if (!default_value.is_null()) entry["default"] = default_value;
-    schema[key] = std::move(entry);
-}
-
-static json build_config_schema()
-{
-    json schema = json::object();
-
-    add_config_schema_entry(schema, "core.update_intv", "状态上报间隔(秒)", "number", false, "core", {"update_intv"}, 1, 300, 5);
-    add_config_schema_entry(schema, "core.key_expire_time", "Key 过期时间(秒)", "number", false, "core", {"key_expire_time"}, 5, 3600, 15);
-    add_config_schema_entry(schema, "core.upload_base_stat", "上报基站状态", "boolean", false, "core", {"upload_base_stat"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "core.upload_rover_stat", "上报用户状态", "boolean", false, "core", {"upload_rover_stat"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "core.base_enable_mult", "基站允许多连接", "boolean", false, "core", {"base_enable_mult"}, std::nullopt, std::nullopt, false);
-    add_config_schema_entry(schema, "core.base_keep_early", "保留先登录基站", "boolean", false, "core", {"base_keep_early"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "core.rover_enable_mult", "用户允许多连接", "boolean", false, "core", {"rover_enable_mult"}, std::nullopt, std::nullopt, false);
-    add_config_schema_entry(schema, "core.rover_keep_early", "保留先登录用户", "boolean", false, "core", {"rover_keep_early"}, std::nullopt, std::nullopt, false);
-    add_config_schema_entry(schema, "core.base_notify_inactive", "基站离线通知", "boolean", false, "core", {"base_notify_inactive"}, std::nullopt, std::nullopt, false);
-    add_config_schema_entry(schema, "core.rover_notify_inactive", "用户离线通知", "boolean", false, "core", {"rover_noify_inactive"}, std::nullopt, std::nullopt, false);
-
-    add_config_schema_entry(schema, "service.listen_port", "监听端口", "number", true, "service", {"listener", "listen_port"}, 1, 65535, 2101);
-    add_config_schema_entry(schema, "service.connect_timeout", "连接超时(秒)", "number", false, "service", {"listener", "connect_timeout"}, 5, 300, 30);
-    add_config_schema_entry(schema, "service.enable_source_login", "Source 登录", "boolean", false, "service", {"listener", "enable_source_login"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "service.enable_server_login", "Server 登录", "boolean", false, "service", {"listener", "enable_server_login"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "service.enable_client_login", "Client 登录", "boolean", false, "service", {"listener", "enable_client_login"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "service.enable_nearest_login", "Nearest 登录", "boolean", false, "service", {"listener", "enable_nearest_login"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "service.enable_proxy_login", "代理协议", "boolean", false, "service", {"listener", "enable_proxy_login"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "service.enable_alias_login", "别名功能", "boolean", false, "service", {"listener", "enable_alias_login"}, std::nullopt, std::nullopt, true);
-    add_config_schema_entry(schema, "service.server_timeout", "基站连接超时(秒)", "number", false, "service", {"server", "connect_timeout"}, 1, 3600, 60);
-    add_config_schema_entry(schema, "service.server_heartbeat_interval", "基站心跳间隔(秒)", "number", false, "service", {"server", "heart_beat_interval"}, 1, 3600, 30);
-    add_config_schema_entry(schema, "service.client_timeout", "用户连接超时(秒)", "number", false, "service", {"client", "connect_timeout"}, 0, 3600, 0);
-    add_config_schema_entry(schema, "service.http_port", "HTTP 端口", "number", true, "service", {"http_api", "port"}, 1, 65535, 8080);
-    add_config_schema_entry(schema, "service.http_bind_addr", "HTTP 绑定地址", "string", true, "service", {"http_api", "bind_addr"}, std::nullopt, std::nullopt, "0.0.0.0");
-    add_config_schema_entry(schema, "service.http_enable_on_slave", "从节点开启 HTTP", "boolean", true, "service", {"http_api", "enable_on_slave"}, std::nullopt, std::nullopt, false);
-    add_config_schema_entry(schema, "service.http_cors_origin", "CORS Origin", "string", true, "service", {"http_api", "cors_origin"}, std::nullopt, std::nullopt, "*");
-    add_config_schema_entry(schema, "service.http_web_root", "Web 根目录", "string", true, "service", {"http_api", "web_root"}, std::nullopt, std::nullopt, "");
-
-    add_config_schema_entry(schema, "auth.admin_user", "管理用户名", "string", false, "auth", {"admin_user"}, std::nullopt, std::nullopt, "admin");
-
-    return schema;
-}
-
-static json get_config_value_by_path(const json &config, const json &path)
-{
-    const json *current = &config;
-    for (const auto &segment : path)
-    {
-        if (!segment.is_string())
-            return nullptr;
-
-        const std::string field = segment.get<std::string>();
-        if (!current->is_object() || !current->contains(field))
-            return nullptr;
-        current = &(*current)[field];
-    }
-    return *current;
-}
-
-static bool validate_config_payload(const std::string &section, const json &config, json &errors)
-{
-    errors = json::array();
-    if (!config.is_object())
-    {
-        errors.push_back({{"key", section}, {"message", "配置内容必须是对象"}});
-        return false;
-    }
-
-    const json schema = build_config_schema();
-    for (auto &[key, meta] : schema.items())
-    {
-        if (meta.value("group", "") != section)
-            continue;
-
-        json value = get_config_value_by_path(config, meta["path"]);
-        if (value.is_null())
-            continue;
-
-        const std::string type = meta.value("type", "string");
-        bool type_ok = true;
-        if (type == "number") type_ok = value.is_number();
-        else if (type == "boolean") type_ok = value.is_boolean();
-        else if (type == "string") type_ok = value.is_string();
-
-        if (!type_ok)
-        {
-            errors.push_back({{"key", key}, {"message", "类型不匹配"}});
-            continue;
-        }
-
-        if (type == "number")
-        {
-            const double number_value = value.get<double>();
-            if (meta.contains("min") && number_value < meta["min"].get<double>())
-                errors.push_back({{"key", key}, {"message", "值低于最小限制"}});
-            if (meta.contains("max") && number_value > meta["max"].get<double>())
-                errors.push_back({{"key", key}, {"message", "值高于最大限制"}});
-        }
-
-        if (type == "string" && key == "auth.admin_user" && value.get<std::string>().empty())
-            errors.push_back({{"key", key}, {"message", "管理用户名不能为空"}});
-    }
-
-    return errors.empty();
-}
-
-static std::unordered_map<std::string, int> count_relay_states_by_node(const json &relay_states)
-{
-    std::unordered_map<std::string, int> counts;
-    if (!relay_states.is_object())
-        return counts;
-
-    for (auto &[uid, state] : relay_states.items())
-    {
-        if (!state.is_object())
-            continue;
-        std::string node_uid = state.value("node_uid", "");
-        if (node_uid.empty())
-            continue;
-        counts[node_uid]++;
-    }
-
-    return counts;
-}
-
-void http_handler::handle_get_server_logs(const HttpRequest &req, HttpResponse &resp)
-{
-    auto &redis = sync_redis::instance();
-    json result = collect_connection_logs(redis, "LOG:MPT:", KEY_LOG_MPT);
-    resp.status_code = 200;
-    resp.body = result.dump();
-}
-
-void http_handler::handle_get_client_logs(const HttpRequest &req, HttpResponse &resp)
-{
-    auto &redis = sync_redis::instance();
-    json result = collect_connection_logs(redis, "LOG:USR:", KEY_LOG_USR);
-    resp.status_code = 200;
-    resp.body = result.dump();
-}
-
-void http_handler::handle_get_node_server_history(const HttpRequest &req, HttpResponse &resp)
-{
-    std::string node_id = get_resource_id(req);
-    if (node_id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing node ID"})";
-        return;
-    }
-
-    auto &redis = sync_redis::instance();
-    json logs = collect_node_connection_logs(redis, node_id, true);
-    resp.status_code = 200;
-    resp.body = build_connection_history_array(logs).dump();
-}
-
-void http_handler::handle_get_node_client_history(const HttpRequest &req, HttpResponse &resp)
-{
-    std::string node_id = get_resource_id(req);
-    if (node_id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing node ID"})";
-        return;
-    }
-
-    auto &redis = sync_redis::instance();
-    json logs = collect_node_connection_logs(redis, node_id, false);
-    resp.status_code = 200;
-    resp.body = build_connection_history_array(logs).dump();
-}
-
-void http_handler::handle_get_node_runtime_logs(const HttpRequest &req, HttpResponse &resp)
-{
-    std::string node_id = get_resource_id(req);
-    if (node_id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing node ID"})";
-        return;
-    }
-
-    auto &redis = sync_redis::instance();
-    json node_info = redis.hget(KEY_CASTER_NODE, node_id.c_str());
-    if (node_info.is_null())
-    {
-        resp.status_code = 404;
-        resp.body = R"({"error":"Node not found"})";
-        return;
-    }
-
-    int limit = 100;
-    auto limit_it = req.query_params.find("limit");
-    if (limit_it != req.query_params.end())
-    {
-        try { limit = std::stoi(limit_it->second); } catch (...) {}
-    }
-    if (limit <= 0) limit = 100;
-    if (limit > 500) limit = 500;
-
-    std::string level = "info";
-    auto level_it = req.query_params.find("level");
-    if (level_it != req.query_params.end() && !level_it->second.empty())
-        level = level_it->second;
-
-    const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-    const std::string request_id = node_id + ":" + std::to_string(now);
-    const std::string result_key = build_node_runtime_log_result_key(node_id, request_id);
-
-    json cmd = {
-        {"type", "action"},
-        {"action", "get_recent_logs"},
-        {"params", {
-            {"request_id", request_id},
-            {"level", level},
-            {"limit", limit}
-        }}
-    };
-
-    if (!redis.publish(("NODE:" + node_id).c_str(), cmd.dump()))
-    {
-        resp.status_code = 500;
-        resp.body = R"({"error":"Failed to publish log request"})";
-        return;
-    }
-
-    for (int attempt = 0; attempt < 40; ++attempt)
-    {
-        json result = redis.get(result_key.c_str());
-        if (!result.is_null())
-        {
-            resp.status_code = 200;
-            resp.body = result.is_string() ? result.get<std::string>() : result.dump();
-            return;
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-
-    resp.status_code = 504;
-    resp.body = json{{"error", "Node log request timed out"}, {"ttl", NODE_LOG_RESULT_TTL}}.dump();
-}
+IMPL_GET_ALL(handle_get_server_logs, KEY_LOG_MPT)
+IMPL_GET_ALL(handle_get_client_logs, KEY_LOG_USR)
 
 // ==================== Statistics ====================
 
@@ -2167,8 +1546,8 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     if (end_ts == 0) end_ts = now_ts + 1;
 
     auto &redis = sync_redis::instance();
-    json mpt_logs = collect_connection_logs(redis, "LOG:MPT:", KEY_LOG_MPT);
-    json usr_logs = collect_connection_logs(redis, "LOG:USR:", KEY_LOG_USR);
+    json mpt_logs = redis.hgetall(KEY_LOG_MPT);
+    json usr_logs = redis.hgetall(KEY_LOG_USR);
 
     // Aggregate
     long long mpt_connections = 0, usr_connections = 0;
@@ -2306,8 +1685,8 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
     }
 
     // Compute from logs
-    json mpt_logs = collect_connection_logs(redis, "LOG:MPT:", KEY_LOG_MPT);
-    json usr_logs = collect_connection_logs(redis, "LOG:USR:", KEY_LOG_USR);
+    json mpt_logs = redis.hgetall(KEY_LOG_MPT);
+    json usr_logs = redis.hgetall(KEY_LOG_USR);
 
     long long mpt_connections = 0, usr_connections = 0;
     long long total_duration_mpt = 0, total_duration_usr = 0;
@@ -2411,8 +1790,7 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
     if (limit <= 0) limit = 20;
     if (limit > 100) limit = 100;
 
-    auto &redis = sync_redis::instance();
-    json mpt_logs = collect_connection_logs(redis, "LOG:MPT:", KEY_LOG_MPT);
+    json mpt_logs = sync_redis::instance().hgetall(KEY_LOG_MPT);
 
     // Aggregate per mountpoint
     struct MptStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; };
@@ -2473,8 +1851,7 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
     if (limit <= 0) limit = 20;
     if (limit > 100) limit = 100;
 
-    auto &redis = sync_redis::instance();
-    json usr_logs = collect_connection_logs(redis, "LOG:USR:", KEY_LOG_USR);
+    json usr_logs = sync_redis::instance().hgetall(KEY_LOG_USR);
 
     struct UsrStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; std::set<std::string> mounts; };
     std::map<std::string, UsrStat> stats;
@@ -2527,8 +1904,7 @@ void http_handler::handle_get_stats_mpt_history(const HttpRequest &req, HttpResp
     std::string mount = get_resource_id(req);
     if (mount.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint name"})"; return; }
 
-    auto &redis = sync_redis::instance();
-    json mpt_logs = collect_named_connection_logs(redis, "LOG:MPT:" + mount, KEY_LOG_MPT, mount);
+    json mpt_logs = sync_redis::instance().hgetall(KEY_LOG_MPT);
     long long now_ts = static_cast<long long>(time(nullptr));
 
     json result = json::array();
@@ -2561,8 +1937,7 @@ void http_handler::handle_get_stats_usr_history(const HttpRequest &req, HttpResp
     std::string user = get_resource_id(req);
     if (user.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing user name"})"; return; }
 
-    auto &redis = sync_redis::instance();
-    json usr_logs = collect_named_connection_logs(redis, "LOG:USR:" + user, KEY_LOG_USR, user);
+    json usr_logs = sync_redis::instance().hgetall(KEY_LOG_USR);
     long long now_ts = static_cast<long long>(time(nullptr));
 
     json result = json::array();
@@ -2849,26 +2224,15 @@ void http_handler::save_config(const std::string &section, const std::string &js
 
 void http_handler::handle_get_configs(const HttpRequest &req, HttpResponse &resp)
 {
-    (void)req;
     json result = json::object();
     auto service = sync_redis::instance().get(KEY_CONF_SERVICE);
     auto core = sync_redis::instance().get(KEY_CONF_CORE);
     auto auth = sync_redis::instance().get(KEY_CONF_AUTH);
     if (!service.is_null()) result["service"] = service;
     if (!core.is_null()) result["core"] = core;
-    if (auth.is_object())
-        result["auth"] = json{{"admin_user", auth.value("admin_user", _config.admin_user)}};
-    else
-        result["auth"] = json{{"admin_user", _config.admin_user}};
+    if (!auth.is_null()) result["auth"] = auth;
     resp.status_code = 200;
     resp.body = result.dump();
-}
-
-void http_handler::handle_get_config_schema(const HttpRequest &req, HttpResponse &resp)
-{
-    (void)req;
-    resp.status_code = 200;
-    resp.body = json{{"schema", build_config_schema()}}.dump();
 }
 
 void http_handler::handle_get_config(const HttpRequest &req, HttpResponse &resp)
@@ -2913,24 +2277,6 @@ void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &re
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
 
-    if ((id == "service" || id == "core") && !body.is_object())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Config payload must be an object"})";
-        return;
-    }
-
-    if (id == "service" || id == "core")
-    {
-        json errors;
-        if (!validate_config_payload(id, body, errors))
-        {
-            resp.status_code = 400;
-            resp.body = json{{"error", "Config validation failed"}, {"errors", errors}}.dump();
-            return;
-        }
-    }
-
     // For auth config, require old password verification
     if (id == "auth")
     {
@@ -2959,83 +2305,12 @@ void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &re
 
         // Remove old_password from the body before saving
         body.erase("old_password");
-
-        const std::string new_password = body.value("admin_password", "");
-        if (!new_password.empty())
-        {
-            std::string reason;
-            if (!validate_password_strength(new_password, reason))
-            {
-                resp.status_code = 400;
-                resp.body = json{{"error", reason}}.dump();
-                return;
-            }
-        }
-
-        json errors;
-        if (!validate_config_payload(id, body, errors))
-        {
-            resp.status_code = 400;
-            resp.body = json{{"error", "Config validation failed"}, {"errors", errors}}.dump();
-            return;
-        }
     }
 
     bool ok = sync_redis::instance().set(key, body.dump());
     if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
-
-    bool published = true;
-    if (id == "service" || id == "core")
-        published = sync_redis::instance().publish("CASTER:CONF", "CONFIG");
-
-    audit_log(req, "update_config", id, {{"section", id}, {"published", published}});
     resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"published", published}}.dump();
-}
-
-void http_handler::handle_validate_config(const HttpRequest &req, HttpResponse &resp)
-{
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-
-    const std::string section = body.value("section", "");
-    const json config = body.value("config", json::object());
-    if (section.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing section"})";
-        return;
-    }
-
-    json errors;
-    const bool ok = validate_config_payload(section, config, errors);
-    resp.status_code = ok ? 200 : 400;
-    resp.body = json{{"ok", ok}, {"errors", errors}}.dump();
-}
-
-void http_handler::handle_apply_config(const HttpRequest &req, HttpResponse &resp)
-{
-    json body = json::object();
-    if (!req.body.empty())
-    {
-        try { body = json::parse(req.body); }
-        catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    }
-
-    const std::string reason = body.value("reason", "manual_apply");
-    const bool published = sync_redis::instance().publish("CASTER:CONF", "CONFIG");
-    audit_log(req, "apply_config", "cluster", {{"reason", reason}, {"published", published}});
-
-    if (!published)
-    {
-        resp.status_code = 500;
-        resp.body = R"({"error":"Failed to publish config reload"})";
-        return;
-    }
-
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"published", true}}.dump();
+    resp.body = json{{"ok", true}}.dump();
 }
 
 // ==================== SSE ====================
@@ -3142,7 +2417,6 @@ static json parse_redis_info(const std::string &info_text)
 
 void http_handler::handle_get_monitor_redis(const HttpRequest &req, HttpResponse &resp)
 {
-    (void)req;
     auto &redis = sync_redis::instance();
     auto info_raw = redis.info();
     if (info_raw.empty())
@@ -3231,22 +2505,6 @@ void http_handler::handle_get_monitor_redis(const HttpRequest &req, HttpResponse
 
     resp.status_code = 200;
     resp.body = result.dump();
-}
-
-void http_handler::handle_get_monitor_redis_history(const HttpRequest &req, HttpResponse &resp)
-{
-    auto &redis = sync_redis::instance();
-    int limit = 1440;
-    auto it = req.query_params.find("limit");
-    if (it != req.query_params.end())
-    {
-        try { limit = std::clamp(std::stoi(it->second), 1, 1440); }
-        catch (...) { limit = 1440; }
-    }
-
-    json items = redis.lrange(KEY_MONITOR_REDIS_HISTORY, 0, limit - 1);
-    resp.status_code = 200;
-    resp.body = json{{"items", items}}.dump();
 }
 
 void http_handler::handle_get_monitor_redis_keys(const HttpRequest &req, HttpResponse &resp)
@@ -3373,8 +2631,6 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
     // Get master node
     auto master_val = redis.get("CASTER:MASTER");
     std::string master_node = master_val.is_string() ? master_val.get<std::string>() : "";
-    auto pull_counts = count_relay_states_by_node(redis.hgetall(KEY_PULL_STATE));
-    auto push_counts = count_relay_states_by_node(redis.hgetall(KEY_PUSH_STATE));
 
     // Get all nodes
     auto nodes_raw = redis.hgetall(KEY_CASTER_NODE);
@@ -3400,17 +2656,14 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
             continue;
 
         bool is_master = (uid == master_node);
-        int mpt = node_info.value("server_count", 0);
-        int usr = node_info.value("client_count", 0);
-        int pull = pull_counts.count(uid) ? pull_counts[uid] : 0;
-        int push = push_counts.count(uid) ? push_counts[uid] : 0;
+        int mpt = node_info.value("mpt_count", 0);
+        int usr = node_info.value("usr_count", 0);
+        int pull = node_info.value("pull_count", 0);
+        int push = node_info.value("push_count", 0);
         double cpu = node_info.value("cpu_usage", 0.0);
         long long mem = node_info.value("mem_usage", 0LL);
         double send_s = node_info.value("send_speed", 0.0);
         double recv_s = node_info.value("recv_speed", 0.0);
-        long long online_time = node_info.value("online_time", 0LL);
-        long long update_time = node_info.value("update_time", 0LL);
-        long long now_ts = static_cast<long long>(time(nullptr));
 
         online_nodes++;
         total_servers += mpt;
@@ -3432,25 +2685,14 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
             {"usr", usr},
             {"pull", pull},
             {"push", push},
-            {"conn", node_info.value("connect_count", 0)},
+            {"conn", node_info.value("conn_count", 0)},
             {"send_speed", send_s},
             {"recv_speed", recv_s},
             {"send_total", node_info.value("send_total", 0)},
             {"recv_total", node_info.value("recv_total", 0)},
             {"set_version", node_info.value("set_version", "")},
             {"tag_version", node_info.value("tag_version", "")},
-            {"run_platform", node_info.value("run_platform", "")},
-            {"queue_delay", node_info.value("queue_delay", 0)},
-            {"sub_ping_delay", node_info.value("sub_ping_delay", 0)},
-            {"sub_tcp_delay", node_info.value("sub_tcp_delay", 0)},
-            {"pub_ping_delay", node_info.value("pub_ping_delay", 0)},
-            {"pub_tcp_delay", node_info.value("pub_tcp_delay", 0)},
-            {"listen_port", node_info.value("listen_port", 0)},
-            {"http_port", node_info.value("http_port", 0)},
-            {"process_id", node_info.value("process_id", 0)},
-            {"online_time", online_time},
-            {"update_time", update_time},
-            {"uptime_seconds", online_time > 0 ? std::max(0LL, now_ts - online_time) : 0}
+            {"queue_delay", node_info.value("queue_delay", 0)}
         });
     }
 
@@ -3477,323 +2719,6 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
 
     resp.status_code = 200;
     resp.body = result.dump();
-}
-
-// ==================== Audit Log Helper ====================
-
-static void audit_log(const HttpRequest &req, const std::string &action,
-                      const std::string &target, const json &detail,
-                      const std::string &result)
-{
-    json entry;
-    entry["ts"] = time(nullptr);
-    entry["user"] = req.headers.count("X-Auth-User") ? req.headers.at("X-Auth-User") : "admin";
-    entry["action"] = action;
-    entry["target"] = target;
-    entry["detail"] = detail;
-    entry["ip"] = req.headers.count("X-Forwarded-For") ? req.headers.at("X-Forwarded-For") : "unknown";
-    if (req.headers.count("X-Client-IP"))
-        entry["ip"] = req.headers.at("X-Client-IP");
-    entry["result"] = result;
-    sync_redis::instance().lpush(KEY_LOG_AUDIT, entry.dump());
-    sync_redis::instance().ltrim(KEY_LOG_AUDIT, 0, AUDIT_LOG_MAX - 1);
-}
-
-// ==================== Node Config ====================
-
-void http_handler::handle_get_node_config(const HttpRequest &req, HttpResponse &resp)
-{
-    std::string node_id = get_resource_id(req);
-    if (node_id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing node ID"})";
-        return;
-    }
-
-    auto &redis = sync_redis::instance();
-
-    // Get node info to verify it exists
-    json node_info = redis.hget(KEY_CASTER_NODE, node_id.c_str());
-    if (node_info.is_null())
-    {
-        resp.status_code = 404;
-        resp.body = R"({"error":"Node not found"})";
-        return;
-    }
-
-    // Get running configs from Redis
-    json service_conf = redis.get(KEY_CONF_SERVICE);
-    json core_conf = redis.get(KEY_CONF_CORE);
-
-    // Build node config response — combine node info with cluster config
-    json result = json::object();
-    result["node_id"] = node_id;
-
-    // Parse node info
-    json node;
-    if (node_info.is_string())
-    {
-        try { node = json::parse(node_info.get<std::string>()); }
-        catch (...) { node = node_info; }
-    }
-    else
-    {
-        node = node_info;
-    }
-
-    result["node_name"] = node.value("node_name", "");
-    result["set_version"] = node.value("set_version", "");
-    result["tag_version"] = node.value("tag_version", "");
-    result["runtime"] = {
-        {"run_platform", node.value("run_platform", "")},
-        {"listen_port", node.value("listen_port", 0)},
-        {"http_port", node.value("http_port", 0)},
-        {"process_id", node.value("process_id", 0)},
-        {"online_time", node.value("online_time", 0)},
-        {"update_time", node.value("update_time", 0)}
-    };
-
-    // Core config (hot-updatable fields)
-    json hot_config = json::object();
-    if (core_conf.is_object())
-    {
-        auto &c = core_conf;
-        hot_config["update_intv"] = c.value("update_intv", 5);
-        hot_config["key_expire_time"] = c.value("key_expire_time", 15);
-        hot_config["upload_base_stat"] = c.value("upload_base_stat", true);
-        hot_config["upload_rover_stat"] = c.value("upload_rover_stat", true);
-        hot_config["base_enable_mult"] = c.value("base_enable_mult", false);
-        hot_config["base_keep_early"] = c.value("base_keep_early", true);
-        hot_config["rover_enable_mult"] = c.value("rover_enable_mult", false);
-        hot_config["rover_keep_early"] = c.value("rover_keep_early", false);
-        hot_config["base_notify_inactive"] = c.value("base_notify_inactive", false);
-        hot_config["rover_notify_inactive"] = c.value("rover_noify_inactive", false);
-    }
-    result["core"] = hot_config;
-
-    // Service config
-    json svc_config = json::object();
-    if (service_conf.is_object())
-    {
-        if (service_conf.contains("listener"))
-        {
-            auto &l = service_conf["listener"];
-            svc_config["listen_port"] = l.value("listen_port", 2101);
-            svc_config["connect_timeout"] = l.value("connect_timeout", 30);
-            svc_config["enable_source_login"] = l.value("enable_source_login", true);
-            svc_config["enable_server_login"] = l.value("enable_server_login", true);
-            svc_config["enable_client_login"] = l.value("enable_client_login", true);
-            svc_config["enable_nearest_login"] = l.value("enable_nearest_login", true);
-            svc_config["enable_proxy_login"] = l.value("enable_proxy_login", true);
-            svc_config["enable_alias_login"] = l.value("enable_alias_login", true);
-        }
-        if (service_conf.contains("server"))
-        {
-            auto &s = service_conf["server"];
-            svc_config["server_timeout"] = s.value("connect_timeout", 60);
-            svc_config["server_heartbeat_interval"] = s.value("heart_beat_interval", 30);
-        }
-        if (service_conf.contains("client"))
-        {
-            auto &cl = service_conf["client"];
-            svc_config["client_timeout"] = cl.value("connect_timeout", 0);
-        }
-        if (service_conf.contains("http_api"))
-        {
-            auto &http = service_conf["http_api"];
-            svc_config["http_port"] = http.value("port", 8080);
-            svc_config["http_bind_addr"] = http.value("bind_addr", "0.0.0.0");
-            svc_config["http_enable_on_slave"] = http.value("enable_on_slave", false);
-        }
-    }
-    result["service"] = svc_config;
-
-    // Config schema — indicates which fields can be hot-updated
-    json schema = json::object();
-    auto add_schema = [&](const std::string &key, const std::string &label,
-                          const std::string &type, bool restart) {
-        schema[key] = {{"label", label}, {"type", type}, {"restart_required", restart}};
-    };
-    add_schema("core.update_intv", "状态上报间隔(秒)", "number", false);
-    add_schema("core.key_expire_time", "Key 过期时间(秒)", "number", false);
-    add_schema("core.upload_base_stat", "上报基站状态", "boolean", false);
-    add_schema("core.upload_rover_stat", "上报用户状态", "boolean", false);
-    add_schema("core.base_enable_mult", "基站允许多连接", "boolean", false);
-    add_schema("core.base_keep_early", "保留先登录基站", "boolean", false);
-    add_schema("core.rover_enable_mult", "用户允许多连接", "boolean", false);
-    add_schema("core.rover_keep_early", "保留先登录用户", "boolean", false);
-    add_schema("core.base_notify_inactive", "基站离线通知", "boolean", false);
-    add_schema("core.rover_notify_inactive", "用户离线通知", "boolean", false);
-    add_schema("service.listen_port", "监听端口", "number", true);
-    add_schema("service.connect_timeout", "连接超时(秒)", "number", false);
-    add_schema("service.enable_source_login", "Source 登录", "boolean", false);
-    add_schema("service.enable_server_login", "Server 登录", "boolean", false);
-    add_schema("service.enable_client_login", "Client 登录", "boolean", false);
-    add_schema("service.enable_nearest_login", "Nearest 登录", "boolean", false);
-    add_schema("service.enable_proxy_login", "代理协议", "boolean", false);
-    add_schema("service.enable_alias_login", "别名功能", "boolean", false);
-    add_schema("service.http_port", "HTTP 端口", "number", true);
-    add_schema("service.http_bind_addr", "HTTP 绑定地址", "string", true);
-    add_schema("service.http_enable_on_slave", "从节点开启 HTTP", "boolean", true);
-    result["schema"] = schema;
-
-    resp.status_code = 200;
-    resp.body = result.dump();
-}
-
-// ==================== Node Action ====================
-
-void http_handler::handle_post_node_action(const HttpRequest &req, HttpResponse &resp)
-{
-    std::string node_id = get_resource_id(req);
-    if (node_id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing node ID"})";
-        return;
-    }
-
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-
-    std::string action = body.value("action", "");
-    if (action.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing action"})";
-        return;
-    }
-
-    // Validate action type
-    static const std::unordered_set<std::string> valid_actions = {
-        "sync_cluster", "set_log_level",
-        "config_update"};
-
-    if (valid_actions.find(action) == valid_actions.end())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Unknown action"})";
-        return;
-    }
-
-    auto &redis = sync_redis::instance();
-
-    // Verify node exists
-    json node_info = redis.hget(KEY_CASTER_NODE, node_id.c_str());
-    if (node_info.is_null())
-    {
-        resp.status_code = 404;
-        resp.body = R"({"error":"Node not found"})";
-        return;
-    }
-
-    // Build command message
-    json cmd;
-    cmd["type"] = "action";
-    cmd["action"] = action;
-    if (body.contains("params"))
-        cmd["params"] = body["params"];
-
-    // For config_update, apply changes to Redis config too
-    if (action == "config_update" && body.contains("params"))
-    {
-        auto &params = body["params"];
-        std::string section = params.value("section", "");
-        std::string key = params.value("key", "");
-        auto value = params.value("value", json());
-
-        if (!section.empty() && !key.empty())
-        {
-            const char *conf_key = nullptr;
-            if (section == "core") conf_key = KEY_CONF_CORE;
-            else if (section == "service") conf_key = KEY_CONF_SERVICE;
-
-            if (conf_key)
-            {
-                json conf = redis.get(conf_key);
-                if (conf.is_object())
-                {
-                    if (apply_config_update_value(conf, section, key, value))
-                        redis.set(conf_key, conf.dump());
-                }
-            }
-
-            // Notify all nodes to reload config
-            redis.publish("CASTER:CONF", "CONFIG");
-        }
-    }
-
-    // Publish command to node channel
-    std::string channel = "NODE:" + node_id;
-    bool published = redis.publish(channel.c_str(), cmd.dump());
-
-    // Audit log
-    audit_log(req, "node_action", node_id, {{"action", action}});
-
-    if (published)
-    {
-        resp.status_code = 200;
-        resp.body = json{{"ok", true}, {"node_id", node_id}, {"action", action}}.dump();
-    }
-    else
-    {
-        resp.status_code = 500;
-        resp.body = R"({"error":"Failed to publish command"})";
-    }
-}
-
-// ==================== Audit Log ====================
-
-void http_handler::handle_get_audit_logs(const HttpRequest &req, HttpResponse &resp)
-{
-    auto &redis = sync_redis::instance();
-
-    // Parse query params
-    int limit = 100;
-    int offset = 0;
-    std::string filter_action;
-    std::string filter_user;
-
-    auto it = req.query_params.find("limit");
-    if (it != req.query_params.end())
-    {
-        try { limit = std::stoi(it->second); }
-        catch (...) {}
-        if (limit < 1) limit = 1;
-        if (limit > 500) limit = 500;
-    }
-    it = req.query_params.find("offset");
-    if (it != req.query_params.end())
-    {
-        try { offset = std::stoi(it->second); }
-        catch (...) {}
-        if (offset < 0) offset = 0;
-    }
-    it = req.query_params.find("action");
-    if (it != req.query_params.end()) filter_action = it->second;
-    it = req.query_params.find("user");
-    if (it != req.query_params.end()) filter_user = it->second;
-
-    // Get all entries in range (get more than needed for filtering)
-    int fetch_count = (filter_action.empty() && filter_user.empty()) ? limit : limit * 3;
-    json all_entries = redis.lrange(KEY_LOG_AUDIT, offset, offset + fetch_count - 1);
-
-    json filtered = json::array();
-    for (auto &entry : all_entries)
-    {
-        if (!filter_action.empty() && entry.value("action", "") != filter_action)
-            continue;
-        if (!filter_user.empty() && entry.value("user", "") != filter_user)
-            continue;
-        filtered.push_back(entry);
-        if (static_cast<int>(filtered.size()) >= limit)
-            break;
-    }
-
-    resp.status_code = 200;
-    resp.body = json{{"items", filtered}, {"total", all_entries.size()}}.dump();
 }
 
 // Cleanup macros

@@ -1,106 +1,14 @@
 #include "caster_internal.h"
 #include <chrono>
-#include <fstream>
-#include <iomanip>
 #include <list>
 // #include <format>
-#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
-#include <unistd.h>
 #include <sstream>
 #include "knt.h"
 #include "SysUsage.h"
-#include "log_ring_buffer.h"
 #include "version.h"
 
 #define __class__ "caster_internal"
-
-namespace
-{
-std::string sanitize_log_segment(const std::string &value)
-{
-    std::string sanitized = value;
-    std::replace(sanitized.begin(), sanitized.end(), ':', '_');
-    return sanitized;
-}
-
-std::string build_connection_log_field(const json &entry, const std::string &connect_key)
-{
-    long long connect_time = entry.value("connect_time", 0LL);
-    return std::to_string(connect_time) + ":" + connect_key;
-}
-
-std::string build_connection_log_key(bool is_base, const std::string &name)
-{
-    return std::string(is_base ? "LOG:MPT:" : "LOG:USR:") + sanitize_log_segment(name);
-}
-
-std::string build_node_connection_log_key(bool is_base, const std::string &node_id)
-{
-    return std::string("LOG:NODE:") + sanitize_log_segment(node_id) + ":" + (is_base ? "MPT" : "USR");
-}
-
-std::string build_node_runtime_log_result_key(const std::string &node_id, const std::string &request_id)
-{
-    return std::string("NODE:LOGS:RESULT:") + sanitize_log_segment(node_id) + ":" + sanitize_log_segment(request_id);
-}
-
-void write_connection_log_async(redisAsyncContext *ctx, const json &entry, bool is_base)
-{
-    if (!ctx || !entry.is_object())
-        return;
-
-    std::string name = entry.value("name", "");
-    std::string node_id = entry.value("node_id", "");
-    std::string connect_key = entry.value("connect_key", "");
-    if (name.empty() || connect_key.empty())
-        return;
-
-    std::string field = build_connection_log_field(entry, connect_key);
-    std::string primary_key = build_connection_log_key(is_base, name);
-    redisAsyncCommand(ctx, NULL, NULL, "HSET %s %s %s", primary_key.c_str(), field.c_str(), entry.dump().c_str());
-
-    if (!node_id.empty())
-    {
-        std::string node_key = build_node_connection_log_key(is_base, node_id);
-        redisAsyncCommand(ctx, NULL, NULL, "HSET %s %s %s", node_key.c_str(), field.c_str(), entry.dump().c_str());
-    }
-}
-
-void write_connection_log_sync(redisContext *ctx, const json &entry, bool is_base)
-{
-    if (!ctx || !entry.is_object())
-        return;
-
-    std::string name = entry.value("name", "");
-    std::string node_id = entry.value("node_id", "");
-    std::string connect_key = entry.value("connect_key", "");
-    if (name.empty() || connect_key.empty())
-        return;
-
-    std::string field = build_connection_log_field(entry, connect_key);
-    std::string payload = entry.dump();
-    std::string primary_key = build_connection_log_key(is_base, name);
-    if (auto *reply = static_cast<redisReply *>(redisCommand(ctx, "HSET %s %s %s", primary_key.c_str(), field.c_str(), payload.c_str())))
-        freeReplyObject(reply);
-
-    if (!node_id.empty())
-    {
-        std::string node_key = build_node_connection_log_key(is_base, node_id);
-        if (auto *reply = static_cast<redisReply *>(redisCommand(ctx, "HSET %s %s %s", node_key.c_str(), field.c_str(), payload.c_str())))
-            freeReplyObject(reply);
-    }
-}
-
-std::string read_first_line(const char *path)
-{
-    std::ifstream input(path);
-    std::string value;
-    if (input.good())
-        std::getline(input, value);
-    return value;
-}
-} // namespace
 
 /*
     设计的的Redis表和频道组成
@@ -162,64 +70,8 @@ int caster_internal::init(CasterCoreOpt opt, event_base *base)
     _redis_Requirepass = opt.redis_password();
 
     _base = base;
-    init_node_identity();
 
     return 0;
-}
-
-void caster_internal::init_node_identity()
-{
-    char hostname[256] = {0};
-    if (gethostname(hostname, sizeof(hostname) - 1) == 0)
-        _node_host_name = hostname;
-
-    if (_node_host_name.empty())
-        _node_host_name = "navcaster";
-
-    _node_machine_id = read_first_line("/etc/machine-id");
-    if (_node_machine_id.empty())
-        _node_machine_id = read_first_line("/var/lib/dbus/machine-id");
-    if (_node_machine_id.empty())
-        _node_machine_id = _node_host_name;
-
-    _process_id = static_cast<uint32_t>(getpid());
-    refresh_node_identity();
-}
-
-void caster_internal::refresh_node_identity()
-{
-    std::ostringstream seed;
-    seed << _node_machine_id << '@' << _node_host_name;
-    if (_listen_port > 0)
-        seed << ':' << _listen_port;
-
-    size_t stable_hash = std::hash<std::string>{}(seed.str());
-    std::ostringstream os;
-    os << std::hex << std::setw(6) << std::setfill('0') << (stable_hash & 0xFFFFFF);
-    _node_ID = os.str();
-
-    std::ostringstream node_name;
-    node_name << "Node_";
-
-    std::ostringstream suffix;
-    suffix << std::uppercase << std::hex << std::setw(5) << std::setfill('0')
-           << (stable_hash & 0xFFFFF);
-    node_name << suffix.str();
-    _node_name = node_name.str();
-}
-
-void caster_internal::set_node_runtime_info(uint32_t listen_port, uint32_t http_port, uint32_t process_id)
-{
-    _listen_port = listen_port;
-    _http_port = http_port;
-    if (process_id > 0)
-        _process_id = process_id;
-    refresh_node_identity();
-}
-
-bool caster_internal::is_master_node() const
-{
-    return _is_master;
 }
 
 int caster_internal::start()
@@ -263,7 +115,8 @@ void caster_internal::flush_online_history()
     {
         entry["disconnect_time"] = now;
         entry["last_update"] = now;
-        write_connection_log_async(_pub_context, entry, true);
+        std::string field = entry["name"].get<std::string>() + ":" + ck;
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
     }
     _base_history_map.clear();
 
@@ -271,7 +124,8 @@ void caster_internal::flush_online_history()
     {
         entry["disconnect_time"] = now;
         entry["last_update"] = now;
-        write_connection_log_async(_pub_context, entry, false);
+        std::string field = entry["name"].get<std::string>() + ":" + ck;
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
     }
     _rover_history_map.clear();
 
@@ -323,7 +177,10 @@ void caster_internal::cleanup_stale_history()
                         if (now - last_update > _key_expire_time)
                         {
                             entry["disconnect_time"] = last_update;
-                            write_connection_log_sync(ctx, entry, true);
+                            auto *r = static_cast<redisReply *>(
+                                redisCommand(ctx, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str()));
+                            if (r)
+                                freeReplyObject(r);
                             compensated++;
                         }
                     }
@@ -355,7 +212,10 @@ void caster_internal::cleanup_stale_history()
                         if (now - last_update > _key_expire_time)
                         {
                             entry["disconnect_time"] = last_update;
-                            write_connection_log_sync(ctx, entry, false);
+                            auto *r = static_cast<redisReply *>(
+                                redisCommand(ctx, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str()));
+                            if (r)
+                                freeReplyObject(r);
                             compensated++;
                         }
                     }
@@ -859,7 +719,6 @@ int caster_internal::upload_node_status()
     node.set_delay_info(_queue_delay, _sub_ping_delay, _sub_tcp_delay, _pub_ping_delay, _pub_tcp_delay);
     node.set_traffic_info(_send_total, _send_speed, _recv_total, _recv_speed);
     node.set_connection_count(_server_status_map.size(), _client_status_map.size());
-    node.set_runtime_info(_listen_port, _http_port, _process_id);
 
     redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " CASTER_NODE_INFO_LIST " EX %s FIELDS 1 %s %s",
                       std::to_string(_key_expire_time).c_str(),
@@ -873,21 +732,7 @@ int caster_internal::upload_node_status()
         record_node_history();
     }
 
-    if (++_redis_history_counter >= REDIS_HISTORY_INTERVAL)
-    {
-        _redis_history_counter = 0;
-        record_redis_history();
-    }
-
     return 0;
-}
-
-void caster_internal::record_redis_history()
-{
-    if (!_pub_context)
-        return;
-
-    redisAsyncCommand(_pub_context, Redis_Record_Redis_Info_Callback, this, "INFO");
 }
 
 void caster_internal::record_node_history()
@@ -1208,13 +1053,11 @@ int caster_internal::upload_relay_status()
 {
     for (auto iter : _pull_status_map)
     {
-        const std::string &field = iter.second.uid().empty() ? iter.first : iter.second.uid();
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), field.c_str(), iter.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
     for (auto iter : _push_status_map)
     {
-        const std::string &field = iter.second.uid().empty() ? iter.first : iter.second.uid();
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), field.c_str(), iter.second.toString().c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
     }
     return 0;
 }
@@ -1308,62 +1151,6 @@ void caster_internal::Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, 
     if (re3->type != REDIS_REPLY_STRING)
     {
         return; // 回复不是字符串，第一次订阅这个频道的时候回应为 REDIS_REPLY_INTEGER
-    }
-
-    // Try to detect JSON action command first
-    if (re3->str[0] == '{')
-    {
-        try
-        {
-            auto cmd = nlohmann::json::parse(re3->str);
-            if (cmd.contains("type") && cmd["type"] == "action")
-            {
-                std::string action = cmd.value("action", "");
-                spdlog::info("[caster_internal]: Received action command: {}", action);
-
-                if (action == "set_log_level" && cmd.contains("params"))
-                {
-                    std::string level = cmd["params"].value("level", "info");
-                    spdlog::set_level(spdlog::level::from_str(level));
-                    spdlog::info("[caster_internal]: Log level set to {}", level);
-                }
-                else if (action == "config_update")
-                {
-                    svr->reload_config_from_redis();
-                }
-                else if (action == "sync_cluster")
-                {
-                    spdlog::info("[caster_internal]: Sync cluster requested");
-                    // Trigger a cluster sync cycle
-                }
-                else if (action == "get_recent_logs" && cmd.contains("params"))
-                {
-                    auto params = cmd["params"];
-                    std::string request_id = params.value("request_id", "");
-                    std::string level = params.value("level", "info");
-                    std::size_t limit = static_cast<std::size_t>(params.value("limit", 100));
-
-                    if (!request_id.empty())
-                    {
-                        json result = {
-                            {"node_id", svr->_node_ID},
-                            {"node_name", svr->_node_name},
-                            {"level", level},
-                            {"items", navcaster_log::get_recent_logs(level, limit)}
-                        };
-                        std::string key = build_node_runtime_log_result_key(svr->_node_ID, request_id);
-                        std::string payload = result.dump();
-                        redisAsyncCommand(svr->_pub_context, NULL, NULL, "SETEX %s %d %s",
-                                          key.c_str(), 15, payload.c_str());
-                    }
-                }
-                return;
-            }
-        }
-        catch (...)
-        {
-            // Not valid JSON or not an action message, fall through to relay
-        }
     }
 
     svr->relay_task_response(re3->str);
@@ -1484,12 +1271,7 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
             // 解析失败
             continue;
         }
-        const std::string normalized_key = item.uid().empty() ? std::string(field) : item.uid();
-        if (normalized_key != field)
-        {
-            redisAsyncCommand(c, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", field);
-        }
-        svr->_pull_status_map.insert(std::pair<std::string, pull_status>(normalized_key, item));
+        svr->_pull_status_map.insert(std::pair<std::string, pull_status>(field, item));
     }
 }
 
@@ -1573,12 +1355,7 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
             // 解析失败
             continue;
         }
-        const std::string normalized_key = item.uid().empty() ? std::string(field) : item.uid();
-        if (normalized_key != field)
-        {
-            redisAsyncCommand(c, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", field);
-        }
-        svr->_push_status_map.insert(std::pair<std::string, push_status>(normalized_key, item));
+        svr->_push_status_map.insert(std::pair<std::string, push_status>(field, item));
     }
 }
 
@@ -1728,50 +1505,6 @@ int caster_internal::download_alias_rule()
     redisAsyncCommand(_pub_context, Redis_Update_Alias_Rule_Callback, this, "HGETALL " ALIAS_RULE_LIST);
 
     return 0;
-}
-
-void caster_internal::reload_config_from_redis()
-{
-    spdlog::info("[caster_internal]: Reloading config from Redis...");
-
-    // GET CONF:CORE and apply hot-updatable fields
-    redisAsyncCommand(_pub_context, [](redisAsyncContext *, void *r, void *privdata) {
-        auto reply = static_cast<redisReply *>(r);
-        auto svr = static_cast<caster_internal *>(privdata);
-        if (!reply || reply->type != REDIS_REPLY_STRING || !reply->str)
-            return;
-
-        try
-        {
-            auto conf = nlohmann::json::parse(reply->str);
-            if (conf.contains("update_intv"))
-                svr->_update_intv = conf["update_intv"].get<int>();
-            if (conf.contains("key_expire_time"))
-                svr->_key_expire_time = conf["key_expire_time"].get<int>();
-            if (conf.contains("upload_base_stat"))
-                svr->_upload_base_stat = conf["upload_base_stat"].get<bool>();
-            if (conf.contains("upload_rover_stat"))
-                svr->_upload_rover_stat = conf["upload_rover_stat"].get<bool>();
-            if (conf.contains("base_enable_mult"))
-                svr->_base_enable_mult = conf["base_enable_mult"].get<bool>();
-            if (conf.contains("base_keep_early"))
-                svr->_base_keep_early = conf["base_keep_early"].get<bool>();
-            if (conf.contains("rover_enable_mult"))
-                svr->_rover_enable_mult = conf["rover_enable_mult"].get<bool>();
-            if (conf.contains("rover_keep_early"))
-                svr->_rover_keep_early = conf["rover_keep_early"].get<bool>();
-            if (conf.contains("base_notify_inactive"))
-                svr->_notify_base_inactive = conf["base_notify_inactive"].get<bool>();
-            if (conf.contains("rover_noify_inactive"))
-                svr->_notify_rover_inactive = conf["rover_noify_inactive"].get<bool>();
-
-            spdlog::info("[caster_internal]: Config reloaded from Redis");
-        }
-        catch (const std::exception &e)
-        {
-            spdlog::error("[caster_internal]: Failed to parse config: {}", e.what());
-        }
-    }, this, "GET CONF:CORE");
 }
 
 int caster_internal::check_active_base_channel()
@@ -1948,8 +1681,9 @@ int caster_internal::register_base_channel(const char *channel, const char *user
             log_entry["connect_time"] = util_get_now_second();
             log_entry["last_update"] = util_get_now_second();
             log_entry["disconnect_time"] = 0;
+            std::string log_field = std::string(channel) + ":" + connect_key;
             _base_history_map[connect_key] = log_entry;
-            write_connection_log_async(_pub_context, log_entry, true);
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", log_field.c_str(), log_entry.dump().c_str());
         }
 
         // 将cb注册回调记录到本地
@@ -2044,8 +1778,9 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
             log_entry["connect_time"] = util_get_now_second();
             log_entry["last_update"] = util_get_now_second();
             log_entry["disconnect_time"] = 0;
+            std::string log_field = std::string(user_name) + ":" + connect_key;
             _rover_history_map[connect_key] = log_entry;
-            write_connection_log_async(_pub_context, log_entry, false);
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", log_field.c_str(), log_entry.dump().c_str());
         }
 
         // 将cb注册回调记录到本地
@@ -2400,68 +2135,6 @@ void caster_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int st
         spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, svr->_sub_context_errstr);
         svr->subAttemptReconnect();
     }
-}
-
-static json parse_redis_history_snapshot(const std::string &info_text)
-{
-    json snapshot;
-    snapshot["ts"] = util_get_now_second();
-
-    std::istringstream stream(info_text);
-    std::string line;
-    std::unordered_map<std::string, std::string> values;
-    while (std::getline(stream, line))
-    {
-        if (!line.empty() && line.back() == '\r')
-            line.pop_back();
-        if (line.empty() || line[0] == '#')
-            continue;
-
-        auto pos = line.find(':');
-        if (pos == std::string::npos)
-            continue;
-        values[line.substr(0, pos)] = line.substr(pos + 1);
-    }
-
-    auto read_ll = [&](const char *key) -> long long {
-        auto it = values.find(key);
-        if (it == values.end()) return 0;
-        try { return std::stoll(it->second); } catch (...) { return 0; }
-    };
-    auto read_double = [&](const char *key) -> double {
-        auto it = values.find(key);
-        if (it == values.end()) return 0.0;
-        try { return std::stod(it->second); } catch (...) { return 0.0; }
-    };
-
-    const long long hits = read_ll("keyspace_hits");
-    const long long misses = read_ll("keyspace_misses");
-    const double hit_rate = (hits + misses > 0) ? static_cast<double>(hits) / static_cast<double>(hits + misses) : 0.0;
-
-    snapshot["ops"] = read_ll("instantaneous_ops_per_sec");
-    snapshot["mem"] = read_ll("used_memory");
-    snapshot["clients"] = read_ll("connected_clients");
-    snapshot["hits"] = hits;
-    snapshot["misses"] = misses;
-    snapshot["hit_rate"] = hit_rate;
-    snapshot["input_kbps"] = read_double("instantaneous_input_kbps");
-    snapshot["output_kbps"] = read_double("instantaneous_output_kbps");
-
-    return snapshot;
-}
-
-void caster_internal::Redis_Record_Redis_Info_Callback(redisAsyncContext *c, void *r, void *privdata)
-{
-    auto *reply = static_cast<redisReply *>(r);
-    auto *svr = static_cast<caster_internal *>(privdata);
-    if (!reply || reply->type != REDIS_REPLY_STRING || !reply->str)
-        return;
-
-    json snapshot = parse_redis_history_snapshot(reply->str);
-    std::string value = snapshot.dump();
-    redisAsyncCommand(c, NULL, NULL, "LPUSH " REDIS_HISTORY_KEY " %s", value.c_str());
-    redisAsyncCommand(c, NULL, NULL, "LTRIM " REDIS_HISTORY_KEY " 0 %d", REDIS_HISTORY_MAX - 1);
-    (void)svr;
 }
 
 int caster_internal::init_sub_context()
@@ -2958,10 +2631,6 @@ void caster_internal::Redis_ConfChange_Callback(redisAsyncContext *c, void *r, v
     if (topic == "ALIAS")
     {
         svr->download_alias_rule();
-    }
-    else if (topic == "CONFIG")
-    {
-        svr->reload_config_from_redis();
     }
 }
 

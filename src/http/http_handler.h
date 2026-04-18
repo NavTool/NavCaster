@@ -5,6 +5,7 @@
 #include "sse_manager.h"
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include <random>
 
@@ -14,7 +15,6 @@ using json = nlohmann::json;
 struct HttpApiConfig
 {
     int port = 8080;
-    bool enable_on_slave = false;
     std::string bind_addr = "0.0.0.0";
     std::string cors_origin = "*";
     std::string admin_user = "admin";
@@ -41,7 +41,6 @@ public:
 
     // Initialize and register all routes
     int init(event_base *base, redis_adapter *caster_redis, redis_adapter *auth_redis, const HttpApiConfig &config);
-    void stop();
 
     // Save configuration JSON to Redis
     void save_config(const std::string &section, const std::string &json_str);
@@ -149,9 +148,6 @@ private:
 
     // Node history (NODE:HISTORY:*)
     void handle_get_node_history(const HttpRequest &req, HttpResponse &resp);
-    void handle_get_node_server_history(const HttpRequest &req, HttpResponse &resp);
-    void handle_get_node_client_history(const HttpRequest &req, HttpResponse &resp);
-    void handle_get_node_runtime_logs(const HttpRequest &req, HttpResponse &resp);
 
     // Statistics (based on LOG:MPT / LOG:USR)
     void handle_get_stats_overview(const HttpRequest &req, HttpResponse &resp);
@@ -163,24 +159,13 @@ private:
 
     // Configuration (CONF:*)
     void handle_get_configs(const HttpRequest &req, HttpResponse &resp);
-    void handle_get_config_schema(const HttpRequest &req, HttpResponse &resp);
     void handle_get_config(const HttpRequest &req, HttpResponse &resp);
-    void handle_validate_config(const HttpRequest &req, HttpResponse &resp);
-    void handle_apply_config(const HttpRequest &req, HttpResponse &resp);
     void handle_update_config(const HttpRequest &req, HttpResponse &resp);
 
     // Monitoring (Redis + Cluster)
     void handle_get_monitor_redis(const HttpRequest &req, HttpResponse &resp);
-    void handle_get_monitor_redis_history(const HttpRequest &req, HttpResponse &resp);
     void handle_get_monitor_redis_keys(const HttpRequest &req, HttpResponse &resp);
     void handle_get_monitor_cluster(const HttpRequest &req, HttpResponse &resp);
-
-    // Node control
-    void handle_get_node_config(const HttpRequest &req, HttpResponse &resp);
-    void handle_post_node_action(const HttpRequest &req, HttpResponse &resp);
-
-    // Audit log
-    void handle_get_audit_logs(const HttpRequest &req, HttpResponse &resp);
 
     // Utility endpoints
     void handle_fetch_sourcetable(const HttpRequest &req, HttpResponse &resp);
@@ -199,23 +184,6 @@ private:
     std::string generate_token();
     bool validate_token(const std::string &token);
     void invalidate_token(const std::string &token);
-    std::string get_request_ip(const HttpRequest &req) const;
-    bool is_login_rate_limited(const std::string &ip, int &retry_after_seconds);
-    void record_login_attempt(const std::string &ip, bool success);
-    bool validate_password_strength(const std::string &password, std::string &reason) const;
-
-    struct TokenSession
-    {
-        std::string username;
-        time_t expires_at = 0;
-    };
-
-    struct LoginAttemptState
-    {
-        int failed_count = 0;
-        time_t first_failed_at = 0;
-        time_t blocked_until = 0;
-    };
 
 private:
     http_server _server;
@@ -223,9 +191,8 @@ private:
     redis_adapter *_caster_redis = nullptr;
     redis_adapter *_auth_redis = nullptr;
     HttpApiConfig _config;
-    bool _routes_registered = false;
 
-    std::unordered_map<std::string, TokenSession> _active_tokens;
-    std::unordered_map<std::string, LoginAttemptState> _login_attempts;
-    std::mutex _auth_mutex;
+    // Active tokens
+    std::unordered_set<std::string> _active_tokens;
+    std::mutex _token_mutex;
 };

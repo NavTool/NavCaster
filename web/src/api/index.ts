@@ -22,25 +22,6 @@ export const nodesApi = createReadOnlyHashApi<CasterNode>('/api/nodes');
 export const pullStatesApi = createReadOnlyHashApi<PullState>('/api/relays/pull/status');
 export const pushStatesApi = createReadOnlyHashApi<PushState>('/api/relays/push/status');
 
-function mapRelayStatesByUid<T extends { uid: string }>(states: Record<string, T>): Record<string, T> {
-  return Object.values(states || {}).reduce<Record<string, T>>((acc, item) => {
-    if (item?.uid) {
-      acc[item.uid] = item;
-    }
-    return acc;
-  }, {});
-}
-
-export async function getPullStatesByUid(): Promise<Record<string, PullState>> {
-  const states = await pullStatesApi.getAll();
-  return mapRelayStatesByUid(states);
-}
-
-export async function getPushStatesByUid(): Promise<Record<string, PushState>> {
-  const states = await pushStatesApi.getAll();
-  return mapRelayStatesByUid(states);
-}
-
 // Relay start/stop
 export async function relayStart(type: 'pull' | 'push', uid: string) {
   const { data } = await api.post(`/api/relays/${type}/start/${encodeURIComponent(uid)}`);
@@ -79,50 +60,6 @@ export async function getHealthCheck() {
   return data;
 }
 
-export interface ConfigSchemaField {
-  label: string;
-  type: 'number' | 'boolean' | 'string';
-  group: 'service' | 'core' | 'auth';
-  restart_required: boolean;
-  path: string[];
-  min?: number;
-  max?: number;
-  default?: unknown;
-}
-
-export interface SystemConfigsResponse {
-  service?: Record<string, unknown>;
-  core?: Record<string, unknown>;
-  auth?: {
-    admin_user?: string;
-  };
-}
-
-export async function getSystemConfigs(): Promise<SystemConfigsResponse> {
-  const { data } = await api.get('/api/config');
-  return data as SystemConfigsResponse;
-}
-
-export async function getConfigSchema(): Promise<Record<string, ConfigSchemaField>> {
-  const { data } = await api.get('/api/config/schema');
-  return (data?.schema || {}) as Record<string, ConfigSchemaField>;
-}
-
-export async function updateConfigSection(section: 'service' | 'core' | 'auth', config: Record<string, unknown>) {
-  const { data } = await api.put(`/api/config/${section}`, config);
-  return data;
-}
-
-export async function validateConfigSection(section: 'service' | 'core' | 'auth', config: Record<string, unknown>) {
-  const { data } = await api.post('/api/config/validate', { section, config });
-  return data;
-}
-
-export async function applySystemConfig(reason = 'settings_page_apply') {
-  const { data } = await api.post('/api/config/apply', { reason });
-  return data;
-}
-
 export interface SourcetableEntry {
   mountpoint: string;
   identifier?: string;
@@ -150,17 +87,6 @@ export const resourceApi = {
     return data;
   },
 };
-
-export async function getServerSubscribers(mountpoint: string): Promise<Record<string, ClientState>> {
-  const data = await clientsApi.getAll();
-  const result: Record<string, ClientState> = {};
-  for (const [key, client] of Object.entries(data)) {
-    if (client.login_mpt === mountpoint || client.alias_mpt === mountpoint) {
-      result[key] = client;
-    }
-  }
-  return result;
-}
 
 // Node history (time-series snapshots)
 export interface NodeHistorySnapshot {
@@ -262,36 +188,6 @@ export async function getUsrHistory(user: string): Promise<ConnectionHistoryItem
   return data as ConnectionHistoryItem[];
 }
 
-export async function getNodeServerHistory(nodeId: string): Promise<ConnectionHistoryItem[]> {
-  const { data } = await api.get(`/api/nodes/logs/servers/${encodeURIComponent(nodeId)}`);
-  return data as ConnectionHistoryItem[];
-}
-
-export async function getNodeClientHistory(nodeId: string): Promise<ConnectionHistoryItem[]> {
-  const { data } = await api.get(`/api/nodes/logs/clients/${encodeURIComponent(nodeId)}`);
-  return data as ConnectionHistoryItem[];
-}
-
-export interface NodeRuntimeLogItem {
-  ts: number;
-  timestamp: string;
-  level: string;
-  logger: string;
-  message: string;
-}
-
-export interface NodeRuntimeLogResponse {
-  node_id: string;
-  node_name: string;
-  level: string;
-  items: NodeRuntimeLogItem[];
-}
-
-export async function getNodeRuntimeLogs(nodeId: string, params?: { limit?: number; level?: string }): Promise<NodeRuntimeLogResponse> {
-  const { data } = await api.get(`/api/nodes/logs/runtime/${encodeURIComponent(nodeId)}`, { params });
-  return data as NodeRuntimeLogResponse;
-}
-
 // ==================== Monitoring ====================
 
 export interface RedisMonitorInfo {
@@ -311,18 +207,6 @@ export interface RedisMonitorInfo {
   replication: { role: string; connected_slaves: number };
   keyspace: Record<string, unknown>;
   total_keys: number;
-}
-
-export interface RedisHistoryItem {
-  ts: number;
-  ops: number;
-  mem: number;
-  clients: number;
-  hits: number;
-  misses: number;
-  hit_rate: number;
-  input_kbps: number;
-  output_kbps: number;
 }
 
 export interface RedisKeyCategory {
@@ -359,21 +243,13 @@ export interface ClusterMonitorInfo {
     pull: number; push: number; conn: number;
     send_speed: number; recv_speed: number;
     send_total: number; recv_total: number;
-    set_version: string; tag_version: string; run_platform: string; queue_delay: number;
-    sub_ping_delay: number; sub_tcp_delay: number; pub_ping_delay: number; pub_tcp_delay: number;
-    listen_port: number; http_port: number; process_id: number;
-    online_time: number; update_time: number; uptime_seconds: number;
+    set_version: string; tag_version: string; queue_delay: number;
   }[];
 }
 
 export async function getRedisMonitor(): Promise<RedisMonitorInfo> {
   const { data } = await api.get('/api/monitor/redis');
   return data as RedisMonitorInfo;
-}
-
-export async function getRedisMonitorHistory(limit = 1440): Promise<RedisHistoryItem[]> {
-  const { data } = await api.get('/api/monitor/redis/history', { params: { limit } });
-  return (data?.items || []) as RedisHistoryItem[];
 }
 
 export async function getRedisKeys(): Promise<RedisKeysAnalysis> {
@@ -384,64 +260,4 @@ export async function getRedisKeys(): Promise<RedisKeysAnalysis> {
 export async function getClusterMonitor(): Promise<ClusterMonitorInfo> {
   const { data } = await api.get('/api/monitor/cluster');
   return data as ClusterMonitorInfo;
-}
-
-// ==================== Node Config & Control ====================
-
-export interface NodeConfigSchema {
-  label: string;
-  type: 'number' | 'boolean' | 'string';
-  restart_required: boolean;
-}
-
-export interface NodeConfigInfo {
-  node_id: string;
-  node_name: string;
-  set_version: string;
-  tag_version: string;
-  runtime: {
-    run_platform: string;
-    listen_port: number;
-    http_port: number;
-    process_id: number;
-    online_time: number;
-    update_time: number;
-  };
-  core: Record<string, unknown>;
-  service: Record<string, unknown>;
-  schema: Record<string, NodeConfigSchema>;
-}
-
-export async function getNodeConfig(nodeId: string): Promise<NodeConfigInfo> {
-  const { data } = await api.get(`/api/nodes/config/${encodeURIComponent(nodeId)}`);
-  return data as NodeConfigInfo;
-}
-
-export async function postNodeAction(nodeId: string, action: string, params?: Record<string, unknown>) {
-  const { data } = await api.post(`/api/nodes/action/${encodeURIComponent(nodeId)}`, { action, params });
-  return data;
-}
-
-// ==================== Audit Log ====================
-
-export interface AuditLogEntry {
-  ts: number;
-  user: string;
-  action: string;
-  target: string;
-  detail: Record<string, unknown>;
-  ip: string;
-  result: string;
-}
-
-export interface AuditLogResponse {
-  items: AuditLogEntry[];
-  total: number;
-}
-
-export async function getAuditLogs(params?: {
-  limit?: number; offset?: number; action?: string; user?: string;
-}): Promise<AuditLogResponse> {
-  const { data } = await api.get('/api/logs/audit', { params });
-  return data as AuditLogResponse;
 }

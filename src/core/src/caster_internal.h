@@ -216,8 +216,8 @@ using json = nlohmann::json;
 #define ALIAS_RULE_LIST "ALIAS:RULE" // 别名规则列表, 记录别名挂载点和实体挂载点的映射关系
 
 // 连接历史记录 (持久化, 不设过期时间)
-#define LOG_MPT_HISTORY "LOG:MPT" // 兼容旧结构: 基站连接历史总表
-#define LOG_USR_HISTORY "LOG:USR" // 兼容旧结构: 用户连接历史总表
+#define LOG_MPT_HISTORY "LOG:MPT" // 基站连接历史, HASH, field = mount:connect_key, value = JSON
+#define LOG_USR_HISTORY "LOG:USR" // 用户连接历史, HASH, field = user:connect_key, value = JSON
 
 // 节点历史状态快照 — 三级分辨率存储
 #define NODE_HISTORY_PREFIX "NODE:HISTORY:" // + node_id (RAW 5s)
@@ -228,9 +228,6 @@ using json = nlohmann::json;
 #define NODE_HISTORY_1M_MAX    33120       // 60s × 23天 (7d~30d)
 #define NODE_HISTORY_5M_MAX    96480       // 5min × 335天 (30d~365d)
 #define NODE_HISTORY_INTERVAL  5           // 每 5 次 TimeoutCallback 记录一次 (=5s)
-#define REDIS_HISTORY_KEY      "MONITOR:REDIS:HISTORY"
-#define REDIS_HISTORY_MAX      1440
-#define REDIS_HISTORY_INTERVAL 60
 
 class caster_cb_item
 {
@@ -251,7 +248,6 @@ private:
     int _key_expire_time = 30; // Hash键值默认续期时间
     int _master_expire_time = 15; // Master锁TTL, 缩短以加速故障切换
     int _node_history_counter = 0; // 节点历史记录计数器, 每 5 次 TimeoutCallback 记录一次
-    int _redis_history_counter = 0; // Redis 指标历史计数器, 每 60 次 TimeoutCallback 记录一次
     int _1min_agg_counter = 0;     // 每 12 个 RAW 触发 1M 聚合 (12 × 5s = 60s)
     int _5min_agg_counter = 0;     // 每 5 个 1M 触发 5M 聚合 (5 × 60s = 300s)
     json _1min_agg_buffer = json::array(); // RAW 样本累加器
@@ -276,13 +272,8 @@ private:
     std::string _redis_Requirepass;
 
 private:
-    std::string _node_ID;
-    std::string _node_name;
-    std::string _node_host_name;
-    std::string _node_machine_id;
-    uint32_t _listen_port = 0;
-    uint32_t _http_port = 0;
-    uint32_t _process_id = 0;
+    std::string _node_ID = util_generate_random_key(6);
+    std::string _node_name = "NODE-" + _node_ID;
     bool _is_master = false;
     std::string _current_master_id; // 当前 master 节点 ID
 
@@ -344,9 +335,6 @@ public:
     // 返回单例实例
     static caster_internal *getInstance();
 
-    void set_node_runtime_info(uint32_t listen_port, uint32_t http_port, uint32_t process_id);
-    bool is_master_node() const;
-
     int init(CasterCoreOpt opt, event_base *base);
 
     int start();
@@ -360,7 +348,6 @@ public:
 
     // 记录节点历史状态快照到 Redis List
     void record_node_history();
-    void record_redis_history();
 
     // 返回Caster的状态信息
     std::string get_status_str();
@@ -456,7 +443,6 @@ private:
 
     // 查询回调
     static void Redis_Get_Hash_Lenth_Callback(redisAsyncContext *c, void *r, void *privdata);
-    static void Redis_Record_Redis_Info_Callback(redisAsyncContext *c, void *r, void *privdata);
 
     // ---------------------- Redis连接相关函数 --------------------------------------
 private:
@@ -502,9 +488,6 @@ private:
     int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
     int download_active_item(); // 将云端记录的在线挂载点更新到本地
     int download_alias_rule();  // 下载别名映射规则
-    void reload_config_from_redis(); // 从 Redis 重新加载可热更新的配置
-    void init_node_identity(); // 初始化稳定节点标识
-    void refresh_node_identity(); // 根据当前元信息刷新节点标识
 
     int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
     int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)

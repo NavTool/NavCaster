@@ -18,7 +18,6 @@ import {
   BarChartOutlined,
   ClusterOutlined,
   ApiOutlined,
-  FileTextOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api/auth';
@@ -75,7 +74,6 @@ const menuItems = [
     label: '系统',
     children: [
       { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
-      { key: '/audit', icon: <FileTextOutlined />, label: '操作日志' },
     ],
   },
 ];

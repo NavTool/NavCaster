@@ -3,21 +3,6 @@
 #include "SysUsage.h"
 #include "version.h"
 
-#include <sys/utsname.h>
-
-inline std::string resolve_node_platform()
-{
-    std::string platform = SYSTEM_PLATFORM;
-    if (!platform.empty())
-        return platform;
-
-    struct utsname info;
-    if (uname(&info) == 0)
-        return std::string(info.sysname) + "-" + info.machine;
-
-    return "unknown";
-}
-
 // 节点状态信息
 class caster_node
 {
@@ -44,9 +29,6 @@ private:
     size_t _connect_count = 0;
     size_t _server_count = 0;
     size_t _client_count = 0;
-    uint32_t _listen_port = 0;
-    uint32_t _http_port = 0;
-    uint32_t _process_id = 0;
 
 public:
     caster_node(std::string uid, std::string node_name, std::time_t online_time = 0)
@@ -90,14 +72,6 @@ public:
         return 0;
     }
 
-    int set_runtime_info(uint32_t listen_port, uint32_t http_port, uint32_t process_id)
-    {
-        _listen_port = listen_port;
-        _http_port = http_port;
-        _process_id = process_id;
-        return 0;
-    }
-
     int fromString(const std::string &str)
     {
         caster::core::CasterNode proto;
@@ -121,20 +95,6 @@ public:
         _client_count = proto.client_count();
         _online_time = proto.online_time();
         _update_time = proto.update_time();
-
-        try
-        {
-            auto extra = nlohmann::json::parse(str);
-            _listen_port = extra.value("listen_port", 0U);
-            _http_port = extra.value("http_port", 0U);
-            _process_id = extra.value("process_id", 0U);
-        }
-        catch (...)
-        {
-            _listen_port = 0;
-            _http_port = 0;
-            _process_id = 0;
-        }
         return 0;
     }
 
@@ -149,7 +109,7 @@ public:
 
         proto.set_set_version(PROJECT_SET_VERSION);
         proto.set_tag_version(PROJECT_TAG_VERSION);
-        proto.set_run_platform(resolve_node_platform());
+        proto.set_run_platform(SYSTEM_PLATFORM);
 
         proto.set_cpu_usage(_cpu_usage);
         proto.set_mem_usage(_mem_usage);
@@ -171,10 +131,6 @@ public:
         proto.set_online_time(_online_time);
         proto.set_update_time(_update_time);
 
-        auto result = nlohmann::json::parse(ProtoToJson(proto));
-        result["listen_port"] = _listen_port;
-        result["http_port"] = _http_port;
-        result["process_id"] = _process_id;
-        return result.dump();
+        return ProtoToJson(proto);
     }
 };

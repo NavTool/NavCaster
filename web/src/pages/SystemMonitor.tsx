@@ -8,19 +8,12 @@ import {
 } from '@ant-design/icons';
 import {
   getRedisMonitor, getRedisKeys, getClusterMonitor,
-  getRedisMonitorHistory,
-  type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo, type RedisHistoryItem,
+  type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo,
 } from '../api';
-import { formatDuration } from '../utils/format';
+import { formatBytes, formatDuration } from '../utils/format';
 import MetricCard from '../components/MetricCard';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 const { Title, Text } = Typography;
-
-function formatTimestamp(ts: number): string {
-  if (!ts) return '-';
-  return new Date(ts * 1000).toLocaleString('zh-CN');
-}
 
 function formatMemory(bytes: number): string {
   if (!bytes) return '0 B';
@@ -40,7 +33,6 @@ const SystemMonitor: React.FC = () => {
   const [redisInfo, setRedisInfo] = useState<RedisMonitorInfo | null>(null);
   const [keysInfo, setKeysInfo] = useState<RedisKeysAnalysis | null>(null);
   const [clusterInfo, setClusterInfo] = useState<ClusterMonitorInfo | null>(null);
-  const [redisHistory, setRedisHistory] = useState<RedisHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
@@ -50,11 +42,9 @@ const SystemMonitor: React.FC = () => {
         getRedisKeys(),
         getClusterMonitor(),
       ]);
-      const history = await getRedisMonitorHistory(1440);
       setRedisInfo(redis);
       setKeysInfo(keys);
       setClusterInfo(cluster);
-      setRedisHistory([...history].reverse());
     } catch {
       /* silent */
     } finally {
@@ -133,57 +123,12 @@ const SystemMonitor: React.FC = () => {
                     <Col span={6}><Text type="secondary" style={{ fontSize: 12 }}>Push</Text><div>{node.push}</div></Col>
                   </Row>
                   <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
-                    端口 {node.listen_port || '-'} · PID {node.process_id || '-'} · 运行 {formatDuration(node.uptime_seconds)}
-                  </div>
-                  <div style={{ marginTop: 6, fontSize: 12, color: '#666' }}>
-                    {node.tag_version} · 队列延迟 {node.queue_delay}μs · 最近更新 {formatTimestamp(node.update_time)}
+                    {node.tag_version} · 延迟 {node.queue_delay}μs
                   </div>
                 </Card>
               </Col>
             ))}
           </Row>
-
-          <Card title="节点详情" size="small" style={{ marginBottom: 24, borderColor: '#2e3450' }}>
-            <Table<ClusterMonitorInfo['nodes'][number]>
-              dataSource={clusterInfo.nodes}
-              rowKey="uid"
-              size="small"
-              pagination={false}
-              scroll={{ x: 1400 }}
-              columns={[
-                {
-                  title: '节点',
-                  dataIndex: 'node_name',
-                  key: 'node_name',
-                  fixed: 'left',
-                  width: 180,
-                  render: (_, node) => (
-                    <span>
-                      {node.node_name}
-                      {node.is_master && <Tag color="gold" style={{ marginLeft: 8 }}>Master</Tag>}
-                    </span>
-                  ),
-                },
-                { title: 'UID', dataIndex: 'uid', key: 'uid', width: 100 },
-                { title: '监听端口', dataIndex: 'listen_port', key: 'listen_port', width: 100 },
-                { title: 'HTTP 端口', dataIndex: 'http_port', key: 'http_port', width: 100 },
-                { title: '进程 ID', dataIndex: 'process_id', key: 'process_id', width: 100 },
-                { title: '运行时长', dataIndex: 'uptime_seconds', key: 'uptime_seconds', width: 120, render: (v: number) => formatDuration(v) },
-                { title: '最近更新', dataIndex: 'update_time', key: 'update_time', width: 170, render: (v: number) => formatTimestamp(v) },
-                { title: '平台', dataIndex: 'run_platform', key: 'run_platform', width: 140 },
-                { title: '版本', dataIndex: 'tag_version', key: 'tag_version', width: 160 },
-                { title: '连接', dataIndex: 'conn', key: 'conn', width: 80 },
-                { title: '基站', dataIndex: 'mpt', key: 'mpt', width: 80 },
-                { title: '用户', dataIndex: 'usr', key: 'usr', width: 80 },
-                { title: 'Pull', dataIndex: 'pull', key: 'pull', width: 80 },
-                { title: 'Push', dataIndex: 'push', key: 'push', width: 80 },
-                { title: 'CPU', dataIndex: 'cpu', key: 'cpu', width: 90, render: (v: number) => `${v.toFixed(1)}%` },
-                { title: '内存', dataIndex: 'mem', key: 'mem', width: 110, render: (v: number) => formatMemory(v) },
-                { title: '接收', dataIndex: 'recv_speed', key: 'recv_speed', width: 110, render: (v: number) => `${formatMemory(v)}/s` },
-                { title: '发送', dataIndex: 'send_speed', key: 'send_speed', width: 110, render: (v: number) => `${formatMemory(v)}/s` },
-              ]}
-            />
-          </Card>
         </>
       )}
 
@@ -248,27 +193,6 @@ const SystemMonitor: React.FC = () => {
               </Card>
             </Col>
           </Row>
-
-          {redisHistory.length > 0 && (
-            <Card title="Redis 24 小时趋势" size="small" style={{ marginBottom: 24, borderColor: '#2e3450' }}>
-              <div style={{ width: '100%', height: 320 }}>
-                <ResponsiveContainer>
-                  <LineChart data={redisHistory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#30354a" />
-                    <XAxis dataKey="ts" tickFormatter={formatTimestamp} minTickGap={48} />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <RechartsTooltip labelFormatter={(value) => formatTimestamp(Number(value))} />
-                    <Legend />
-                    <Line yAxisId="left" type="monotone" dataKey="ops" name="QPS" stroke="#4a8eff" dot={false} />
-                    <Line yAxisId="left" type="monotone" dataKey="clients" name="连接数" stroke="#52c41a" dot={false} />
-                    <Line yAxisId="right" type="monotone" dataKey="mem" name="内存(Byte)" stroke="#faad14" dot={false} />
-                    <Line yAxisId="right" type="monotone" dataKey="hit_rate" name="命中率" stroke="#ff7875" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-          )}
         </>
       )}
 
@@ -284,7 +208,7 @@ const SystemMonitor: React.FC = () => {
                 共 {keysInfo.total_keys} 个 Key，总内存 {formatMemory(keysInfo.total_memory)}
               </Text>
             </div>
-            <Table<RedisKeysAnalysis['categories'][number]>
+            <Table
               dataSource={keysInfo.categories}
               rowKey="prefix"
               size="small"

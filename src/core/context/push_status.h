@@ -20,11 +20,6 @@ public:
         _create_time = util_get_now_second();
     }
 
-    const std::string &uid() const
-    {
-        return _uid;
-    }
-
     int set_node_info(const std::string &node_uid, const std::string &node_name)
     {
         _node_uid = node_uid;

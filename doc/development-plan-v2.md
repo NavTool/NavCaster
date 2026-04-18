@@ -72,40 +72,6 @@
 
 ---
 
-## 当前进展（2026-04-18）
-
-### 已完成并联调通过
-
-- Phase 1 基础项已完成：HTTP 线程分离、节点历史分级存储、前端主布局与通用监控能力已经落地。
-- Phase 2 已完成：`3.1 Redis INFO API`、`3.2 Key 空间分析`、`3.4 集群状态 API`、`5.5 系统监控页`、`2.1 节点配置查看`、`2.2 节点控制基础能力`、`7.1 审计日志后端`、`7.2 操作日志页面`。
-- 已验证链路：登录、`/api/monitor/redis`、`/api/nodes/config/{id}`、`/api/nodes/action/{id}`、`/api/logs/audit`；其中 `config_update` 已确认触发 `CASTER:CONF -> CONFIG` 并在节点侧热加载。
-- 节点可观测性增强已完成：系统监控页和节点详情页已补充监听端口、HTTP 端口、进程 ID、运行平台、在线时长等运行时信息。
-- 节点身份规范已完成收敛：`node_id` 继续保持稳定哈希，展示名称统一调整为 `Node_XXXXX`；HTTP API 默认仅主节点开放，从节点需显式配置 `HTTP_API_Setting.Enable_On_Slave=true` 才会对外监听。
-- 节点运行日志查看已完成：服务进程已挂载 spdlog ring buffer sink，节点详情页可按级别查看目标节点最近日志，并通过 `NODE:{id}` 指令链路跨节点回收日志结果。
-- `Enable_On_Slave` 前端配置闭环已完成：节点详情页中的服务配置布尔开关可直接回写 Redis，`http_enable_on_slave` 已映射到 `CONF:SERVICE.http_api.enable_on_slave`。
-- 详情页增强已推进：基站详情页已补充概览/数据流/订阅者/历史多 Tab，用户详情页已补充概览/数据流/位置/历史多 Tab，Pull/Push Relay 详情页与列表跳转入口已落地。
-- Dashboard 改版已完成基础版：集群总览页现已补充全局指标卡、5 分钟吞吐趋势、节点负载对比、节点速览表和增强后的节点卡片，顶栏也增加了吞吐与告警摘要。
-- 系统设置页已完成基础升级：现已支持服务配置、核心配置、认证配置和集群应用分区管理，新增 `/api/config/schema`、`/api/config/validate`、`/api/config/apply`，并在配置保存后自动广播 `CASTER:CONF CONFIG`。
-- 安全增强已完成基础闭环：HTTP token 已支持 TTL 过期，登录接口增加基于 IP 的失败限流，认证配置更新增加前后端密码强度校验，前端对集群配置广播补充了二次确认。
-- Redis 历史趋势已完成基础链路：`caster_internal` 已每 60 秒采样 Redis `INFO` 并写入 `MONITOR:REDIS:HISTORY`，HTTP 已新增历史读取接口，系统监控页可展示最近 24 小时 Redis 指标趋势。
-- 审计日志覆盖范围已继续扩展：除节点控制外，账号、源列表、别名、访问控制、Pull/Push Relay 的创建/更新/删除与启停，以及认证登录/退出事件均已写入 `LOG:AUDIT`。
-
-### 当前实现边界
-
-- 节点控制当前已支持：`sync_cluster`、`set_log_level`、`config_update`。
-- 审计日志当前已覆盖节点控制、认证事件以及主要管理资源操作，剩余可继续补充更细的页面级动作和筛选维度。
-- 系统监控页当前已覆盖 Redis 状态、24h 历史趋势、集群状态和 Key 空间分析；更长时间范围聚合与更多维度指标仍可继续扩展。
-- HTTP 管理策略当前为“主节点默认开放、从节点按配置开放”；该策略已支持随主从角色变化动态启停 HTTP 线程，但配置项仍以部署配置/YAML 为主。
-- 节点运行日志当前提供最近 500 条内存日志窗口，支持按最小级别筛选；持久化检索和全文搜索仍不在本轮范围内。
-
-### 后续工作
-
-- Phase 3 页面增强：`5.1`、`5.2`、`5.4` 基础版已完成，后续可继续补充更细粒度的实时指标、地图和日志摘要；`5.3` 中“节点日志”能力已补齐。
-- Phase 4 系统完善：`6.1-6.3` 设置页完善已完成基础闭环，`7.3` 安全增强已完成基础版，`3.3` Redis 历史趋势已完成基础版。
-- 下一步迭代重点：继续补充各详情页的细粒度交互与更丰富的可视化，打磨安全策略细节，并视需要完善 Redis 历史趋势的更多指标与聚合能力。
-
----
-
 ## 〇、节点历史分级存储
 
 ### 目标
@@ -209,12 +175,6 @@ json _5min_agg_buffer;         // 1M 样本累加器
 
 #### 1.2 实现步骤
 
-#### 1.3 当前落地结果
-
-- HTTP API、SSE、静态文件服务已迁移到独立 `_http_base` 和独立线程运行。
-- 服务层已根据主从状态动态控制 HTTP 生命周期：主节点自动开放管理端口，从节点默认不开放，避免同机多节点争抢 `8080`。
-- 若需要在从节点提供 HTTP 能力，可在部署配置中设置 `HTTP_API_Setting.Enable_On_Slave=true`。
-
 **Step 1: HTTP 线程独立化**
 
 ```cpp
@@ -284,26 +244,22 @@ void ntrip_caster::component_stop() {
 
 ### 2.1 节点配置查看与热更新
 
-状态：已完成并已联调
-
 #### 后端 API
 
 | Method | Path | 说明 |
 |--------|------|------|
-| GET | `/api/nodes/config/{id}` | 获取指定节点的运行配置（聚合节点信息 + core/service 配置 + schema） |
-| POST | `/api/nodes/action/{id}` | 通过 `action=config_update` 推送配置更新到指定节点 |
+| GET | `/api/nodes/{id}/config` | 获取指定节点的运行配置 |
+| PUT | `/api/nodes/{id}/config` | 推送配置更新到指定节点 |
+| GET | `/api/nodes/{id}/status/detail` | 获取节点详细运行状态 |
 
 #### 实现方案
 
 **配置下发通道**：利用现有 `NODE:{id}` Redis 频道
 
 ```
-Web HTTP → POST /api/nodes/action/{id}
-         → 写入 Redis 配置 (`CONF:CORE` / `CONF:SERVICE`)
-         → PUBLISH CASTER:CONF CONFIG
-         → PUBLISH NODE:{id} {"type":"action", "action":"config_update", "params":{...}}
-节点收到 → Redis_ConfChange_Callback / Redis_NodeChannel_Callback
-         → reload_config_from_redis()
+Web HTTP → PUBLISH NODE:{id} {"type":"config_update", "key":"...", "value":"..."}
+节点收到 → Redis_NodeChannel_Callback → 应用配置变更
+节点回应 → HSET CASTER:NODE:{id}:CONFIG_ACK {result}
 ```
 
 **可热更新的配置项**：
@@ -332,28 +288,36 @@ Web HTTP → POST /api/nodes/action/{id}
 
 ### 2.2 服务组件控制
 
-状态：基础能力已完成并已联调，更多控制项待扩展
-
 #### 后端 API
 
 | Method | Path | 说明 |
 |--------|------|------|
-| POST | `/api/nodes/action/{id}` | 执行节点操作 |
+| POST | `/api/nodes/{id}/action` | 执行节点操作 |
 
 #### 支持的操作
 
 ```json
+// 暂停接受新连接（不断开现有连接）
+{ "action": "pause_listener" }
+
+// 恢复接受新连接
+{ "action": "resume_listener" }
+
+// 断开所有基站连接
+{ "action": "disconnect_servers" }
+
+// 断开所有用户连接
+{ "action": "disconnect_clients" }
+
+// 断开指定连接
+{ "action": "disconnect", "connect_key": "xxx" }
+
 // 强制刷新集群状态
 { "action": "sync_cluster" }
 
 // 触发日志级别调整
-{ "action": "set_log_level", "params": {"level": "debug|info|warn|error"} }
-
-// 热更新配置
-{ "action": "config_update", "params": {"section": "core", "key": "update_intv", "value": 5} }
+{ "action": "set_log_level", "level": "debug|info|warn|error" }
 ```
-
-其余控制项（暂停监听、批量断开连接、定向断开连接）保留在后续扩展范围内。
 
 #### 实现方案
 
@@ -382,8 +346,6 @@ void caster_internal::handle_node_command(const json &cmd) {
 
 ### 2.3 节点运行日志查看
 
-状态：已完成基础能力，当前支持最近日志查看与级别筛选
-
 #### 后端 API
 
 | Method | Path | 说明 |
@@ -395,7 +357,6 @@ void caster_internal::handle_node_command(const json &cmd) {
 - 在 spdlog 中注册一个 **ring_buffer sink**（内存中保留最近 500 条日志）
 - HTTP API 读取 ring_buffer 返回
 - 支持参数：`level=info&limit=100`
-- 目标节点通过既有 `NODE:{id}` action 通道回传日志结果，管理节点无需依赖从节点开放 HTTP
 
 ```cpp
 // logger.cpp
@@ -777,21 +738,7 @@ LTRIM: 保留最近 1440 条（24小时）
 
 ### 5.5 系统监控页（新增 `/monitor`）
 
-状态：已完成并已联调
-
-当前页面已实现以下内容：
-
-- 集群概览卡片与节点状态列表
-- Redis 服务器、客户端、内存、统计信息展示
-- Key 空间分类分析表
-- 10 秒自动刷新
-
-以下内容顺延到后续与 `3.3 Redis 历史趋势` 一起补充：
-
-- Redis QPS / 内存历史趋势图
-- 更长时间跨度的时序分析
-
-原始设计目标如下：
+全新页面，展示 Redis 和集群深层状态：
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -917,8 +864,6 @@ if (topic == "CONFIG") {
 
 ### 7.1 操作日志
 
-状态：基础能力已完成并已联调
-
 #### 数据结构
 
 ```
@@ -942,8 +887,14 @@ Type: LIST (LPUSH + LTRIM ~5000)
 
 | 操作类别 | 具体操作 |
 |----------|----------|
-| 节点控制 | `sync_cluster` / `set_log_level` / `config_update`（已实现） |
-| 其他管理操作 | 账号、源列表、别名、访问控制、Relay、认证事件（待补齐） |
+| 账号管理 | 创建/修改/删除账号 |
+| 源列表 | 创建/修改/删除源记录 |
+| 别名管理 | 创建/修改/删除别名规则 |
+| 访问控制 | 创建/修改/删除访问组/项 |
+| Relay 管理 | 创建/修改/删除/启动/停止 Relay |
+| 配置变更 | 修改系统配置 |
+| 节点控制 | 暂停/恢复/断开/日志级别调整 |
+| 认证事件 | 登录/登出/密码修改 |
 
 #### 后端 API
 
@@ -953,7 +904,7 @@ Type: LIST (LPUSH + LTRIM ~5000)
 
 #### 实现方式
 
-当前实现为在 `http_handler` 中添加 `audit_log()` 辅助函数，并将日志写入 Redis LIST：
+在 `http_handler` 中添加 `audit_log()` 辅助函数：
 
 ```cpp
 void http_handler::audit_log(const HttpRequest &req,
@@ -962,11 +913,11 @@ void http_handler::audit_log(const HttpRequest &req,
                               const json &detail) {
     json entry;
     entry["ts"] = time(nullptr);
-    entry["user"] = ...;
+    entry["user"] = get_token_user(req);  // 从 token 解析用户名
     entry["action"] = action;
     entry["target"] = target;
     entry["detail"] = detail;
-    entry["ip"] = ...;
+    entry["ip"] = req.remote_host;
     entry["result"] = "ok";
     sync_redis::instance().lpush("LOG:AUDIT", entry.dump());
     sync_redis::instance().ltrim("LOG:AUDIT", 0, 4999);
@@ -974,8 +925,6 @@ void http_handler::audit_log(const HttpRequest &req,
 ```
 
 ### 7.2 Web 操作日志页面（新增 `/audit`）
-
-状态：已完成基础版
 
 | 列 | 说明 |
 |----|------|
@@ -987,7 +936,7 @@ void http_handler::audit_log(const HttpRequest &req,
 | IP | 客户端 IP |
 | 结果 | 成功/失败 |
 
-当前已支持按操作类型、用户筛选和分页浏览；时间范围筛选可在后续补充。
+支持按操作类型、用户、时间范围筛选。
 
 ### 7.3 安全增强
 
@@ -1013,14 +962,14 @@ void http_handler::audit_log(const HttpRequest &req,
 
 ### Phase 2: 监控与控制（P1）
 
-| 任务 | 预期复杂度 | 说明 | 状态 |
-|------|------------|------|------|
-| 3.1 Redis INFO API | 中 | `sync_redis::info()` + 解析 | ✅ 已完成 |
-| 3.2 Key 空间分析 | 中 | SCAN + 聚合 | ✅ 已完成 |
-| 3.4 集群状态 API | 低 | 汇总现有数据 | ✅ 已完成 |
-| 5.5 系统监控页面 | 高 | 全新页面，Redis + 集群全览 | ✅ 已完成 |
-| 2.1 节点配置查看 | 中 | 读取 Redis 配置 | ✅ 已完成 |
-| 2.2 服务组件控制 | 高 | NODE 频道命令扩展 | ✅ 基础能力完成 |
+| 任务 | 预期复杂度 | 说明 |
+|------|------------|------|
+| 3.1 Redis INFO API | 中 | `sync_redis::info()` + 解析 |
+| 3.2 Key 空间分析 | 中 | SCAN + 聚合 |
+| 3.4 集群状态 API | 低 | 汇总现有数据 |
+| 5.5 系统监控页面 | 高 | 全新页面，Redis + 集群全览 |
+| 2.1 节点配置查看 | 中 | 读取 Redis 配置 |
+| 2.2 服务组件控制 | 高 | NODE 频道命令扩展 |
 
 ### Phase 3: 页面增强（P1-P2）
 
@@ -1034,13 +983,13 @@ void http_handler::audit_log(const HttpRequest &req,
 
 ### Phase 4: 系统完善（P2）
 
-| 任务 | 预期复杂度 | 说明 | 状态 |
-|------|------------|------|------|
-| 6.1-6.3 设置页完善 | 中 | 配置 Schema + 表单 | ✅ 基础版已完成 |
-| 7.1-7.2 操作日志 | 中 | 审计日志记录 + 页面 | ✅ 基础能力完成 |
-| 7.3 安全增强 | 中 | Token 过期 + 频率限制 | ✅ 基础版已完成 |
-| 3.3 Redis 历史趋势 | 低 | 定时采集 + 存储 | ✅ 基础版已完成 |
-| 2.3 节点日志查看 | 中 | Ring Buffer Sink | ✅ 已完成 |
+| 任务 | 预期复杂度 | 说明 |
+|------|------------|------|
+| 6.1-6.3 设置页完善 | 中 | 配置 Schema + 表单 |
+| 7.1-7.2 操作日志 | 中 | 审计日志记录 + 页面 |
+| 7.3 安全增强 | 中 | Token 过期 + 频率限制 |
+| 3.3 Redis 历史趋势 | 低 | 定时采集 + 存储 |
+| 2.3 节点日志查看 | 中 | Ring Buffer Sink |
 
 ---
 

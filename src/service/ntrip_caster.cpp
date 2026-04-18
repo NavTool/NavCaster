@@ -10,8 +10,6 @@
 #include <event2/http.h>
 #include "SysUsage.h"
 
-#include <unistd.h>
-
 #include <malloc.h> //试图解决linux下（glibc）内存不自动释放问题
 // https://blog.csdn.net/kenanxiuji/article/details/48547285
 // https://blog.csdn.net/u013259321/article/details/112031002
@@ -122,8 +120,16 @@ int ntrip_caster::start()
     // 核心模块初始化（核心业务）
     component_init();
 
-    // 根据当前角色和配置决定是否启动 HTTP API
-    sync_http_api_state();
+    // 附加模块初始化（HTTP/SSE 绑定到 _http_base）
+    extra_init();
+
+    // 启动 HTTP 线程（独立事件循环）
+    _http_thread = std::thread([this]() {
+        evthread_make_base_notifiable(_http_base);
+        spdlog::info("[ntrip_caster]: HTTP thread started");
+        event_base_dispatch(_http_base);
+        spdlog::info("[ntrip_caster]: HTTP thread stopped");
+    });
 
     // 添加超时事件
     event_add(_timeout_ev, &_timeout_tv);
@@ -159,8 +165,6 @@ int ntrip_caster::update_state_info()
 
 int ntrip_caster::periodic_task()
 {
-    sync_http_api_state();
-
     if (_output_state) // 输出状态信息
     {
         // spdlog::info("[Service Statistic]: Connection: {}, Server: {}, Client: {}, Pull: {}, Push: {}, Nearest: {}, Memory: {} BYTE.",
@@ -191,25 +195,6 @@ int ntrip_caster::periodic_task()
 
     return 0;
 }
-
-bool ntrip_caster::should_enable_http_api() const
-{
-    const auto &http_conf = ntrip_config::getInstance()->_http_api_config;
-    return http_conf.enable_on_slave || CASTER::Is_Master_Node();
-}
-
-int ntrip_caster::sync_http_api_state()
-{
-    const bool should_run = should_enable_http_api();
-    if (should_run == _http_running)
-        return 0;
-
-    if (should_run)
-        return extra_init();
-
-    return extra_stop();
-}
-
 int ntrip_caster::component_init()
 {
     // 初始化请求处理队列
@@ -221,10 +206,6 @@ int ntrip_caster::component_init()
 
     // 初始化Caster数据分发核心：当前采用的是Redis，后续开发支持脱离redis运行
     CASTER::Init(ntrip_config::getInstance()->_caster_core_opt, _base);
-    CASTER::Set_Node_Runtime_Info(
-        static_cast<uint32_t>(ntrip_config::getInstance()->_listener_opt.listen_port()),
-        static_cast<uint32_t>(ntrip_config::getInstance()->_http_api_config.port),
-        static_cast<uint32_t>(getpid()));
 
     // 注册Relay请求回调
     CASTER::Relay_Register_Callback(Relay_Request_Callback, this);
@@ -250,9 +231,6 @@ int ntrip_caster::component_stop()
 
 int ntrip_caster::extra_init()
 {
-    if (_http_running)
-        return 0;
-
     // init_license_check();
 
     // Initialize HTTP API server
@@ -299,19 +277,6 @@ int ntrip_caster::extra_init()
     }
     else
     {
-        if (_http_thread.joinable())
-        {
-            _http_thread.join();
-        }
-
-        _http_thread = std::thread([this]() {
-            evthread_make_base_notifiable(_http_base);
-            spdlog::info("[ntrip_caster]: HTTP thread started");
-            event_base_dispatch(_http_base);
-            spdlog::info("[ntrip_caster]: HTTP thread stopped");
-        });
-
-        _http_running = true;
         spdlog::info("[ntrip_caster::extra_init]: HTTP API server started on {}:{}", http_conf.bind_addr, http_conf.port);
 
         // 将当前配置写入 Redis
@@ -324,7 +289,6 @@ int ntrip_caster::extra_init()
             service_json["common"] = json::parse(ProtoToJson(conf->_service_opt));
             service_json["http_api"] = {
                 {"port", http_conf.port},
-                {"enable_on_slave", http_conf.enable_on_slave},
                 {"bind_addr", http_conf.bind_addr},
                 {"cors_origin", http_conf.cors_origin},
                 {"web_root", http_conf.web_root}
@@ -346,9 +310,6 @@ int ntrip_caster::extra_init()
 
 int ntrip_caster::extra_stop()
 {
-    if (!_http_running)
-        return 0;
-
     // 停止 HTTP 事件循环并等待线程退出
     if (_http_base)
     {
@@ -359,10 +320,6 @@ int ntrip_caster::extra_stop()
         _http_thread.join();
         spdlog::info("[ntrip_caster::extra_stop]: HTTP thread joined");
     }
-
-    _http_handler.stop();
-
-    _http_running = false;
     return 0;
 }
 

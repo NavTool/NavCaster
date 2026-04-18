@@ -265,13 +265,9 @@ export interface PushState {
 export interface CasterNode {
   uid: string;
   node_name: string;
-  is_master?: boolean;
   set_version: string;
   tag_version: string;
   run_platform: string;
-  listen_port?: number;
-  http_port?: number;
-  process_id?: number;
   cpu_usage: number;
   mem_usage: number;
   queue_delay: number;

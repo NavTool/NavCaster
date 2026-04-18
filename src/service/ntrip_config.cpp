@@ -161,8 +161,6 @@ int ntrip_config::load_Caster_Conf(std::string conf_file_path)
         auto Http_Setting = Conf["HTTP_API_Setting"];
         if (Http_Setting["Port"])
             _http_api_config.port = Http_Setting["Port"].as<int>();
-        if (Http_Setting["Enable_On_Slave"])
-            _http_api_config.enable_on_slave = Http_Setting["Enable_On_Slave"].as<bool>();
         if (Http_Setting["Bind_Addr"])
             _http_api_config.bind_addr = Http_Setting["Bind_Addr"].as<std::string>();
         if (Http_Setting["CORS_Origin"])
