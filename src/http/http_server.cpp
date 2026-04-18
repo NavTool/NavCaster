@@ -235,7 +235,11 @@ void http_server::send_cors_headers(evhttp_request *req, evbuffer *buf)
     {
         evhttp_add_header(evhttp_request_get_output_headers(req), "Access-Control-Allow-Origin", _cors_origin.c_str());
         evhttp_add_header(evhttp_request_get_output_headers(req), "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        evhttp_add_header(evhttp_request_get_output_headers(req), "Access-Control-Allow-Headers", "Content-Type, Authorization");
+        const char *requested_headers = evhttp_find_header(evhttp_request_get_input_headers(req), "Access-Control-Request-Headers");
+        evhttp_add_header(
+            evhttp_request_get_output_headers(req),
+            "Access-Control-Allow-Headers",
+            requested_headers && requested_headers[0] != '\0' ? requested_headers : "Content-Type, Authorization, X-Auth-User");
         evhttp_add_header(evhttp_request_get_output_headers(req), "Access-Control-Max-Age", "86400");
     }
 }
