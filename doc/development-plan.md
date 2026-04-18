@@ -208,67 +208,47 @@ XADD NODE:HISTORY:{node_id} MAXLEN ~86400 * cpu 2.5 mem 50 conn 150 mpt 10 usr 8
 
 ## 四、基站/用户历史分析功能
 
+> **实现状态**: ✅ 已完成
+
 ### 目标
 
 提供基站和用户的历史连接记录、数据统计、趋势分析。
 
-### 方案设计
+### 已实现功能
 
-#### 4.1 数据汇总统计
+#### 4.1 数据汇总统计 ✅
 
-基于上下线日志（第一章），定期生成汇总数据：
+- `GET /api/stats/overview?start=&end=&date=` — 汇总统计（连接数、峰值并发、平均时长、唯一基站/用户数、每小时趋势）
+- `GET /api/stats/daily/{YYYY-MM-DD}` — 指定日期统计，历史日期自动缓存到 `STAT:DAILY:{date}`（TTL 7天），今日数据实时计算
 
-**每日统计** (`STAT:DAILY:{date}`)：
-```json
-{
-  "mpt_connections": 150,
-  "usr_connections": 2000,
-  "total_bytes_rx": 10737418240,
-  "total_bytes_tx": 107374182400,
-  "peak_concurrent_mpt": 12,
-  "peak_concurrent_usr": 85,
-  "avg_duration_mpt": 28800,
-  "avg_duration_usr": 3600,
-  "unique_users": 45,
-  "unique_mountpoints": 12
-}
-```
+#### 4.2 排行榜 ✅
 
-#### 4.2 排行榜/热力图
+- `GET /api/stats/mountpoints/ranking?start=&end=&limit=20` — 基站 TOP 排行（在线时长、连接次数、最后活跃）
+- `GET /api/stats/users/ranking?start=&end=&limit=20` — 用户 TOP 排行（使用时长、连接次数、使用基站数）
 
-- **基站在线时长排行**：按日/周/月统计各基站在线总时长
-- **用户使用频次排行**：统计各用户连接次数和总使用时长
-- **时段分布热力图**：按小时统计连接数分布
+#### 4.3 个体历史 ✅
 
-#### 4.3 HTTP API
+- `GET /api/stats/mountpoints/history/{mount}` — 指定基站的所有历史连接记录
+- `GET /api/stats/users/history/{user}` — 指定用户的所有历史连接记录
+- 每条记录包含：连接时间、断开时间、时长、节点、账户、类型、在线状态
 
-| Method | Path | 说明 |
-|--------|------|------|
-| GET | `/api/stats/daily/{date}` | 指定日期统计 |
-| GET | `/api/stats/range` | 时间范围统计 (start, end) |
-| GET | `/api/stats/mountpoints/ranking` | 基站排行 |
-| GET | `/api/stats/users/ranking` | 用户排行 |
-| GET | `/api/stats/mountpoints/{mount}/history` | 基站历史详情 |
-| GET | `/api/stats/users/{user}/history` | 用户历史详情 |
+#### 4.4 Web 前端 ✅
 
-#### 4.4 Web 前端
-
-- "数据统计"主页面（仪表盘）
-  - 今日概览：当前在线数、今日连接数、数据吞吐量
-  - 趋势图：7 天/30 天连接数趋势
-  - 排行榜：TOP 10 基站/用户
-- "基站详情"子页面
-  - 在线时间线
-  - 数据流量统计
-  - 历史连接列表
-- "用户详情"子页面
-  - 使用时长统计
-  - 常用基站列表
-  - 历史连接列表
+- **数据统计页面** (`/statistics`)：
+  - 时间范围选择器（今日/7天/30天/自定义日期）
+  - 8 个概览统计卡片
+  - 每小时趋势柱状图（recharts BarChart）
+  - 基站/用户 TOP 20 排行表
+  - 自定义历史日期使用缓存 API（`getStatsDaily`）
+- **基站详情页**：历史连接表格（ConnectionHistoryTable 共享组件）
+- **用户详情页**：历史连接表格
+- **账户详情页**：历史登录表格
 
 ---
 
 ## 五、多节点数据同步完善
+
+> **实现状态**: ✅ 已完成核心功能
 
 ### 当前机制
 
@@ -278,18 +258,30 @@ XADD NODE:HISTORY:{node_id} MAXLEN ~86400 * cpu 2.5 mem 50 conn 150 mpt 10 usr 8
 
 ### 已知问题
 
-1. **Master 切换延迟**：Master 宕机后需等待 30 秒 TTL 过期
+1. **Master 切换延迟**：~~Master 宕机后需等待 30 秒 TTL 过期~~ ✅ 已缩短至 15 秒
 2. **广播消息丢失**：Redis Pub/Sub 不保证投递，节点重启时可能错过消息
 3. **Relay 任务重复**：Master 切换时可能导致任务重复下发
-4. **别名/访问控制同步**：变更通过广播通知，但节点可能未收到
+4. **别名/访问控制同步**：~~变更通过广播通知，但节点可能未收到~~ ✅ 已实现 CASTER:CONF 订阅
 
-### 优化方案
+### 已实现功能
 
-#### 5.1 快速 Master 切换
+#### 5.1 快速 Master 切换 ✅
 
-- 缩短 `CASTER:MASTER` TTL 到 10 秒
-- 引入 Redis Keyspace Notification 监听 Master key 过期
-- Slave 节点在检测到 Master 消失后立即尝试抢占
+- `CASTER:MASTER` TTL 从 30 秒缩短到 15 秒（`_master_expire_time`）
+- 新增 `_is_master` / `_current_master_id` 状态跟踪
+- `Redis_KeepMaster_Callback` 检查续期是否成功，仅成功时调用 `sync_cluster_state()`
+- Master 身份变更时输出 spdlog::info 日志
+- `/api/status` 返回 `master_node` 字段
+- Dashboard 节点卡片显示 Master 金色徽章（CrownOutlined + Tag）
+
+#### 5.4 配置变更即时同步 ✅
+
+- HTTP 层别名 CRUD 操作后发布 `PUBLISH CASTER:CONF ALIAS`
+- 各节点 `init_sub_context()` 订阅 `CASTER:CONF` 频道
+- `Redis_ConfChange_Callback` 收到 ALIAS 消息后立即调用 `download_alias_rule()`
+- 原有 1 秒轮询作为兜底保留
+
+### 待优化（低优先级）
 
 #### 5.2 消息可靠投递
 
@@ -306,14 +298,6 @@ XADD CASTER:EVENTS * type mpt_online mount RTCM3_GPS node node_01
 - 每个 Relay 任务增加 `generation` 版本号
 - 节点执行前检查 Record 中的版本号是否匹配
 - 任务状态中记录当前执行的版本号
-
-#### 5.4 配置同步
-
-别名/访问控制等配置变更后：
-1. 写入 Redis Hash
-2. 发布变更通知（含版本号）
-3. 各节点收到通知后拉取最新数据
-4. 定时全量同步（每 5 分钟）作为兜底
 
 ---
 

@@ -144,6 +144,11 @@ export async function getStatsOverview(params?: { start?: number; end?: number; 
   return data as StatsOverview;
 }
 
+export async function getStatsDaily(date: string): Promise<StatsOverview & { date: string }> {
+  const { data } = await api.get(`/api/stats/daily/${encodeURIComponent(date)}`);
+  return data as StatsOverview & { date: string };
+}
+
 export async function getMptRanking(params?: { start?: number; end?: number; limit?: number }): Promise<MptRankingItem[]> {
   const { data } = await api.get('/api/stats/mountpoints/ranking', { params });
   return data as MptRankingItem[];
@@ -152,4 +157,31 @@ export async function getMptRanking(params?: { start?: number; end?: number; lim
 export async function getUsrRanking(params?: { start?: number; end?: number; limit?: number }): Promise<UsrRankingItem[]> {
   const { data } = await api.get('/api/stats/users/ranking', { params });
   return data as UsrRankingItem[];
+}
+
+// Individual mount/user connection history
+export interface ConnectionHistoryItem {
+  name: string;
+  mount?: string;
+  connect_key: string;
+  node_id: string;
+  type: number;
+  account: string;
+  host: string;
+  port: number;
+  connect_time: number;
+  last_update: number;
+  disconnect_time: number;
+  duration: number;
+  online: boolean;
+}
+
+export async function getMptHistory(mount: string): Promise<ConnectionHistoryItem[]> {
+  const { data } = await api.get(`/api/stats/mountpoints/history/${encodeURIComponent(mount)}`);
+  return data as ConnectionHistoryItem[];
+}
+
+export async function getUsrHistory(user: string): Promise<ConnectionHistoryItem[]> {
+  const { data } = await api.get(`/api/stats/users/history/${encodeURIComponent(user)}`);
+  return data as ConnectionHistoryItem[];
 }

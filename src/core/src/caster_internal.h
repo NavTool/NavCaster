@@ -241,6 +241,7 @@ private:
     int _unactive_time = 10; // 站点更新时间和当前时间差距多少秒会被认为已挂掉
     int _update_intv = 1;
     int _key_expire_time = 30; // Hash键值默认续期时间
+    int _master_expire_time = 15; // Master锁TTL, 缩短以加速故障切换
     int _node_history_counter = 0; // 节点历史记录计数器, 每 60 次 TimeoutCallback 记录一次
 
     bool _upload_base_stat = true;     // 上报基站数据流统计信息
@@ -264,6 +265,8 @@ private:
 private:
     std::string _node_ID = util_generate_random_key(6);
     std::string _node_name = "NODE-" + _node_ID;
+    bool _is_master = false;
+    std::string _current_master_id; // 当前 master 节点 ID
 
     event_base *_base;
 
@@ -409,6 +412,7 @@ private:
 
     // 广播频道的回调
     static void Redis_Broadcast_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_ConfChange_Callback(redisAsyncContext *c, void *r, void *privdata);
     int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
 
     // 更新有效挂载点、有效用户的回调

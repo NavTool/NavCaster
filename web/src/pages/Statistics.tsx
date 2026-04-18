@@ -9,7 +9,7 @@ import {
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import {
-  getStatsOverview, getMptRanking, getUsrRanking,
+  getStatsOverview, getStatsDaily, getMptRanking, getUsrRanking,
   type StatsOverview, type MptRankingItem, type UsrRankingItem,
 } from '../api';
 
@@ -73,6 +73,8 @@ const Statistics: React.FC = () => {
     try {
       let params: { start?: number; end?: number; date?: string } = {};
       const now = Math.floor(Date.now() / 1000);
+      let useDailyApi = false;
+      let dailyDate = '';
       if (range === 'today') {
         // Use default (server returns today)
       } else if (range === '7d') {
@@ -80,13 +82,27 @@ const Statistics: React.FC = () => {
       } else if (range === '30d') {
         params = { start: now - 30 * 86400, end: now };
       } else if (range === 'custom' && customDate) {
-        params = { date: customDate.format('YYYY-MM-DD') };
+        dailyDate = customDate.format('YYYY-MM-DD');
+        const isToday = customDate.isSame(dayjs(), 'day');
+        if (!isToday) {
+          useDailyApi = true; // use cached daily endpoint for past dates
+        } else {
+          params = { date: dailyDate };
+        }
       }
 
+      const overviewPromise = useDailyApi
+        ? getStatsDaily(dailyDate)
+        : getStatsOverview(params);
+
+      const rankingParams = useDailyApi
+        ? { start: customDate!.startOf('day').unix(), end: customDate!.endOf('day').unix(), limit: 20 }
+        : { start: params.start, end: params.end, limit: 20 };
+
       const [ov, mpt, usr] = await Promise.all([
-        getStatsOverview(params),
-        getMptRanking({ start: params.start, end: params.end, limit: 20 }),
-        getUsrRanking({ start: params.start, end: params.end, limit: 20 }),
+        overviewPromise,
+        getMptRanking(rankingParams),
+        getUsrRanking(rankingParams),
       ]);
       setOverview(ov);
       setMptRanking(mpt);

@@ -151,8 +151,11 @@ private:
 
     // Statistics (based on LOG:MPT / LOG:USR)
     void handle_get_stats_overview(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_stats_daily(const HttpRequest &req, HttpResponse &resp);
     void handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResponse &resp);
     void handle_get_stats_usr_ranking(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_stats_mpt_history(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_stats_usr_history(const HttpRequest &req, HttpResponse &resp);
 
     // Configuration (CONF:*)
     void handle_get_configs(const HttpRequest &req, HttpResponse &resp);

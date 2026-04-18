@@ -759,7 +759,7 @@ void caster_internal::record_node_history()
 
 int caster_internal::try_set_master_node()
 {
-    redisAsyncCommand(_pub_context, NULL, NULL, "SET " CASTER_MASTER_KEY " %s NX EX %s", _node_ID.c_str(), std::to_string(_key_expire_time).c_str()); // 节点名   NODE为随机字符串+启动后从Redis中获取一个累加值
+    redisAsyncCommand(_pub_context, NULL, NULL, "SET " CASTER_MASTER_KEY " %s NX EX %s", _node_ID.c_str(), std::to_string(_master_expire_time).c_str()); // 节点名   NODE为随机字符串+启动后从Redis中获取一个累加值
     redisAsyncCommand(_pub_context, Redis_SetMaster_Callback, this, "GET " CASTER_MASTER_KEY);
     return 0;
 }
@@ -984,11 +984,29 @@ void caster_internal::Redis_SetMaster_Callback(redisAsyncContext *c, void *r, vo
     auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<caster_internal *>(privdata);
 
+    // 读取当前 master 节点 ID
+    if (reply && reply->type == REDIS_REPLY_STRING && reply->str)
+    {
+        std::string master_id = reply->str;
+        if (svr->_current_master_id != master_id)
+        {
+            svr->_current_master_id = master_id;
+            if (master_id == svr->_node_ID)
+            {
+                spdlog::info("[caster_internal]: This node ({}) became MASTER", svr->_node_ID);
+            }
+            else
+            {
+                spdlog::info("[caster_internal]: Master node changed to {}", master_id);
+            }
+        }
+    }
+
     // 如果返回的节点名和自己的节点名是一致的，那么给这个节点续期
     redisAsyncCommand(svr->_pub_context, Redis_KeepMaster_Callback, svr, "SET " CASTER_MASTER_KEY " %sIFEQ %sEX %s",
                       svr->_node_ID.c_str(),
                       svr->_node_ID.c_str(),
-                      std::to_string(svr->_key_expire_time).c_str()); //
+                      std::to_string(svr->_master_expire_time).c_str());
 
     // 如果自己已经不是主节点，那么要清理本地维护的主节点状态信息
 }
@@ -998,10 +1016,25 @@ void caster_internal::Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, v
     auto reply = static_cast<redisReply *>(r);
     auto svr = static_cast<caster_internal *>(privdata);
 
-    // Master节点续期成功
+    // 检查续期是否成功 (reply 为 OK 表示成功, nil 表示已非 master)
+    bool renewed = (reply && reply->type == REDIS_REPLY_STATUS && reply->str && std::string(reply->str) == "OK");
 
-    // 开始执行节点任务
-    svr->sync_cluster_state();
+    if (renewed && !svr->_is_master)
+    {
+        svr->_is_master = true;
+        spdlog::info("[caster_internal]: Node {} confirmed as MASTER (TTL={}s)", svr->_node_ID, svr->_master_expire_time);
+    }
+    else if (!renewed && svr->_is_master)
+    {
+        svr->_is_master = false;
+        spdlog::warn("[caster_internal]: Node {} lost MASTER role", svr->_node_ID);
+    }
+
+    if (renewed)
+    {
+        // Master 节点续期成功，开始执行节点任务
+        svr->sync_cluster_state();
+    }
 }
 
 void caster_internal::Redis_NodeChannel_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -2017,6 +2050,7 @@ void caster_internal::Redis_Sub_Disconnect_Cb(const redisAsyncContext *c, int st
 int caster_internal::init_sub_context()
 {
     redisAsyncCommand(_sub_context, Redis_Broadcast_Callback, this, "SUBSCRIBE CASTER:BROADCAST");
+    redisAsyncCommand(_sub_context, Redis_ConfChange_Callback, this, "SUBSCRIBE CASTER:CONF");
     redisAsyncCommand(_sub_context, Redis_NodeChannel_Callback, this, "SUBSCRIBE NODE:%s", _node_ID.c_str());
 
     // 重新订阅所有的需要订阅的频道
@@ -2487,6 +2521,27 @@ void caster_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, vo
     }
 
     svr->broadcast_response(re3->str);
+}
+
+void caster_internal::Redis_ConfChange_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply || reply->elements != 3)
+        return;
+
+    auto re3 = reply->element[2];
+    if (re3->type != REDIS_REPLY_STRING)
+        return; // first subscribe ack is INTEGER, skip
+
+    std::string topic(re3->str);
+    spdlog::debug("[caster_internal]: config change notification: {}", topic);
+
+    if (topic == "ALIAS")
+    {
+        svr->download_alias_rule();
+    }
 }
 
 int caster_internal::broadcast_response(std::string req_str)

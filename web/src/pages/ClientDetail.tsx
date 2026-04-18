@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Typography, Card, Breadcrumb, Row, Col, Statistic, Empty, Descriptions, Tag } from 'antd';
 import { useParams, Link } from 'react-router-dom';
 import { useSSE } from '../hooks/useSSE';
+import ConnectionHistoryTable from '../components/ConnectionHistoryTable';
 import type { ClientState, StreamState } from '../api/types';
+import { getUsrHistory } from '../api';
 import { formatBytes, formatOnlineTime, formatDelay, formatSpeed, getLocalTime, formatQuality } from '../utils/format';
 
 const { Title } = Typography;
@@ -13,6 +15,8 @@ const ClientDetail: React.FC = () => {
   const { data: streams } = useSSE<Record<string, StreamState>>('streams', { channels: 'streams' });
   const client = clients?.[id || ''];
   const stream = streams?.[id || ''];
+  const userName = client?.account || '';
+  const fetchHistory = useCallback(() => getUsrHistory(userName), [userName]);
 
   return (
     <div>
@@ -72,7 +76,7 @@ const ClientDetail: React.FC = () => {
             </Card>
           )}
           <Card title="在线/离线记录" style={{ borderColor: '#2e3450' }}>
-            <Empty description="历史记录功能开发中" />
+            {userName ? <ConnectionHistoryTable fetchData={fetchHistory} showMount /> : <Empty description="暂无数据" />}
           </Card>
         </>
       ) : (

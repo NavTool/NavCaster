@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Typography, Card, Breadcrumb, Empty, Descriptions, Table, Tag } from 'antd';
 import { useParams, Link } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
-import { accountsApi, accountActivesApi } from '../api';
+import { accountsApi, accountActivesApi, getUsrHistory } from '../api';
 import type { AccountRecord, AccountActive } from '../api/types';
 import { AccountType, AccountStateType } from '../api/types';
 import { getLocalTime } from '../utils/format';
+import ConnectionHistoryTable from '../components/ConnectionHistoryTable';
 
 const { Title } = Typography;
 
@@ -26,6 +27,8 @@ const AccountDetail: React.FC = () => {
   const { data: accounts } = usePolling(() => accountsApi.getAll(), 5000);
   const { data: actives } = usePolling(() => accountActivesApi.getAll(), 3000);
   const account: AccountRecord | undefined = accounts?.[id || ''];
+  const accountName = account?.account || '';
+  const fetchHistory = useCallback(() => getUsrHistory(accountName), [accountName]);
 
   const activeList = actives
     ? Object.values(actives).filter(a => a.account === account?.account)
@@ -74,7 +77,7 @@ const AccountDetail: React.FC = () => {
           </Card>
 
           <Card title="登录记录" style={{ borderColor: '#2e3450' }}>
-            <Empty description="登录历史功能开发中" />
+            {accountName ? <ConnectionHistoryTable fetchData={fetchHistory} showMount /> : <Empty description="暂无数据" />}
           </Card>
         </>
       ) : (

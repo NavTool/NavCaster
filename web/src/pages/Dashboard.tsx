@@ -1,25 +1,39 @@
-import React from 'react';
-import { Card, Col, Row, Typography, Spin, Alert, Progress } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Card, Col, Row, Typography, Spin, Alert, Progress, Tag } from 'antd';
 import {
   CloudServerOutlined, UserOutlined, ClusterOutlined,
   ArrowUpOutlined, ArrowDownOutlined, DashboardOutlined,
-  HddOutlined, ClockCircleOutlined,
+  HddOutlined, ClockCircleOutlined, CrownOutlined,
 } from '@ant-design/icons';
 import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { CasterNode, ServerState, ClientState } from '../api/types';
 import { formatBytes, formatMbps, formatOnlineTime, formatDelay, formatUsage, formatSpeed } from '../utils/format';
 import { useNavigate } from 'react-router-dom';
+import { getSystemStatus } from '../api';
 
 const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const [masterNode, setMasterNode] = useState<string | null>(null);
   const { data: sseData, connected } = useMultiSSE<{
     nodes: Record<string, CasterNode>;
     servers: Record<string, ServerState>;
     clients: Record<string, ClientState>;
   }>(['nodes', 'servers', 'clients']);
+
+  useEffect(() => {
+    const fetchMaster = async () => {
+      try {
+        const status = await getSystemStatus();
+        setMasterNode(status?.master_node ?? null);
+      } catch { /* ignore */ }
+    };
+    fetchMaster();
+    const interval = setInterval(fetchMaster, 10000);
+    return () => clearInterval(interval);
+  }, []);
   const nodesLoading = !connected && !sseData.nodes;
   const nodes = sseData.nodes ?? null;
   const servers = sseData.servers ?? null;
@@ -152,7 +166,12 @@ const Dashboard: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <ClusterOutlined style={{ fontSize: 22, color: '#4a8eff' }} />
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>{node.node_name || node.uid}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 16, fontWeight: 600 }}>{node.node_name || node.uid}</span>
+                      {masterNode === node.uid && (
+                        <Tag color="gold" icon={<CrownOutlined />} style={{ margin: 0, fontSize: 11, lineHeight: '18px', padding: '0 5px' }}>Master</Tag>
+                      )}
+                    </div>
                     <div style={{ fontSize: 12, color: '#6b7194', fontFamily: 'monospace' }}>
                       v{node.tag_version || node.set_version}
                     </div>

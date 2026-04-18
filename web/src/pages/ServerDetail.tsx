@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Typography, Card, Breadcrumb, Row, Col, Statistic, Empty, Descriptions } from 'antd';
 import { useParams, Link } from 'react-router-dom';
 import { useSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
+import ConnectionHistoryTable from '../components/ConnectionHistoryTable';
 import type { ServerState, StreamState } from '../api/types';
+import { getMptHistory } from '../api';
 import { formatBytes, formatOnlineTime, formatDelay, formatSpeed, getLocalTime } from '../utils/format';
 
 const { Title } = Typography;
@@ -14,6 +16,8 @@ const ServerDetail: React.FC = () => {
   const { data: streams } = useSSE<Record<string, StreamState>>('streams', { channels: 'streams' });
   const server = servers?.[id || ''];
   const stream = streams?.[id || ''];
+  const mountName = server?.login_mpt || '';
+  const fetchHistory = useCallback(() => getMptHistory(mountName), [mountName]);
 
   return (
     <div>
@@ -68,7 +72,7 @@ const ServerDetail: React.FC = () => {
             </Card>
           )}
           <Card title="在线/离线记录" style={{ borderColor: '#2e3450' }}>
-            <Empty description="历史记录功能开发中" />
+            {mountName ? <ConnectionHistoryTable fetchData={fetchHistory} showAccount /> : <Empty description="暂无数据" />}
           </Card>
         </>
       ) : (

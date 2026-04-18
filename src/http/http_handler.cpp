@@ -236,6 +236,21 @@ namespace
             return ok;
         }
 
+        bool setex(const char *key, int seconds, const std::string &value)
+        {
+            if (!ensure_connected())
+                return false;
+
+            auto *reply = static_cast<redisReply *>(
+                redisCommand(_ctx, "SETEX %s %d %s", key, seconds, value.c_str()));
+            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
+            if (reply)
+                freeReplyObject(reply);
+            else
+                reconnect();
+            return ok;
+        }
+
         // GET key → json or null
         json get(const char *key)
         {
@@ -545,10 +560,16 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     // ==================== Statistics ====================
     _server.route(EVHTTP_REQ_GET, "/api/stats/overview", [this](auto &req, auto &resp)
                   { handle_get_stats_overview(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/stats/daily/*", [this](auto &req, auto &resp)
+                  { handle_get_stats_daily(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/stats/mountpoints/ranking", [this](auto &req, auto &resp)
                   { handle_get_stats_mpt_ranking(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/stats/mountpoints/history/*", [this](auto &req, auto &resp)
+                  { handle_get_stats_mpt_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/stats/users/ranking", [this](auto &req, auto &resp)
                   { handle_get_stats_usr_ranking(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/stats/users/history/*", [this](auto &req, auto &resp)
+                  { handle_get_stats_usr_history(req, resp); });
 
     // ==================== Configuration ====================
     _server.route(EVHTTP_REQ_GET, "/api/config", [this](auto &req, auto &resp)
@@ -965,12 +986,35 @@ void http_handler::handle_create_alias(const HttpRequest &req, HttpResponse &res
     }
     bool ok = sync_redis::instance().hsetnx(KEY_ALIAS_RULE, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Alias already exists"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ALIAS");
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"alias", uid}}.dump();
 }
 
-IMPL_UPDATE(handle_update_alias, KEY_ALIAS_RULE)
-IMPL_DELETE(handle_delete_alias, KEY_ALIAS_RULE)
+void http_handler::handle_update_alias(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+    bool ok = sync_redis::instance().hset(KEY_ALIAS_RULE, id.c_str(), body.dump());
+    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ALIAS");
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
+
+void http_handler::handle_delete_alias(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    bool ok = sync_redis::instance().hdel(KEY_ALIAS_RULE, id.c_str());
+    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ALIAS");
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
 
 // ==================== Access Groups (ACCESS:GROUP) ====================
 
@@ -1418,6 +1462,139 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     resp.body = result.dump();
 }
 
+// GET /api/stats/daily/{YYYY-MM-DD}
+// Returns daily stats, cached in Redis STAT:DAILY:{date} for past dates
+void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string date_str = get_resource_id(req); // YYYY-MM-DD
+    if (date_str.size() != 10 || date_str[4] != '-' || date_str[7] != '-')
+    {
+        resp.status_code = 400;
+        resp.body = R"({"error":"Invalid date format, use YYYY-MM-DD"})";
+        return;
+    }
+
+    // Parse date to start_ts / end_ts
+    struct tm tm_val{};
+    if (!strptime(date_str.c_str(), "%Y-%m-%d", &tm_val))
+    {
+        resp.status_code = 400;
+        resp.body = R"({"error":"Invalid date"})";
+        return;
+    }
+    long long start_ts = mktime(&tm_val);
+    tm_val.tm_mday += 1;
+    long long end_ts = mktime(&tm_val);
+    long long now_ts = static_cast<long long>(time(nullptr));
+
+    // Determine if this is a past day (can cache)
+    bool is_past = end_ts <= now_ts;
+
+    // Check cache for past dates
+    auto &redis = sync_redis::instance();
+    std::string cache_key = "STAT:DAILY:" + date_str;
+    if (is_past)
+    {
+        auto cached = redis.get(cache_key.c_str());
+        if (!cached.is_null())
+        {
+            resp.status_code = 200;
+            resp.body = cached.is_string() ? cached.get<std::string>() : cached.dump();
+            return;
+        }
+    }
+
+    // Compute from logs
+    json mpt_logs = redis.hgetall(KEY_LOG_MPT);
+    json usr_logs = redis.hgetall(KEY_LOG_USR);
+
+    long long mpt_connections = 0, usr_connections = 0;
+    long long total_duration_mpt = 0, total_duration_usr = 0;
+    int peak_concurrent_mpt = 0, peak_concurrent_usr = 0;
+    std::set<std::string> unique_mounts, unique_users;
+
+    int num_hours = 24;
+    std::vector<int> mpt_hourly(num_hours, 0);
+    std::vector<int> usr_hourly(num_hours, 0);
+
+    auto process_logs = [&](const json &logs, bool is_mpt)
+    {
+        for (auto &[field, entry] : logs.items())
+        {
+            if (!entry.is_object()) continue;
+            long long ct = entry.value("connect_time", 0LL);
+            long long dt = entry.value("disconnect_time", 0LL);
+            if (dt == 0) dt = now_ts;
+            if (dt < start_ts || ct >= end_ts) continue;
+
+            if (is_mpt)
+            {
+                mpt_connections++;
+                std::string name = entry.value("name", "");
+                if (!name.empty()) unique_mounts.insert(name);
+                total_duration_mpt += (std::min(dt, end_ts) - std::max(ct, start_ts));
+            }
+            else
+            {
+                usr_connections++;
+                std::string name = entry.value("name", "");
+                if (!name.empty()) unique_users.insert(name);
+                total_duration_usr += (std::min(dt, end_ts) - std::max(ct, start_ts));
+            }
+
+            long long h_start = std::max(ct, start_ts);
+            long long h_end = std::min(dt, end_ts);
+            int bucket_begin = std::max(0, static_cast<int>((h_start - start_ts) / 3600));
+            int bucket_end = std::min(num_hours - 1, static_cast<int>((h_end - start_ts) / 3600));
+            auto &hourly = is_mpt ? mpt_hourly : usr_hourly;
+            for (int b = bucket_begin; b <= bucket_end; b++)
+                hourly[b]++;
+        }
+    };
+
+    process_logs(mpt_logs, true);
+    process_logs(usr_logs, false);
+
+    for (int i = 0; i < num_hours; i++)
+    {
+        if (mpt_hourly[i] > peak_concurrent_mpt) peak_concurrent_mpt = mpt_hourly[i];
+        if (usr_hourly[i] > peak_concurrent_usr) peak_concurrent_usr = usr_hourly[i];
+    }
+
+    json hourly_trend = json::array();
+    for (int i = 0; i < num_hours; i++)
+    {
+        json h;
+        h["ts"] = start_ts + i * 3600;
+        h["mpt"] = mpt_hourly[i];
+        h["usr"] = usr_hourly[i];
+        hourly_trend.push_back(h);
+    }
+
+    json result;
+    result["date"] = date_str;
+    result["start"] = start_ts;
+    result["end"] = end_ts;
+    result["mpt_connections"] = mpt_connections;
+    result["usr_connections"] = usr_connections;
+    result["peak_concurrent_mpt"] = peak_concurrent_mpt;
+    result["peak_concurrent_usr"] = peak_concurrent_usr;
+    result["avg_duration_mpt"] = mpt_connections > 0 ? total_duration_mpt / mpt_connections : 0;
+    result["avg_duration_usr"] = usr_connections > 0 ? total_duration_usr / usr_connections : 0;
+    result["unique_mountpoints"] = static_cast<int>(unique_mounts.size());
+    result["unique_users"] = static_cast<int>(unique_users.size());
+    result["hourly_trend"] = hourly_trend;
+
+    std::string body = result.dump();
+
+    // Cache past dates (TTL 7 days = 604800s)
+    if (is_past)
+        redis.setex(cache_key.c_str(), 604800, body);
+
+    resp.status_code = 200;
+    resp.body = std::move(body);
+}
+
 // GET /api/stats/mountpoints/ranking?start=&end=&limit=20
 void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResponse &resp)
 {
@@ -1541,6 +1718,70 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
     resp.body = result.dump();
 }
 
+// GET /api/stats/mountpoints/history/{mount} — connection history for a specific mountpoint
+void http_handler::handle_get_stats_mpt_history(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string mount = get_resource_id(req);
+    if (mount.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint name"})"; return; }
+
+    json mpt_logs = sync_redis::instance().hgetall(KEY_LOG_MPT);
+    long long now_ts = static_cast<long long>(time(nullptr));
+
+    json result = json::array();
+    for (auto &[field, entry] : mpt_logs.items())
+    {
+        if (!entry.is_object()) continue;
+        std::string name = entry.value("name", "");
+        if (name != mount) continue;
+
+        json item = entry;
+        // Add computed duration
+        long long ct = entry.value("connect_time", 0LL);
+        long long dt = entry.value("disconnect_time", 0LL);
+        item["duration"] = (dt > 0 ? dt : now_ts) - ct;
+        item["online"] = (dt == 0);
+        result.push_back(item);
+    }
+
+    // Sort by connect_time descending (newest first)
+    std::sort(result.begin(), result.end(), [](const json &a, const json &b)
+    { return a.value("connect_time", 0LL) > b.value("connect_time", 0LL); });
+
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
+// GET /api/stats/users/history/{user} — connection history for a specific user
+void http_handler::handle_get_stats_usr_history(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string user = get_resource_id(req);
+    if (user.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing user name"})"; return; }
+
+    json usr_logs = sync_redis::instance().hgetall(KEY_LOG_USR);
+    long long now_ts = static_cast<long long>(time(nullptr));
+
+    json result = json::array();
+    for (auto &[field, entry] : usr_logs.items())
+    {
+        if (!entry.is_object()) continue;
+        std::string name = entry.value("name", "");
+        if (name != user) continue;
+
+        json item = entry;
+        long long ct = entry.value("connect_time", 0LL);
+        long long dt = entry.value("disconnect_time", 0LL);
+        item["duration"] = (dt > 0 ? dt : now_ts) - ct;
+        item["online"] = (dt == 0);
+        result.push_back(item);
+    }
+
+    std::sort(result.begin(), result.end(), [](const json &a, const json &b)
+    { return a.value("connect_time", 0LL) > b.value("connect_time", 0LL); });
+
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
 // ==================== Mountpoint Subscribers ====================
 
 void http_handler::handle_get_mountpoint_subscribers(const HttpRequest &req, HttpResponse &resp)
@@ -1586,6 +1827,14 @@ void http_handler::handle_get_status(const HttpRequest &req, HttpResponse &resp)
     status["redis_caster_connected"] = _caster_redis ? _caster_redis->is_connected() : false;
     status["redis_auth_connected"] = _auth_redis ? _auth_redis->is_connected() : false;
     status["ntrip_port"] = _config.ntrip_port;
+
+    // Cluster master info
+    auto &redis = sync_redis::instance();
+    json master_val = redis.get("CASTER:MASTER");
+    if (master_val.is_string())
+        status["master_node"] = master_val.get<std::string>();
+    else
+        status["master_node"] = nullptr;
 
     resp.status_code = 200;
     resp.body = status.dump();
