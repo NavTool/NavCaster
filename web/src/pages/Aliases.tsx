@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
-import { Table, Button, Modal, Form, Input, Switch, Typography, Space, Tag, message, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, Switch, AutoComplete, Typography, Space, Tag, Row, Col, message, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { usePolling } from '../hooks/usePolling';
+import { useSSE } from '../hooks/useSSE';
 import { aliasesApi } from '../api';
-import type { AliasRule } from '../api/types';
+import type { AliasRule, ServerState } from '../api/types';
 
 const { Title } = Typography;
 
 const Aliases: React.FC = () => {
   const { data, loading, refresh } = usePolling(() => aliasesApi.getAll(), 3000);
+  const { data: servers } = useSSE<Record<string, ServerState>>('servers', { channels: 'servers' });
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AliasRule | null>(null);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+
+  const onlineMptOptions = servers
+    ? [...new Set(Object.values(servers).map(s => s.login_mpt))].map(m => ({ value: m, label: m }))
+    : [];
 
   const dataSource = data
     ? Object.entries(data).map(([key, val]) => ({ ...val, key }))
@@ -98,19 +104,38 @@ const Aliases: React.FC = () => {
       />
       <Modal title={editing ? '编辑别名' : '新增别名'} open={modalOpen} onOk={handleSubmit}
         onCancel={() => setModalOpen(false)} confirmLoading={submitting}>
-        <Form form={form} layout="vertical">
-          <Form.Item name="source_name" label="源挂载点" rules={[{ required: true }]}>
-            <Input disabled={!!editing} />
-          </Form.Item>
-          <Form.Item name="alias_name" label="别名" rules={[{ required: true }]}>
-            <Input disabled={!!editing} />
-          </Form.Item>
-          <Form.Item name="enable" label="启用" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="visible" label="可见" valuePropName="checked">
-            <Switch />
-          </Form.Item>
+        <Form form={form} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="source_name" label="源挂载点" rules={[{ required: true }]}>
+                <AutoComplete
+                  options={onlineMptOptions}
+                  placeholder="选择在线挂载点"
+                  disabled={!!editing}
+                  filterOption={(input, option) =>
+                    (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="alias_name" label="别名" rules={[{ required: true }]}>
+                <Input disabled={!!editing} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="enable" label="启用" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="visible" label="可见" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </div>

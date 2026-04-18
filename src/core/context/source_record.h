@@ -19,6 +19,8 @@ public:
         _uid = uid;
     }
 
+    void set_mountpoint(const std::string &mpt) { _mountpoint = mpt; }
+
     int fromString(const std::string &str)
     {
         caster::core::SourceRecord proto;

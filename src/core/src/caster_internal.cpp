@@ -132,16 +132,20 @@ bool caster_internal::is_nearest_mpt(std::string mount_point)
 
 bool caster_internal::is_alias_mpt(std::string mount_point)
 {
-
-    // 从alias列表中查找
-
-    return false;
+    // 从alias映射表中查找
+    return _alias_rule_map.find(mount_point) != _alias_rule_map.end();
 }
 
 int caster_internal::sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
     try
     {
+        // 自动识别别名挂载点：如果 channel 是别名，委托给 sub_alias_channel 处理
+        if (is_alias_mpt(channel))
+        {
+            return sub_alias_channel(channel, user_name, connect_key, cb, arg);
+        }
+
         if (_active_mount_map.find(channel) == _active_mount_map.end()) // 不是活跃频道
         {
             caster_reply Reply;
@@ -435,6 +439,27 @@ std::string caster_internal::get_source_list_text()
         str += iter.second.toSourceItem();
     }
 
+    // 添加可见的别名挂载点到源表 (使用源挂载点的信息，但替换挂载点名为别名)
+    for (const auto &alias : _alias_visible_map)
+    {
+        const std::string &alias_name = alias.first;
+        const std::string &source_name = alias.second;
+
+        // 跳过已经存在同名的挂载点（避免重复）
+        if (merged_map.find(alias_name) != merged_map.end())
+            continue;
+
+        // 从已合并的源中查找原始挂载点信息
+        auto src_it = merged_map.find(source_name);
+        if (src_it != merged_map.end())
+        {
+            // 复制源挂载点信息，替换挂载点名
+            source_record alias_record = src_it->second;
+            alias_record.set_mountpoint(alias_name);
+            str += alias_record.toSourceItem();
+        }
+    }
+
     return str;
 }
 
@@ -548,7 +573,7 @@ int caster_internal::upload_node_status()
     add_sum_send(0);
 
     // 将本节点的信息上传到Redis
-    caster_node node(_node_ID, _node_name);
+    caster_node node(_node_ID, _node_name, _startup_time);
 
     node.set_sys_usage();
     node.set_delay_info(_queue_delay, _sub_ping_delay, _sub_tcp_delay, _pub_ping_delay, _pub_tcp_delay);
@@ -2452,13 +2477,41 @@ void caster_internal::Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, voi
     }
 
     svr->_alias_rule_map.clear();
+    svr->_alias_visible_map.clear();
 
-    for (int i = 0; i < reply->elements; i += 2)
+    for (size_t i = 0; i + 1 < reply->elements; i += 2)
     {
         auto field = reply->element[i]->str;
         std::string value = reply->element[i + 1]->str;
 
-        // value是用分号分隔的字符串, 需要拆分成list
+        // Try to parse as JSON (new format from web API)
+        try
+        {
+            auto j = nlohmann::json::parse(value);
+            if (j.is_object() && j.contains("alias_name") && j.contains("source_name"))
+            {
+                std::string alias_name = j.value("alias_name", "");
+                std::string source_name = j.value("source_name", "");
+                bool enable = j.value("enable", true);
+                bool visible = j.value("visible", true);
+
+                if (!alias_name.empty() && !source_name.empty())
+                {
+                    if (enable)
+                    {
+                        svr->_alias_rule_map[alias_name].push_back(source_name);
+                    }
+                    if (visible)
+                    {
+                        svr->_alias_visible_map[alias_name] = source_name;
+                    }
+                }
+                continue;
+            }
+        }
+        catch (...) {}
+
+        // Fallback: legacy format (semicolon-separated source names)
         std::list<std::string> values = util_split_string(value, ';');
         svr->_alias_rule_map.insert(std::pair<std::string, std::list<std::string>>(field, values));
     }

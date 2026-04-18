@@ -70,7 +70,20 @@ export interface SourcetableEntry {
   longitude?: string;
 }
 
-export async function fetchRemoteSourcetable(host: string, port: number, username?: string, password?: string): Promise<SourcetableEntry[]> {
-  const { data } = await api.post('/api/utils/sourcetable', { host, port, username, password });
+export async function fetchRemoteSourcetable(host: string, port: number, username?: string, password?: string, ntripVersion?: string): Promise<SourcetableEntry[]> {
+  const { data } = await api.post('/api/utils/sourcetable', { host, port, username, password, ntrip_version: ntripVersion || '2.0' });
   return data.mountpoints || [];
 }
+
+export async function fetchLocalSourcetable(): Promise<SourcetableEntry[]> {
+  const { data } = await api.get('/api/utils/sourcetable/local');
+  return data.mountpoints || [];
+}
+
+// Mountpoint subscriber counts
+export const resourceApi = {
+  async getMountpointSubscribers(): Promise<Record<string, number>> {
+    const { data } = await api.get('/api/mountpoints/subscribers');
+    return data;
+  },
+};

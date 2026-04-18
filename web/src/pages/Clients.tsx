@@ -6,6 +6,7 @@ import { useSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { ClientState, StreamState } from '../api/types';
 import { formatOnlineTime, formatQuality, formatBytes, formatSpeed } from '../utils/format';
+import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 
@@ -18,6 +19,7 @@ const qualityEntries = [
 ];
 
 const Clients: React.FC = () => {
+  const navigate = useNavigate();
   const { data, connected } = useSSE<Record<string, ClientState>>('clients');
   const { data: streams } = useSSE<Record<string, StreamState>>('streams');
   const loading = !connected && !data;
@@ -45,7 +47,6 @@ const Clients: React.FC = () => {
     { title: 'IP', dataIndex: 'ip', key: 'ip', width: 120,
       render: (v) => <span style={{ fontFamily: 'monospace', color: '#8b90a8' }}>{v}</span>,
     },
-    { title: '端口', dataIndex: 'port', key: 'port', width: 80 },
     { title: '在线时长', key: 'online_time', width: 120,
       render: (_, r) => <span style={{ fontWeight: 500 }}>{formatOnlineTime(r.online_time)}</span>,
     },
@@ -71,9 +72,6 @@ const Clients: React.FC = () => {
         return st ? formatBytes(st.send_total) : '-';
       },
     },
-    { title: 'ECEF X', dataIndex: 'ecef_x', key: 'ecef_x', width: 150, render: (v) => v ? v.toFixed(4) : '-' },
-    { title: 'ECEF Y', dataIndex: 'ecef_y', key: 'ecef_y', width: 150, render: (v) => v ? v.toFixed(4) : '-' },
-    { title: 'ECEF Z', dataIndex: 'ecef_z', key: 'ecef_z', width: 150, render: (v) => v ? v.toFixed(4) : '-' },
   ];
 
   const dataSource = data
@@ -99,7 +97,8 @@ const Clients: React.FC = () => {
           loading={loading}
           size="small"
           pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
-          scroll={{ x: 1600 }}
+          scroll={{ x: 1000 }}
+          onRow={(record) => ({ onClick: () => navigate(`/clients/${encodeURIComponent(record.key)}`), style: { cursor: 'pointer' } })}
         />
       </div>
     </div>

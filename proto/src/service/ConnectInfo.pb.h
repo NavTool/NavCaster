@@ -132,7 +132,6 @@ enum OperateType : int {
   OPERATE_TYPE_UNKNOWN = 0,
   OPERATE_TYPE_CREATE = 1,
   OPERATE_TYPE_DESTROY = 2,
-  OPERATE_TYPE_DESTORY = 2, // deprecated alias, use OPERATE_TYPE_DESTROY
   OPERATE_TYPE_PAUSE = 3,
   OPERATE_TYPE_UPDATE = 4,
   OperateType_INT_MIN_SENTINEL_DO_NOT_USE_ =
@@ -341,6 +340,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
     kAddrFieldNumber = 16,
     kTypeFieldNumber = 2,
     kOperateFieldNumber = 3,
+    kNtripLatFieldNumber = 18,
+    kNtripLonFieldNumber = 19,
     kPortFieldNumber = 17,
   };
   // string connect_key = 1;
@@ -573,6 +574,26 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
   void _internal_set_operate(::caster::service::OperateType value);
 
   public:
+  // double ntrip_lat = 18;
+  void clear_ntrip_lat() ;
+  [[nodiscard]] double ntrip_lat() const;
+  void set_ntrip_lat(double value);
+
+  private:
+  double _internal_ntrip_lat() const;
+  void _internal_set_ntrip_lat(double value);
+
+  public:
+  // double ntrip_lon = 19;
+  void clear_ntrip_lon() ;
+  [[nodiscard]] double ntrip_lon() const;
+  void set_ntrip_lon(double value);
+
+  private:
+  double _internal_ntrip_lon() const;
+  void _internal_set_ntrip_lon(double value);
+
+  public:
   // int32 port = 17;
   void clear_port() ;
   [[nodiscard]] ::int32_t port() const;
@@ -587,7 +608,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<5, 17,
+  static const ::google::protobuf::internal::TcParseTable<5, 19,
                                    0, 188,
                                    2>
       _table_;
@@ -627,6 +648,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
     ::google::protobuf::internal::ArenaStringPtr addr_;
     int type_;
     int operate_;
+    double ntrip_lat_;
+    double ntrip_lon_;
     ::int32_t port_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -1617,7 +1640,7 @@ inline void ConnectInfo::clear_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.port_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00010000U);
+                  0x00040000U);
 }
 inline ::int32_t ConnectInfo::port() const {
   // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.port)
@@ -1625,7 +1648,7 @@ inline ::int32_t ConnectInfo::port() const {
 }
 inline void ConnectInfo::set_port(::int32_t value) {
   _internal_set_port(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.port)
 }
 inline ::int32_t ConnectInfo::_internal_port() const {
@@ -1635,6 +1658,56 @@ inline ::int32_t ConnectInfo::_internal_port() const {
 inline void ConnectInfo::_internal_set_port(::int32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.port_ = value;
+}
+
+// double ntrip_lat = 18;
+inline void ConnectInfo::clear_ntrip_lat() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ntrip_lat_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00010000U);
+}
+inline double ConnectInfo::ntrip_lat() const {
+  // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.ntrip_lat)
+  return _internal_ntrip_lat();
+}
+inline void ConnectInfo::set_ntrip_lat(double value) {
+  _internal_set_ntrip_lat(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.ntrip_lat)
+}
+inline double ConnectInfo::_internal_ntrip_lat() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ntrip_lat_;
+}
+inline void ConnectInfo::_internal_set_ntrip_lat(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ntrip_lat_ = value;
+}
+
+// double ntrip_lon = 19;
+inline void ConnectInfo::clear_ntrip_lon() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ntrip_lon_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00020000U);
+}
+inline double ConnectInfo::ntrip_lon() const {
+  // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.ntrip_lon)
+  return _internal_ntrip_lon();
+}
+inline void ConnectInfo::set_ntrip_lon(double value) {
+  _internal_set_ntrip_lon(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.ntrip_lon)
+}
+inline double ConnectInfo::_internal_ntrip_lon() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ntrip_lon_;
+}
+inline void ConnectInfo::_internal_set_ntrip_lon(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ntrip_lon_ = value;
 }
 
 #ifdef __GNUC__

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table, Button, Modal, Form, Input, Switch, Typography, Space, message, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, Switch, Typography, Space, Row, Col, message, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { usePolling } from '../hooks/usePolling';
@@ -101,23 +101,47 @@ const AccessGroups: React.FC = () => {
         scroll={{ x: 900 }}
       />
       <Modal title={editing ? '编辑分组' : '新增分组'} open={modalOpen} onOk={handleSubmit}
-        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={600}>
-        <Form form={form} layout="vertical">
-          <Form.Item name="group_name" label="分组名称" rules={[{ required: true }]}>
-            <Input disabled={!!editing} />
-          </Form.Item>
-          <Form.Item name="nearest_mpt_enable" label="启用最近点" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="nearest_mpt_source_name" label="最近点源名称">
-            <Input />
-          </Form.Item>
-          <Form.Item name="allow_visible_inside_group" label="允许组内可见" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="allow_access_inside_group" label="允许组内访问" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="allow_nearby_inside_group" label="允许组内最近检索" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="allow_visible_outside_group" label="允许组外可见" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="allow_access_outside_group" label="允许组外访问" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="allow_nearby_outside_group" label="允许组外最近检索" valuePropName="checked"><Switch /></Form.Item>
+        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={640}>
+        <Form form={form} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="group_name" label="分组名称" rules={[{ required: true }]}>
+                <Input disabled={!!editing} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="nearest_mpt_source_name" label="最近点源名称">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="nearest_mpt_enable" label="启用最近点" valuePropName="checked"><Switch /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="allow_visible_inside_group" label="组内可见" valuePropName="checked"><Switch /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="allow_access_inside_group" label="组内访问" valuePropName="checked"><Switch /></Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="allow_nearby_inside_group" label="组内最近检索" valuePropName="checked"><Switch /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="allow_visible_outside_group" label="组外可见" valuePropName="checked"><Switch /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="allow_access_outside_group" label="组外访问" valuePropName="checked"><Switch /></Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="allow_nearby_outside_group" label="组外最近检索" valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </div>

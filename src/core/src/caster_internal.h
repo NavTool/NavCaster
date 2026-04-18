@@ -293,7 +293,8 @@ private:
     std::unordered_map<std::string, std::string> _active_user_map;   // 在线用户名  用户基本信息                        USR:LIST:COMMON
 
     // ALIAS映射关系(如果实体基站不在线，检索一下映射基站，然后从映射的表里找一个当前在线的基站播发数据，如果离线了，那么就再次从这个映射表里找，找到就上线，找不到就下线)
-    std::unordered_map<std::string, std::list<std::string>> _alias_rule_map; // 映射关系表             MPT:ALIAS
+    std::unordered_map<std::string, std::list<std::string>> _alias_rule_map; // 映射关系表(alias_name → list of source_names, only enabled)
+    std::unordered_map<std::string, std::string> _alias_visible_map; // 可见别名(alias_name → source_name, for source table)
 
     std::string _source_list_text;
     std::string _alias_list_text;

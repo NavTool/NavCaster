@@ -9,10 +9,12 @@ import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { CasterNode, ServerState, ClientState } from '../api/types';
 import { formatBytes, formatMbps, formatOnlineTime, formatDelay, formatUsage, formatSpeed } from '../utils/format';
+import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { data: sseData, connected } = useMultiSSE<{
     nodes: Record<string, CasterNode>;
     servers: Record<string, ServerState>;
@@ -144,7 +146,8 @@ const Dashboard: React.FC = () => {
       <Row gutter={[16, 16]}>
         {nodeList.map((node: CasterNode) => (
           <Col xs={24} sm={12} lg={8} key={node.uid}>
-            <Card className="node-card" style={{ borderColor: '#2e3450' }}>
+            <Card className="node-card" style={{ borderColor: '#2e3450', cursor: 'pointer' }}
+              onClick={() => navigate(`/nodes/${encodeURIComponent(node.uid)}`)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <ClusterOutlined style={{ fontSize: 22, color: '#4a8eff' }} />

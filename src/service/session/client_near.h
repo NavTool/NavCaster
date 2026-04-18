@@ -51,8 +51,34 @@ public:
             co_return;
         }
 
-        // 3. 注册成功，初始化最近基站订阅（Core将在收到GGA后自动查找最近基站）
-        subscribe(0, 0);
+        // 3. 使用 Listener 已解析的 GGA 经纬度进行初始订阅
+        double init_lat = _info.ntrip_lat();
+        double init_lon = _info.ntrip_lon();
+
+        if (init_lat != 0 || init_lon != 0)
+        {
+            spdlog::info("[{}]: initial GGA position: lat={:.6f}, lon={:.6f}, mount [{}]",
+                         __class__, init_lat, init_lon, _info.mount_point());
+            subscribe(init_lon, init_lat);
+        }
+        else
+        {
+            // 无初始位置，空订阅等待 Core 后续从上传数据中解析 GGA 并自动更新
+            subscribe(0, 0);
+        }
+
+        // 如果 buffer 中有残余数据，在启动 bev 读取之前发送到 Core 作为第一条数据
+        if (_bev)
+        {
+            evbuffer *input = bufferevent_get_input(_bev);
+            size_t trailing_len = evbuffer_get_length(input);
+            if (trailing_len > 0)
+            {
+                std::vector<char> buf(trailing_len);
+                evbuffer_remove(input, buf.data(), trailing_len);
+                publish_data(buf.data(), trailing_len);
+            }
+        }
 
         // 4. 进入 running 状态
         start_bev(true, 0, false, 0);

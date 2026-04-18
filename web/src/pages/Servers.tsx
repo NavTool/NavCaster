@@ -6,12 +6,17 @@ import { useSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { ServerState, StreamState } from '../api/types';
 import { formatOnlineTime, formatBytes, formatSpeed } from '../utils/format';
+import { useNavigate } from 'react-router-dom';
+import { usePolling } from '../hooks/usePolling';
+import { resourceApi } from '../api';
 
 const { Title, Text } = Typography;
 
 const Servers: React.FC = () => {
+  const navigate = useNavigate();
   const { data, connected } = useSSE<Record<string, ServerState>>('servers');
   const { data: streams } = useSSE<Record<string, StreamState>>('streams');
+  const { data: subCounts } = usePolling(() => resourceApi.getMountpointSubscribers(), 5000);
   const loading = !connected && !data;
   const [, setTick] = useState(0);
 
@@ -37,8 +42,12 @@ const Servers: React.FC = () => {
     { title: 'IP', dataIndex: 'ip', key: 'ip', width: 120,
       render: (v) => <span style={{ fontFamily: 'monospace', color: '#8b90a8' }}>{v || '-'}</span>,
     },
-    { title: '端口', dataIndex: 'port', key: 'port', width: 80,
-      render: (v) => v || '-',
+    { title: '连接数', key: 'sub_count', width: 80,
+      render: (_, r) => {
+        const mpt = r.alias_mpt || r.login_mpt;
+        const count = subCounts && mpt ? subCounts[mpt] : undefined;
+        return count !== undefined ? count : '-';
+      },
     },
     { title: '在线时长', key: 'online_time', width: 120,
       render: (_, r) => <span style={{ fontWeight: 500 }}>{formatOnlineTime(r.online_time)}</span>,
@@ -55,9 +64,6 @@ const Servers: React.FC = () => {
         return st ? formatBytes(st.recv_total) : '-';
       },
     },
-    { title: 'ECEF X', dataIndex: 'ecef_x', key: 'ecef_x', width: 150, render: (v) => v ? v.toFixed(4) : '-' },
-    { title: 'ECEF Y', dataIndex: 'ecef_y', key: 'ecef_y', width: 150, render: (v) => v ? v.toFixed(4) : '-' },
-    { title: 'ECEF Z', dataIndex: 'ecef_z', key: 'ecef_z', width: 150, render: (v) => v ? v.toFixed(4) : '-' },
   ];
 
   const dataSource = data
@@ -83,7 +89,8 @@ const Servers: React.FC = () => {
           loading={loading}
           size="small"
           pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 900 }}
+          onRow={(record) => ({ onClick: () => navigate(`/servers/${encodeURIComponent(record.key)}`), style: { cursor: 'pointer' } })}
         />
       </div>
     </div>

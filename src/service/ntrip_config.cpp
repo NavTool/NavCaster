@@ -173,6 +173,9 @@ int ntrip_config::load_Caster_Conf(std::string conf_file_path)
             _http_api_config.web_root = Http_Setting["Web_Root"].as<std::string>();
     }
 
+    // Pass NTRIP listen port to HTTP API config for source table fetch
+    _http_api_config.ntrip_port = _listener_opt.listen_port();
+
     return 0;
 }
 

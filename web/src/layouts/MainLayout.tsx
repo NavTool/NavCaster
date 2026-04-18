@@ -12,6 +12,8 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  SettingOutlined,
+  TableOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api/auth';
@@ -26,8 +28,10 @@ const menuItems = [
   { key: '/sources', icon: <DatabaseOutlined />, label: '源列表' },
   { key: '/aliases', icon: <BranchesOutlined />, label: '挂载点别名' },
   { key: '/access', icon: <LockOutlined />, label: '访问管理' },
+  { key: '/sourcetable', icon: <TableOutlined />, label: '源表视图' },
   { key: '/relay/pull', icon: <SwapOutlined />, label: '数据接入' },
   { key: '/relay/push', icon: <SwapOutlined />, label: '数据推送' },
+  { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
 ];
 
 const MainLayout: React.FC = () => {
@@ -36,7 +40,7 @@ const MainLayout: React.FC = () => {
   const location = useLocation();
 
   const handleLogout = async () => {
-    await logout();
+    try { await logout(); } catch { /* ignore */ }
     navigate('/login');
   };
 

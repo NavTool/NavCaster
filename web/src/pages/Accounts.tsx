@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Select, Typography, Space, Tag, message, Popconfirm } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Table, Button, Modal, Form, Input, InputNumber, Select, Typography, Space, Tag, Row, Col, message, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { usePolling } from '../hooks/usePolling';
-import { accountsApi } from '../api';
+import { accountsApi, accessGroupsApi } from '../api';
 import type { AccountRecord } from '../api/types';
 import { AccountType, AccountStateType, AccountActiveState } from '../api/types';
 import { getLocalTime } from '../utils/format';
+import { useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
 
@@ -29,11 +30,20 @@ const activeLabels: Record<number, { text: string; color: string }> = {
 };
 
 const Accounts: React.FC = () => {
+  const navigate = useNavigate();
   const { data, loading, refresh } = usePolling(() => accountsApi.getAll(), 3000);
+  const { data: groupsData } = usePolling(() => accessGroupsApi.getAll(), 5000);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AccountRecord | null>(null);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+
+  const groupOptions = useMemo(() => {
+    if (!groupsData) return [{ value: 'default', label: 'default' }];
+    const opts = Object.values(groupsData).map(g => ({ value: g.group_name, label: g.group_name }));
+    if (!opts.some(o => o.value === 'default')) opts.unshift({ value: 'default', label: 'default' });
+    return opts;
+  }, [groupsData]);
 
   const dataSource = data
     ? Object.entries(data).map(([key, val]) => ({ ...val, key }))
@@ -42,7 +52,7 @@ const Accounts: React.FC = () => {
   const handleCreate = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({ type: AccountType.ACCOUNT_TYPE_LONG_TERM, state: AccountStateType.ACCOUNT_STATE_TYPE_NORMAL, connection_limit: 0 });
+    form.setFieldsValue({ type: AccountType.ACCOUNT_TYPE_LONG_TERM, state: AccountStateType.ACCOUNT_STATE_TYPE_NORMAL, connection_limit: 0, group_uid: 'default' });
     setModalOpen(true);
   };
 
@@ -65,6 +75,10 @@ const Accounts: React.FC = () => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      const validGroups = groupOptions.map(o => o.value);
+      if (!values.group_uid || !validGroups.includes(values.group_uid)) {
+        values.group_uid = 'default';
+      }
       setSubmitting(true);
       if (editing) {
         await accountsApi.update(editing.uid, { ...editing, ...values });
@@ -85,7 +99,7 @@ const Accounts: React.FC = () => {
 
   const columns: ColumnsType<AccountRecord & { key: string }> = [
     { title: '账号', dataIndex: 'account', key: 'account', width: 120, sorter: (a, b) => a.account.localeCompare(b.account) },
-    { title: '用户名/机构名', dataIndex: 'contact_name', key: 'contact_name' },
+    { title: '用户名/机构名', dataIndex: 'contact_name', key: 'contact_name', render: (v) => v || '-' },
     { title: '支持连接数', dataIndex: 'connection_limit', key: 'connection_limit', width: 100, render: (v) => v === 0 ? '不限' : v },
     { title: '账号类型', key: 'type', render: (_, r) => typeLabels[r.type] || '未知' },
     {
@@ -102,10 +116,10 @@ const Accounts: React.FC = () => {
         return <Tag color={a.color}>{a.text}</Tag>;
       },
     },
-    { title: '访问组', dataIndex: 'group_uid', key: 'group_uid' },
+    { title: '访问组', dataIndex: 'group_uid', key: 'group_uid', render: (v) => v || '-' },
     { title: '注册日期', key: 'register_time', width: 180, render: (_, r) => getLocalTime(r.register_time) },
     { title: '修改日期', key: 'update_time', width: 180, render: (_, r) => getLocalTime(r.update_time) },
-    { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true },
+    { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true, render: (v) => v || '-' },
     {
       title: '操作', key: 'action', width: 140,
       render: (_, record) => (
@@ -128,32 +142,53 @@ const Accounts: React.FC = () => {
       <Table columns={columns} dataSource={dataSource} loading={loading} size="small"
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
         scroll={{ x: 1100 }}
+        onRow={(record) => ({ onClick: () => navigate(`/accounts/${encodeURIComponent(record.key)}`), style: { cursor: 'pointer' } })}
       />
       <Modal title={editing ? '编辑账户' : '新增账户'} open={modalOpen} onOk={handleSubmit}
-        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={600}>
-        <Form form={form} layout="vertical">
-          <Form.Item name="account" label="账号" rules={[{ required: true }]}>
-            <Input disabled={!!editing} />
-          </Form.Item>
-          <Form.Item name="password" label="密码" rules={editing ? [] : [{ required: true }]}>
-            <Input.Password />
-          </Form.Item>
-          <Form.Item name="contact_name" label="联系人/公司">
-            <Input />
-          </Form.Item>
-          <Form.Item name="type" label="类型">
-            <Select options={Object.entries(typeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
-          </Form.Item>
-          <Form.Item name="state" label="状态">
-            <Select options={Object.entries(stateLabels).map(([k, v]) => ({ value: Number(k), label: v.text }))} />
-          </Form.Item>
-          <Form.Item name="connection_limit" label="连接数限制 (0=不限)">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="group_uid" label="分组 UID">
-            <Input />
-          </Form.Item>
-          <Form.Item name="remark" label="备注">
+        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={640}>
+        <Form form={form} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="account" label="账号" rules={[{ required: true }]}>
+                <Input disabled={!!editing} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="password" label="密码" rules={editing ? [] : [{ required: true }]}>
+                <Input.Password />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="contact_name" label="联系人/公司">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="group_uid" label="访问组" rules={[{ required: true, message: '请选择访问组' }]}>
+                <Select options={groupOptions} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="type" label="类型">
+                <Select options={Object.entries(typeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="state" label="状态">
+                <Select options={Object.entries(stateLabels).map(([k, v]) => ({ value: Number(k), label: v.text }))} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="connection_limit" label="连接数 (0=不限)">
+                <InputNumber min={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="remark" label="备注" style={{ marginBottom: 0 }}>
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

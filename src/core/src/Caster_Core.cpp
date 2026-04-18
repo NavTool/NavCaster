@@ -243,6 +243,7 @@ int CASTER::Register_Record(const char *connect_key, const char *mount_point, co
         break;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
+    case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
         Register_Rover_Record(mount_point, user_name, connect_key, cb, arg, type);
         break;
@@ -262,6 +263,7 @@ int CASTER::Withdraw_Record(const char *connect_key, const char *mount_point, co
         break;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
+    case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
         Withdraw_Rover_Record(mount_point, user_name, connect_key);
         break;
@@ -281,6 +283,7 @@ int CASTER::Pub_Raw_Data(const char *connect_key, const char *mount_point, const
         break;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
+    case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
         Pub_Rover_Raw_Data(user_name, connect_key, data, data_length);
         break;
@@ -300,6 +303,7 @@ int CASTER::Sub_Raw_Data(const char *connect_key, const char *mount_point, const
         break;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
+    case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
         Sub_Base_Raw_Data(mount_point, user_name, connect_key, cb, arg);
         break;
@@ -319,6 +323,7 @@ int CASTER::Unsub_Raw_Data(const char *connect_key, const char *mount_point, con
         break;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
+    case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
         Unsub_Base_Raw_Data(mount_point, connect_key);
         break;

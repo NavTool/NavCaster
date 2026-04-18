@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Select, AutoComplete, Typography, Space, Tag, message, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, InputNumber, Select, AutoComplete, Typography, Space, Tag, Row, Col, message, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, PlayCircleOutlined, PauseCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { usePolling } from '../hooks/usePolling';
@@ -20,12 +20,13 @@ const typeLabels: Record<number, string> = {
 
 const PushRelay: React.FC = () => {
   const { data, loading, refresh } = usePolling(() => pushRecordsApi.getAll(), 3000);
-  const { data: states } = usePolling(() => pushStatesApi.getAll(), 3000);
+  const { data: states, refresh: refreshStates } = usePolling(() => pushStatesApi.getAll(), 3000);
   const { data: servers } = useSSE<Record<string, ServerState>>('servers');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PushRecord | null>(null);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [, setTick] = useState(0);
 
   // 1秒刷新在线时长
@@ -71,6 +72,7 @@ const PushRelay: React.FC = () => {
       await relayStart('push', uid);
       message.success('启动成功');
       refresh();
+      refreshStates();
     } catch {
       message.error('启动失败');
     }
@@ -81,6 +83,7 @@ const PushRelay: React.FC = () => {
       await relayStop('push', uid);
       message.success('停止成功');
       refresh();
+      refreshStates();
     } catch {
       message.error('停止失败');
     }
@@ -108,6 +111,50 @@ const PushRelay: React.FC = () => {
     }
   };
 
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.length === 0) return;
+    try {
+      await Promise.all(selectedRowKeys.map(k => pushRecordsApi.remove(String(k))));
+      message.success(`已删除 ${selectedRowKeys.length} 条`);
+      setSelectedRowKeys([]);
+      refresh();
+    } catch {
+      message.error('批量删除失败');
+    }
+  };
+
+  const handleBatchStart = async () => {
+    if (selectedRowKeys.length === 0) return;
+    try {
+      let ok = 0;
+      for (const k of selectedRowKeys) {
+        try { await relayStart('push', String(k)); ok++; } catch { /* skip */ }
+      }
+      message.success(`已启动 ${ok} 条`);
+      setSelectedRowKeys([]);
+      refresh();
+      refreshStates();
+    } catch {
+      message.error('批量启动失败');
+    }
+  };
+
+  const handleBatchStop = async () => {
+    if (selectedRowKeys.length === 0) return;
+    try {
+      let ok = 0;
+      for (const k of selectedRowKeys) {
+        try { await relayStop('push', String(k)); ok++; } catch { /* skip */ }
+      }
+      message.success(`已停止 ${ok} 条`);
+      setSelectedRowKeys([]);
+      refresh();
+      refreshStates();
+    } catch {
+      message.error('批量停止失败');
+    }
+  };
+
   const getState = useCallback((uid: string): PushState | undefined => {
     return states ? states[uid] : undefined;
   }, [states]);
@@ -125,7 +172,8 @@ const PushRelay: React.FC = () => {
         const st = getState(r.uid);
         if (!r.enabled) return <Tag color="default">已禁用</Tag>;
         if (st && st.state === 1) return <Tag color="green">运行中</Tag>;
-        return <Tag color="orange">已停止</Tag>;
+        if (st) return <Tag color="red">已断开</Tag>;
+        return <Tag color="blue">已启用</Tag>;
       },
     },
     {
@@ -170,40 +218,72 @@ const PushRelay: React.FC = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Title level={4} style={{ margin: 0 }}>Push 中继</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>新增 Push</Button>
+        <Space>
+          {selectedRowKeys.length > 0 && (
+            <>
+              <Popconfirm title={`确定删除选中的 ${selectedRowKeys.length} 条？`} onConfirm={handleBatchDelete}>
+                <Button danger icon={<DeleteOutlined />}>批量删除 ({selectedRowKeys.length})</Button>
+              </Popconfirm>
+              <Button icon={<PlayCircleOutlined />} onClick={handleBatchStart}>批量启动</Button>
+              <Popconfirm title={`确定停止选中的 ${selectedRowKeys.length} 条？`} onConfirm={handleBatchStop}>
+                <Button icon={<PauseCircleOutlined />}>批量停止</Button>
+              </Popconfirm>
+            </>
+          )}
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>新增 Push</Button>
+        </Space>
       </div>
       <Table columns={columns} dataSource={dataSource} loading={loading} size="small"
+        rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
         scroll={{ x: 1200 }}
       />
       <Modal title={editing ? '编辑 Push' : '新增 Push'} open={modalOpen} onOk={handleSubmit}
-        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={500}>
-        <Form form={form} layout="vertical">
-          <Form.Item name="login_mpt" label="本地挂载点" rules={[{ required: true }]}>
-            <AutoComplete
-              options={localMptOptions}
-              placeholder="选择本地在线挂载点"
-              filterOption={(input, option) =>
-                (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-            />
-          </Form.Item>
-          <Form.Item name="type" label="协议类型">
-            <Select options={Object.entries(typeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
-          </Form.Item>
-          <Form.Item name="target_ip" label="目标 IP" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="target_port" label="目标端口" rules={[{ required: true }]}>
-            <InputNumber min={1} max={65535} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="target_account" label="账户">
-            <Input />
-          </Form.Item>
-          <Form.Item name="target_password" label="密码">
-            <Input.Password />
-          </Form.Item>
-          <Form.Item name="target_mpt" label="目标挂载点" rules={[{ required: true }]}>
+        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={560}>
+        <Form form={form} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="login_mpt" label="本地挂载点" rules={[{ required: true }]}>
+                <AutoComplete
+                  options={localMptOptions}
+                  placeholder="选择本地在线挂载点"
+                  filterOption={(input, option) =>
+                    (option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="type" label="协议类型">
+                <Select options={Object.entries(typeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="target_ip" label="目标 IP" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="target_port" label="目标端口" rules={[{ required: true }]}>
+                <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="target_account" label="账户">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="target_password" label="密码">
+                <Input.Password />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="target_mpt" label="目标挂载点" rules={[{ required: true }]} style={{ marginBottom: 0 }}>
             <Input placeholder="输入目标挂载点名称" />
           </Form.Item>
         </Form>

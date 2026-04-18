@@ -53,4 +53,7 @@ message ConnectInfo {
 
   string addr = 16; // IP地址
   int32  port = 17; // 端口号
+
+  double ntrip_lat = 18; // GGA解析后的纬度（十进制度）
+  double ntrip_lon = 19; // GGA解析后的经度（十进制度）
 }

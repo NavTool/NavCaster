@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Typography, Space, message, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Typography, Space, Row, Col, message, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { usePolling } from '../hooks/usePolling';
@@ -80,11 +80,11 @@ const Sources: React.FC = () => {
 
   const columns: ColumnsType<SourceRecord & { key: string }> = [
     { title: '挂载点', dataIndex: 'mountpoint', key: 'mountpoint', sorter: (a, b) => a.mountpoint.localeCompare(b.mountpoint) },
-    { title: '标识', dataIndex: 'identufier', key: 'identufier' },
-    { title: '格式', dataIndex: 'format', key: 'format' },
-    { title: '载波', dataIndex: 'carrier', key: 'carrier' },
-    { title: '导航系统', dataIndex: 'nav_system', key: 'nav_system' },
-    { title: '国家', dataIndex: 'country', key: 'country' },
+    { title: '标识', dataIndex: 'identufier', key: 'identufier', render: (v) => v || '-' },
+    { title: '格式', dataIndex: 'format', key: 'format', render: (v) => v || '-' },
+    { title: '载波', dataIndex: 'carrier', key: 'carrier', render: (v) => v || '-' },
+    { title: '导航系统', dataIndex: 'nav_system', key: 'nav_system', render: (v) => v || '-' },
+    { title: '国家', dataIndex: 'country', key: 'country', render: (v) => v || '-' },
     { title: '类型', key: 'record_type', render: (_, r) => recordTypeLabels[r.record_type] || '未知' },
     { title: '显示', key: 'display_type', render: (_, r) => displayTypeLabels[r.display_type] || '未知' },
     {
@@ -111,24 +111,52 @@ const Sources: React.FC = () => {
         scroll={{ x: 1000 }}
       />
       <Modal title={editing ? '编辑源' : '新增源'} open={modalOpen} onOk={handleSubmit}
-        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={600}>
-        <Form form={form} layout="vertical">
-          <Form.Item name="mountpoint" label="挂载点名称" rules={[{ required: true }]}>
-            <Input disabled={!!editing} />
-          </Form.Item>
-          <Form.Item name="identufier" label="标识符"><Input /></Form.Item>
-          <Form.Item name="format" label="数据格式"><Input /></Form.Item>
-          <Form.Item name="carrier" label="载波"><Input /></Form.Item>
-          <Form.Item name="nav_system" label="导航系统"><Input /></Form.Item>
-          <Form.Item name="country" label="国家"><Input /></Form.Item>
-          <Form.Item name="latitude" label="纬度"><Input /></Form.Item>
-          <Form.Item name="longitude" label="经度"><Input /></Form.Item>
-          <Form.Item name="record_type" label="类型">
-            <Select options={Object.entries(recordTypeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
-          </Form.Item>
-          <Form.Item name="display_type" label="显示类型">
-            <Select options={Object.entries(displayTypeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
-          </Form.Item>
+        onCancel={() => setModalOpen(false)} confirmLoading={submitting} width={640}>
+        <Form form={form} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="mountpoint" label="挂载点名称" rules={[{ required: true }]}>
+                <Input disabled={!!editing} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="identufier" label="标识符"><Input /></Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="format" label="数据格式"><Input /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="carrier" label="载波"><Input /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="nav_system" label="导航系统"><Input /></Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="country" label="国家"><Input /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="latitude" label="纬度"><Input /></Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="longitude" label="经度"><Input /></Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="record_type" label="类型">
+                <Select options={Object.entries(recordTypeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="display_type" label="显示类型">
+                <Select options={Object.entries(displayTypeLabels).map(([k, v]) => ({ value: Number(k), label: v }))} />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
     </div>

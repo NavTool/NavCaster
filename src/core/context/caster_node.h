@@ -31,11 +31,11 @@ private:
     size_t _client_count = 0;
 
 public:
-    caster_node(std::string uid, std::string node_name)
+    caster_node(std::string uid, std::string node_name, std::time_t online_time = 0)
     {
         _uid = uid;
         _node_name = node_name;
-        _online_time = util_get_now_second();
+        _online_time = online_time ? online_time : util_get_now_second();
     }
 
     int set_sys_usage()

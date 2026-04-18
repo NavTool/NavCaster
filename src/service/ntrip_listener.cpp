@@ -7,11 +7,70 @@
 #endif
 
 #include <stdexcept>
+#include <cmath>
+#include <cstdlib>
 
 #define __class__ "ntrip_listener"
 
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
+
+// 解析 NMEA GGA 语句中的经纬度（ddmm.mmmmm 格式 → 十进制度）
+static bool parse_gga_to_latlon(const std::string &gga, double &lat, double &lon)
+{
+    auto pos = gga.find("GGA,");
+    if (pos == std::string::npos)
+        return false;
+
+    std::vector<std::string> fields;
+    std::string token;
+    for (size_t i = pos; i < gga.size(); ++i)
+    {
+        if (gga[i] == ',' || gga[i] == '*')
+        {
+            fields.push_back(token);
+            token.clear();
+            if (gga[i] == '*')
+                break;
+        }
+        else
+        {
+            token += gga[i];
+        }
+    }
+    if (!token.empty())
+        fields.push_back(token);
+
+    // fields[0]=GGA, [1]=time, [2]=lat, [3]=N/S, [4]=lon, [5]=E/W, [6]=quality
+    if (fields.size() < 7)
+        return false;
+
+    int quality = std::atoi(fields[6].c_str());
+    if (quality <= 0)
+        return false;
+
+    if (fields[2].empty() || fields[4].empty())
+        return false;
+
+    double raw_lat = std::atof(fields[2].c_str());
+    int lat_deg = static_cast<int>(raw_lat / 100.0);
+    double lat_min = raw_lat - lat_deg * 100.0;
+    lat = lat_deg + lat_min / 60.0;
+    if (fields[3] == "S" || fields[3] == "s")
+        lat = -lat;
+
+    double raw_lon = std::atof(fields[4].c_str());
+    int lon_deg = static_cast<int>(raw_lon / 100.0);
+    double lon_min = raw_lon - lon_deg * 100.0;
+    lon = lon_deg + lon_min / 60.0;
+    if (fields[5] == "W" || fields[5] == "w")
+        lon = -lon;
+
+    if (std::fabs(lat) > 90.0 || std::fabs(lon) > 180.0)
+        return false;
+
+    return true;
+}
 
 ntrip_listener::ntrip_listener()
 {
@@ -373,12 +432,9 @@ int ntrip_listener::Process_GET_Request(bufferevent *bev, std::string connect_ke
         {
             req.set_type(CONNECT_TYPE_NEAREST);
         }
-        else if (CASTER::Check_Alias_Mpt(mount.c_str()))
-        {
-            req.set_type(CONNECT_TYPE_ALIAS);
-        }
         else
         {
+            // 普通客户端（含别名挂载点，由 Core 内部自动识别并处理）
             req.set_type(CONNECT_TYPE_CLIENT);
         }
     }
@@ -624,6 +680,40 @@ ConnectInfo ntrip_listener::decode_bufferevent_req(bufferevent *bev, std::string
             con_info.set_user_base64(decodeID);
             con_info.set_user_name(decodeID.substr(0, x));
             con_info.set_user_pwd(decodeID.substr(x + 1));
+        }
+    }
+
+    // 尝试解析 GGA 经纬度并存入 ConnectInfo
+    double gga_lat = 0, gga_lon = 0;
+
+    // 优先从 Ntrip-GGA 头中解析（NTRIP 2.0）
+    if (!con_info.ntrip_gga().empty())
+    {
+        if (parse_gga_to_latlon(con_info.ntrip_gga(), gga_lat, gga_lon))
+        {
+            con_info.set_ntrip_lat(gga_lat);
+            con_info.set_ntrip_lon(gga_lon);
+            spdlog::debug("[{}:{}]: parsed GGA from Ntrip-GGA header: lat={:.6f}, lon={:.6f}", __class__, __func__, gga_lat, gga_lon);
+        }
+    }
+
+    // 如果头中没有有效 GGA，尝试从 HTTP body 残余数据中解析
+    if (con_info.ntrip_lat() == 0 && con_info.ntrip_lon() == 0)
+    {
+        size_t trailing_len = evbuffer_get_length(evbuf);
+        if (trailing_len > 0 && trailing_len < 4096)
+        {
+            std::vector<char> peek_buf(trailing_len);
+            evbuffer_copyout(evbuf, peek_buf.data(), trailing_len);
+            std::string trailing_str(peek_buf.data(), trailing_len);
+
+            if (parse_gga_to_latlon(trailing_str, gga_lat, gga_lon))
+            {
+                con_info.set_ntrip_lat(gga_lat);
+                con_info.set_ntrip_lon(gga_lon);
+                con_info.set_ntrip_gga(trailing_str); // 保存原始 GGA 字符串
+                spdlog::debug("[{}:{}]: parsed GGA from trailing body data: lat={:.6f}, lon={:.6f}", __class__, __func__, gga_lat, gga_lon);
+            }
         }
     }
 

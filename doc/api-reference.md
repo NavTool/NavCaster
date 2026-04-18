@@ -1,0 +1,884 @@
+# NavCaster HTTP API 接口文档
+
+> 版本：v1.0 | 服务端口：默认 8080 | 基于 libevent evhttp
+
+---
+
+## 目录
+
+- [全局规范](#全局规范)
+- [认证](#1-认证)
+- [账户管理](#2-账户管理)
+- [源表记录](#3-源表记录)
+- [基站状态](#4-基站状态只读)
+- [用户状态](#5-用户状态只读)
+- [数据流状态](#6-数据流状态只读)
+- [别名规则](#7-别名规则)
+- [访问控制组](#8-访问控制组)
+- [访问控制项](#9-访问控制项)
+- [Pull 中继](#10-pull-中继)
+- [Push 中继](#11-push-中继)
+- [集群节点](#12-集群节点只读)
+- [挂载点订阅者](#13-挂载点订阅者)
+- [系统状态](#14-系统状态)
+- [配置管理](#15-配置管理)
+- [工具接口](#16-工具接口)
+- [SSE 实时推送](#17-sse-实时推送)
+- [错误响应](#通用错误响应)
+
+---
+
+## 全局规范
+
+### 认证方式
+
+- **Bearer Token**：服务端生成的 64 位十六进制随机字符串，非 JWT
+- **请求头**：`Authorization: Bearer <token>`
+- **公开路径**（无需认证）：`POST /api/auth/login`、`GET /api/status/health`
+- SSE 端点支持查询参数认证：`?token=<token>`
+
+### CORS
+
+| Header | Value |
+|--------|-------|
+| `Access-Control-Allow-Origin` | 可配置（默认 `*`） |
+| `Access-Control-Allow-Methods` | `GET, POST, PUT, DELETE, OPTIONS` |
+| `Access-Control-Allow-Headers` | `Content-Type, Authorization` |
+| `Access-Control-Max-Age` | `86400` |
+
+所有 `OPTIONS` 请求自动返回 `204 No Content`。
+
+### 通用 CRUD 模式
+
+大部分资源基于 Redis Hash 存储，遵循统一 CRUD 模式：
+
+| 操作 | Method | Path | Redis | 说明 |
+|------|--------|------|-------|------|
+| 列表 | GET | `/api/{resource}` | `HGETALL` | 返回 `Record<string, T>` |
+| 详情 | GET | `/api/{resource}/{id}` | `HGET` | 返回单个 `T` |
+| 创建 | POST | `/api/{resource}` | `HSETNX` | 201 成功 / 409 冲突 |
+| 更新 | PUT | `/api/{resource}/{id}` | `HSET` | 完整覆盖 |
+| 删除 | DELETE | `/api/{resource}/{id}` | `HDEL` | 200 / 404 |
+
+---
+
+## 1. 认证
+
+### POST `/api/auth/login` 🔓
+
+登录获取 Token（公开接口）。
+
+**Request Body:**
+```json
+{
+  "username": "admin",
+  "password": "password123"
+}
+```
+
+**Response 200:**
+```json
+{
+  "token": "a1b2c3d4...64位hex",
+  "username": "admin"
+}
+```
+
+**Response 401:**
+```json
+{ "error": "Invalid credentials" }
+```
+
+**认证逻辑**：优先匹配配置文件中 `admin_user`/`admin_password`，再匹配 Redis `CONF:AUTH` 中的运行时凭据。
+
+---
+
+### POST `/api/auth/logout`
+
+登出，移除 Token。
+
+**Response 200:**
+```json
+{ "ok": true }
+```
+
+---
+
+## 2. 账户管理
+
+> Redis Key: `ACT:RECORD`（auth Redis 实例）
+
+### GET `/api/accounts`
+
+返回全部账户记录。
+
+**Response 200:** `Record<string, AccountRecord>`
+
+---
+
+### GET `/api/accounts/active`
+
+返回当前活跃（在线）的账户列表。
+
+> Redis Key: `STR:ACTIVE`（auth Redis 实例）
+
+**Response 200:** `Record<string, AccountActive>`
+
+---
+
+### GET `/api/accounts/{account}`
+
+获取单个账户详情。
+
+**Response 200:** `AccountRecord`
+**Response 404:** `{ "error": "Not found" }`
+
+---
+
+### POST `/api/accounts`
+
+创建新账户。
+
+**Request Body:**
+```json
+{
+  "account": "user01",
+  "password": "secret",
+  "group": "default",
+  "enabled": true
+}
+```
+
+> `account` 字段为必填，作为 Hash field key。
+
+**Response 201:**
+```json
+{ "ok": true, "account": "user01" }
+```
+
+**Response 409:**
+```json
+{ "error": "Account already exists" }
+```
+
+---
+
+### PUT `/api/accounts/{account}`
+
+更新账户（完整覆盖）。
+
+**Request Body:** 完整的 `AccountRecord` JSON
+
+**Response 200:** `{ "ok": true }`
+
+---
+
+### DELETE `/api/accounts/{account}`
+
+删除账户。
+
+**Response 200:** `{ "ok": true }`
+**Response 404:** `{ "error": "Account not found" }`
+
+---
+
+## 3. 源表记录
+
+> Redis Key: `MPT:RECORD`
+
+### GET `/api/sources`
+
+返回全部手动配置的源表记录。
+
+**Response 200:** `Record<string, SourceRecord>`
+
+---
+
+### GET `/api/sources/{mountpoint}`
+
+获取单个源记录。
+
+**Response 200:** `SourceRecord`
+**Response 404:** `{ "error": "Not found" }`
+
+---
+
+### POST `/api/sources`
+
+创建源记录。
+
+**Request Body:**
+```json
+{
+  "mountpoint": "RTCM3_GPS",
+  "identifier": "MyStation",
+  "format": "RTCM 3.3",
+  "format_details": "1005(1),1074(1),1084(1),1094(1),1124(1)",
+  "carrier": "2",
+  "nav_system": "GPS+GLO+GAL+BDS",
+  "country": "CHN",
+  "latitude": "30.0",
+  "longitude": "114.0"
+}
+```
+
+> `mountpoint` 字段为必填，作为 Hash field key。
+
+**Response 201:**
+```json
+{ "ok": true, "mountpoint": "RTCM3_GPS" }
+```
+
+---
+
+### PUT `/api/sources/{mountpoint}`
+
+更新源记录（完整覆盖）。
+
+**Response 200:** `{ "ok": true }`
+
+---
+
+### DELETE `/api/sources/{mountpoint}`
+
+删除源记录。
+
+**Response 200:** `{ "ok": true }`
+**Response 404:** `{ "error": "Not found" }`
+
+---
+
+## 4. 基站状态（只读）
+
+> Redis Key: `MPT:STAT`
+
+### GET `/api/servers`
+
+返回全部在线基站的实时状态。
+
+**Response 200:** `Record<string, ServerState>`
+
+**ServerState 字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `uid` | string | 唯一标识（node_id:mount） |
+| `mountpoint` | string | 挂载点名称 |
+| `node_id` | string | 所在节点 ID |
+| `host` | string | 来源 IP |
+| `port` | number | 来源端口 |
+| `connect_time` | string | 连接时间戳 |
+| `bytes_received` | number | 已接收字节数 |
+| `messages_received` | number | 已接收消息数 |
+
+---
+
+### GET `/api/servers/{uid}`
+
+获取单个基站状态。
+
+---
+
+## 5. 用户状态（只读）
+
+> Redis Key: `USR:STAT`
+
+### GET `/api/clients`
+
+返回全部在线用户的实时状态。
+
+**Response 200:** `Record<string, ClientState>`
+
+---
+
+### GET `/api/clients/{uid}`
+
+获取单个用户状态。
+
+---
+
+## 6. 数据流状态（只读）
+
+> Redis Key: `STR:STAT`
+
+### GET `/api/streams`
+
+返回全部数据流统计信息。
+
+**Response 200:** `Record<string, StreamState>`
+
+---
+
+### GET `/api/streams/{uid}`
+
+获取单个数据流统计。
+
+---
+
+## 7. 别名规则
+
+> Redis Key: `ALIAS:RULE`
+
+### GET `/api/aliases`
+
+返回全部别名规则。
+
+**Response 200:** `Record<string, AliasRule>`
+
+---
+
+### GET `/api/aliases/{uid}`
+
+获取单个别名规则。
+
+---
+
+### POST `/api/aliases`
+
+创建别名规则。
+
+**Request Body:**
+```json
+{
+  "uid": "alias_001",
+  "alias_name": "VRS01",
+  "source_name": "RTCM3_GPS",
+  "enable": true,
+  "visible": true
+}
+```
+
+> Key 字段优先级：`uid` → `alias_name` → `alias_mpt` → `name`
+
+**Response 201:**
+```json
+{ "ok": true, "alias": "alias_001" }
+```
+
+**Response 409:**
+```json
+{ "error": "Already exists" }
+```
+
+---
+
+### PUT `/api/aliases/{uid}`
+
+更新别名规则（完整覆盖）。
+
+**Response 200:** `{ "ok": true }`
+
+---
+
+### DELETE `/api/aliases/{uid}`
+
+删除别名规则。
+
+**Response 200:** `{ "ok": true }`
+
+---
+
+## 8. 访问控制组
+
+> Redis Key: `ACCESS:GROUP`
+
+系统初始化时自动确保 `default` 组存在。
+
+### GET `/api/access/groups`
+
+返回全部访问控制组。
+
+**Response 200:** `Record<string, AccessGroup>`
+
+---
+
+### GET `/api/access/groups/{uid}`
+
+获取单个访问控制组。
+
+---
+
+### POST `/api/access/groups`
+
+创建访问控制组。
+
+**Request Body:**
+```json
+{
+  "uid": "vip_group",
+  "name": "VIP用户组",
+  "description": "高级用户权限"
+}
+```
+
+> Key 字段优先级：`uid` → `group_uid`
+
+**Response 201:**
+```json
+{ "ok": true, "uid": "vip_group" }
+```
+
+---
+
+### PUT `/api/access/groups/{uid}`
+
+更新访问控制组。
+
+---
+
+### DELETE `/api/access/groups/{uid}`
+
+删除访问控制组。
+
+---
+
+## 9. 访问控制项
+
+> Redis Key: `ACCESS:ITEM:<group_uid>`（每个组独立 Hash）
+
+### GET `/api/access/items/{group_uid}`
+
+获取指定组内的全部访问项。
+
+**Response 200:** `Record<string, AccessItem>`
+
+---
+
+### POST `/api/access/items/{group_uid}`
+
+为指定组添加访问项。
+
+**Request Body:**
+```json
+{
+  "mountpoint": "RTCM3_GPS",
+  "permission": "allow"
+}
+```
+
+> `mountpoint`（或 `mount`）为必填，作为 Hash field key。
+
+**Response 201:** `{ "ok": true }`
+
+---
+
+### PUT `/api/access/items/{group_uid}`
+
+更新访问项。
+
+**Request Body:** 需包含 `mountpoint`（或 `mount`）标识。
+
+**Response 200:** `{ "ok": true }`
+
+---
+
+### DELETE `/api/access/items/{group_uid}`
+
+删除访问项。
+
+**Request Body:**
+```json
+{
+  "mountpoint": "RTCM3_GPS"
+}
+```
+
+> ⚠️ DELETE 通过 Body 传递目标项标识。
+
+**Response 200:** `{ "ok": true }`
+**Response 404:** `{ "error": "Item not found" }`
+
+---
+
+## 10. Pull 中继
+
+> Redis Key: `PULL:RECORD`（配置）/ `PULL:STAT`（状态）
+
+### GET `/api/relays/pull`
+
+返回全部 Pull 中继配置。
+
+**Response 200:** `Record<string, PullRecord>`
+
+---
+
+### GET `/api/relays/pull/status`
+
+返回全部 Pull 中继运行状态。
+
+**Response 200:** `Record<string, PullState>`
+
+---
+
+### GET `/api/relays/pull/{uid}`
+
+获取单个 Pull 中继配置。
+
+---
+
+### POST `/api/relays/pull`
+
+创建 Pull 中继任务。
+
+**Request Body:**
+```json
+{
+  "uid": "pull_001",
+  "host": "rtk2go.com",
+  "port": 2101,
+  "mountpoint": "REMOTE_STN",
+  "local_mountpoint": "LOCAL_STN",
+  "username": "user",
+  "password": "pass",
+  "enabled": true
+}
+```
+
+> `uid` 为必填。若未提供 `enabled` 则默认为 `true`。
+
+**Response 201:**
+```json
+{ "ok": true, "uid": "pull_001" }
+```
+
+---
+
+### PUT `/api/relays/pull/{uid}`
+
+更新 Pull 中继配置。
+
+> ⚠️ 同时删除对应 `PULL:STAT` 条目以强制重启任务。
+
+**Response 200:** `{ "ok": true }`
+
+---
+
+### DELETE `/api/relays/pull/{uid}`
+
+删除 Pull 中继任务。
+
+> 同时删除对应 `PULL:STAT` 条目。
+
+**Response 200:** `{ "ok": true }`
+
+---
+
+### POST `/api/relays/pull/start/{uid}`
+
+启动指定 Pull 中继。
+
+> 读取配置记录 → 设置 `enabled = true` → 写回
+
+**Response 200:** `{ "ok": true, "uid": "pull_001" }`
+**Response 404:** `{ "error": "Record not found" }`
+
+---
+
+### POST `/api/relays/pull/stop/{uid}`
+
+停止指定 Pull 中继。
+
+> 设置 `enabled = false`。**不**删除 state 条目（保留以触发 INACTIVE 广播）。
+
+**Response 200:** `{ "ok": true, "uid": "pull_001" }`
+
+---
+
+## 11. Push 中继
+
+> Redis Key: `PUSH:RECORD`（配置）/ `PUSH:STAT`（状态）
+
+接口与 Pull 中继完全对称，路径前缀为 `/api/relays/push`。
+
+### GET `/api/relays/push` — 全部 Push 配置
+### GET `/api/relays/push/status` — 全部 Push 状态
+### GET `/api/relays/push/{uid}` — 单个 Push 配置
+### POST `/api/relays/push` — 创建 Push 中继
+### PUT `/api/relays/push/{uid}` — 更新 Push 中继（同时删除状态记录）
+### DELETE `/api/relays/push/{uid}` — 删除 Push 中继（同时删除状态记录）
+### POST `/api/relays/push/start/{uid}` — 启动 Push
+### POST `/api/relays/push/stop/{uid}` — 停止 Push
+
+---
+
+## 12. 集群节点（只读）
+
+> Redis Key: `CASTER:NODE`
+
+### GET `/api/nodes`
+
+返回全部集群节点信息。
+
+**Response 200:** `Record<string, CasterNode>`
+
+---
+
+### GET `/api/nodes/{uid}`
+
+获取单个节点信息。
+
+---
+
+## 13. 挂载点订阅者
+
+### GET `/api/mountpoints/subscribers`
+
+查询各在线挂载点的订阅者数量。
+
+> 遍历 `MPT:LIST` 所有在线挂载点 → 对每个执行 `HLEN MPT:SUB:<mpt>`
+
+**Response 200:**
+```json
+{
+  "RTCM3_GPS": 5,
+  "VRS01": 12,
+  "BASE02": 0
+}
+```
+
+类型：`Record<string, number>`
+
+---
+
+## 14. 系统状态
+
+### GET `/api/status`
+
+获取系统运行状态。
+
+**Response 200:**
+```json
+{
+  "cpu_percent": 2.5,
+  "memory_bytes": 52428800,
+  "memory_mb": 50,
+  "caster": {
+    "node_id": "node_01",
+    "is_master": true,
+    "uptime": 86400,
+    "connections": 150
+  },
+  "redis_caster_connected": true,
+  "redis_auth_connected": true,
+  "ntrip_port": 4202
+}
+```
+
+---
+
+### GET `/api/status/health` 🔓
+
+健康检查（公开接口）。
+
+**Response 200:**
+```json
+{ "status": "ok" }
+```
+
+---
+
+## 15. 配置管理
+
+> Redis Key: `CONF:SERVICE` / `CONF:CORE` / `CONF:AUTH`
+
+### GET `/api/config`
+
+获取全部配置项。
+
+**Response 200:**
+```json
+{
+  "service": { ... },
+  "core": { ... },
+  "auth": { ... }
+}
+```
+
+> 仅返回已设置的配置节，未设置的忽略。
+
+---
+
+### GET `/api/config/{section}`
+
+获取指定配置节。`section` 可选值：`service`、`core`、`auth`
+
+> ⚠️ `auth` 节仅返回 `{ "admin_user": "<username>" }`，**永远不暴露密码**。
+
+**Response 404:** `{ "error": "Unknown config section" }` 或 `{ "error": "Config not found" }`
+
+---
+
+### PUT `/api/config/{section}`
+
+更新配置。
+
+**普通 section (service / core):**
+
+**Request Body:** 任意 JSON 对象，完整覆盖。
+
+**auth section 特殊处理:**
+
+**Request Body:**
+```json
+{
+  "admin_user": "admin",
+  "admin_password": "new_password",
+  "old_password": "current_password"
+}
+```
+
+> - **必须**包含 `old_password` 字段用于验证
+> - 验证通过后自动移除 `old_password` 再保存
+> - 优先校验 Redis 中的密码，回退到配置文件密码
+
+**Response 200:** `{ "ok": true }`
+**Response 400:** `{ "error": "需要输入当前密码" }`
+**Response 403:** `{ "error": "当前密码错误" }`
+
+---
+
+## 16. 工具接口
+
+### POST `/api/utils/sourcetable`
+
+拉取远程 NTRIP Caster 的源表。
+
+> ⚠️ **此接口使用同步阻塞 TCP 连接**，可能阻塞整个事件循环最多 5+ 秒。生产环境建议优先使用本地源表接口。
+
+**Request Body:**
+```json
+{
+  "host": "rtk2go.com",
+  "port": 2101,
+  "username": "",
+  "password": "",
+  "ntrip_version": "2.0"
+}
+```
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `host` | string | ✅ | - | 远程主机地址 |
+| `port` | number | - | `2101` | 端口号 |
+| `username` | string | - | `""` | Basic Auth 用户名 |
+| `password` | string | - | `""` | Basic Auth 密码 |
+| `ntrip_version` | string | - | `"2.0"` | `"1.0"` 或 `"2.0"` |
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "mountpoints": [
+    {
+      "mountpoint": "RTCM3_GPS",
+      "identifier": "MyStation",
+      "format": "RTCM 3.3",
+      "format_details": "1005(1),1074(1)",
+      "country": "CHN",
+      "latitude": "30.0",
+      "longitude": "114.0"
+    }
+  ]
+}
+```
+
+**Response 502:** `{ "error": "<详细错误信息>" }`（DNS/连接/发送失败）
+
+---
+
+### GET `/api/utils/sourcetable/local`
+
+获取本地 Caster 当前的源表。
+
+> 直接调用 `CASTER::Get_Source_Table_Text()`，不经过网络。
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "mountpoints": [
+    {
+      "mountpoint": "RTCM3_GPS",
+      "identifier": "MyStation",
+      "format": "RTCM 3.3",
+      "format_details": "1005(1),1074(1)",
+      "country": "CHN",
+      "latitude": "30.0",
+      "longitude": "114.0"
+    }
+  ]
+}
+```
+
+---
+
+## 17. SSE 实时推送
+
+### GET `/api/events/stream`
+
+建立 Server-Sent Events 长连接，接收实时数据更新。
+
+**认证方式**（二选一）：
+- 查询参数：`?token=<token>`
+- Header：`Authorization: Bearer <token>`
+
+**可选查询参数**：
+- `channels`：逗号分隔的频道列表，默认 `*`（订阅全部）
+
+**示例**：`GET /api/events/stream?token=abc123&channels=servers,clients,streams`
+
+**响应头**：
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+```
+
+**推送格式**：
+```
+event: servers
+data: {"node01:BASE01":{"uid":"node01:BASE01","mountpoint":"BASE01",...}}
+
+event: clients
+data: {"node01:user01":{"uid":"node01:user01","username":"user01",...}}
+```
+
+**更新频率**：每 2 秒轮询一次，仅在数据变化时推送。
+
+**可用频道**（16 个）：
+
+| 频道名 | Redis Key | 数据类型 |
+|--------|-----------|----------|
+| `servers` | `MPT:STAT` | 基站在线状态 |
+| `clients` | `USR:STAT` | 用户在线状态 |
+| `streams` | `STR:STAT` | 数据流统计 |
+| `nodes` | `CASTER:NODE` | 集群节点状态 |
+| `accounts` | `ACT:RECORD` | 账户记录 |
+| `sources` | `MPT:RECORD` | 源表记录 |
+| `aliases` | `ALIAS:RULE` | 别名规则 |
+| `access_groups` | `ACCESS:GROUP` | 访问控制组 |
+| `pull_records` | `PULL:RECORD` | Pull 中继配置 |
+| `pull_states` | `PULL:STAT` | Pull 中继状态 |
+| `push_records` | `PUSH:RECORD` | Push 中继配置 |
+| `push_states` | `PUSH:STAT` | Push 中继状态 |
+| `account_actives` | `STR:ACTIVE` | 在线活跃账户 |
+
+**连接行为**：
+- 建立连接后立即推送所有订阅频道的当前快照
+- 后续仅推送有变化的频道数据
+- 服务端通过 `evhttp_connection_set_closecb` 检测客户端断开
+
+---
+
+## 通用错误响应
+
+| HTTP 状态码 | 响应体 | 触发场景 |
+|-------------|--------|----------|
+| 400 | `{ "error": "Invalid JSON" }` | 请求体 JSON 解析失败 |
+| 400 | `{ "error": "Missing <field>" }` | 缺少必填字段 |
+| 401 | `{ "error": "Unauthorized", "message": "Invalid or missing token" }` | 未认证或 Token 无效 |
+| 404 | `{ "error": "Not found" }` | 资源不存在 |
+| 409 | `{ "error": "Already exists" }` | 创建时资源已存在 |
+| 500 | `{ "error": "Internal Server Error" }` | 服务端内部错误 |
+| 500 | `{ "error": "Redis error" }` | Redis 操作失败 |
+| 502 | `{ "error": "<详细信息>" }` | 远程源表获取失败 |

@@ -20,6 +20,7 @@ struct HttpApiConfig
     std::string admin_user = "admin";
     std::string admin_password = "admin";
     std::string web_root; // path to static web files (empty = disabled)
+    int ntrip_port = 2101; // NTRIP caster listen port (for source table fetch)
 
     // Redis connection for caster data (sync blocking)
     std::string redis_host = "127.0.0.1";
@@ -134,6 +135,9 @@ private:
     void handle_get_nodes(const HttpRequest &req, HttpResponse &resp);
     void handle_get_node(const HttpRequest &req, HttpResponse &resp);
 
+    // Mountpoint subscribers
+    void handle_get_mountpoint_subscribers(const HttpRequest &req, HttpResponse &resp);
+
     // System status
     void handle_get_status(const HttpRequest &req, HttpResponse &resp);
     void handle_get_health(const HttpRequest &req, HttpResponse &resp);
@@ -145,6 +149,7 @@ private:
 
     // Utility endpoints
     void handle_fetch_sourcetable(const HttpRequest &req, HttpResponse &resp);
+    void handle_local_sourcetable(const HttpRequest &req, HttpResponse &resp);
 
     // SSE endpoint
     void handle_sse_stream(evhttp_request *raw_req, const HttpRequest &req);

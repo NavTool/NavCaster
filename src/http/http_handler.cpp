@@ -30,6 +30,8 @@ static const char *KEY_CASTER_NODE = "CASTER:NODE";
 static const char *KEY_CONF_SERVICE = "CONF:SERVICE";
 static const char *KEY_CONF_CORE = "CONF:CORE";
 static const char *KEY_CONF_AUTH = "CONF:AUTH";
+static const char *KEY_MPT_ONLINE = "MPT:LIST";
+static const char *KEY_MPT_SUB = "MPT:SUB";
 
 // PRAGMATIC APPROACH: Since all Redis operations are hash operations on local
 // Redis with sub-millisecond latency, and the HTTP API is for management only,
@@ -194,6 +196,24 @@ namespace
             return ok;
         }
 
+        // HLEN → number of fields in hash
+        long long hlen(const char *key)
+        {
+            if (!ensure_connected())
+                return 0;
+
+            auto *reply = static_cast<redisReply *>(
+                redisCommand(_ctx, "HLEN %s", key));
+            long long count = 0;
+            if (reply && reply->type == REDIS_REPLY_INTEGER)
+                count = reply->integer;
+            if (reply)
+                freeReplyObject(reply);
+            else
+                reconnect();
+            return count;
+        }
+
         // SET key value (plain string)
         bool set(const char *key, const std::string &value)
         {
@@ -304,6 +324,28 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     // Initialize synchronous Redis connections for blocking API operations
     sync_redis::instance().init(config.redis_host, config.redis_port, config.redis_password);
     sync_redis_auth::instance().init(config.auth_redis_host, config.auth_redis_port, config.auth_redis_password);
+
+    // Ensure default access group exists
+    {
+        auto now = std::chrono::system_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        json default_group = {
+            {"uid", "default"},
+            {"group_name", "default"},
+            {"create_time", ms},
+            {"update_time", ms},
+            {"nearest_mpt_enable", false},
+            {"nearest_mpt_source_name", ""},
+            {"allow_visible_inside_group", true},
+            {"allow_access_inside_group", true},
+            {"allow_nearby_inside_group", true},
+            {"allow_visible_outside_group", true},
+            {"allow_access_outside_group", true},
+            {"allow_nearby_outside_group", true}
+        };
+        sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, "default", default_group.dump());
+        spdlog::info("[{}:{}]: Ensured default access group exists", __class__, __func__);
+    }
 
     // Configure server
     _server.set_cors_origin(config.cors_origin);
@@ -442,6 +484,10 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _server.route(EVHTTP_REQ_GET, "/api/nodes/*", [this](auto &req, auto &resp)
                   { handle_get_node(req, resp); });
 
+    // ==================== Mountpoints ====================
+    _server.route(EVHTTP_REQ_GET, "/api/mountpoints/subscribers", [this](auto &req, auto &resp)
+                  { handle_get_mountpoint_subscribers(req, resp); });
+
     // ==================== Status ====================
     _server.route(EVHTTP_REQ_GET, "/api/status", [this](auto &req, auto &resp)
                   { handle_get_status(req, resp); });
@@ -459,6 +505,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     // ==================== Utilities ====================
     _server.route(EVHTTP_REQ_POST, "/api/utils/sourcetable", [this](auto &req, auto &resp)
                   { handle_fetch_sourcetable(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/utils/sourcetable/local", [this](auto &req, auto &resp)
+                  { handle_local_sourcetable(req, resp); });
 
     // ==================== Static File Serving ====================
     if (!config.web_root.empty())
@@ -592,8 +640,22 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
     }
     else
     {
-        resp.status_code = 401;
-        resp.body = R"({"error":"Invalid credentials"})";
+        // Also check Redis-stored auth config (allows password change at runtime)
+        json auth_conf = sync_redis::instance().get(KEY_CONF_AUTH);
+        std::string redis_user = auth_conf.is_object() ? auth_conf.value("admin_user", "") : "";
+        std::string redis_pass = auth_conf.is_object() ? auth_conf.value("admin_password", "") : "";
+        if (!redis_user.empty() && user == redis_user && pass == redis_pass)
+        {
+            std::string token = generate_token();
+            json result = {{"token", token}, {"username", user}};
+            resp.status_code = 200;
+            resp.body = result.dump();
+        }
+        else
+        {
+            resp.status_code = 401;
+            resp.body = R"({"error":"Invalid credentials"})";
+        }
     }
 }
 
@@ -833,13 +895,20 @@ void http_handler::handle_create_alias(const HttpRequest &req, HttpResponse &res
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    std::string name = body.value("alias_mpt", "");
-    if (name.empty()) name = body.value("name", "");
-    if (name.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing alias name"})"; return; }
-    bool ok = sync_redis::instance().hsetnx(KEY_ALIAS_RULE, name.c_str(), body.dump());
+    std::string uid = body.value("uid", "");
+    if (uid.empty())
+    {
+        // Fallback: try alias_name or alias_mpt or name
+        std::string alias = body.value("alias_name", "");
+        if (alias.empty()) alias = body.value("alias_mpt", "");
+        if (alias.empty()) alias = body.value("name", "");
+        if (alias.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing alias uid"})"; return; }
+        uid = alias;
+    }
+    bool ok = sync_redis::instance().hsetnx(KEY_ALIAS_RULE, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Alias already exists"})"; return; }
     resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"alias", name}}.dump();
+    resp.body = json{{"ok", true}, {"alias", uid}}.dump();
 }
 
 IMPL_UPDATE(handle_update_alias, KEY_ALIAS_RULE)
@@ -1095,9 +1164,11 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
         json record = val.is_string() ? json::parse(val.get<std::string>()) : val;
         record["enabled"] = false;
         sync_redis::instance().hset(key, uid.c_str(), record.dump());
-        // Also remove status to trigger immediate stop
-        const char *stat_key = is_pull ? KEY_PULL_STATE : KEY_PUSH_STATE;
-        sync_redis::instance().hdel(stat_key, uid.c_str());
+        // Do NOT delete the status entry here — task distribution needs it to
+        // detect the enabled=false mismatch and send an INACTIVE broadcast to
+        // the node running the relay. Premature HDEL causes _pull/_push_status_map
+        // to lose the entry on next sync, preventing the INACTIVE from ever firing,
+        // which leaves stale MPT:REC records that keep refreshing.
         resp.status_code = 200;
         resp.body = json{{"ok", true}, {"uid", uid}}.dump();
     } catch (...) {
@@ -1109,6 +1180,23 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
 
 IMPL_GET_ALL(handle_get_nodes, KEY_CASTER_NODE)
 IMPL_GET_ONE(handle_get_node, KEY_CASTER_NODE)
+
+// ==================== Mountpoint Subscribers ====================
+
+void http_handler::handle_get_mountpoint_subscribers(const HttpRequest &req, HttpResponse &resp)
+{
+    // Get all online mountpoints from MPT:LIST
+    json mpts = sync_redis::instance().hgetall(KEY_MPT_ONLINE);
+    json result = json::object();
+    for (auto &[mpt_name, _] : mpts.items())
+    {
+        std::string sub_key = std::string(KEY_MPT_SUB) + ":" + mpt_name;
+        long long count = sync_redis::instance().hlen(sub_key.c_str());
+        result[mpt_name] = count;
+    }
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
 
 // ==================== Status ====================
 
@@ -1137,6 +1225,7 @@ void http_handler::handle_get_status(const HttpRequest &req, HttpResponse &resp)
     // Redis connectivity
     status["redis_caster_connected"] = _caster_redis ? _caster_redis->is_connected() : false;
     status["redis_auth_connected"] = _auth_redis ? _auth_redis->is_connected() : false;
+    status["ntrip_port"] = _config.ntrip_port;
 
     resp.status_code = 200;
     resp.body = status.dump();
@@ -1160,6 +1249,7 @@ void http_handler::handle_fetch_sourcetable(const HttpRequest &req, HttpResponse
     int port = body.value("port", 2101);
     std::string user = body.value("username", "");
     std::string pass = body.value("password", "");
+    std::string ntrip_ver = body.value("ntrip_version", "2.0"); // "1.0" or "2.0"
 
     if (host.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing host"})"; return; }
 
@@ -1202,11 +1292,22 @@ void http_handler::handle_fetch_sourcetable(const HttpRequest &req, HttpResponse
     }
     freeaddrinfo(res);
 
-    // Build NTRIP sourcetable request (use HTTP/1.1 with Ntrip/2.0 per standard)
-    std::string request_str = "GET / HTTP/1.1\r\nHost: " + host + ":" + std::to_string(port) + "\r\n"
-                              "Ntrip-Version: Ntrip/2.0\r\n"
-                              "User-Agent: NTRIP NavCaster/2.0\r\n"
-                              "Connection: close\r\n";
+    // Build NTRIP sourcetable request based on version
+    std::string request_str;
+    if (ntrip_ver == "1.0")
+    {
+        // NTRIP 1.0: simple HTTP/1.0 request
+        request_str = "GET / HTTP/1.0\r\nHost: " + host + ":" + std::to_string(port) + "\r\n"
+                      "User-Agent: NTRIP NavCaster/1.0\r\n";
+    }
+    else
+    {
+        // NTRIP 2.0: HTTP/1.1 with Ntrip-Version header
+        request_str = "GET / HTTP/1.1\r\nHost: " + host + ":" + std::to_string(port) + "\r\n"
+                      "Ntrip-Version: Ntrip/2.0\r\n"
+                      "User-Agent: NTRIP NavCaster/2.0\r\n"
+                      "Connection: close\r\n";
+    }
     if (!user.empty())
     {
         std::string credentials = user + ":" + pass;
@@ -1281,6 +1382,45 @@ void http_handler::handle_fetch_sourcetable(const HttpRequest &req, HttpResponse
     resp.body = json{{"ok", true}, {"mountpoints", mountpoints}}.dump();
 }
 
+void http_handler::handle_local_sourcetable(const HttpRequest &req, HttpResponse &resp)
+{
+    // 直接从 CasterCore 获取本地源表，不通过 NTRIP 协议（避免同线程阻塞死锁）
+    std::string source_table_text = CASTER::Get_Source_Table_Text();
+
+    // 解析 STR 行
+    json mountpoints = json::array();
+    std::istringstream stream(source_table_text);
+    std::string line;
+    while (std::getline(stream, line))
+    {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.substr(0, 4) == "STR;")
+        {
+            std::vector<std::string> fields;
+            std::string field;
+            std::istringstream lss(line);
+            while (std::getline(lss, field, ';'))
+                fields.push_back(field);
+
+            if (fields.size() >= 2)
+            {
+                json entry;
+                entry["mountpoint"] = fields[1];
+                if (fields.size() > 2) entry["identifier"] = fields[2];
+                if (fields.size() > 3) entry["format"] = fields[3];
+                if (fields.size() > 4) entry["format_details"] = fields[4];
+                if (fields.size() > 8) entry["country"] = fields[8];
+                if (fields.size() > 9) entry["latitude"] = fields[9];
+                if (fields.size() > 10) entry["longitude"] = fields[10];
+                mountpoints.push_back(entry);
+            }
+        }
+    }
+
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}, {"mountpoints", mountpoints}}.dump();
+}
+
 // ==================== Configuration ====================
 
 void http_handler::save_config(const std::string &section, const std::string &json_str)
@@ -1316,6 +1456,20 @@ void http_handler::handle_get_config(const HttpRequest &req, HttpResponse &resp)
     else { resp.status_code = 404; resp.body = R"({"error":"Unknown config section"})"; return; }
 
     json data = sync_redis::instance().get(key);
+
+    // For auth config, return default username if Redis has no entry, and never expose password
+    if (id == "auth")
+    {
+        json result;
+        if (data.is_object() && data.contains("admin_user"))
+            result["admin_user"] = data["admin_user"];
+        else
+            result["admin_user"] = _config.admin_user;
+        resp.status_code = 200;
+        resp.body = result.dump();
+        return;
+    }
+
     if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Config not found"})"; return; }
     resp.status_code = 200;
     resp.body = data.dump();
@@ -1333,6 +1487,36 @@ void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &re
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+
+    // For auth config, require old password verification
+    if (id == "auth")
+    {
+        std::string old_password = body.value("old_password", "");
+        if (old_password.empty())
+        {
+            resp.status_code = 400;
+            resp.body = R"({"error":"需要输入当前密码"})";
+            return;
+        }
+
+        // Get current password: check Redis first, then fall back to config defaults
+        std::string current_password = _config.admin_password;
+        json auth_conf = sync_redis::instance().get(KEY_CONF_AUTH);
+        if (auth_conf.is_object() && auth_conf.contains("admin_password"))
+        {
+            current_password = auth_conf.value("admin_password", _config.admin_password);
+        }
+
+        if (old_password != current_password)
+        {
+            resp.status_code = 403;
+            resp.body = R"({"error":"当前密码错误"})";
+            return;
+        }
+
+        // Remove old_password from the body before saving
+        body.erase("old_password");
+    }
 
     bool ok = sync_redis::instance().set(key, body.dump());
     if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }

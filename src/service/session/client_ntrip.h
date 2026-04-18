@@ -27,7 +27,7 @@ public:
             co_return;
         }
 
-        // 2. 注册
+        // 2. 注册（别名挂载点由 Core 内部自动识别，外部统一用 CLIENT）
         auto reg = co_await co_caster_register(CasterRegisterType::CLIENT);
         if (reg.type != CasterReply::OK)
         {
