@@ -882,3 +882,20 @@ data: {"node01:user01":{"uid":"node01:user01","username":"user01",...}}
 | 500 | `{ "error": "Internal Server Error" }` | 服务端内部错误 |
 | 500 | `{ "error": "Redis error" }` | Redis 操作失败 |
 | 502 | `{ "error": "<详细信息>" }` | 远程源表获取失败 |
+
+## V3 运维接口 (2026-04)
+
+| Method | Path | 说明 |
+| --- | --- | --- |
+| GET | /api/audit | 审计日志。Query: `limit` (默认 100, 上限 1000)、`cursor` (LRANGE 起始)、`actor`、`action` (子串)、`target`。返回 `{items, count, total, has_more, next_cursor}`。底层 Redis `LOG:AUDIT`，保留最近 50000 条 |
+| GET | /api/logs/ring | 进程内存环形日志。Query: `n` (50~5000), `level` (trace/debug/info/warn/err/critical) |
+| GET | /api/system/events | 聚合节点 `LOG:NODE:*` 事件。Query: `limit` (默认 100, 上限 500) |
+| GET | /api/monitor/redis/history | Redis 状态时间序列 (60s 采样)。Query: `range=1h\|6h\|24h` |
+| POST | /api/nodes/log-level/:id | 动态修改节点日志级别。Body `{level}`。`:id` 不为本节点 (可使用 `self`) 时返回 501 |
+
+### 其他变动
+
+- `GET /api/status` 新增 `node_id`、`log_level`、`sse_clients`、`sse_max_clients`。
+- 所有 `POST/PUT/DELETE` 请求均会被写入审计日志 (`/api/auth/login` 除外)。Payload 中 `password / token / secret / admin_password` 字段会被脱敏为 `***`。
+- SSE 订阅信道改为完全匹配 (不再做子串包含匹配)，SSE 连接默认上限 200，超过返回 429。
+

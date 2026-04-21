@@ -77,6 +77,16 @@ void http_server::set_auth_validator(std::function<bool(const std::string &token
     _auth_validator = validator;
 }
 
+void http_server::set_actor_resolver(std::function<std::string(const std::string &)> resolver)
+{
+    _actor_resolver = std::move(resolver);
+}
+
+void http_server::set_audit_sink(AuditSink sink)
+{
+    _audit_sink = std::move(sink);
+}
+
 void http_server::add_public_path(const std::string &path)
 {
     _public_paths.push_back(path);
@@ -291,20 +301,22 @@ void http_server::handle_request(evhttp_request *req)
             return;
     }
 
-    // Auth check
-    if (_auth_validator && !is_public_path(parsed.path))
+    // Extract bearer token (used by auth + actor resolution)
+    std::string bearer_token;
     {
-        std::string token;
         auto it = parsed.headers.find("Authorization");
         if (it != parsed.headers.end())
         {
             const std::string &auth = it->second;
             if (auth.size() > 7 && auth.substr(0, 7) == "Bearer ")
-            {
-                token = auth.substr(7);
-            }
+                bearer_token = auth.substr(7);
         }
-        if (!_auth_validator(token))
+    }
+
+    // Auth check
+    if (_auth_validator && !is_public_path(parsed.path))
+    {
+        if (!_auth_validator(bearer_token))
         {
             HttpResponse resp;
             resp.status_code = 401;
@@ -312,6 +324,33 @@ void http_server::handle_request(evhttp_request *req)
             spdlog::warn("[{}:{}]: Unauthorized access to {}", __class__, __func__, parsed.path);
             send_response(req, resp);
             return;
+        }
+    }
+
+    // Determine actor + client ip for audit
+    std::string actor;
+    if (_actor_resolver)
+        actor = _actor_resolver(bearer_token);
+    if (actor.empty()) actor = "anonymous";
+
+    std::string client_ip;
+    {
+        auto xff = parsed.headers.find("X-Forwarded-For");
+        if (xff != parsed.headers.end())
+        {
+            client_ip = xff->second;
+            auto pos = client_ip.find(',');
+            if (pos != std::string::npos) client_ip = client_ip.substr(0, pos);
+        }
+        else
+        {
+            evhttp_connection *conn = evhttp_request_get_connection(req);
+            if (conn)
+            {
+                char *addr = nullptr; ev_uint16_t port = 0;
+                evhttp_connection_get_peer(conn, &addr, &port);
+                if (addr) client_ip = addr;
+            }
         }
     }
 
@@ -351,6 +390,16 @@ void http_server::handle_request(evhttp_request *req)
             }
             spdlog::info("[http]: {} -> {}", parsed.path, resp.status_code);
             send_response(req, resp);
+
+            // Audit sink (writes only mutating requests; sink decides filtering)
+            if (_audit_sink)
+            {
+                try { _audit_sink(parsed, resp, actor, client_ip); }
+                catch (const std::exception &e)
+                {
+                    spdlog::warn("[{}:{}]: Audit sink failed: {}", __class__, __func__, e.what());
+                }
+            }
             return;
         }
     }

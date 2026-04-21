@@ -65,6 +65,18 @@ public:
     // Set auth token validator
     void set_auth_validator(std::function<bool(const std::string &token)> validator);
 
+    // Resolve actor (user name) from a bearer token. Returns empty if not
+    // resolvable. Used by audit logging.
+    void set_actor_resolver(std::function<std::string(const std::string &token)> resolver);
+
+    // Audit sink invoked once per non-raw request after the route handler runs.
+    // Implementations decide which methods to record (typically POST/PUT/DELETE).
+    using AuditSink = std::function<void(const HttpRequest &req,
+                                         const HttpResponse &resp,
+                                         const std::string &actor,
+                                         const std::string &client_ip)>;
+    void set_audit_sink(AuditSink sink);
+
     // Public paths that skip auth
     void add_public_path(const std::string &path);
 
@@ -99,6 +111,8 @@ private:
     std::vector<RouteEntry> _routes;
     std::string _cors_origin;
     std::function<bool(const std::string &)> _auth_validator;
+    std::function<std::string(const std::string &)> _actor_resolver;
+    AuditSink _audit_sink;
     std::vector<std::string> _public_paths;
     std::filesystem::path _web_root;
 };

@@ -44,6 +44,54 @@ inline constexpr SourceInfo::Impl_::Impl_(
         uid_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        mpt_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        format_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        format_details_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        carrier_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        nav_system_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        network_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        country_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        latitude_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        longitude_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        nmea_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        solution_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        generator_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        compr_encrp_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        authentication_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        fee_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        bitrate_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         create_time_{::uint64_t{0u}},
         update_time_{::uint64_t{0u}} {}
 
@@ -77,13 +125,45 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_._has_bits_),
-        6, // hasbit index offset
+        22, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.update_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.mpt_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.format_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.format_details_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.carrier_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.nav_system_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.network_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.country_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.latitude_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.longitude_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.nmea_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.solution_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.generator_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.compr_encrp_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.authentication_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.fee_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::SourceInfo, _impl_.bitrate_),
         0,
+        17,
+        18,
         1,
         2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
 };
 
 static const ::_pbi::MigrationSchema
@@ -96,14 +176,22 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_monitor_2fSourceInfo_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\030monitor/SourceInfo.proto\022\016caster.monit"
-    "or\"C\n\nSourceInfo\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_"
-    "time\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004b\006proto3"
+    "or\"\342\002\n\nSourceInfo\022\013\n\003uid\030\001 \001(\t\022\023\n\013create"
+    "_time\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004\022\013\n\003mpt\030"
+    "\n \001(\t\022\016\n\006format\030\013 \001(\t\022\026\n\016format_details\030"
+    "\014 \001(\t\022\017\n\007carrier\030\r \001(\t\022\022\n\nnav_system\030\016 \001"
+    "(\t\022\017\n\007network\030\017 \001(\t\022\017\n\007country\030\020 \001(\t\022\020\n\010"
+    "latitude\030\021 \001(\t\022\021\n\tlongitude\030\022 \001(\t\022\014\n\004nme"
+    "a\030\023 \001(\t\022\020\n\010solution\030\024 \001(\t\022\021\n\tgenerator\030\025"
+    " \001(\t\022\023\n\013compr_encrp\030\026 \001(\t\022\026\n\016authenticat"
+    "ion\030\027 \001(\t\022\013\n\003fee\030\030 \001(\t\022\017\n\007bitrate\030\031 \001(\tb"
+    "\006proto3"
 };
 static ::absl::once_flag descriptor_table_monitor_2fSourceInfo_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_monitor_2fSourceInfo_2eproto = {
     false,
     false,
-    119,
+    407,
     descriptor_table_protodef_monitor_2fSourceInfo_2eproto,
     "monitor/SourceInfo.proto",
     &descriptor_table_monitor_2fSourceInfo_2eproto_once,
@@ -143,7 +231,23 @@ PROTOBUF_NDEBUG_INLINE SourceInfo::Impl_::Impl_(
     [[maybe_unused]] const ::caster::monitor::SourceInfo& from_msg)
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
-        uid_(arena, from.uid_) {}
+        uid_(arena, from.uid_),
+        mpt_(arena, from.mpt_),
+        format_(arena, from.format_),
+        format_details_(arena, from.format_details_),
+        carrier_(arena, from.carrier_),
+        nav_system_(arena, from.nav_system_),
+        network_(arena, from.network_),
+        country_(arena, from.country_),
+        latitude_(arena, from.latitude_),
+        longitude_(arena, from.longitude_),
+        nmea_(arena, from.nmea_),
+        solution_(arena, from.solution_),
+        generator_(arena, from.generator_),
+        compr_encrp_(arena, from.compr_encrp_),
+        authentication_(arena, from.authentication_),
+        fee_(arena, from.fee_),
+        bitrate_(arena, from.bitrate_) {}
 
 SourceInfo::SourceInfo(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -172,7 +276,23 @@ PROTOBUF_NDEBUG_INLINE SourceInfo::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
-        uid_(arena) {}
+        uid_(arena),
+        mpt_(arena),
+        format_(arena),
+        format_details_(arena),
+        carrier_(arena),
+        nav_system_(arena),
+        network_(arena),
+        country_(arena),
+        latitude_(arena),
+        longitude_(arena),
+        nmea_(arena),
+        solution_(arena),
+        generator_(arena),
+        compr_encrp_(arena),
+        authentication_(arena),
+        fee_(arena),
+        bitrate_(arena) {}
 
 inline void SourceInfo::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -195,6 +315,22 @@ inline void SourceInfo::SharedDtor(MessageLite& self) {
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.uid_.Destroy();
+  this_._impl_.mpt_.Destroy();
+  this_._impl_.format_.Destroy();
+  this_._impl_.format_details_.Destroy();
+  this_._impl_.carrier_.Destroy();
+  this_._impl_.nav_system_.Destroy();
+  this_._impl_.network_.Destroy();
+  this_._impl_.country_.Destroy();
+  this_._impl_.latitude_.Destroy();
+  this_._impl_.longitude_.Destroy();
+  this_._impl_.nmea_.Destroy();
+  this_._impl_.solution_.Destroy();
+  this_._impl_.generator_.Destroy();
+  this_._impl_.compr_encrp_.Destroy();
+  this_._impl_.authentication_.Destroy();
+  this_._impl_.fee_.Destroy();
+  this_._impl_.bitrate_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -259,16 +395,16 @@ SourceInfo::GetClassData() const {
   return SourceInfo_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<2, 3, 0, 37, 2>
+const ::_pbi::TcParseTable<5, 19, 0, 180, 2>
 SourceInfo::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_._has_bits_),
     0, // no _extensions_
-    3, 24,  // max_field_number, fast_idx_mask
+    25, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967288,  // skipmap
+    4261413368,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    3,  // num_field_entries
+    19,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     SourceInfo_class_data_.base(),
@@ -284,28 +420,152 @@ SourceInfo::_table_ = {
      {10, 0, 0,
       PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.uid_)}},
     // uint64 create_time = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(SourceInfo, _impl_.create_time_), 1>(),
-     {16, 1, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(SourceInfo, _impl_.create_time_), 17>(),
+     {16, 17, 0,
       PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.create_time_)}},
     // uint64 update_time = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(SourceInfo, _impl_.update_time_), 2>(),
-     {24, 2, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(SourceInfo, _impl_.update_time_), 18>(),
+     {24, 18, 0,
       PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.update_time_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    // string mpt = 10;
+    {::_pbi::TcParser::FastUS1,
+     {82, 1, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.mpt_)}},
+    // string format = 11;
+    {::_pbi::TcParser::FastUS1,
+     {90, 2, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.format_)}},
+    // string format_details = 12;
+    {::_pbi::TcParser::FastUS1,
+     {98, 3, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.format_details_)}},
+    // string carrier = 13;
+    {::_pbi::TcParser::FastUS1,
+     {106, 4, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.carrier_)}},
+    // string nav_system = 14;
+    {::_pbi::TcParser::FastUS1,
+     {114, 5, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.nav_system_)}},
+    // string network = 15;
+    {::_pbi::TcParser::FastUS1,
+     {122, 6, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.network_)}},
+    // string country = 16;
+    {::_pbi::TcParser::FastUS2,
+     {386, 7, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.country_)}},
+    // string latitude = 17;
+    {::_pbi::TcParser::FastUS2,
+     {394, 8, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.latitude_)}},
+    // string longitude = 18;
+    {::_pbi::TcParser::FastUS2,
+     {402, 9, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.longitude_)}},
+    // string nmea = 19;
+    {::_pbi::TcParser::FastUS2,
+     {410, 10, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.nmea_)}},
+    // string solution = 20;
+    {::_pbi::TcParser::FastUS2,
+     {418, 11, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.solution_)}},
+    // string generator = 21;
+    {::_pbi::TcParser::FastUS2,
+     {426, 12, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.generator_)}},
+    // string compr_encrp = 22;
+    {::_pbi::TcParser::FastUS2,
+     {434, 13, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.compr_encrp_)}},
+    // string authentication = 23;
+    {::_pbi::TcParser::FastUS2,
+     {442, 14, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.authentication_)}},
+    // string fee = 24;
+    {::_pbi::TcParser::FastUS2,
+     {450, 15, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.fee_)}},
+    // string bitrate = 25;
+    {::_pbi::TcParser::FastUS2,
+     {458, 16, 0,
+      PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.bitrate_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
   }}, {{
     65535, 65535
   }}, {{
     // string uid = 1;
     {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.uid_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // uint64 create_time = 2;
-    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.create_time_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.create_time_), _Internal::kHasBitsOffset + 17, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // uint64 update_time = 3;
-    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.update_time_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.update_time_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // string mpt = 10;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.mpt_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string format = 11;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.format_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string format_details = 12;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.format_details_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string carrier = 13;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.carrier_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string nav_system = 14;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.nav_system_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string network = 15;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.network_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string country = 16;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.country_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string latitude = 17;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.latitude_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string longitude = 18;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.longitude_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string nmea = 19;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.nmea_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string solution = 20;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.solution_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string generator = 21;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.generator_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string compr_encrp = 22;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.compr_encrp_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string authentication = 23;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.authentication_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string fee = 24;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.fee_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string bitrate = 25;
+    {PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.bitrate_), _Internal::kHasBitsOffset + 16, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
   }},
   // no aux_entries
   {{
-    "\31\3\0\0\0\0\0\0"
+    "\31\3\0\0\3\6\16\7\12\7\7\10\11\4\10\11\13\16\3\7\0\0\0\0"
     "caster.monitor.SourceInfo"
     "uid"
+    "mpt"
+    "format"
+    "format_details"
+    "carrier"
+    "nav_system"
+    "network"
+    "country"
+    "latitude"
+    "longitude"
+    "nmea"
+    "solution"
+    "generator"
+    "compr_encrp"
+    "authentication"
+    "fee"
+    "bitrate"
   }},
 };
 PROTOBUF_NOINLINE void SourceInfo::Clear() {
@@ -316,10 +576,62 @@ PROTOBUF_NOINLINE void SourceInfo::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    _impl_.uid_.ClearNonDefaultToEmpty();
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      _impl_.uid_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      _impl_.mpt_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      _impl_.format_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      _impl_.format_details_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      _impl_.carrier_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      _impl_.nav_system_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      _impl_.network_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      _impl_.country_.ClearNonDefaultToEmpty();
+    }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000006U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      _impl_.latitude_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      _impl_.longitude_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      _impl_.nmea_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      _impl_.solution_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      _impl_.generator_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      _impl_.compr_encrp_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      _impl_.authentication_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      _impl_.fee_.ClearNonDefaultToEmpty();
+    }
+  }
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    _impl_.bitrate_.ClearNonDefaultToEmpty();
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00060000U)) {
     ::memset(&_impl_.create_time_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.update_time_) -
         reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.update_time_));
@@ -358,7 +670,7 @@ PROTOBUF_NOINLINE void SourceInfo::Clear() {
   }
 
   // uint64 create_time = 2;
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
     if (this_._internal_create_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -367,11 +679,171 @@ PROTOBUF_NOINLINE void SourceInfo::Clear() {
   }
 
   // uint64 update_time = 3;
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
     if (this_._internal_update_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
           3, this_._internal_update_time(), target);
+    }
+  }
+
+  // string mpt = 10;
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (!this_._internal_mpt().empty()) {
+      const ::std::string& _s = this_._internal_mpt();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.mpt");
+      target = stream->WriteStringMaybeAliased(10, _s, target);
+    }
+  }
+
+  // string format = 11;
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (!this_._internal_format().empty()) {
+      const ::std::string& _s = this_._internal_format();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.format");
+      target = stream->WriteStringMaybeAliased(11, _s, target);
+    }
+  }
+
+  // string format_details = 12;
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (!this_._internal_format_details().empty()) {
+      const ::std::string& _s = this_._internal_format_details();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.format_details");
+      target = stream->WriteStringMaybeAliased(12, _s, target);
+    }
+  }
+
+  // string carrier = 13;
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (!this_._internal_carrier().empty()) {
+      const ::std::string& _s = this_._internal_carrier();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.carrier");
+      target = stream->WriteStringMaybeAliased(13, _s, target);
+    }
+  }
+
+  // string nav_system = 14;
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (!this_._internal_nav_system().empty()) {
+      const ::std::string& _s = this_._internal_nav_system();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.nav_system");
+      target = stream->WriteStringMaybeAliased(14, _s, target);
+    }
+  }
+
+  // string network = 15;
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (!this_._internal_network().empty()) {
+      const ::std::string& _s = this_._internal_network();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.network");
+      target = stream->WriteStringMaybeAliased(15, _s, target);
+    }
+  }
+
+  // string country = 16;
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (!this_._internal_country().empty()) {
+      const ::std::string& _s = this_._internal_country();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.country");
+      target = stream->WriteStringMaybeAliased(16, _s, target);
+    }
+  }
+
+  // string latitude = 17;
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (!this_._internal_latitude().empty()) {
+      const ::std::string& _s = this_._internal_latitude();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.latitude");
+      target = stream->WriteStringMaybeAliased(17, _s, target);
+    }
+  }
+
+  // string longitude = 18;
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    if (!this_._internal_longitude().empty()) {
+      const ::std::string& _s = this_._internal_longitude();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.longitude");
+      target = stream->WriteStringMaybeAliased(18, _s, target);
+    }
+  }
+
+  // string nmea = 19;
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (!this_._internal_nmea().empty()) {
+      const ::std::string& _s = this_._internal_nmea();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.nmea");
+      target = stream->WriteStringMaybeAliased(19, _s, target);
+    }
+  }
+
+  // string solution = 20;
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (!this_._internal_solution().empty()) {
+      const ::std::string& _s = this_._internal_solution();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.solution");
+      target = stream->WriteStringMaybeAliased(20, _s, target);
+    }
+  }
+
+  // string generator = 21;
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (!this_._internal_generator().empty()) {
+      const ::std::string& _s = this_._internal_generator();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.generator");
+      target = stream->WriteStringMaybeAliased(21, _s, target);
+    }
+  }
+
+  // string compr_encrp = 22;
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (!this_._internal_compr_encrp().empty()) {
+      const ::std::string& _s = this_._internal_compr_encrp();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.compr_encrp");
+      target = stream->WriteStringMaybeAliased(22, _s, target);
+    }
+  }
+
+  // string authentication = 23;
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (!this_._internal_authentication().empty()) {
+      const ::std::string& _s = this_._internal_authentication();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.authentication");
+      target = stream->WriteStringMaybeAliased(23, _s, target);
+    }
+  }
+
+  // string fee = 24;
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    if (!this_._internal_fee().empty()) {
+      const ::std::string& _s = this_._internal_fee();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.fee");
+      target = stream->WriteStringMaybeAliased(24, _s, target);
+    }
+  }
+
+  // string bitrate = 25;
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (!this_._internal_bitrate().empty()) {
+      const ::std::string& _s = this_._internal_bitrate();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.SourceInfo.bitrate");
+      target = stream->WriteStringMaybeAliased(25, _s, target);
     }
   }
 
@@ -400,7 +872,7 @@ PROTOBUF_NOINLINE void SourceInfo::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // string uid = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_uid().empty()) {
@@ -408,15 +880,131 @@ PROTOBUF_NOINLINE void SourceInfo::Clear() {
                                         this_._internal_uid());
       }
     }
-    // uint64 create_time = 2;
+    // string mpt = 10;
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!this_._internal_mpt().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_mpt());
+      }
+    }
+    // string format = 11;
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!this_._internal_format().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_format());
+      }
+    }
+    // string format_details = 12;
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!this_._internal_format_details().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_format_details());
+      }
+    }
+    // string carrier = 13;
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!this_._internal_carrier().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_carrier());
+      }
+    }
+    // string nav_system = 14;
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!this_._internal_nav_system().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_nav_system());
+      }
+    }
+    // string network = 15;
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (!this_._internal_network().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_network());
+      }
+    }
+    // string country = 16;
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (!this_._internal_country().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_country());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // string latitude = 17;
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (!this_._internal_latitude().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_latitude());
+      }
+    }
+    // string longitude = 18;
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (!this_._internal_longitude().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_longitude());
+      }
+    }
+    // string nmea = 19;
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (!this_._internal_nmea().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_nmea());
+      }
+    }
+    // string solution = 20;
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (!this_._internal_solution().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_solution());
+      }
+    }
+    // string generator = 21;
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (!this_._internal_generator().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_generator());
+      }
+    }
+    // string compr_encrp = 22;
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (!this_._internal_compr_encrp().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_compr_encrp());
+      }
+    }
+    // string authentication = 23;
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (!this_._internal_authentication().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_authentication());
+      }
+    }
+    // string fee = 24;
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (!this_._internal_fee().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_fee());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00070000U)) {
+    // string bitrate = 25;
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      if (!this_._internal_bitrate().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_bitrate());
+      }
+    }
+    // uint64 create_time = 2;
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (this_._internal_create_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_create_time());
       }
     }
     // uint64 update_time = 3;
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (this_._internal_update_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_update_time());
@@ -441,7 +1029,7 @@ void SourceInfo::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_uid().empty()) {
         _this->_internal_set_uid(from._internal_uid());
@@ -452,11 +1040,159 @@ void SourceInfo::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!from._internal_mpt().empty()) {
+        _this->_internal_set_mpt(from._internal_mpt());
+      } else {
+        if (_this->_impl_.mpt_.IsDefault()) {
+          _this->_internal_set_mpt("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!from._internal_format().empty()) {
+        _this->_internal_set_format(from._internal_format());
+      } else {
+        if (_this->_impl_.format_.IsDefault()) {
+          _this->_internal_set_format("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!from._internal_format_details().empty()) {
+        _this->_internal_set_format_details(from._internal_format_details());
+      } else {
+        if (_this->_impl_.format_details_.IsDefault()) {
+          _this->_internal_set_format_details("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!from._internal_carrier().empty()) {
+        _this->_internal_set_carrier(from._internal_carrier());
+      } else {
+        if (_this->_impl_.carrier_.IsDefault()) {
+          _this->_internal_set_carrier("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!from._internal_nav_system().empty()) {
+        _this->_internal_set_nav_system(from._internal_nav_system());
+      } else {
+        if (_this->_impl_.nav_system_.IsDefault()) {
+          _this->_internal_set_nav_system("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (!from._internal_network().empty()) {
+        _this->_internal_set_network(from._internal_network());
+      } else {
+        if (_this->_impl_.network_.IsDefault()) {
+          _this->_internal_set_network("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (!from._internal_country().empty()) {
+        _this->_internal_set_country(from._internal_country());
+      } else {
+        if (_this->_impl_.country_.IsDefault()) {
+          _this->_internal_set_country("");
+        }
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (!from._internal_latitude().empty()) {
+        _this->_internal_set_latitude(from._internal_latitude());
+      } else {
+        if (_this->_impl_.latitude_.IsDefault()) {
+          _this->_internal_set_latitude("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (!from._internal_longitude().empty()) {
+        _this->_internal_set_longitude(from._internal_longitude());
+      } else {
+        if (_this->_impl_.longitude_.IsDefault()) {
+          _this->_internal_set_longitude("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (!from._internal_nmea().empty()) {
+        _this->_internal_set_nmea(from._internal_nmea());
+      } else {
+        if (_this->_impl_.nmea_.IsDefault()) {
+          _this->_internal_set_nmea("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (!from._internal_solution().empty()) {
+        _this->_internal_set_solution(from._internal_solution());
+      } else {
+        if (_this->_impl_.solution_.IsDefault()) {
+          _this->_internal_set_solution("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (!from._internal_generator().empty()) {
+        _this->_internal_set_generator(from._internal_generator());
+      } else {
+        if (_this->_impl_.generator_.IsDefault()) {
+          _this->_internal_set_generator("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (!from._internal_compr_encrp().empty()) {
+        _this->_internal_set_compr_encrp(from._internal_compr_encrp());
+      } else {
+        if (_this->_impl_.compr_encrp_.IsDefault()) {
+          _this->_internal_set_compr_encrp("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (!from._internal_authentication().empty()) {
+        _this->_internal_set_authentication(from._internal_authentication());
+      } else {
+        if (_this->_impl_.authentication_.IsDefault()) {
+          _this->_internal_set_authentication("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (!from._internal_fee().empty()) {
+        _this->_internal_set_fee(from._internal_fee());
+      } else {
+        if (_this->_impl_.fee_.IsDefault()) {
+          _this->_internal_set_fee("");
+        }
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00070000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      if (!from._internal_bitrate().empty()) {
+        _this->_internal_set_bitrate(from._internal_bitrate());
+      } else {
+        if (_this->_impl_.bitrate_.IsDefault()) {
+          _this->_internal_set_bitrate("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (from._internal_create_time() != 0) {
         _this->_impl_.create_time_ = from._impl_.create_time_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (from._internal_update_time() != 0) {
         _this->_impl_.update_time_ = from._impl_.update_time_;
       }
@@ -482,6 +1218,22 @@ void SourceInfo::InternalSwap(SourceInfo* PROTOBUF_RESTRICT PROTOBUF_NONNULL oth
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uid_, &other->_impl_.uid_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.mpt_, &other->_impl_.mpt_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.format_, &other->_impl_.format_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.format_details_, &other->_impl_.format_details_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.carrier_, &other->_impl_.carrier_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.nav_system_, &other->_impl_.nav_system_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.network_, &other->_impl_.network_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.country_, &other->_impl_.country_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.latitude_, &other->_impl_.latitude_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.longitude_, &other->_impl_.longitude_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.nmea_, &other->_impl_.nmea_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.solution_, &other->_impl_.solution_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.generator_, &other->_impl_.generator_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.compr_encrp_, &other->_impl_.compr_encrp_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.authentication_, &other->_impl_.authentication_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.fee_, &other->_impl_.fee_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.bitrate_, &other->_impl_.bitrate_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(SourceInfo, _impl_.update_time_)
       + sizeof(SourceInfo::_impl_.update_time_)

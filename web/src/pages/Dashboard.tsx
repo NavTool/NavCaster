@@ -253,7 +253,44 @@ const Dashboard: React.FC = () => {
         ))}
         {nodeList.length === 0 && <Col span={24}><Alert message="暂无节点数据" type="info" /></Col>}
       </Row>
+
+      <SystemEventsCard />
     </div>
+  );
+};
+
+const SystemEventsCard: React.FC = () => {
+  const [events, setEvents] = useState<{ timestamp?: number; node_id?: string; event?: string; message?: string; level?: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      import('../api').then(m => m.getSystemEvents(10).then(r => { if (!cancelled) setEvents(r.items as any); }).catch(() => {}));
+    };
+    load();
+    const id = window.setInterval(load, 15000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+  return (
+    <Card title="集群事件" style={{ marginTop: 16, borderColor: '#2e3450' }} bodyStyle={{ padding: 12 }}>
+      {events.length === 0 ? (
+        <Text type="secondary">暂无事件</Text>
+      ) : (
+        <div style={{ display: 'grid', gap: 6, fontSize: 12 }}>
+          {events.map((e, i) => (
+            <div key={i} style={{ display: 'flex', gap: 12, color: '#cdd2e3' }}>
+              <span style={{ color: '#6b7194', minWidth: 140 }}>
+                {e.timestamp ? new Date((e.timestamp as number) * 1000).toLocaleString() : '-'}
+              </span>
+              <Tag color={e.level === 'error' ? 'red' : e.level === 'warn' ? 'gold' : 'blue'}>
+                {e.event || e.level || 'event'}
+              </Tag>
+              <span style={{ color: '#8b90a8', minWidth: 160 }}>{e.node_id || '-'}</span>
+              <span style={{ flex: 1 }}>{e.message || ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 };
 

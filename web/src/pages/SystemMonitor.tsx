@@ -35,15 +35,14 @@ const SystemMonitor: React.FC = () => {
   const [clusterInfo, setClusterInfo] = useState<ClusterMonitorInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
+  // 轻量级指标：Redis INFO + 集群聚合，2s 刷新
+  const fetchLight = useCallback(async () => {
     try {
-      const [redis, keys, cluster] = await Promise.all([
+      const [redis, cluster] = await Promise.all([
         getRedisMonitor(),
-        getRedisKeys(),
         getClusterMonitor(),
       ]);
       setRedisInfo(redis);
-      setKeysInfo(keys);
       setClusterInfo(cluster);
     } catch {
       /* silent */
@@ -52,11 +51,23 @@ const SystemMonitor: React.FC = () => {
     }
   }, []);
 
+  // key 空间扩展分析需要 SCAN + MEMORY USAGE，较重，15s 刷新
+  const fetchKeys = useCallback(async () => {
+    try {
+      const keys = await getRedisKeys();
+      setKeysInfo(keys);
+    } catch {
+      /* silent */
+    }
+  }, []);
+
   useEffect(() => {
-    fetchAll();
-    const iv = setInterval(fetchAll, 10000);
-    return () => clearInterval(iv);
-  }, [fetchAll]);
+    fetchLight();
+    fetchKeys();
+    const ivLight = setInterval(fetchLight, 2000);
+    const ivKeys = setInterval(fetchKeys, 15000);
+    return () => { clearInterval(ivLight); clearInterval(ivKeys); };
+  }, [fetchLight, fetchKeys]);
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
 

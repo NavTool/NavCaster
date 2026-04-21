@@ -1,4 +1,4 @@
-// 数据代理规则信息
+// 节点状态信息 (HTTP /api/monitor/cluster 响应 schema)
 syntax = "proto3";
 package caster.monitor;
 
@@ -8,4 +8,38 @@ message NodeInfo {
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
 
+  // 运行时身份
+  string node_name    = 10;
+  string set_version  = 11;
+  string tag_version  = 12;
+  string run_platform = 13;
+  string hostname     = 14;
+  uint32 listen_port  = 15;
+  uint32 http_port    = 16;
+  uint64 process_id   = 17;
+  bool   http_enabled = 18;
+
+  // 资源占用
+  double cpu_usage      = 20;
+  uint64 mem_usage      = 21;
+  uint64 queue_delay    = 22;
+  uint64 sub_ping_delay = 23;
+  uint64 pub_ping_delay = 24;
+
+  // 流量
+  uint64 send_total = 30;
+  double send_speed = 31;
+  uint64 recv_total = 32;
+  double recv_speed = 33;
+
+  // 连接
+  uint32 connect_count = 40;
+  uint32 server_count  = 41;
+  uint32 client_count  = 42;
+
+  // 状态
+  uint64 online_time = 50; // 节点上线时刻
+  uint64 uptime_sec  = 51; // 当前运行秒数
+  bool   online      = 52; // 心跳判定 (60s 内有 update_time)
+  bool   master      = 53; // 是否为主节点
 }

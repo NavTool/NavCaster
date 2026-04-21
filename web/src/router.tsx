@@ -20,6 +20,8 @@ import ConnectionHistory from './pages/ConnectionHistory';
 import ConnectionHistoryDetail from './pages/ConnectionHistoryDetail';
 import Statistics from './pages/Statistics';
 import SystemMonitor from './pages/SystemMonitor';
+import AuditLog from './pages/AuditLog';
+import RingLog from './pages/RingLog';
 import { getToken, getBaseURL, probeBackend, setToken, setAuthUser } from './api/client';
 import { useEffect, useState } from 'react';
 import { Spin, Result, Button } from 'antd';
@@ -113,6 +115,8 @@ export default function AppRouter() {
           <Route path="history/:type/:name" element={<ConnectionHistoryDetail />} />
           <Route path="statistics" element={<Statistics />} />
           <Route path="monitor" element={<SystemMonitor />} />
+          <Route path="audit" element={<AuditLog />} />
+          <Route path="logs/ring" element={<RingLog />} />
           <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>

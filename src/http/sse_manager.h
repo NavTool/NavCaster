@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <functional>
 #include <mutex>
+#include <unordered_set>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -16,7 +17,8 @@ using json = nlohmann::json;
 struct SseClient
 {
     evhttp_request *req = nullptr;
-    std::string subscribed_channels; // comma-separated, or "*" for all
+    std::unordered_set<std::string> channels; // explicit channel names
+    bool wildcard = false;                    // true 表示订阅全部
 };
 
 /**
@@ -41,14 +43,19 @@ public:
     int init(event_base *base, int update_interval_sec = 2);
     void stop();
 
+    // 设置客户端上限 (0 = 不限)
+    void set_max_clients(size_t n) { _max_clients = n; }
+    size_t max_clients() const { return _max_clients; }
+
     // Register a data channel with a fetcher function.
     // The fetcher returns a JSON object (the full HGETALL result).
     // On each tick, if the result differs from cached, an SSE event is sent.
     using DataFetcher = std::function<json()>;
     void register_channel(const std::string &channel, DataFetcher fetcher);
 
-    // Add a new SSE client (called from the SSE route handler)
-    void add_client(evhttp_request *req, const std::string &channels = "*");
+    // Add a new SSE client (called from the SSE route handler).
+    // Returns 0 on success, -1 if the connection cap was hit.
+    int add_client(evhttp_request *req, const std::string &channels = "*");
 
     // Remove a disconnected client
     void remove_client(evhttp_request *req);
@@ -77,6 +84,7 @@ private:
     event_base *_base = nullptr;
     event *_timer_event = nullptr;
     int _interval_sec = 2;
+    size_t _max_clients = 0; // 0 = no limit
 
     // Connected SSE clients
     std::vector<SseClient> _clients;

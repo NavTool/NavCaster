@@ -20,6 +20,7 @@
 #include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/hourly_file_sink.h>
 #include <spdlog/sinks/rotating_file_sink.h>
+#include "ring_log_view.h"
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
@@ -118,6 +119,9 @@ int init_log_system()
             sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_st>(log_save_path, max_file_size, max_files));
         }
     }
+    // 采集最近 5000 条日志到内存环形缓冲区，供 /api/logs/ring 读取
+    sinks.push_back(ring_log_view::create_sink(5000));
+
     // 把所有sink放入logger
     auto logger = std::make_shared<spdlog::logger>("log", begin(sinks), end(sinks));
     spdlog::set_default_logger(logger);

@@ -142,6 +142,7 @@ export interface MptRankingItem {
   total_duration: number;
   connections: number;
   last_seen: number;
+  types?: string[];
 }
 
 export interface UsrRankingItem {
@@ -150,6 +151,7 @@ export interface UsrRankingItem {
   connections: number;
   last_seen: number;
   mount_count: number;
+  types?: string[];
 }
 
 export async function getStatsOverview(params?: { start?: number; end?: number; date?: string }): Promise<StatsOverview> {
@@ -277,4 +279,49 @@ export async function getRedisKeys(): Promise<RedisKeysAnalysis> {
 export async function getClusterMonitor(): Promise<ClusterMonitorInfo> {
   const { data } = await api.get('/api/monitor/cluster');
   return data as ClusterMonitorInfo;
+}
+
+// ==================== V3 \u8fd0\u7ef4\u63a5\u53e3 ====================
+
+import type { AuditEntry, RingLogEntry, RedisStatPoint, SystemEvent } from './types';
+
+export interface AuditQueryParams {
+  limit?: number;
+  cursor?: number;
+  actor?: string;
+  action?: string;
+  target?: string;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  count?: number;
+  total?: number;
+  has_more?: boolean;
+  next_cursor?: number;
+}
+
+export async function getAuditLog(params: AuditQueryParams = {}): Promise<PagedResult<AuditEntry>> {
+  const { data } = await api.get('/api/audit', { params });
+  return data as PagedResult<AuditEntry>;
+}
+
+export async function getRingLog(n = 500, level = 'info'): Promise<PagedResult<RingLogEntry>> {
+  const { data } = await api.get('/api/logs/ring', { params: { n, level } });
+  return data as PagedResult<RingLogEntry>;
+}
+
+export async function getRedisHistory(range: '1h' | '6h' | '24h' = '1h'): Promise<PagedResult<RedisStatPoint>> {
+  const { data } = await api.get('/api/monitor/redis/history', { params: { range } });
+  return data as PagedResult<RedisStatPoint>;
+}
+
+export async function getSystemEvents(limit = 100): Promise<PagedResult<SystemEvent>> {
+  const { data } = await api.get('/api/system/events', { params: { limit } });
+  return data as PagedResult<SystemEvent>;
+}
+
+export async function setNodeLogLevel(nodeId: string, level: string) {
+  const { data } = await api.post(`/api/nodes/log-level/${encodeURIComponent(nodeId)}`, { level });
+  return data;
 }

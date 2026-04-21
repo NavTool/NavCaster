@@ -220,6 +220,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceInfo final : public ::google:
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
+    kMptFieldNumber = 10,
+    kFormatFieldNumber = 11,
+    kFormatDetailsFieldNumber = 12,
+    kCarrierFieldNumber = 13,
+    kNavSystemFieldNumber = 14,
+    kNetworkFieldNumber = 15,
+    kCountryFieldNumber = 16,
+    kLatitudeFieldNumber = 17,
+    kLongitudeFieldNumber = 18,
+    kNmeaFieldNumber = 19,
+    kSolutionFieldNumber = 20,
+    kGeneratorFieldNumber = 21,
+    kComprEncrpFieldNumber = 22,
+    kAuthenticationFieldNumber = 23,
+    kFeeFieldNumber = 24,
+    kBitrateFieldNumber = 25,
     kCreateTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
   };
@@ -236,6 +252,246 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceInfo final : public ::google:
   const ::std::string& _internal_uid() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_uid(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
+
+  public:
+  // string mpt = 10;
+  void clear_mpt() ;
+  [[nodiscard]] const ::std::string& mpt() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_mpt();
+  void set_allocated_mpt(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_mpt();
+
+  public:
+  // string format = 11;
+  void clear_format() ;
+  [[nodiscard]] const ::std::string& format() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_format(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_format();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_format();
+  void set_allocated_format(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_format() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_format(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_format();
+
+  public:
+  // string format_details = 12;
+  void clear_format_details() ;
+  [[nodiscard]] const ::std::string& format_details() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_format_details(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_format_details();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_format_details();
+  void set_allocated_format_details(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_format_details() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_format_details(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_format_details();
+
+  public:
+  // string carrier = 13;
+  void clear_carrier() ;
+  [[nodiscard]] const ::std::string& carrier() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_carrier(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_carrier();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_carrier();
+  void set_allocated_carrier(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_carrier() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_carrier(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_carrier();
+
+  public:
+  // string nav_system = 14;
+  void clear_nav_system() ;
+  [[nodiscard]] const ::std::string& nav_system() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_nav_system(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_nav_system();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_nav_system();
+  void set_allocated_nav_system(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_nav_system() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_nav_system(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_nav_system();
+
+  public:
+  // string network = 15;
+  void clear_network() ;
+  [[nodiscard]] const ::std::string& network() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_network(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_network();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_network();
+  void set_allocated_network(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_network() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_network(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_network();
+
+  public:
+  // string country = 16;
+  void clear_country() ;
+  [[nodiscard]] const ::std::string& country() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_country(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_country();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_country();
+  void set_allocated_country(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_country() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_country(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_country();
+
+  public:
+  // string latitude = 17;
+  void clear_latitude() ;
+  [[nodiscard]] const ::std::string& latitude() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_latitude(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_latitude();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_latitude();
+  void set_allocated_latitude(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_latitude() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_latitude(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_latitude();
+
+  public:
+  // string longitude = 18;
+  void clear_longitude() ;
+  [[nodiscard]] const ::std::string& longitude() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_longitude(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_longitude();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_longitude();
+  void set_allocated_longitude(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_longitude() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_longitude(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_longitude();
+
+  public:
+  // string nmea = 19;
+  void clear_nmea() ;
+  [[nodiscard]] const ::std::string& nmea() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_nmea(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_nmea();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_nmea();
+  void set_allocated_nmea(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_nmea() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_nmea(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_nmea();
+
+  public:
+  // string solution = 20;
+  void clear_solution() ;
+  [[nodiscard]] const ::std::string& solution() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_solution(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_solution();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_solution();
+  void set_allocated_solution(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_solution() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_solution(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_solution();
+
+  public:
+  // string generator = 21;
+  void clear_generator() ;
+  [[nodiscard]] const ::std::string& generator() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_generator(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_generator();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_generator();
+  void set_allocated_generator(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_generator() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_generator(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_generator();
+
+  public:
+  // string compr_encrp = 22;
+  void clear_compr_encrp() ;
+  [[nodiscard]] const ::std::string& compr_encrp() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_compr_encrp(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_compr_encrp();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_compr_encrp();
+  void set_allocated_compr_encrp(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_compr_encrp() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_compr_encrp(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_compr_encrp();
+
+  public:
+  // string authentication = 23;
+  void clear_authentication() ;
+  [[nodiscard]] const ::std::string& authentication() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_authentication(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_authentication();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_authentication();
+  void set_allocated_authentication(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_authentication() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_authentication(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_authentication();
+
+  public:
+  // string fee = 24;
+  void clear_fee() ;
+  [[nodiscard]] const ::std::string& fee() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_fee(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_fee();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_fee();
+  void set_allocated_fee(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_fee() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_fee(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_fee();
+
+  public:
+  // string bitrate = 25;
+  void clear_bitrate() ;
+  [[nodiscard]] const ::std::string& bitrate() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_bitrate(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_bitrate();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_bitrate();
+  void set_allocated_bitrate(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_bitrate() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_bitrate(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_bitrate();
 
   public:
   // uint64 create_time = 2;
@@ -262,8 +518,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceInfo final : public ::google:
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 37,
+  static const ::google::protobuf::internal::TcParseTable<5, 19,
+                                   0, 180,
                                    2>
       _table_;
 
@@ -287,6 +543,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceInfo final : public ::google:
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
+    ::google::protobuf::internal::ArenaStringPtr mpt_;
+    ::google::protobuf::internal::ArenaStringPtr format_;
+    ::google::protobuf::internal::ArenaStringPtr format_details_;
+    ::google::protobuf::internal::ArenaStringPtr carrier_;
+    ::google::protobuf::internal::ArenaStringPtr nav_system_;
+    ::google::protobuf::internal::ArenaStringPtr network_;
+    ::google::protobuf::internal::ArenaStringPtr country_;
+    ::google::protobuf::internal::ArenaStringPtr latitude_;
+    ::google::protobuf::internal::ArenaStringPtr longitude_;
+    ::google::protobuf::internal::ArenaStringPtr nmea_;
+    ::google::protobuf::internal::ArenaStringPtr solution_;
+    ::google::protobuf::internal::ArenaStringPtr generator_;
+    ::google::protobuf::internal::ArenaStringPtr compr_encrp_;
+    ::google::protobuf::internal::ArenaStringPtr authentication_;
+    ::google::protobuf::internal::ArenaStringPtr fee_;
+    ::google::protobuf::internal::ArenaStringPtr bitrate_;
     ::uint64_t create_time_;
     ::uint64_t update_time_;
     PROTOBUF_TSAN_DECLARE_MEMBER
@@ -383,7 +655,7 @@ inline void SourceInfo::clear_create_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.create_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00020000U);
 }
 inline ::uint64_t SourceInfo::create_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.create_time)
@@ -391,7 +663,7 @@ inline ::uint64_t SourceInfo::create_time() const {
 }
 inline void SourceInfo::set_create_time(::uint64_t value) {
   _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
   // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.create_time)
 }
 inline ::uint64_t SourceInfo::_internal_create_time() const {
@@ -408,7 +680,7 @@ inline void SourceInfo::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00040000U);
 }
 inline ::uint64_t SourceInfo::update_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.update_time)
@@ -416,7 +688,7 @@ inline ::uint64_t SourceInfo::update_time() const {
 }
 inline void SourceInfo::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.update_time)
 }
 inline ::uint64_t SourceInfo::_internal_update_time() const {
@@ -426,6 +698,1046 @@ inline ::uint64_t SourceInfo::_internal_update_time() const {
 inline void SourceInfo::_internal_set_update_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = value;
+}
+
+// string mpt = 10;
+inline void SourceInfo::clear_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mpt_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& SourceInfo::mpt() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.mpt)
+  return _internal_mpt();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_mpt(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.mpt)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_mpt()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.mpt)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_mpt() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.mpt_.Get();
+}
+inline void SourceInfo::_internal_set_mpt(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mpt_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.mpt_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.mpt)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.mpt_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.mpt_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_mpt(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.mpt_.IsDefault()) {
+    _impl_.mpt_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.mpt)
+}
+
+// string format = 11;
+inline void SourceInfo::clear_format() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.format_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline const ::std::string& SourceInfo::format() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.format)
+  return _internal_format();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_format(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.format_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.format)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_format()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_format();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.format)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_format() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.format_.Get();
+}
+inline void SourceInfo::_internal_set_format(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.format_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_format() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.format_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_format() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.format)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.format_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.format_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_format(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.format_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.format_.IsDefault()) {
+    _impl_.format_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.format)
+}
+
+// string format_details = 12;
+inline void SourceInfo::clear_format_details() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.format_details_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline const ::std::string& SourceInfo::format_details() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.format_details)
+  return _internal_format_details();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_format_details(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.format_details_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.format_details)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_format_details()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_format_details();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.format_details)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_format_details() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.format_details_.Get();
+}
+inline void SourceInfo::_internal_set_format_details(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.format_details_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_format_details() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.format_details_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_format_details() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.format_details)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.format_details_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.format_details_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_format_details(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.format_details_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.format_details_.IsDefault()) {
+    _impl_.format_details_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.format_details)
+}
+
+// string carrier = 13;
+inline void SourceInfo::clear_carrier() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.carrier_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000010U);
+}
+inline const ::std::string& SourceInfo::carrier() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.carrier)
+  return _internal_carrier();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_carrier(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  _impl_.carrier_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.carrier)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_carrier()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::std::string* _s = _internal_mutable_carrier();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.carrier)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_carrier() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.carrier_.Get();
+}
+inline void SourceInfo::_internal_set_carrier(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.carrier_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_carrier() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.carrier_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_carrier() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.carrier)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  auto* released = _impl_.carrier_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.carrier_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_carrier(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+  _impl_.carrier_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.carrier_.IsDefault()) {
+    _impl_.carrier_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.carrier)
+}
+
+// string nav_system = 14;
+inline void SourceInfo::clear_nav_system() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nav_system_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000020U);
+}
+inline const ::std::string& SourceInfo::nav_system() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.nav_system)
+  return _internal_nav_system();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_nav_system(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  _impl_.nav_system_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.nav_system)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_nav_system()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ::std::string* _s = _internal_mutable_nav_system();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.nav_system)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_nav_system() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.nav_system_.Get();
+}
+inline void SourceInfo::_internal_set_nav_system(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nav_system_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_nav_system() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.nav_system_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_nav_system() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.nav_system)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000020U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  auto* released = _impl_.nav_system_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.nav_system_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_nav_system(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  }
+  _impl_.nav_system_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.nav_system_.IsDefault()) {
+    _impl_.nav_system_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.nav_system)
+}
+
+// string network = 15;
+inline void SourceInfo::clear_network() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.network_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000040U);
+}
+inline const ::std::string& SourceInfo::network() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.network)
+  return _internal_network();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_network(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  _impl_.network_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.network)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_network()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ::std::string* _s = _internal_mutable_network();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.network)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_network() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.network_.Get();
+}
+inline void SourceInfo::_internal_set_network(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.network_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_network() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.network_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_network() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.network)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000040U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  auto* released = _impl_.network_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.network_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_network(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  }
+  _impl_.network_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.network_.IsDefault()) {
+    _impl_.network_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.network)
+}
+
+// string country = 16;
+inline void SourceInfo::clear_country() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.country_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline const ::std::string& SourceInfo::country() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.country)
+  return _internal_country();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_country(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  _impl_.country_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.country)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_country()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ::std::string* _s = _internal_mutable_country();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.country)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_country() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.country_.Get();
+}
+inline void SourceInfo::_internal_set_country(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.country_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_country() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.country_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_country() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.country)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000080U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  auto* released = _impl_.country_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.country_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_country(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  }
+  _impl_.country_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.country_.IsDefault()) {
+    _impl_.country_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.country)
+}
+
+// string latitude = 17;
+inline void SourceInfo::clear_latitude() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.latitude_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline const ::std::string& SourceInfo::latitude() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.latitude)
+  return _internal_latitude();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_latitude(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  _impl_.latitude_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.latitude)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_latitude()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ::std::string* _s = _internal_mutable_latitude();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.latitude)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_latitude() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.latitude_.Get();
+}
+inline void SourceInfo::_internal_set_latitude(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.latitude_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_latitude() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.latitude_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_latitude() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.latitude)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000100U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  auto* released = _impl_.latitude_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.latitude_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_latitude(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  }
+  _impl_.latitude_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.latitude_.IsDefault()) {
+    _impl_.latitude_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.latitude)
+}
+
+// string longitude = 18;
+inline void SourceInfo::clear_longitude() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.longitude_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000200U);
+}
+inline const ::std::string& SourceInfo::longitude() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.longitude)
+  return _internal_longitude();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_longitude(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  _impl_.longitude_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.longitude)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_longitude()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ::std::string* _s = _internal_mutable_longitude();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.longitude)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_longitude() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.longitude_.Get();
+}
+inline void SourceInfo::_internal_set_longitude(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.longitude_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_longitude() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.longitude_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_longitude() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.longitude)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000200U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  auto* released = _impl_.longitude_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.longitude_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_longitude(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  }
+  _impl_.longitude_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.longitude_.IsDefault()) {
+    _impl_.longitude_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.longitude)
+}
+
+// string nmea = 19;
+inline void SourceInfo::clear_nmea() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nmea_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000400U);
+}
+inline const ::std::string& SourceInfo::nmea() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.nmea)
+  return _internal_nmea();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_nmea(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  _impl_.nmea_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.nmea)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_nmea()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ::std::string* _s = _internal_mutable_nmea();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.nmea)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_nmea() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.nmea_.Get();
+}
+inline void SourceInfo::_internal_set_nmea(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.nmea_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_nmea() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.nmea_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_nmea() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.nmea)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000400U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  auto* released = _impl_.nmea_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.nmea_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_nmea(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  }
+  _impl_.nmea_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.nmea_.IsDefault()) {
+    _impl_.nmea_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.nmea)
+}
+
+// string solution = 20;
+inline void SourceInfo::clear_solution() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.solution_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000800U);
+}
+inline const ::std::string& SourceInfo::solution() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.solution)
+  return _internal_solution();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_solution(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  _impl_.solution_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.solution)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_solution()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  ::std::string* _s = _internal_mutable_solution();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.solution)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_solution() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.solution_.Get();
+}
+inline void SourceInfo::_internal_set_solution(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.solution_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_solution() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.solution_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_solution() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.solution)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000800U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  auto* released = _impl_.solution_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.solution_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_solution(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  }
+  _impl_.solution_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.solution_.IsDefault()) {
+    _impl_.solution_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.solution)
+}
+
+// string generator = 21;
+inline void SourceInfo::clear_generator() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.generator_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00001000U);
+}
+inline const ::std::string& SourceInfo::generator() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.generator)
+  return _internal_generator();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_generator(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  _impl_.generator_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.generator)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_generator()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  ::std::string* _s = _internal_mutable_generator();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.generator)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_generator() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.generator_.Get();
+}
+inline void SourceInfo::_internal_set_generator(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.generator_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_generator() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.generator_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_generator() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.generator)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00001000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  auto* released = _impl_.generator_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.generator_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_generator(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  }
+  _impl_.generator_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.generator_.IsDefault()) {
+    _impl_.generator_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.generator)
+}
+
+// string compr_encrp = 22;
+inline void SourceInfo::clear_compr_encrp() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.compr_encrp_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00002000U);
+}
+inline const ::std::string& SourceInfo::compr_encrp() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.compr_encrp)
+  return _internal_compr_encrp();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_compr_encrp(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  _impl_.compr_encrp_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.compr_encrp)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_compr_encrp()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  ::std::string* _s = _internal_mutable_compr_encrp();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.compr_encrp)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_compr_encrp() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.compr_encrp_.Get();
+}
+inline void SourceInfo::_internal_set_compr_encrp(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.compr_encrp_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_compr_encrp() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.compr_encrp_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_compr_encrp() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.compr_encrp)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00002000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  auto* released = _impl_.compr_encrp_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.compr_encrp_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_compr_encrp(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  }
+  _impl_.compr_encrp_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.compr_encrp_.IsDefault()) {
+    _impl_.compr_encrp_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.compr_encrp)
+}
+
+// string authentication = 23;
+inline void SourceInfo::clear_authentication() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.authentication_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00004000U);
+}
+inline const ::std::string& SourceInfo::authentication() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.authentication)
+  return _internal_authentication();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_authentication(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  _impl_.authentication_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.authentication)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_authentication()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  ::std::string* _s = _internal_mutable_authentication();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.authentication)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_authentication() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.authentication_.Get();
+}
+inline void SourceInfo::_internal_set_authentication(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.authentication_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_authentication() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.authentication_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_authentication() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.authentication)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00004000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
+  auto* released = _impl_.authentication_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.authentication_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_authentication(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
+  }
+  _impl_.authentication_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.authentication_.IsDefault()) {
+    _impl_.authentication_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.authentication)
+}
+
+// string fee = 24;
+inline void SourceInfo::clear_fee() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.fee_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00008000U);
+}
+inline const ::std::string& SourceInfo::fee() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.fee)
+  return _internal_fee();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_fee(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  _impl_.fee_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.fee)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_fee()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  ::std::string* _s = _internal_mutable_fee();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.fee)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_fee() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.fee_.Get();
+}
+inline void SourceInfo::_internal_set_fee(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.fee_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_fee() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.fee_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_fee() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.fee)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00008000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
+  auto* released = _impl_.fee_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.fee_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_fee(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
+  }
+  _impl_.fee_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.fee_.IsDefault()) {
+    _impl_.fee_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.fee)
+}
+
+// string bitrate = 25;
+inline void SourceInfo::clear_bitrate() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.bitrate_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00010000U);
+}
+inline const ::std::string& SourceInfo::bitrate() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.SourceInfo.bitrate)
+  return _internal_bitrate();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void SourceInfo::set_bitrate(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  _impl_.bitrate_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.SourceInfo.bitrate)
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::mutable_bitrate()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  ::std::string* _s = _internal_mutable_bitrate();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.SourceInfo.bitrate)
+  return _s;
+}
+inline const ::std::string& SourceInfo::_internal_bitrate() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.bitrate_.Get();
+}
+inline void SourceInfo::_internal_set_bitrate(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.bitrate_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL SourceInfo::_internal_mutable_bitrate() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.bitrate_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE SourceInfo::release_bitrate() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.SourceInfo.bitrate)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00010000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
+  auto* released = _impl_.bitrate_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.bitrate_.Set("", GetArena());
+  }
+  return released;
+}
+inline void SourceInfo::set_allocated_bitrate(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00010000U);
+  }
+  _impl_.bitrate_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.bitrate_.IsDefault()) {
+    _impl_.bitrate_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.SourceInfo.bitrate)
 }
 
 #ifdef __GNUC__

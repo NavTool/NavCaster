@@ -1,4 +1,4 @@
-// 数据代理规则信息
+// 访问控制组信息
 syntax = "proto3";
 package caster.monitor;
 
@@ -8,4 +8,11 @@ message GroupInfo {
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
 
+  string group_id      = 10;
+  string name          = 11;
+  string strategy      = 12;
+  uint32 item_count    = 13;
+  uint32 account_count = 14;
+  uint32 mount_count   = 15;
+  string remark        = 16;
 }

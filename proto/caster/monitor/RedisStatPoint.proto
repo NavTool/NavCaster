@@ -1,0 +1,14 @@
+// Redis 监控时间序列采样点
+syntax = "proto3";
+package caster.monitor;
+
+message RedisStatPoint {
+
+  uint64 t                  = 1; // 采样时间 (秒)
+  uint64 used_memory        = 2;
+  uint64 total_keys         = 3;
+  double ops_per_sec        = 4;
+  uint64 hits               = 5;
+  uint64 misses             = 6;
+  uint32 connected_clients  = 7;
+}

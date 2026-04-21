@@ -284,7 +284,78 @@ export interface CasterNode {
   client_count: number;
   online_time: number;
   update_time: number;
+  // v2 扩展
+  hostname?: string;
+  listen_port?: number;
+  http_port?: number;
+  process_id?: number;
+  http_enabled?: boolean;
+  uptime_sec?: number;
+  online?: boolean;
+  master?: boolean;
+  // v3 扩展
+  sse_clients?: number;
+  process_threads?: number;
+  last_audit_seq?: number;
+  log_level?: string;
 }
+
+// ==================== V3 补充类型 ====================
+
+/** 审计日志条目 */
+export interface AuditEntry {
+  id: number;
+  timestamp: number;
+  actor: string;
+  source_ip?: string;
+  node_id?: string;
+  action: string;          // 例如 "PUT /api/accounts/:uid"
+  target_type?: string;
+  target_id?: string;
+  payload?: string;        // 脱敏后的 JSON 文本
+  result: number;          // HTTP 状态码
+  error_message?: string;
+}
+
+/** 环形内存日志条目 */
+export interface RingLogEntry {
+  timestamp: number;       // 毫秒
+  level: number;           // 0=trace 1=debug 2=info 3=warn 4=err 5=critical
+  category?: string;
+  message: string;
+}
+
+/** Redis 监控采样点 */
+export interface RedisStatPoint {
+  t: number;
+  used_memory: number;
+  total_keys: number;
+  ops_per_sec: number;
+  hits: number;
+  misses: number;
+  connected_clients: number;
+}
+
+/** 节点配置快照 */
+export interface NodeConfig {
+  uid: string;
+  section: 'core' | 'service' | 'auth' | string;
+  op_seq: number;
+  version?: string;
+  yaml_text?: string;
+  json_text?: string;
+}
+
+/** 集群事件 (D8) */
+export interface SystemEvent {
+  id: string;
+  timestamp: number;
+  node_id?: string;
+  level: 'info' | 'warn' | 'error' | string;
+  category?: string;
+  message: string;
+}
+
 
 // ==================== API Response Helpers ====================
 

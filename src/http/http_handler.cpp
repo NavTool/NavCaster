@@ -3,6 +3,7 @@
 #include "Caster_Core.h"
 #include "broadcast_msg.h"
 #include "base64.h"
+#include "ring_log_view.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
@@ -529,6 +530,43 @@ namespace
             return t;
         }
 
+        // INCR key → new value
+        long long incr(const char *key)
+        {
+            if (!ensure_connected())
+                return 0;
+            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "INCR %s", key));
+            long long v = 0;
+            if (reply && reply->type == REDIS_REPLY_INTEGER) v = reply->integer;
+            if (reply) freeReplyObject(reply); else reconnect();
+            return v;
+        }
+
+        // LPUSH key value → new length
+        long long lpush(const char *key, const std::string &value)
+        {
+            if (!ensure_connected())
+                return 0;
+            auto *reply = static_cast<redisReply *>(
+                redisCommand(_ctx, "LPUSH %s %s", key, value.c_str()));
+            long long len = 0;
+            if (reply && reply->type == REDIS_REPLY_INTEGER) len = reply->integer;
+            if (reply) freeReplyObject(reply); else reconnect();
+            return len;
+        }
+
+        // LTRIM key start stop
+        bool ltrim(const char *key, long long start, long long stop)
+        {
+            if (!ensure_connected())
+                return false;
+            auto *reply = static_cast<redisReply *>(
+                redisCommand(_ctx, "LTRIM %s %lld %lld", key, start, stop));
+            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
+            if (reply) freeReplyObject(reply); else reconnect();
+            return ok;
+        }
+
     private:
         bool ensure_connected()
         {
@@ -607,6 +645,11 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _server.add_public_path("/api/status/health");
     _server.set_auth_validator([this](const std::string &token) -> bool
                                { return validate_token(token); });
+    _server.set_actor_resolver([this](const std::string &token) -> std::string
+                               { return lookup_user(token); });
+    _server.set_audit_sink([this](const HttpRequest &req, const HttpResponse &resp,
+                                  const std::string &actor, const std::string &client_ip)
+                           { write_audit(req, resp, actor, client_ip); });
 
     // ==================== Auth ====================
     _server.route(EVHTTP_REQ_POST, "/api/auth/login", [this](auto &req, auto &resp)
@@ -787,8 +830,20 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_get_monitor_redis(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/monitor/redis/keys", [this](auto &req, auto &resp)
                   { handle_get_monitor_redis_keys(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/monitor/redis/history", [this](auto &req, auto &resp)
+                  { handle_get_monitor_redis_history(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/monitor/cluster", [this](auto &req, auto &resp)
                   { handle_get_monitor_cluster(req, resp); });
+
+    // ==================== V3 运维接口 ====================
+    _server.route(EVHTTP_REQ_GET, "/api/audit", [this](auto &req, auto &resp)
+                  { handle_get_audit(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/logs/ring", [this](auto &req, auto &resp)
+                  { handle_get_logs_ring(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/system/events", [this](auto &req, auto &resp)
+                  { handle_get_system_events(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/nodes/log-level/*", [this](auto &req, auto &resp)
+                  { handle_set_node_log_level(req, resp); });
 
     // ==================== Utilities ====================
     _server.route(EVHTTP_REQ_POST, "/api/utils/sourcetable", [this](auto &req, auto &resp)
@@ -818,6 +873,16 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
 
     // Initialize SSE manager with data channels
     _sse.init(base, 2); // 2-second update interval
+    _sse.set_max_clients(200); // V3 C3: 限制 SSE 并发连接
+
+    // V3 B4: Redis 状态采样定时器 (60s 周期，保留 24h = 1440 点)
+    _redis_sample_timer = event_new(base, -1, EV_PERSIST, on_redis_sample_timer, this);
+    if (_redis_sample_timer)
+    {
+        struct timeval tv {60, 0};
+        event_add(_redis_sample_timer, &tv);
+        spdlog::info("[{}:{}]: Redis history sampling enabled (60s interval)", __class__, __func__);
+    }
 
     // Register SSE channels — each maps to a Redis HGETALL key
     auto &redis = sync_redis::instance();
@@ -869,7 +934,7 @@ std::string http_handler::get_path_segment(const HttpRequest &req, size_t index)
     return {};
 }
 
-std::string http_handler::generate_token()
+std::string http_handler::generate_token(const std::string &user)
 {
     static const char charset[] = "0123456789abcdef";
     static std::random_device rd;
@@ -882,7 +947,7 @@ std::string http_handler::generate_token()
         token += charset[dist(gen)];
 
     std::lock_guard<std::mutex> lock(_token_mutex);
-    _active_tokens.insert(token);
+    _active_tokens[token] = user;
     return token;
 }
 
@@ -892,6 +957,14 @@ bool http_handler::validate_token(const std::string &token)
         return false;
     std::lock_guard<std::mutex> lock(_token_mutex);
     return _active_tokens.count(token) > 0;
+}
+
+std::string http_handler::lookup_user(const std::string &token)
+{
+    if (token.empty()) return {};
+    std::lock_guard<std::mutex> lock(_token_mutex);
+    auto it = _active_tokens.find(token);
+    return it == _active_tokens.end() ? std::string{} : it->second;
 }
 
 void http_handler::invalidate_token(const std::string &token)
@@ -921,7 +994,7 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
 
     if (user == _config.admin_user && pass == _config.admin_password)
     {
-        std::string token = generate_token();
+        std::string token = generate_token(user);
         json result = {{"token", token}, {"username", user}};
         resp.status_code = 200;
         resp.body = result.dump();
@@ -935,7 +1008,7 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
         std::string redis_pass = auth_conf.is_object() ? auth_conf.value("admin_password", "") : "";
         if (!redis_user.empty() && user == redis_user && pass == redis_pass)
         {
-            std::string token = generate_token();
+            std::string token = generate_token(user);
             json result = {{"token", token}, {"username", user}};
             resp.status_code = 200;
             resp.body = result.dump();
@@ -1596,9 +1669,24 @@ void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse 
 }
 
 // ==================== Connection History (LOG:MPT / LOG:USR) read-only ====================
+// LOG:MPT 与 LOG:USR 是 hash key 的前缀，实际数据在 LOG:MPT:<mount> / LOG:USR:<user>
+// 这里需要 SCAN+HGETALL 聚合，而不是直接 HGETALL
 
-IMPL_GET_ALL(handle_get_server_logs, KEY_LOG_MPT)
-IMPL_GET_ALL(handle_get_client_logs, KEY_LOG_USR)
+void http_handler::handle_get_server_logs(const HttpRequest &req, HttpResponse &resp)
+{
+    (void)req;
+    json data = sync_redis::instance().scan_hgetall_prefix("LOG:MPT:");
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_client_logs(const HttpRequest &req, HttpResponse &resp)
+{
+    (void)req;
+    json data = sync_redis::instance().scan_hgetall_prefix("LOG:USR:");
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 // ==================== Statistics ====================
 
@@ -1971,14 +2059,15 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
 
     json mpt_logs = sync_redis::instance().scan_hgetall_prefix("LOG:MPT:");
 
-    // Aggregate per mountpoint (exclude PULL relay type=5)
-    struct MptStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; };
+    // 按挂载点/资源名聚合：包含普通基站、PULL 中继、别名、最近点等
+    struct MptStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; int type_mask = 0; };
     std::map<std::string, MptStat> stats;
 
     for (auto &[field, entry] : mpt_logs.items())
     {
         if (!entry.is_object()) continue;
-        if (entry.value("type", 0) == 5) continue; // skip PULL relay entries
+        // 保留 PULL（type=5），同时记录类型位图
+        int t = entry.value("type", 0);
         long long ct = entry.value("connect_time", 0LL);
         long long dt = entry.value("disconnect_time", 0LL);
         if (dt == 0) dt = now_ts;
@@ -1992,6 +2081,7 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
         s.total_duration += overlap;
         s.connections++;
         if (dt > s.last_seen) s.last_seen = dt;
+        if (t > 0 && t < 31) s.type_mask |= (1 << t);
     }
 
     // Sort by total_duration desc
@@ -2008,6 +2098,11 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
         item["total_duration"] = s.total_duration;
         item["connections"] = s.connections;
         item["last_seen"] = s.last_seen;
+        // 类型标签数组：SERVER/PULL 等
+        json types = json::array();
+        if (s.type_mask & (1 << 1)) types.push_back("SERVER");
+        if (s.type_mask & (1 << 5)) types.push_back("PULL");
+        item["types"] = types;
         result.push_back(item);
         count++;
     }
@@ -2015,8 +2110,6 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
     resp.status_code = 200;
     resp.body = result.dump();
 }
-
-// GET /api/stats/users/ranking?start=&end=&limit=20
 void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResponse &resp)
 {
     long long now_ts = static_cast<long long>(time(nullptr));
@@ -2033,13 +2126,14 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
 
     json usr_logs = sync_redis::instance().scan_hgetall_prefix("LOG:USR:");
 
-    struct UsrStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; std::set<std::string> mounts; };
+    struct UsrStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; std::set<std::string> mounts; int type_mask = 0; };
     std::map<std::string, UsrStat> stats;
 
     for (auto &[field, entry] : usr_logs.items())
     {
         if (!entry.is_object()) continue;
-        if (entry.value("type", 0) == 6) continue; // skip PUSH relay entries
+        // 保留 PUSH（type=6），只记录类型位图
+        int t = entry.value("type", 0);
         long long ct = entry.value("connect_time", 0LL);
         long long dt = entry.value("disconnect_time", 0LL);
         if (dt == 0) dt = now_ts;
@@ -2055,6 +2149,7 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
         s.connections++;
         if (dt > s.last_seen) s.last_seen = dt;
         if (!mount.empty()) s.mounts.insert(mount);
+        if (t > 0 && t < 31) s.type_mask |= (1 << t);
     }
 
     std::vector<std::pair<std::string, UsrStat>> sorted(stats.begin(), stats.end());
@@ -2071,6 +2166,12 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
         item["connections"] = s.connections;
         item["last_seen"] = s.last_seen;
         item["mount_count"] = static_cast<int>(s.mounts.size());
+        json types = json::array();
+        if (s.type_mask & (1 << 2)) types.push_back("CLIENT");
+        if (s.type_mask & (1 << 3)) types.push_back("NEAREST");
+        if (s.type_mask & (1 << 4)) types.push_back("ALIAS");
+        if (s.type_mask & (1 << 6)) types.push_back("PUSH");
+        item["types"] = types;
         result.push_back(item);
         count++;
     }
@@ -2194,6 +2295,12 @@ void http_handler::handle_get_status(const HttpRequest &req, HttpResponse &resp)
         status["master_node"] = master_val.get<std::string>();
     else
         status["master_node"] = nullptr;
+
+    // SSE / runtime
+    status["sse_clients"] = static_cast<unsigned long long>(_sse.client_count());
+    status["sse_max_clients"] = static_cast<unsigned long long>(_sse.max_clients());
+    status["node_id"] = CASTER::Get_Node_ID();
+    status["log_level"] = spdlog::level::to_string_view(spdlog::get_level()).data();
 
     resp.status_code = 200;
     resp.body = status.dump();
@@ -2695,30 +2802,57 @@ void http_handler::handle_get_monitor_redis_keys(const HttpRequest &req, HttpRes
 
     // Known business key descriptions
     static const std::unordered_map<std::string, std::string> key_descriptions = {
-        {"MPT:STAT", "基站在线状态"},
-        {"MPT:RECORD", "源列表记录"},
-        {"MPT:LIST", "挂载点在线列表"},
-        {"MPT:SUB", "挂载点订阅关系"},
-        {"USR:STAT", "用户在线状态"},
-        {"STR:STAT", "数据流状态"},
-        {"STR:ACTIVE", "账号活跃状态"},
-        {"ACT:RECORD", "账号记录"},
-        {"LOG:MPT", "基站连接日志"},
-        {"LOG:USR", "用户连接日志"},
-        {"CASTER:NODE", "集群节点"},
-        {"CASTER:MASTER", "Master 锁"},
-        {"PULL:RECORD", "Pull 转发记录"},
-        {"PULL:STAT", "Pull 转发状态"},
-        {"PUSH:RECORD", "Push 转发记录"},
-        {"PUSH:STAT", "Push 转发状态"},
-        {"ALIAS:RULE", "别名规则"},
+        // 挂载点 / 基站
+        {"MPT:STAT", "基站/挂载点实时状态"},
+        {"MPT:RECORD", "自定义挂载点源列表记录"},
+        {"MPT:SOURCE", "挂载点源列表（自动解析）"},
+        {"MPT:LIST", "挂载点在线列表（name→connect_key）"},
+        {"MPT:REC", "挂载点连接列表（connect_key→登录时间）"},
+        {"MPT:SUB", "挂载点订阅关系（name→订阅者列表）"},
+        {"MPT:GEO", "挂载点位置（经纬度）"},
+
+        // 用户 / 移动站
+        {"USR:STAT", "用户实时状态（流量/客户端信息）"},
+        {"USR:LIST", "用户在线列表"},
+        {"USR:REC", "用户连接列表"},
+        {"USR:SUB", "用户数据订阅列表"},
+        {"USR:GEO", "用户最近位置"},
+
+        // 数据流
+        {"STR:STAT", "数据流状态（含基站和用户所有连接）"},
+        {"STR:ACTIVE", "账号活跃会话"},
+
+        // 账号 / 权限
+        {"ACT:RECORD", "账号记录（配置）"},
+        {"ALIAS:RULE", "挂载点别名规则"},
         {"ACCESS:GROUP", "访问控制组"},
-        {"CONF:SERVICE", "服务配置"},
-        {"CONF:CORE", "核心配置"},
-        {"CONF:AUTH", "认证配置"},
-        {"NODE:HISTORY", "节点历史"},
-        {"STAT:DAILY", "每日统计缓存"},
-        {"MONITOR:REDIS", "Redis 监控历史"},
+        {"ACCESS:ITEM", "访问控制组成员项"},
+
+        // 日志 / 审计
+        {"LOG:MPT", "基站/挂载点连接历史 (按 mount 分 hash)"},
+        {"LOG:USR", "用户连接历史 (按 user 分 hash)"},
+        {"LOG:NODE", "节点上下线事件"},
+        {"LOG:AUDIT", "HTTP API 审计日志 (list)"},
+
+        // 集群 / 节点
+        {"CASTER:NODE", "集群节点状态"},
+        {"CASTER:MASTER", "Master 节点锁"},
+        {"NODE:HISTORY", "节点历史时间序列（5s/1m/5m）"},
+
+        // 转发
+        {"PULL:RECORD", "Pull 数据拉取配置"},
+        {"PULL:STAT", "Pull 转发运行状态"},
+        {"PUSH:RECORD", "Push 数据推送配置"},
+        {"PUSH:STAT", "Push 转发运行状态"},
+
+        // 配置
+        {"CONF:SERVICE", "service 层配置快照"},
+        {"CONF:CORE", "core 层配置快照"},
+        {"CONF:AUTH", "auth 层配置快照"},
+
+        // 统计 / 监控
+        {"STAT:DAILY", "按天统计缓存 (7 天 TTL)"},
+        {"MONITOR:REDIS", "Redis 监控历史 (每 60s 采样)"},
     };
 
     // Group keys by prefix (before first : or the full key if no colon)
@@ -2932,3 +3066,334 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
 #undef IMPL_CREATE
 #undef IMPL_UPDATE
 #undef IMPL_DELETE
+
+// ==================== V3 \u5ba1\u8ba1 / \u73af\u5f62\u65e5\u5fd7 / Redis \u91c7\u6837 / \u8282\u70b9\u4e8b\u4ef6 / \u52a8\u6001\u65e5\u5fd7\u7ea7\u522b ====================
+
+namespace
+{
+    static const char *KEY_AUDIT_LOG = "LOG:AUDIT";
+    static const char *KEY_AUDIT_SEQ = "LOG:AUDIT:SEQ";
+    static const int   AUDIT_KEEP    = 50000;
+    static const char *KEY_REDIS_HISTORY = "MONITOR:REDIS:HISTORY";
+    static const int   REDIS_HISTORY_KEEP = 1440; // 24h * 60min
+
+    // Mask sensitive fields in a JSON body (in-place).
+    void mask_secrets(json &j)
+    {
+        if (!j.is_object()) return;
+        for (auto &[k, v] : j.items())
+        {
+            std::string lk = k;
+            std::transform(lk.begin(), lk.end(), lk.begin(), ::tolower);
+            if (lk == "password" || lk == "token" || lk == "secret" || lk == "admin_password")
+            {
+                if (v.is_string()) v = "***";
+            }
+            else if (v.is_object())
+            {
+                mask_secrets(v);
+            }
+        }
+    }
+
+    std::string method_str(evhttp_cmd_type m)
+    {
+        switch (m)
+        {
+        case EVHTTP_REQ_GET:    return "GET";
+        case EVHTTP_REQ_POST:   return "POST";
+        case EVHTTP_REQ_PUT:    return "PUT";
+        case EVHTTP_REQ_DELETE: return "DELETE";
+        case EVHTTP_REQ_PATCH:  return "PATCH";
+        default:                return "?";
+        }
+    }
+
+    // \u4ece\u8def\u5f84\u63a8\u65ad target_type / target_id\uff08\u4e0d\u80fd\u63a8\u65ad\u65f6\u8fd4\u56de\u7a7a\u4e32\uff09
+    void infer_target(const std::string &path, std::string &target_type, std::string &target_id)
+    {
+        target_type.clear(); target_id.clear();
+        if (path.size() < 6 || path.compare(0, 5, "/api/") != 0) return;
+        std::vector<std::string> seg;
+        size_t pos = 5;
+        while (pos < path.size())
+        {
+            size_t slash = path.find('/', pos);
+            std::string s = path.substr(pos, slash == std::string::npos ? std::string::npos : slash - pos);
+            if (!s.empty()) seg.push_back(s);
+            if (slash == std::string::npos) break;
+            pos = slash + 1;
+        }
+        if (seg.empty()) return;
+        target_type = seg.front();
+        if (seg.size() >= 2) target_id = seg.back();
+    }
+}
+
+void http_handler::write_audit(const HttpRequest &req, const HttpResponse &resp,
+                               const std::string &actor, const std::string &client_ip)
+{
+    // Only log mutating requests
+    if (req.method != EVHTTP_REQ_POST &&
+        req.method != EVHTTP_REQ_PUT &&
+        req.method != EVHTTP_REQ_DELETE &&
+        req.method != EVHTTP_REQ_PATCH)
+        return;
+    // Skip noisy auth endpoints (login response leaks token), but record logout.
+    if (req.path == "/api/auth/login") return;
+
+    auto &redis = sync_redis::instance();
+    long long id = redis.incr(KEY_AUDIT_SEQ);
+
+    json payload = nullptr;
+    if (!req.body.empty())
+    {
+        try { payload = json::parse(req.body); mask_secrets(payload); }
+        catch (...) { payload = req.body; }
+    }
+
+    std::string target_type, target_id;
+    infer_target(req.path, target_type, target_id);
+
+    json entry = {
+        {"id",          id},
+        {"timestamp",   std::time(nullptr)},
+        {"actor",       actor.empty() ? std::string{"anonymous"} : actor},
+        {"source_ip",   client_ip},
+        {"node_id",     CASTER::Get_Node_ID()},
+        {"action",      method_str(req.method) + " " + req.path},
+        {"target_type", target_type},
+        {"target_id",   target_id},
+        {"payload",     payload.is_null() ? "" : payload.dump()},
+        {"result",      resp.status_code}
+    };
+    if (resp.status_code >= 400)
+    {
+        try
+        {
+            auto err = json::parse(resp.body);
+            if (err.is_object() && err.contains("error"))
+                entry["error_message"] = err["error"].get<std::string>();
+        }
+        catch (...) {}
+    }
+    std::string s = entry.dump();
+    redis.lpush(KEY_AUDIT_LOG, s);
+    redis.ltrim(KEY_AUDIT_LOG, 0, AUDIT_KEEP - 1);
+}
+
+void http_handler::handle_get_audit(const HttpRequest &req, HttpResponse &resp)
+{
+    long long limit = 100;
+    long long cursor = 0;
+    std::string filter_actor, filter_action, filter_target;
+    auto it_l = req.query_params.find("limit");
+    if (it_l != req.query_params.end()) try { limit = std::stoll(it_l->second); } catch (...) {}
+    if (limit <= 0 || limit > 1000) limit = 100;
+    auto it_c = req.query_params.find("cursor");
+    if (it_c != req.query_params.end()) try { cursor = std::stoll(it_c->second); } catch (...) {}
+    auto it_a = req.query_params.find("actor");  if (it_a != req.query_params.end()) filter_actor = it_a->second;
+    auto it_x = req.query_params.find("action"); if (it_x != req.query_params.end()) filter_action = it_x->second;
+    auto it_t = req.query_params.find("target"); if (it_t != req.query_params.end()) filter_target = it_t->second;
+
+    auto &redis = sync_redis::instance();
+    long long start = cursor;
+    long long stop = cursor + limit * 4 - 1; // \u591a\u62c9\u4e00\u4e9b\u4f9b\u8fc7\u6ee4
+    json arr = redis.lrange(KEY_AUDIT_LOG, start, stop);
+
+    json out = json::array();
+    long long scanned = 0;
+    for (auto &entry : arr)
+    {
+        scanned++;
+        if (!entry.is_object()) continue;
+        if (!filter_actor.empty() && entry.value("actor", "") != filter_actor) continue;
+        if (!filter_action.empty() && entry.value("action", "").find(filter_action) == std::string::npos) continue;
+        if (!filter_target.empty() && entry.value("target_type", "") != filter_target) continue;
+        out.push_back(entry);
+        if ((long long)out.size() >= limit) break;
+    }
+    long long next_cursor = start + scanned;
+    long long total = redis.llen(KEY_AUDIT_LOG);
+
+    json result = {
+        {"items",       out},
+        {"next_cursor", next_cursor},
+        {"has_more",    next_cursor < total},
+        {"total",       total}
+    };
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
+void http_handler::handle_get_logs_ring(const HttpRequest &req, HttpResponse &resp)
+{
+    size_t n = 500;
+    auto it_n = req.query_params.find("n");
+    if (it_n != req.query_params.end()) try { n = std::stoul(it_n->second); } catch (...) {}
+    if (n == 0 || n > 5000) n = 500;
+
+    std::string level_str;
+    auto it_l = req.query_params.find("level");
+    if (it_l != req.query_params.end()) level_str = it_l->second;
+    int min_level = 0;
+    if (!level_str.empty())
+    {
+        spdlog::level::level_enum lvl = spdlog::level::from_str(level_str);
+        min_level = static_cast<int>(lvl);
+    }
+
+    auto raw = ring_log_view::last_n(n);
+    json items = json::array();
+    for (auto &line : raw)
+    {
+        // \u7b80\u6613\u63a8\u65ad\u7ea7\u522b\uff1a\u67e5\u627e [info]/[warn]/[err]/[critical] \u5173\u952e\u5b57
+        int lvl = 2; // info
+        if (line.find("[debug]")     != std::string::npos) lvl = 1;
+        else if (line.find("[trace]") != std::string::npos) lvl = 0;
+        else if (line.find("[warning]") != std::string::npos || line.find("[warn]") != std::string::npos) lvl = 3;
+        else if (line.find("[error]") != std::string::npos || line.find("[err]")  != std::string::npos) lvl = 4;
+        else if (line.find("[critical]") != std::string::npos) lvl = 5;
+        if (lvl < min_level) continue;
+        json e = {
+            {"timestamp", static_cast<long long>(std::time(nullptr)) * 1000LL},
+            {"level",     lvl},
+            {"category",  "log"},
+            {"message",   line}
+        };
+        items.push_back(e);
+    }
+    json result = {{"items", items}, {"count", items.size()}};
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
+void http_handler::handle_get_system_events(const HttpRequest &req, HttpResponse &resp)
+{
+    long long limit = 100;
+    auto it_l = req.query_params.find("limit");
+    if (it_l != req.query_params.end()) try { limit = std::stoll(it_l->second); } catch (...) {}
+    if (limit <= 0 || limit > 500) limit = 100;
+
+    auto &redis = sync_redis::instance();
+    auto keys = redis.scan_all_keys(500);
+    std::vector<std::string> node_keys;
+    for (auto &k : keys)
+        if (k.size() > 9 && k.compare(0, 9, "LOG:NODE:") == 0)
+            node_keys.push_back(k);
+
+    json items = json::array();
+    for (auto &k : node_keys)
+    {
+        json arr = redis.lrange(k.c_str(), 0, limit - 1);
+        for (auto &e : arr)
+            if (e.is_object()) items.push_back(e);
+    }
+    // \u6309 timestamp \u964d\u5e8f
+    std::sort(items.begin(), items.end(), [](const json &a, const json &b){
+        return a.value("timestamp", 0ULL) > b.value("timestamp", 0ULL);
+    });
+    if ((long long)items.size() > limit)
+        items.erase(items.begin() + limit, items.end());
+
+    json result = {{"items", items}, {"count", items.size()}};
+    resp.status_code = 200;
+    resp.body = result.dump();
+}
+
+void http_handler::handle_set_node_log_level(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing node id"})"; return; }
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+    std::string level = body.value("level", "");
+    if (level.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing level"})"; return; }
+
+    std::string my_id = CASTER::Get_Node_ID();
+    if (id != my_id && id != "self" && id != "current")
+    {
+        // \u8de8\u8282\u70b9\u4e0b\u53d1\u9700\u8981 V4 \u63a7\u5236\u901a\u9053\u3002
+        resp.status_code = 501;
+        resp.body = R"({"error":"Cross-node log level change not implemented"})";
+        return;
+    }
+
+    spdlog::level::level_enum lvl = spdlog::level::from_str(level);
+    if (lvl == spdlog::level::off && level != "off")
+    {
+        resp.status_code = 400;
+        resp.body = R"({"error":"Unknown level"})";
+        return;
+    }
+    spdlog::set_level(lvl);
+    json result = {{"node_id", my_id}, {"level", level}, {"ok", true}};
+    resp.status_code = 200;
+    resp.body = result.dump();
+    spdlog::warn("[http]: log level changed to {} (by remote)", level);
+}
+
+void http_handler::on_redis_sample_timer(evutil_socket_t /*fd*/, short /*what*/, void *arg)
+{
+    static_cast<http_handler *>(arg)->sample_redis_history();
+}
+
+void http_handler::sample_redis_history()
+{
+    auto &redis = sync_redis::instance();
+    std::string info = redis.info("ALL");
+    if (info.empty()) return;
+
+    auto extract = [&info](const std::string &key) -> std::string {
+        auto pos = info.find(key + ":");
+        if (pos == std::string::npos) return "";
+        pos += key.size() + 1;
+        auto end = info.find('\r', pos);
+        if (end == std::string::npos) end = info.find('\n', pos);
+        return end == std::string::npos ? info.substr(pos) : info.substr(pos, end - pos);
+    };
+
+    auto to_ull = [](const std::string &s) -> unsigned long long {
+        if (s.empty()) return 0;
+        try { return std::stoull(s); } catch (...) { return 0; }
+    };
+    auto to_dbl = [](const std::string &s) -> double {
+        if (s.empty()) return 0.0;
+        try { return std::stod(s); } catch (...) { return 0.0; }
+    };
+
+    json point = {
+        {"t",                 std::time(nullptr)},
+        {"used_memory",       to_ull(extract("used_memory"))},
+        {"total_keys",        redis.dbsize()},
+        {"ops_per_sec",       to_dbl(extract("instantaneous_ops_per_sec"))},
+        {"hits",              to_ull(extract("keyspace_hits"))},
+        {"misses",            to_ull(extract("keyspace_misses"))},
+        {"connected_clients", to_ull(extract("connected_clients"))}
+    };
+    redis.lpush(KEY_REDIS_HISTORY, point.dump());
+    redis.ltrim(KEY_REDIS_HISTORY, 0, REDIS_HISTORY_KEEP - 1);
+}
+
+void http_handler::handle_get_monitor_redis_history(const HttpRequest &req, HttpResponse &resp)
+{
+    long long minutes = 60; // 1h \u9ed8\u8ba4
+    auto it = req.query_params.find("range");
+    if (it != req.query_params.end())
+    {
+        const std::string &r = it->second;
+        if (r == "6h")  minutes = 360;
+        else if (r == "24h") minutes = 1440;
+        else if (r == "1h")  minutes = 60;
+    }
+    auto &redis = sync_redis::instance();
+    json arr = redis.lrange(KEY_REDIS_HISTORY, 0, minutes - 1);
+    // Redis \u5b58\u4ee5 LPUSH\uff08\u6700\u65b0\u5728\u5934\uff09\uff0c\u53cd\u8f6c\u4e3a\u65f6\u95f4\u5347\u5e8f
+    json items = json::array();
+    for (auto it2 = arr.rbegin(); it2 != arr.rend(); ++it2)
+        items.push_back(*it2);
+    json result = {{"items", items}, {"count", items.size()}};
+    resp.status_code = 200;
+    resp.body = result.dump();
+}

@@ -37,4 +37,10 @@ message CasterNode {
   uint32 http_port      = 24; // HTTP API 端口 (0 表示未启用)
   uint64 process_id     = 25; // 进程 ID
   bool   http_enabled   = 26; // 当前节点是否对外开启 HTTP API
+
+  // 扩展信息 (v3 监控/运维)
+  uint32 sse_clients    = 27; // 当前 SSE 客户端连接数
+  uint32 process_threads = 28; // 进程线程数 (来自 /proc 或 std::thread)
+  uint64 last_audit_seq = 29; // 该节点最近一次审计事件序号
+  string log_level      = 30; // 当前日志级别 (trace/debug/info/warn/error)
 }

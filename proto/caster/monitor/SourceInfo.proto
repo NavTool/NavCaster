@@ -1,4 +1,4 @@
-// 数据代理规则信息
+// 源(挂载点)信息
 syntax = "proto3";
 package caster.monitor;
 
@@ -8,4 +8,20 @@ message SourceInfo {
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
 
+  string mpt            = 10;
+  string format         = 11;
+  string format_details = 12;
+  string carrier        = 13;
+  string nav_system     = 14;
+  string network        = 15;
+  string country        = 16;
+  string latitude       = 17;
+  string longitude      = 18;
+  string nmea           = 19;
+  string solution       = 20;
+  string generator      = 21;
+  string compr_encrp    = 22;
+  string authentication = 23;
+  string fee            = 24;
+  string bitrate        = 25;
 }

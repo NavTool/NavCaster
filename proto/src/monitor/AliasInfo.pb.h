@@ -220,8 +220,13 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AliasInfo final : public ::google::
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
+    kAliasMptFieldNumber = 10,
+    kSourceMptFieldNumber = 11,
+    kStrategyFieldNumber = 12,
+    kRemarkFieldNumber = 14,
     kCreateTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
+    kEnableFieldNumber = 13,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -236,6 +241,66 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AliasInfo final : public ::google::
   const ::std::string& _internal_uid() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_uid(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
+
+  public:
+  // string alias_mpt = 10;
+  void clear_alias_mpt() ;
+  [[nodiscard]] const ::std::string& alias_mpt() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_alias_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_alias_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_alias_mpt();
+  void set_allocated_alias_mpt(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_alias_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_alias_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_alias_mpt();
+
+  public:
+  // string source_mpt = 11;
+  void clear_source_mpt() ;
+  [[nodiscard]] const ::std::string& source_mpt() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_source_mpt(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_source_mpt();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_source_mpt();
+  void set_allocated_source_mpt(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_source_mpt() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_source_mpt(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_source_mpt();
+
+  public:
+  // string strategy = 12;
+  void clear_strategy() ;
+  [[nodiscard]] const ::std::string& strategy() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_strategy(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_strategy();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_strategy();
+  void set_allocated_strategy(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_strategy() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_strategy(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_strategy();
+
+  public:
+  // string remark = 14;
+  void clear_remark() ;
+  [[nodiscard]] const ::std::string& remark() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_remark(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_remark();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_remark();
+  void set_allocated_remark(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_remark() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_remark(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_remark();
 
   public:
   // uint64 create_time = 2;
@@ -258,12 +323,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AliasInfo final : public ::google::
   void _internal_set_update_time(::uint64_t value);
 
   public:
+  // bool enable = 13;
+  void clear_enable() ;
+  [[nodiscard]] bool enable() const;
+  void set_enable(bool value);
+
+  private:
+  bool _internal_enable() const;
+  void _internal_set_enable(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.monitor.AliasInfo)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 36,
+  static const ::google::protobuf::internal::TcParseTable<4, 8,
+                                   0, 77,
                                    2>
       _table_;
 
@@ -287,8 +362,13 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AliasInfo final : public ::google::
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
+    ::google::protobuf::internal::ArenaStringPtr alias_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr source_mpt_;
+    ::google::protobuf::internal::ArenaStringPtr strategy_;
+    ::google::protobuf::internal::ArenaStringPtr remark_;
     ::uint64_t create_time_;
     ::uint64_t update_time_;
+    bool enable_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -383,7 +463,7 @@ inline void AliasInfo::clear_create_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.create_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000020U);
 }
 inline ::uint64_t AliasInfo::create_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.AliasInfo.create_time)
@@ -391,7 +471,7 @@ inline ::uint64_t AliasInfo::create_time() const {
 }
 inline void AliasInfo::set_create_time(::uint64_t value) {
   _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   // @@protoc_insertion_point(field_set:caster.monitor.AliasInfo.create_time)
 }
 inline ::uint64_t AliasInfo::_internal_create_time() const {
@@ -408,7 +488,7 @@ inline void AliasInfo::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000040U);
 }
 inline ::uint64_t AliasInfo::update_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.AliasInfo.update_time)
@@ -416,7 +496,7 @@ inline ::uint64_t AliasInfo::update_time() const {
 }
 inline void AliasInfo::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:caster.monitor.AliasInfo.update_time)
 }
 inline ::uint64_t AliasInfo::_internal_update_time() const {
@@ -426,6 +506,291 @@ inline ::uint64_t AliasInfo::_internal_update_time() const {
 inline void AliasInfo::_internal_set_update_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = value;
+}
+
+// string alias_mpt = 10;
+inline void AliasInfo::clear_alias_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.alias_mpt_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& AliasInfo::alias_mpt() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AliasInfo.alias_mpt)
+  return _internal_alias_mpt();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AliasInfo::set_alias_mpt(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.alias_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AliasInfo.alias_mpt)
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::mutable_alias_mpt()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_alias_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AliasInfo.alias_mpt)
+  return _s;
+}
+inline const ::std::string& AliasInfo::_internal_alias_mpt() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.alias_mpt_.Get();
+}
+inline void AliasInfo::_internal_set_alias_mpt(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.alias_mpt_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::_internal_mutable_alias_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.alias_mpt_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AliasInfo::release_alias_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AliasInfo.alias_mpt)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.alias_mpt_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.alias_mpt_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AliasInfo::set_allocated_alias_mpt(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.alias_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.alias_mpt_.IsDefault()) {
+    _impl_.alias_mpt_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AliasInfo.alias_mpt)
+}
+
+// string source_mpt = 11;
+inline void AliasInfo::clear_source_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.source_mpt_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline const ::std::string& AliasInfo::source_mpt() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AliasInfo.source_mpt)
+  return _internal_source_mpt();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AliasInfo::set_source_mpt(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.source_mpt_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AliasInfo.source_mpt)
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::mutable_source_mpt()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_source_mpt();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AliasInfo.source_mpt)
+  return _s;
+}
+inline const ::std::string& AliasInfo::_internal_source_mpt() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.source_mpt_.Get();
+}
+inline void AliasInfo::_internal_set_source_mpt(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.source_mpt_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::_internal_mutable_source_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.source_mpt_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AliasInfo::release_source_mpt() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AliasInfo.source_mpt)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.source_mpt_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.source_mpt_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AliasInfo::set_allocated_source_mpt(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.source_mpt_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.source_mpt_.IsDefault()) {
+    _impl_.source_mpt_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AliasInfo.source_mpt)
+}
+
+// string strategy = 12;
+inline void AliasInfo::clear_strategy() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.strategy_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline const ::std::string& AliasInfo::strategy() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AliasInfo.strategy)
+  return _internal_strategy();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AliasInfo::set_strategy(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.strategy_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AliasInfo.strategy)
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::mutable_strategy()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_strategy();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AliasInfo.strategy)
+  return _s;
+}
+inline const ::std::string& AliasInfo::_internal_strategy() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.strategy_.Get();
+}
+inline void AliasInfo::_internal_set_strategy(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.strategy_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::_internal_mutable_strategy() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.strategy_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AliasInfo::release_strategy() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AliasInfo.strategy)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.strategy_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.strategy_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AliasInfo::set_allocated_strategy(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.strategy_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.strategy_.IsDefault()) {
+    _impl_.strategy_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AliasInfo.strategy)
+}
+
+// bool enable = 13;
+inline void AliasInfo::clear_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enable_ = false;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline bool AliasInfo::enable() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.AliasInfo.enable)
+  return _internal_enable();
+}
+inline void AliasInfo::set_enable(bool value) {
+  _internal_set_enable(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:caster.monitor.AliasInfo.enable)
+}
+inline bool AliasInfo::_internal_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.enable_;
+}
+inline void AliasInfo::_internal_set_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.enable_ = value;
+}
+
+// string remark = 14;
+inline void AliasInfo::clear_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.remark_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000010U);
+}
+inline const ::std::string& AliasInfo::remark() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AliasInfo.remark)
+  return _internal_remark();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AliasInfo::set_remark(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  _impl_.remark_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AliasInfo.remark)
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::mutable_remark()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::std::string* _s = _internal_mutable_remark();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AliasInfo.remark)
+  return _s;
+}
+inline const ::std::string& AliasInfo::_internal_remark() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.remark_.Get();
+}
+inline void AliasInfo::_internal_set_remark(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.remark_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AliasInfo::_internal_mutable_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.remark_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AliasInfo::release_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AliasInfo.remark)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  auto* released = _impl_.remark_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.remark_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AliasInfo::set_allocated_remark(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+  _impl_.remark_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.remark_.IsDefault()) {
+    _impl_.remark_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AliasInfo.remark)
 }
 
 #ifdef __GNUC__

@@ -170,7 +170,14 @@ private:
     // Monitoring (Redis + Cluster)
     void handle_get_monitor_redis(const HttpRequest &req, HttpResponse &resp);
     void handle_get_monitor_redis_keys(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_monitor_redis_history(const HttpRequest &req, HttpResponse &resp);
     void handle_get_monitor_cluster(const HttpRequest &req, HttpResponse &resp);
+
+    // V3 运维接口
+    void handle_get_audit(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_logs_ring(const HttpRequest &req, HttpResponse &resp);
+    void handle_get_system_events(const HttpRequest &req, HttpResponse &resp);
+    void handle_set_node_log_level(const HttpRequest &req, HttpResponse &resp);
 
     // Utility endpoints
     void handle_fetch_sourcetable(const HttpRequest &req, HttpResponse &resp);
@@ -186,9 +193,14 @@ private:
     std::string get_path_segment(const HttpRequest &req, size_t index) const;
 
     // Token management
-    std::string generate_token();
+    std::string generate_token(const std::string &user);
     bool validate_token(const std::string &token);
+    std::string lookup_user(const std::string &token);
     void invalidate_token(const std::string &token);
+
+    // Audit sink invoked by http_server after each non-raw request.
+    void write_audit(const HttpRequest &req, const HttpResponse &resp,
+                     const std::string &actor, const std::string &client_ip);
 
 private:
     http_server _server;
@@ -197,7 +209,12 @@ private:
     redis_adapter *_auth_redis = nullptr;
     HttpApiConfig _config;
 
-    // Active tokens
-    std::unordered_set<std::string> _active_tokens;
+    // Active tokens -> username (anonymous logins not supported)
+    std::unordered_map<std::string, std::string> _active_tokens;
     std::mutex _token_mutex;
+
+    // Redis history sampling timer
+    event *_redis_sample_timer = nullptr;
+    static void on_redis_sample_timer(evutil_socket_t fd, short what, void *arg);
+    void sample_redis_history();
 };

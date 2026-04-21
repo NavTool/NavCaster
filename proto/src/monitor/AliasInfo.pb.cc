@@ -44,8 +44,21 @@ inline constexpr AliasInfo::Impl_::Impl_(
         uid_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        alias_mpt_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        source_mpt_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        strategy_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        remark_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         create_time_{::uint64_t{0u}},
-        update_time_{::uint64_t{0u}} {}
+        update_time_{::uint64_t{0u}},
+        enable_{false} {}
 
 template <typename>
 constexpr AliasInfo::AliasInfo(::_pbi::ConstantInitialized)
@@ -77,13 +90,23 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_._has_bits_),
-        6, // hasbit index offset
+        11, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.update_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.alias_mpt_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.source_mpt_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.strategy_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.enable_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::AliasInfo, _impl_.remark_),
         0,
+        5,
+        6,
         1,
         2,
+        3,
+        7,
+        4,
 };
 
 static const ::_pbi::MigrationSchema
@@ -96,14 +119,17 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_monitor_2fAliasInfo_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\027monitor/AliasInfo.proto\022\016caster.monito"
-    "r\"B\n\tAliasInfo\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_ti"
-    "me\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004b\006proto3"
+    "r\"\233\001\n\tAliasInfo\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_t"
+    "ime\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004\022\021\n\talias_"
+    "mpt\030\n \001(\t\022\022\n\nsource_mpt\030\013 \001(\t\022\020\n\010strateg"
+    "y\030\014 \001(\t\022\016\n\006enable\030\r \001(\010\022\016\n\006remark\030\016 \001(\tb"
+    "\006proto3"
 };
 static ::absl::once_flag descriptor_table_monitor_2fAliasInfo_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_monitor_2fAliasInfo_2eproto = {
     false,
     false,
-    117,
+    207,
     descriptor_table_protodef_monitor_2fAliasInfo_2eproto,
     "monitor/AliasInfo.proto",
     &descriptor_table_monitor_2fAliasInfo_2eproto_once,
@@ -143,7 +169,11 @@ PROTOBUF_NDEBUG_INLINE AliasInfo::Impl_::Impl_(
     [[maybe_unused]] const ::caster::monitor::AliasInfo& from_msg)
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
-        uid_(arena, from.uid_) {}
+        uid_(arena, from.uid_),
+        alias_mpt_(arena, from.alias_mpt_),
+        source_mpt_(arena, from.source_mpt_),
+        strategy_(arena, from.strategy_),
+        remark_(arena, from.remark_) {}
 
 AliasInfo::AliasInfo(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -162,9 +192,9 @@ AliasInfo::AliasInfo(
                offsetof(Impl_, create_time_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, create_time_),
-           offsetof(Impl_, update_time_) -
+           offsetof(Impl_, enable_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::update_time_));
+               sizeof(Impl_::enable_));
 
   // @@protoc_insertion_point(copy_constructor:caster.monitor.AliasInfo)
 }
@@ -172,16 +202,20 @@ PROTOBUF_NDEBUG_INLINE AliasInfo::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
-        uid_(arena) {}
+        uid_(arena),
+        alias_mpt_(arena),
+        source_mpt_(arena),
+        strategy_(arena),
+        remark_(arena) {}
 
 inline void AliasInfo::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, create_time_),
            0,
-           offsetof(Impl_, update_time_) -
+           offsetof(Impl_, enable_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::update_time_));
+               sizeof(Impl_::enable_));
 }
 AliasInfo::~AliasInfo() {
   // @@protoc_insertion_point(destructor:caster.monitor.AliasInfo)
@@ -195,6 +229,10 @@ inline void AliasInfo::SharedDtor(MessageLite& self) {
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.uid_.Destroy();
+  this_._impl_.alias_mpt_.Destroy();
+  this_._impl_.source_mpt_.Destroy();
+  this_._impl_.strategy_.Destroy();
+  this_._impl_.remark_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -259,16 +297,16 @@ AliasInfo::GetClassData() const {
   return AliasInfo_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<2, 3, 0, 36, 2>
+const ::_pbi::TcParseTable<4, 8, 0, 77, 2>
 AliasInfo::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_._has_bits_),
     0, // no _extensions_
-    3, 24,  // max_field_number, fast_idx_mask
+    14, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967288,  // skipmap
+    4294951416,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    3,  // num_field_entries
+    8,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     AliasInfo_class_data_.base(),
@@ -284,28 +322,69 @@ AliasInfo::_table_ = {
      {10, 0, 0,
       PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.uid_)}},
     // uint64 create_time = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(AliasInfo, _impl_.create_time_), 1>(),
-     {16, 1, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(AliasInfo, _impl_.create_time_), 5>(),
+     {16, 5, 0,
       PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.create_time_)}},
     // uint64 update_time = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(AliasInfo, _impl_.update_time_), 2>(),
-     {24, 2, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(AliasInfo, _impl_.update_time_), 6>(),
+     {24, 6, 0,
       PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.update_time_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    // string alias_mpt = 10;
+    {::_pbi::TcParser::FastUS1,
+     {82, 1, 0,
+      PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.alias_mpt_)}},
+    // string source_mpt = 11;
+    {::_pbi::TcParser::FastUS1,
+     {90, 2, 0,
+      PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.source_mpt_)}},
+    // string strategy = 12;
+    {::_pbi::TcParser::FastUS1,
+     {98, 3, 0,
+      PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.strategy_)}},
+    // bool enable = 13;
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(AliasInfo, _impl_.enable_), 7>(),
+     {104, 7, 0,
+      PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.enable_)}},
+    // string remark = 14;
+    {::_pbi::TcParser::FastUS1,
+     {114, 4, 0,
+      PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.remark_)}},
+    {::_pbi::TcParser::MiniParse, {}},
   }}, {{
     65535, 65535
   }}, {{
     // string uid = 1;
     {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.uid_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // uint64 create_time = 2;
-    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.create_time_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.create_time_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // uint64 update_time = 3;
-    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.update_time_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.update_time_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // string alias_mpt = 10;
+    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.alias_mpt_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string source_mpt = 11;
+    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.source_mpt_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string strategy = 12;
+    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.strategy_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // bool enable = 13;
+    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.enable_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // string remark = 14;
+    {PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.remark_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
   }},
   // no aux_entries
   {{
-    "\30\3\0\0\0\0\0\0"
+    "\30\3\0\0\11\12\10\0\6\0\0\0\0\0\0\0"
     "caster.monitor.AliasInfo"
     "uid"
+    "alias_mpt"
+    "source_mpt"
+    "strategy"
+    "remark"
   }},
 };
 PROTOBUF_NOINLINE void AliasInfo::Clear() {
@@ -316,13 +395,27 @@ PROTOBUF_NOINLINE void AliasInfo::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    _impl_.uid_.ClearNonDefaultToEmpty();
+  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      _impl_.uid_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      _impl_.alias_mpt_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      _impl_.source_mpt_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      _impl_.strategy_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      _impl_.remark_.ClearNonDefaultToEmpty();
+    }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000006U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000e0U)) {
     ::memset(&_impl_.create_time_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.update_time_) -
-        reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.update_time_));
+        reinterpret_cast<char*>(&_impl_.enable_) -
+        reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.enable_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -358,7 +451,7 @@ PROTOBUF_NOINLINE void AliasInfo::Clear() {
   }
 
   // uint64 create_time = 2;
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     if (this_._internal_create_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -367,11 +460,60 @@ PROTOBUF_NOINLINE void AliasInfo::Clear() {
   }
 
   // uint64 update_time = 3;
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_update_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
           3, this_._internal_update_time(), target);
+    }
+  }
+
+  // string alias_mpt = 10;
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (!this_._internal_alias_mpt().empty()) {
+      const ::std::string& _s = this_._internal_alias_mpt();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.AliasInfo.alias_mpt");
+      target = stream->WriteStringMaybeAliased(10, _s, target);
+    }
+  }
+
+  // string source_mpt = 11;
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (!this_._internal_source_mpt().empty()) {
+      const ::std::string& _s = this_._internal_source_mpt();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.AliasInfo.source_mpt");
+      target = stream->WriteStringMaybeAliased(11, _s, target);
+    }
+  }
+
+  // string strategy = 12;
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (!this_._internal_strategy().empty()) {
+      const ::std::string& _s = this_._internal_strategy();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.AliasInfo.strategy");
+      target = stream->WriteStringMaybeAliased(12, _s, target);
+    }
+  }
+
+  // bool enable = 13;
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_enable() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          13, this_._internal_enable(), target);
+    }
+  }
+
+  // string remark = 14;
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (!this_._internal_remark().empty()) {
+      const ::std::string& _s = this_._internal_remark();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.AliasInfo.remark");
+      target = stream->WriteStringMaybeAliased(14, _s, target);
     }
   }
 
@@ -400,7 +542,7 @@ PROTOBUF_NOINLINE void AliasInfo::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // string uid = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_uid().empty()) {
@@ -408,18 +550,52 @@ PROTOBUF_NOINLINE void AliasInfo::Clear() {
                                         this_._internal_uid());
       }
     }
-    // uint64 create_time = 2;
+    // string alias_mpt = 10;
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!this_._internal_alias_mpt().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_alias_mpt());
+      }
+    }
+    // string source_mpt = 11;
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!this_._internal_source_mpt().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_source_mpt());
+      }
+    }
+    // string strategy = 12;
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!this_._internal_strategy().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_strategy());
+      }
+    }
+    // string remark = 14;
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!this_._internal_remark().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_remark());
+      }
+    }
+    // uint64 create_time = 2;
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (this_._internal_create_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_create_time());
       }
     }
     // uint64 update_time = 3;
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_update_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_update_time());
+      }
+    }
+    // bool enable = 13;
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (this_._internal_enable() != 0) {
+        total_size += 2;
       }
     }
   }
@@ -441,7 +617,7 @@ void AliasInfo::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_uid().empty()) {
         _this->_internal_set_uid(from._internal_uid());
@@ -452,13 +628,54 @@ void AliasInfo::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!from._internal_alias_mpt().empty()) {
+        _this->_internal_set_alias_mpt(from._internal_alias_mpt());
+      } else {
+        if (_this->_impl_.alias_mpt_.IsDefault()) {
+          _this->_internal_set_alias_mpt("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!from._internal_source_mpt().empty()) {
+        _this->_internal_set_source_mpt(from._internal_source_mpt());
+      } else {
+        if (_this->_impl_.source_mpt_.IsDefault()) {
+          _this->_internal_set_source_mpt("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!from._internal_strategy().empty()) {
+        _this->_internal_set_strategy(from._internal_strategy());
+      } else {
+        if (_this->_impl_.strategy_.IsDefault()) {
+          _this->_internal_set_strategy("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!from._internal_remark().empty()) {
+        _this->_internal_set_remark(from._internal_remark());
+      } else {
+        if (_this->_impl_.remark_.IsDefault()) {
+          _this->_internal_set_remark("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (from._internal_create_time() != 0) {
         _this->_impl_.create_time_ = from._impl_.create_time_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (from._internal_update_time() != 0) {
         _this->_impl_.update_time_ = from._impl_.update_time_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (from._internal_enable() != 0) {
+        _this->_impl_.enable_ = from._impl_.enable_;
       }
     }
   }
@@ -482,9 +699,13 @@ void AliasInfo::InternalSwap(AliasInfo* PROTOBUF_RESTRICT PROTOBUF_NONNULL other
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uid_, &other->_impl_.uid_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.alias_mpt_, &other->_impl_.alias_mpt_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.source_mpt_, &other->_impl_.source_mpt_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.strategy_, &other->_impl_.strategy_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.remark_, &other->_impl_.remark_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.update_time_)
-      + sizeof(AliasInfo::_impl_.update_time_)
+      PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.enable_)
+      + sizeof(AliasInfo::_impl_.enable_)
       - PROTOBUF_FIELD_OFFSET(AliasInfo, _impl_.create_time_)>(
           reinterpret_cast<char*>(&_impl_.create_time_),
           reinterpret_cast<char*>(&other->_impl_.create_time_));

@@ -80,6 +80,8 @@ const menuItems = [
     label: '日志',
     children: [
       { key: '/history', icon: <HistoryOutlined />, label: '连接历史' },
+      { key: '/audit', icon: <HistoryOutlined />, label: '审计日志' },
+      { key: '/logs/ring', icon: <HistoryOutlined />, label: '进程日志' },
     ],
   },
   {
@@ -98,7 +100,7 @@ const MainLayout: React.FC = () => {
   const location = useLocation();
 
   // 集群状态摘要 (Header 显示)
-  const { data: sseData } = useMultiSSE<{
+  const { data: sseData, connected: sseConnected } = useMultiSSE<{
     nodes: Record<string, CasterNode>;
     servers: Record<string, unknown>;
     clients: Record<string, unknown>;
@@ -178,6 +180,15 @@ const MainLayout: React.FC = () => {
                   Master <Tag color="gold">{masterNode.node_name}</Tag>
                 </span>
               )}
+              <span style={{ color: '#8b90a8', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                title={sseConnected ? 'SSE 实时连接正常' : 'SSE 未连接，数据不会自动刷新'}>
+                <span style={{
+                  display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                  background: sseConnected ? '#52c41a' : '#ff4d4f',
+                  boxShadow: sseConnected ? '0 0 6px #52c41a' : 'none',
+                }} />
+                SSE
+              </span>
             </Space>
           </div>
           <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout}

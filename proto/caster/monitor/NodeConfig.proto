@@ -1,0 +1,13 @@
+// 节点配置 (用于热更新)
+syntax = "proto3";
+package caster.monitor;
+
+message NodeConfig {
+
+  string uid       = 1; // 节点 ID
+  string section   = 2; // core / service / auth
+  uint64 op_seq    = 3; // 乐观并发序号
+  string version   = 4; // 字符串版本（如 git 摘要）
+  string yaml_text = 5; // 原始 YAML 文本
+  string json_text = 6; // 解析后的 JSON 表示（便于前端渲染表单）
+}

@@ -1,4 +1,4 @@
-// 数据代理规则信息
+// 账号信息 (HTTP /api/accounts 单条 schema)
 syntax = "proto3";
 package caster.monitor;
 
@@ -8,4 +8,16 @@ message AccountInfo {
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
 
+  string account          = 10;
+  int32  type             = 11; // AccountType
+  int32  state            = 12; // AccountStateType
+  uint32 connection_limit = 13;
+
+  string contact_person = 20;
+  string contact_info   = 21;
+  string remark         = 22;
+
+  uint64 expire_time  = 30;
+  uint64 usage_total  = 31;
+  uint32 active_count = 32; // 当前并发会话数
 }

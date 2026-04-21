@@ -1,4 +1,4 @@
-// 数据代理规则信息
+// 别名规则信息
 syntax = "proto3";
 package caster.monitor;
 
@@ -8,4 +8,9 @@ message AliasInfo {
   uint64 create_time = 2; // 创建日期
   uint64 update_time = 3; // 修改日期
 
+  string alias_mpt  = 10; // 对外挂载点名称
+  string source_mpt = 11; // 实际源挂载点
+  string strategy   = 12; // 例如 round-robin / fixed
+  bool   enable     = 13;
+  string remark     = 14;
 }

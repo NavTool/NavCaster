@@ -220,8 +220,15 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED GroupInfo final : public ::google::
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
+    kGroupIdFieldNumber = 10,
+    kNameFieldNumber = 11,
+    kStrategyFieldNumber = 12,
+    kRemarkFieldNumber = 16,
     kCreateTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
+    kItemCountFieldNumber = 13,
+    kAccountCountFieldNumber = 14,
+    kMountCountFieldNumber = 15,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -236,6 +243,66 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED GroupInfo final : public ::google::
   const ::std::string& _internal_uid() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_uid(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
+
+  public:
+  // string group_id = 10;
+  void clear_group_id() ;
+  [[nodiscard]] const ::std::string& group_id() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_group_id(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_group_id();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_group_id();
+  void set_allocated_group_id(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_group_id() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_group_id(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_group_id();
+
+  public:
+  // string name = 11;
+  void clear_name() ;
+  [[nodiscard]] const ::std::string& name() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_name(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_name();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_name();
+  void set_allocated_name(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_name() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_name(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_name();
+
+  public:
+  // string strategy = 12;
+  void clear_strategy() ;
+  [[nodiscard]] const ::std::string& strategy() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_strategy(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_strategy();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_strategy();
+  void set_allocated_strategy(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_strategy() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_strategy(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_strategy();
+
+  public:
+  // string remark = 16;
+  void clear_remark() ;
+  [[nodiscard]] const ::std::string& remark() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_remark(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_remark();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_remark();
+  void set_allocated_remark(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_remark() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_remark(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_remark();
 
   public:
   // uint64 create_time = 2;
@@ -258,12 +325,42 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED GroupInfo final : public ::google::
   void _internal_set_update_time(::uint64_t value);
 
   public:
+  // uint32 item_count = 13;
+  void clear_item_count() ;
+  [[nodiscard]] ::uint32_t item_count() const;
+  void set_item_count(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_item_count() const;
+  void _internal_set_item_count(::uint32_t value);
+
+  public:
+  // uint32 account_count = 14;
+  void clear_account_count() ;
+  [[nodiscard]] ::uint32_t account_count() const;
+  void set_account_count(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_account_count() const;
+  void _internal_set_account_count(::uint32_t value);
+
+  public:
+  // uint32 mount_count = 15;
+  void clear_mount_count() ;
+  [[nodiscard]] ::uint32_t mount_count() const;
+  void set_mount_count(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_mount_count() const;
+  void _internal_set_mount_count(::uint32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.monitor.GroupInfo)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 36,
+  static const ::google::protobuf::internal::TcParseTable<4, 10,
+                                   0, 70,
                                    2>
       _table_;
 
@@ -287,8 +384,15 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED GroupInfo final : public ::google::
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
+    ::google::protobuf::internal::ArenaStringPtr group_id_;
+    ::google::protobuf::internal::ArenaStringPtr name_;
+    ::google::protobuf::internal::ArenaStringPtr strategy_;
+    ::google::protobuf::internal::ArenaStringPtr remark_;
     ::uint64_t create_time_;
     ::uint64_t update_time_;
+    ::uint32_t item_count_;
+    ::uint32_t account_count_;
+    ::uint32_t mount_count_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -383,7 +487,7 @@ inline void GroupInfo::clear_create_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.create_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000020U);
 }
 inline ::uint64_t GroupInfo::create_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.create_time)
@@ -391,7 +495,7 @@ inline ::uint64_t GroupInfo::create_time() const {
 }
 inline void GroupInfo::set_create_time(::uint64_t value) {
   _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.create_time)
 }
 inline ::uint64_t GroupInfo::_internal_create_time() const {
@@ -408,7 +512,7 @@ inline void GroupInfo::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000040U);
 }
 inline ::uint64_t GroupInfo::update_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.update_time)
@@ -416,7 +520,7 @@ inline ::uint64_t GroupInfo::update_time() const {
 }
 inline void GroupInfo::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.update_time)
 }
 inline ::uint64_t GroupInfo::_internal_update_time() const {
@@ -426,6 +530,341 @@ inline ::uint64_t GroupInfo::_internal_update_time() const {
 inline void GroupInfo::_internal_set_update_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = value;
+}
+
+// string group_id = 10;
+inline void GroupInfo::clear_group_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.group_id_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& GroupInfo::group_id() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.group_id)
+  return _internal_group_id();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void GroupInfo::set_group_id(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.group_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.group_id)
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::mutable_group_id()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_group_id();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.GroupInfo.group_id)
+  return _s;
+}
+inline const ::std::string& GroupInfo::_internal_group_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.group_id_.Get();
+}
+inline void GroupInfo::_internal_set_group_id(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.group_id_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::_internal_mutable_group_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.group_id_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE GroupInfo::release_group_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.GroupInfo.group_id)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.group_id_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.group_id_.Set("", GetArena());
+  }
+  return released;
+}
+inline void GroupInfo::set_allocated_group_id(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.group_id_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.group_id_.IsDefault()) {
+    _impl_.group_id_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.GroupInfo.group_id)
+}
+
+// string name = 11;
+inline void GroupInfo::clear_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.name_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline const ::std::string& GroupInfo::name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.name)
+  return _internal_name();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void GroupInfo::set_name(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.name)
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::mutable_name()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_name();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.GroupInfo.name)
+  return _s;
+}
+inline const ::std::string& GroupInfo::_internal_name() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.name_.Get();
+}
+inline void GroupInfo::_internal_set_name(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.name_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::_internal_mutable_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.name_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE GroupInfo::release_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.GroupInfo.name)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.name_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.name_.Set("", GetArena());
+  }
+  return released;
+}
+inline void GroupInfo::set_allocated_name(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.name_.IsDefault()) {
+    _impl_.name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.GroupInfo.name)
+}
+
+// string strategy = 12;
+inline void GroupInfo::clear_strategy() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.strategy_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline const ::std::string& GroupInfo::strategy() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.strategy)
+  return _internal_strategy();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void GroupInfo::set_strategy(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.strategy_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.strategy)
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::mutable_strategy()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_strategy();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.GroupInfo.strategy)
+  return _s;
+}
+inline const ::std::string& GroupInfo::_internal_strategy() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.strategy_.Get();
+}
+inline void GroupInfo::_internal_set_strategy(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.strategy_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::_internal_mutable_strategy() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.strategy_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE GroupInfo::release_strategy() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.GroupInfo.strategy)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.strategy_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.strategy_.Set("", GetArena());
+  }
+  return released;
+}
+inline void GroupInfo::set_allocated_strategy(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.strategy_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.strategy_.IsDefault()) {
+    _impl_.strategy_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.GroupInfo.strategy)
+}
+
+// uint32 item_count = 13;
+inline void GroupInfo::clear_item_count() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.item_count_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline ::uint32_t GroupInfo::item_count() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.item_count)
+  return _internal_item_count();
+}
+inline void GroupInfo::set_item_count(::uint32_t value) {
+  _internal_set_item_count(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.item_count)
+}
+inline ::uint32_t GroupInfo::_internal_item_count() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.item_count_;
+}
+inline void GroupInfo::_internal_set_item_count(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.item_count_ = value;
+}
+
+// uint32 account_count = 14;
+inline void GroupInfo::clear_account_count() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.account_count_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline ::uint32_t GroupInfo::account_count() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.account_count)
+  return _internal_account_count();
+}
+inline void GroupInfo::set_account_count(::uint32_t value) {
+  _internal_set_account_count(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.account_count)
+}
+inline ::uint32_t GroupInfo::_internal_account_count() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.account_count_;
+}
+inline void GroupInfo::_internal_set_account_count(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.account_count_ = value;
+}
+
+// uint32 mount_count = 15;
+inline void GroupInfo::clear_mount_count() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mount_count_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000200U);
+}
+inline ::uint32_t GroupInfo::mount_count() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.mount_count)
+  return _internal_mount_count();
+}
+inline void GroupInfo::set_mount_count(::uint32_t value) {
+  _internal_set_mount_count(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.mount_count)
+}
+inline ::uint32_t GroupInfo::_internal_mount_count() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.mount_count_;
+}
+inline void GroupInfo::_internal_set_mount_count(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mount_count_ = value;
+}
+
+// string remark = 16;
+inline void GroupInfo::clear_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.remark_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000010U);
+}
+inline const ::std::string& GroupInfo::remark() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.GroupInfo.remark)
+  return _internal_remark();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void GroupInfo::set_remark(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  _impl_.remark_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.GroupInfo.remark)
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::mutable_remark()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::std::string* _s = _internal_mutable_remark();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.GroupInfo.remark)
+  return _s;
+}
+inline const ::std::string& GroupInfo::_internal_remark() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.remark_.Get();
+}
+inline void GroupInfo::_internal_set_remark(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.remark_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL GroupInfo::_internal_mutable_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.remark_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE GroupInfo::release_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.GroupInfo.remark)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  auto* released = _impl_.remark_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.remark_.Set("", GetArena());
+  }
+  return released;
+}
+inline void GroupInfo::set_allocated_remark(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+  _impl_.remark_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.remark_.IsDefault()) {
+    _impl_.remark_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.GroupInfo.remark)
 }
 
 #ifdef __GNUC__

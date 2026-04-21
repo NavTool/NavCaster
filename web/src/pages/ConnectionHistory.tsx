@@ -62,8 +62,8 @@ async function fetchClientLogs(): Promise<Record<string, HistoryRecord>> {
 
 const ConnectionHistory: React.FC = () => {
   const navigate = useNavigate();
-  const { data: serverData, loading: serverLoading } = usePolling(fetchServerLogs, 10000);
-  const { data: clientData, loading: clientLoading } = usePolling(fetchClientLogs, 10000);
+  const { data: serverData, loading: serverLoading } = usePolling(fetchServerLogs, 5000);
+  const { data: clientData, loading: clientLoading } = usePolling(fetchClientLogs, 5000);
   const [search, setSearch] = useState('');
 
   const makeColumns = (isServer: boolean): ColumnsType<HistoryRecord & { key: string }> => [

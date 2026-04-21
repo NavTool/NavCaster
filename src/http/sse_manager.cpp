@@ -55,8 +55,47 @@ void sse_manager::register_channel(const std::string &channel, DataFetcher fetch
     spdlog::debug("[{}:{}]: Registered SSE channel: {}", __class__, __func__, channel);
 }
 
-void sse_manager::add_client(evhttp_request *req, const std::string &channels)
+static void parse_channels(const std::string &csv,
+                           std::unordered_set<std::string> &out,
+                           bool &wildcard)
 {
+    wildcard = false;
+    out.clear();
+    if (csv.empty() || csv == "*")
+    {
+        wildcard = true;
+        return;
+    }
+    size_t pos = 0;
+    while (pos < csv.size())
+    {
+        size_t comma = csv.find(',', pos);
+        std::string item = csv.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
+        size_t l = item.find_first_not_of(" \t");
+        size_t r = item.find_last_not_of(" \t");
+        if (l != std::string::npos)
+            item = item.substr(l, r - l + 1);
+        if (item == "*")
+            wildcard = true;
+        else if (!item.empty())
+            out.insert(item);
+        if (comma == std::string::npos) break;
+        pos = comma + 1;
+    }
+    if (out.empty() && !wildcard)
+        wildcard = true;
+}
+
+int sse_manager::add_client(evhttp_request *req, const std::string &channels)
+{
+    if (_max_clients > 0 && _clients.size() >= _max_clients)
+    {
+        spdlog::warn("[{}:{}]: SSE client cap reached ({}), reject new",
+                     __class__, __func__, _max_clients);
+        evhttp_send_error(req, 429, "Too Many SSE Clients");
+        return -1;
+    }
+
     // Set up SSE response headers
     evhttp_add_header(evhttp_request_get_output_headers(req), "Content-Type", "text/event-stream");
     evhttp_add_header(evhttp_request_get_output_headers(req), "Cache-Control", "no-cache");
@@ -73,7 +112,11 @@ void sse_manager::add_client(evhttp_request *req, const std::string &channels)
         evhttp_connection_set_closecb(conn, on_client_close, this);
     }
 
-    _clients.push_back({req, channels});
+    SseClient cli;
+    cli.req = req;
+    parse_channels(channels, cli.channels, cli.wildcard);
+    _clients.push_back(std::move(cli));
+    const SseClient &back = _clients.back();
 
     spdlog::info("[{}:{}]: SSE client connected, total={}, channels={}",
                  __class__, __func__, _clients.size(), channels);
@@ -81,7 +124,7 @@ void sse_manager::add_client(evhttp_request *req, const std::string &channels)
     // Send initial snapshot of all subscribed channels
     for (auto &[name, info] : _channels)
     {
-        if (channels == "*" || channels.find(name) != std::string::npos)
+        if (back.wildcard || back.channels.count(name) > 0)
         {
             try
             {
@@ -99,6 +142,7 @@ void sse_manager::add_client(evhttp_request *req, const std::string &channels)
             }
         }
     }
+    return 0;
 }
 
 void sse_manager::remove_client(evhttp_request *req)
@@ -120,8 +164,7 @@ void sse_manager::broadcast(const std::string &event_name, const std::string &da
 {
     for (auto &client : _clients)
     {
-        if (client.subscribed_channels == "*" ||
-            client.subscribed_channels.find(event_name) != std::string::npos)
+        if (client.wildcard || client.channels.count(event_name) > 0)
         {
             send_sse_event(client.req, event_name, data);
         }

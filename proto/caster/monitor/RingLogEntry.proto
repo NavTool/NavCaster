@@ -1,0 +1,11 @@
+// 进程内环形日志条目
+syntax = "proto3";
+package caster.monitor;
+
+message RingLogEntry {
+
+  uint64 timestamp = 1; // 毫秒时间戳
+  int32  level     = 2; // spdlog::level::level_enum (0~6)
+  string category  = 3; // logger 名称
+  string message   = 4; // 已渲染的文本
+}

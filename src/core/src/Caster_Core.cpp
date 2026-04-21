@@ -236,6 +236,11 @@ bool CASTER::Is_Master_Node()
     return caster_internal::getInstance()->is_master();
 }
 
+std::string CASTER::Get_Node_ID()
+{
+    return caster_internal::getInstance()->node_id();
+}
+
 std::string CASTER::Get_Status()
 {
     return caster_internal::getInstance()->get_status_str();

@@ -220,8 +220,18 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AccountInfo final : public ::google
   // accessors -------------------------------------------------------
   enum : int {
     kUidFieldNumber = 1,
+    kAccountFieldNumber = 10,
+    kContactPersonFieldNumber = 20,
+    kContactInfoFieldNumber = 21,
+    kRemarkFieldNumber = 22,
     kCreateTimeFieldNumber = 2,
     kUpdateTimeFieldNumber = 3,
+    kTypeFieldNumber = 11,
+    kStateFieldNumber = 12,
+    kConnectionLimitFieldNumber = 13,
+    kActiveCountFieldNumber = 32,
+    kExpireTimeFieldNumber = 30,
+    kUsageTotalFieldNumber = 31,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -236,6 +246,66 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AccountInfo final : public ::google
   const ::std::string& _internal_uid() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_uid(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_uid();
+
+  public:
+  // string account = 10;
+  void clear_account() ;
+  [[nodiscard]] const ::std::string& account() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_account(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_account();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_account();
+  void set_allocated_account(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_account() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_account(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_account();
+
+  public:
+  // string contact_person = 20;
+  void clear_contact_person() ;
+  [[nodiscard]] const ::std::string& contact_person() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_contact_person(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_contact_person();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_contact_person();
+  void set_allocated_contact_person(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_contact_person() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_contact_person(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_contact_person();
+
+  public:
+  // string contact_info = 21;
+  void clear_contact_info() ;
+  [[nodiscard]] const ::std::string& contact_info() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_contact_info(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_contact_info();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_contact_info();
+  void set_allocated_contact_info(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_contact_info() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_contact_info(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_contact_info();
+
+  public:
+  // string remark = 22;
+  void clear_remark() ;
+  [[nodiscard]] const ::std::string& remark() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_remark(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_remark();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_remark();
+  void set_allocated_remark(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_remark() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_remark(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_remark();
 
   public:
   // uint64 create_time = 2;
@@ -258,12 +328,72 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AccountInfo final : public ::google
   void _internal_set_update_time(::uint64_t value);
 
   public:
+  // int32 type = 11;
+  void clear_type() ;
+  [[nodiscard]] ::int32_t type() const;
+  void set_type(::int32_t value);
+
+  private:
+  ::int32_t _internal_type() const;
+  void _internal_set_type(::int32_t value);
+
+  public:
+  // int32 state = 12;
+  void clear_state() ;
+  [[nodiscard]] ::int32_t state() const;
+  void set_state(::int32_t value);
+
+  private:
+  ::int32_t _internal_state() const;
+  void _internal_set_state(::int32_t value);
+
+  public:
+  // uint32 connection_limit = 13;
+  void clear_connection_limit() ;
+  [[nodiscard]] ::uint32_t connection_limit() const;
+  void set_connection_limit(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_connection_limit() const;
+  void _internal_set_connection_limit(::uint32_t value);
+
+  public:
+  // uint32 active_count = 32;
+  void clear_active_count() ;
+  [[nodiscard]] ::uint32_t active_count() const;
+  void set_active_count(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_active_count() const;
+  void _internal_set_active_count(::uint32_t value);
+
+  public:
+  // uint64 expire_time = 30;
+  void clear_expire_time() ;
+  [[nodiscard]] ::uint64_t expire_time() const;
+  void set_expire_time(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_expire_time() const;
+  void _internal_set_expire_time(::uint64_t value);
+
+  public:
+  // uint64 usage_total = 31;
+  void clear_usage_total() ;
+  [[nodiscard]] ::uint64_t usage_total() const;
+  void set_usage_total(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_usage_total() const;
+  void _internal_set_usage_total(::uint64_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.monitor.AccountInfo)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 38,
+  static const ::google::protobuf::internal::TcParseTable<4, 13,
+                                   0, 85,
                                    2>
       _table_;
 
@@ -287,8 +417,18 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AccountInfo final : public ::google
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr uid_;
+    ::google::protobuf::internal::ArenaStringPtr account_;
+    ::google::protobuf::internal::ArenaStringPtr contact_person_;
+    ::google::protobuf::internal::ArenaStringPtr contact_info_;
+    ::google::protobuf::internal::ArenaStringPtr remark_;
     ::uint64_t create_time_;
     ::uint64_t update_time_;
+    ::int32_t type_;
+    ::int32_t state_;
+    ::uint32_t connection_limit_;
+    ::uint32_t active_count_;
+    ::uint64_t expire_time_;
+    ::uint64_t usage_total_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -383,7 +523,7 @@ inline void AccountInfo::clear_create_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.create_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000002U);
+                  0x00000020U);
 }
 inline ::uint64_t AccountInfo::create_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.create_time)
@@ -391,7 +531,7 @@ inline ::uint64_t AccountInfo::create_time() const {
 }
 inline void AccountInfo::set_create_time(::uint64_t value) {
   _internal_set_create_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.create_time)
 }
 inline ::uint64_t AccountInfo::_internal_create_time() const {
@@ -408,7 +548,7 @@ inline void AccountInfo::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000004U);
+                  0x00000040U);
 }
 inline ::uint64_t AccountInfo::update_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.update_time)
@@ -416,7 +556,7 @@ inline ::uint64_t AccountInfo::update_time() const {
 }
 inline void AccountInfo::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.update_time)
 }
 inline ::uint64_t AccountInfo::_internal_update_time() const {
@@ -426,6 +566,416 @@ inline ::uint64_t AccountInfo::_internal_update_time() const {
 inline void AccountInfo::_internal_set_update_time(::uint64_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = value;
+}
+
+// string account = 10;
+inline void AccountInfo::clear_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.account_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000002U);
+}
+inline const ::std::string& AccountInfo::account() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.account)
+  return _internal_account();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AccountInfo::set_account(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  _impl_.account_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.account)
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::mutable_account()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ::std::string* _s = _internal_mutable_account();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AccountInfo.account)
+  return _s;
+}
+inline const ::std::string& AccountInfo::_internal_account() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.account_.Get();
+}
+inline void AccountInfo::_internal_set_account(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.account_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::_internal_mutable_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.account_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AccountInfo::release_account() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AccountInfo.account)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  auto* released = _impl_.account_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.account_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AccountInfo::set_allocated_account(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  }
+  _impl_.account_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.account_.IsDefault()) {
+    _impl_.account_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AccountInfo.account)
+}
+
+// int32 type = 11;
+inline void AccountInfo::clear_type() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.type_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline ::int32_t AccountInfo::type() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.type)
+  return _internal_type();
+}
+inline void AccountInfo::set_type(::int32_t value) {
+  _internal_set_type(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.type)
+}
+inline ::int32_t AccountInfo::_internal_type() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.type_;
+}
+inline void AccountInfo::_internal_set_type(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.type_ = value;
+}
+
+// int32 state = 12;
+inline void AccountInfo::clear_state() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.state_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline ::int32_t AccountInfo::state() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.state)
+  return _internal_state();
+}
+inline void AccountInfo::set_state(::int32_t value) {
+  _internal_set_state(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.state)
+}
+inline ::int32_t AccountInfo::_internal_state() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.state_;
+}
+inline void AccountInfo::_internal_set_state(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.state_ = value;
+}
+
+// uint32 connection_limit = 13;
+inline void AccountInfo::clear_connection_limit() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.connection_limit_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000200U);
+}
+inline ::uint32_t AccountInfo::connection_limit() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.connection_limit)
+  return _internal_connection_limit();
+}
+inline void AccountInfo::set_connection_limit(::uint32_t value) {
+  _internal_set_connection_limit(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.connection_limit)
+}
+inline ::uint32_t AccountInfo::_internal_connection_limit() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.connection_limit_;
+}
+inline void AccountInfo::_internal_set_connection_limit(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.connection_limit_ = value;
+}
+
+// string contact_person = 20;
+inline void AccountInfo::clear_contact_person() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.contact_person_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline const ::std::string& AccountInfo::contact_person() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.contact_person)
+  return _internal_contact_person();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AccountInfo::set_contact_person(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  _impl_.contact_person_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.contact_person)
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::mutable_contact_person()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ::std::string* _s = _internal_mutable_contact_person();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AccountInfo.contact_person)
+  return _s;
+}
+inline const ::std::string& AccountInfo::_internal_contact_person() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.contact_person_.Get();
+}
+inline void AccountInfo::_internal_set_contact_person(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.contact_person_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::_internal_mutable_contact_person() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.contact_person_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AccountInfo::release_contact_person() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AccountInfo.contact_person)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  auto* released = _impl_.contact_person_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.contact_person_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AccountInfo::set_allocated_contact_person(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  }
+  _impl_.contact_person_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.contact_person_.IsDefault()) {
+    _impl_.contact_person_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AccountInfo.contact_person)
+}
+
+// string contact_info = 21;
+inline void AccountInfo::clear_contact_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.contact_info_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline const ::std::string& AccountInfo::contact_info() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.contact_info)
+  return _internal_contact_info();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AccountInfo::set_contact_info(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.contact_info_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.contact_info)
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::mutable_contact_info()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_contact_info();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AccountInfo.contact_info)
+  return _s;
+}
+inline const ::std::string& AccountInfo::_internal_contact_info() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.contact_info_.Get();
+}
+inline void AccountInfo::_internal_set_contact_info(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.contact_info_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::_internal_mutable_contact_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.contact_info_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AccountInfo::release_contact_info() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AccountInfo.contact_info)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.contact_info_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.contact_info_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AccountInfo::set_allocated_contact_info(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.contact_info_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.contact_info_.IsDefault()) {
+    _impl_.contact_info_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AccountInfo.contact_info)
+}
+
+// string remark = 22;
+inline void AccountInfo::clear_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.remark_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000010U);
+}
+inline const ::std::string& AccountInfo::remark() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.remark)
+  return _internal_remark();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void AccountInfo::set_remark(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  _impl_.remark_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.remark)
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::mutable_remark()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ::std::string* _s = _internal_mutable_remark();
+  // @@protoc_insertion_point(field_mutable:caster.monitor.AccountInfo.remark)
+  return _s;
+}
+inline const ::std::string& AccountInfo::_internal_remark() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.remark_.Get();
+}
+inline void AccountInfo::_internal_set_remark(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.remark_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL AccountInfo::_internal_mutable_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.remark_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE AccountInfo::release_remark() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.monitor.AccountInfo.remark)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000010U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  auto* released = _impl_.remark_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.remark_.Set("", GetArena());
+  }
+  return released;
+}
+inline void AccountInfo::set_allocated_remark(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  }
+  _impl_.remark_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.remark_.IsDefault()) {
+    _impl_.remark_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.monitor.AccountInfo.remark)
+}
+
+// uint64 expire_time = 30;
+inline void AccountInfo::clear_expire_time() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.expire_time_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000800U);
+}
+inline ::uint64_t AccountInfo::expire_time() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.expire_time)
+  return _internal_expire_time();
+}
+inline void AccountInfo::set_expire_time(::uint64_t value) {
+  _internal_set_expire_time(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.expire_time)
+}
+inline ::uint64_t AccountInfo::_internal_expire_time() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.expire_time_;
+}
+inline void AccountInfo::_internal_set_expire_time(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.expire_time_ = value;
+}
+
+// uint64 usage_total = 31;
+inline void AccountInfo::clear_usage_total() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.usage_total_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00001000U);
+}
+inline ::uint64_t AccountInfo::usage_total() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.usage_total)
+  return _internal_usage_total();
+}
+inline void AccountInfo::set_usage_total(::uint64_t value) {
+  _internal_set_usage_total(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.usage_total)
+}
+inline ::uint64_t AccountInfo::_internal_usage_total() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.usage_total_;
+}
+inline void AccountInfo::_internal_set_usage_total(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.usage_total_ = value;
+}
+
+// uint32 active_count = 32;
+inline void AccountInfo::clear_active_count() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.active_count_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000400U);
+}
+inline ::uint32_t AccountInfo::active_count() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.AccountInfo.active_count)
+  return _internal_active_count();
+}
+inline void AccountInfo::set_active_count(::uint32_t value) {
+  _internal_set_active_count(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  // @@protoc_insertion_point(field_set:caster.monitor.AccountInfo.active_count)
+}
+inline ::uint32_t AccountInfo::_internal_active_count() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.active_count_;
+}
+inline void AccountInfo::_internal_set_active_count(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.active_count_ = value;
 }
 
 #ifdef __GNUC__

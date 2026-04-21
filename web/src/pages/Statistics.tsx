@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Card, Row, Col, Statistic, Table, Segmented, Spin, DatePicker, Button, Checkbox } from 'antd';
+import { Card, Row, Col, Statistic, Table, Segmented, Spin, DatePicker, Button, Checkbox, Tag } from 'antd';
 const { RangePicker } = DatePicker;
 import {
   CloudServerOutlined, UserOutlined, SwapOutlined, ClockCircleOutlined,
@@ -48,6 +48,10 @@ const statCardStyle = { borderColor: '#2e3450', textAlign: 'center' as const };
 const mptColumns = [
   { title: '排名', dataIndex: 'rank', key: 'rank', width: 60 },
   { title: '基站名称', dataIndex: 'name', key: 'name' },
+  { title: '类型', dataIndex: 'types', key: 'types', width: 120,
+    render: (ts?: string[]) => (ts && ts.length > 0)
+      ? <>{ts.map(t => <Tag key={t} color={t === 'PULL' ? 'purple' : 'blue'} style={{ marginRight: 4 }}>{t}</Tag>)}</>
+      : <Tag>SERVER</Tag> },
   { title: '连接次数', dataIndex: 'connections', key: 'connections', sorter: (a: MptRankingItem & { rank: number }, b: MptRankingItem & { rank: number }) => a.connections - b.connections },
   { title: '总在线时长', dataIndex: 'total_duration', key: 'total_duration', render: (v: number) => formatDuration(v), sorter: (a: MptRankingItem & { rank: number }, b: MptRankingItem & { rank: number }) => a.total_duration - b.total_duration },
   { title: '最后活跃', dataIndex: 'last_seen', key: 'last_seen', render: (v: number) => v > 0 ? dayjs(v * 1000).format('MM-DD HH:mm') : '-' },
@@ -56,6 +60,10 @@ const mptColumns = [
 const usrColumns = [
   { title: '排名', dataIndex: 'rank', key: 'rank', width: 60 },
   { title: '用户名', dataIndex: 'name', key: 'name' },
+  { title: '类型', dataIndex: 'types', key: 'types', width: 160,
+    render: (ts?: string[]) => (ts && ts.length > 0)
+      ? <>{ts.map(t => <Tag key={t} color={t === 'PUSH' ? 'magenta' : t === 'NEAREST' ? 'cyan' : t === 'ALIAS' ? 'gold' : 'green'} style={{ marginRight: 4 }}>{t}</Tag>)}</>
+      : <Tag>CLIENT</Tag> },
   { title: '连接次数', dataIndex: 'connections', key: 'connections', sorter: (a: UsrRankingItem & { rank: number }, b: UsrRankingItem & { rank: number }) => a.connections - b.connections },
   { title: '总使用时长', dataIndex: 'total_duration', key: 'total_duration', render: (v: number) => formatDuration(v), sorter: (a: UsrRankingItem & { rank: number }, b: UsrRankingItem & { rank: number }) => a.total_duration - b.total_duration },
   { title: '使用基站数', dataIndex: 'mount_count', key: 'mount_count' },
@@ -170,22 +178,22 @@ const Statistics: React.FC = () => {
         <Row gutter={[16, 16]}>
           <Col xs={12} sm={6}>
             <Card style={statCardStyle} size="small">
-              <Statistic title="基站连接数" value={overview?.mpt_connections ?? 0} prefix={<CloudServerOutlined />} />
+              <Statistic title="基站连接次数" value={overview?.mpt_connections ?? 0} prefix={<CloudServerOutlined />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card style={statCardStyle} size="small">
-              <Statistic title="用户连接数" value={overview?.usr_connections ?? 0} prefix={<UserOutlined />} />
+              <Statistic title="用户连接次数" value={overview?.usr_connections ?? 0} prefix={<UserOutlined />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card style={statCardStyle} size="small">
-              <Statistic title="Pull 连接数" value={overview?.pull_connections ?? 0} prefix={<SwapOutlined />} />
+              <Statistic title="Pull 连接次数" value={overview?.pull_connections ?? 0} prefix={<SwapOutlined />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card style={statCardStyle} size="small">
-              <Statistic title="Push 连接数" value={overview?.push_connections ?? 0} prefix={<SwapOutlined />} />
+              <Statistic title="Push 连接次数" value={overview?.push_connections ?? 0} prefix={<SwapOutlined />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
@@ -232,7 +240,7 @@ const Statistics: React.FC = () => {
 
         {/* Hourly trend chart */}
         <Card
-          title="连接数趋势"
+          title="连接数趋势（每个分桶内的活跃连接数）"
           style={{ ...cardStyle, marginTop: 16 }}
           size="small"
           extra={

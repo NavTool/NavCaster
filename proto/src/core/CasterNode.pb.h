@@ -225,6 +225,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterNode final : public ::google:
     kTagVersionFieldNumber = 4,
     kRunPlatformFieldNumber = 5,
     kHostnameFieldNumber = 22,
+    kLogLevelFieldNumber = 30,
     kCpuUsageFieldNumber = 6,
     kMemUsageFieldNumber = 7,
     kQueueDelayFieldNumber = 8,
@@ -245,6 +246,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterNode final : public ::google:
     kHttpPortFieldNumber = 24,
     kProcessIdFieldNumber = 25,
     kHttpEnabledFieldNumber = 26,
+    kSseClientsFieldNumber = 27,
+    kLastAuditSeqFieldNumber = 29,
+    kProcessThreadsFieldNumber = 28,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -334,6 +338,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterNode final : public ::google:
   const ::std::string& _internal_hostname() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_hostname(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_hostname();
+
+  public:
+  // string log_level = 30;
+  void clear_log_level() ;
+  [[nodiscard]] const ::std::string& log_level() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_log_level(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_log_level();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_log_level();
+  void set_allocated_log_level(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_log_level() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_log_level(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_log_level();
 
   public:
   // double cpu_usage = 6;
@@ -536,12 +555,42 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterNode final : public ::google:
   void _internal_set_http_enabled(bool value);
 
   public:
+  // uint32 sse_clients = 27;
+  void clear_sse_clients() ;
+  [[nodiscard]] ::uint32_t sse_clients() const;
+  void set_sse_clients(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_sse_clients() const;
+  void _internal_set_sse_clients(::uint32_t value);
+
+  public:
+  // uint64 last_audit_seq = 29;
+  void clear_last_audit_seq() ;
+  [[nodiscard]] ::uint64_t last_audit_seq() const;
+  void set_last_audit_seq(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_last_audit_seq() const;
+  void _internal_set_last_audit_seq(::uint64_t value);
+
+  public:
+  // uint32 process_threads = 28;
+  void clear_process_threads() ;
+  [[nodiscard]] ::uint32_t process_threads() const;
+  void set_process_threads(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_process_threads() const;
+  void _internal_set_process_threads(::uint32_t value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.core.CasterNode)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<5, 26,
-                                   0, 109,
+  static const ::google::protobuf::internal::TcParseTable<5, 30,
+                                   0, 118,
                                    2>
       _table_;
 
@@ -570,6 +619,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterNode final : public ::google:
     ::google::protobuf::internal::ArenaStringPtr tag_version_;
     ::google::protobuf::internal::ArenaStringPtr run_platform_;
     ::google::protobuf::internal::ArenaStringPtr hostname_;
+    ::google::protobuf::internal::ArenaStringPtr log_level_;
     double cpu_usage_;
     double mem_usage_;
     ::uint64_t queue_delay_;
@@ -590,6 +640,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterNode final : public ::google:
     ::uint32_t http_port_;
     ::uint64_t process_id_;
     bool http_enabled_;
+    ::uint32_t sse_clients_;
+    ::uint64_t last_audit_seq_;
+    ::uint32_t process_threads_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -944,7 +997,7 @@ inline void CasterNode::clear_cpu_usage() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.cpu_usage_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000040U);
+                  0x00000080U);
 }
 inline double CasterNode::cpu_usage() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.cpu_usage)
@@ -952,7 +1005,7 @@ inline double CasterNode::cpu_usage() const {
 }
 inline void CasterNode::set_cpu_usage(double value) {
   _internal_set_cpu_usage(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.cpu_usage)
 }
 inline double CasterNode::_internal_cpu_usage() const {
@@ -969,7 +1022,7 @@ inline void CasterNode::clear_mem_usage() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.mem_usage_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000080U);
+                  0x00000100U);
 }
 inline double CasterNode::mem_usage() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.mem_usage)
@@ -977,7 +1030,7 @@ inline double CasterNode::mem_usage() const {
 }
 inline void CasterNode::set_mem_usage(double value) {
   _internal_set_mem_usage(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.mem_usage)
 }
 inline double CasterNode::_internal_mem_usage() const {
@@ -994,7 +1047,7 @@ inline void CasterNode::clear_queue_delay() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.queue_delay_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000100U);
+                  0x00000200U);
 }
 inline ::uint64_t CasterNode::queue_delay() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.queue_delay)
@@ -1002,7 +1055,7 @@ inline ::uint64_t CasterNode::queue_delay() const {
 }
 inline void CasterNode::set_queue_delay(::uint64_t value) {
   _internal_set_queue_delay(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.queue_delay)
 }
 inline ::uint64_t CasterNode::_internal_queue_delay() const {
@@ -1019,7 +1072,7 @@ inline void CasterNode::clear_sub_ping_delay() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sub_ping_delay_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000200U);
+                  0x00000400U);
 }
 inline ::uint64_t CasterNode::sub_ping_delay() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.sub_ping_delay)
@@ -1027,7 +1080,7 @@ inline ::uint64_t CasterNode::sub_ping_delay() const {
 }
 inline void CasterNode::set_sub_ping_delay(::uint64_t value) {
   _internal_set_sub_ping_delay(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.sub_ping_delay)
 }
 inline ::uint64_t CasterNode::_internal_sub_ping_delay() const {
@@ -1044,7 +1097,7 @@ inline void CasterNode::clear_sub_tcp_delay() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.sub_tcp_delay_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000400U);
+                  0x00000800U);
 }
 inline ::uint64_t CasterNode::sub_tcp_delay() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.sub_tcp_delay)
@@ -1052,7 +1105,7 @@ inline ::uint64_t CasterNode::sub_tcp_delay() const {
 }
 inline void CasterNode::set_sub_tcp_delay(::uint64_t value) {
   _internal_set_sub_tcp_delay(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.sub_tcp_delay)
 }
 inline ::uint64_t CasterNode::_internal_sub_tcp_delay() const {
@@ -1069,7 +1122,7 @@ inline void CasterNode::clear_pub_ping_delay() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pub_ping_delay_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000800U);
+                  0x00001000U);
 }
 inline ::uint64_t CasterNode::pub_ping_delay() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.pub_ping_delay)
@@ -1077,7 +1130,7 @@ inline ::uint64_t CasterNode::pub_ping_delay() const {
 }
 inline void CasterNode::set_pub_ping_delay(::uint64_t value) {
   _internal_set_pub_ping_delay(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.pub_ping_delay)
 }
 inline ::uint64_t CasterNode::_internal_pub_ping_delay() const {
@@ -1094,7 +1147,7 @@ inline void CasterNode::clear_pub_tcp_delay() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.pub_tcp_delay_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00001000U);
+                  0x00002000U);
 }
 inline ::uint64_t CasterNode::pub_tcp_delay() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.pub_tcp_delay)
@@ -1102,7 +1155,7 @@ inline ::uint64_t CasterNode::pub_tcp_delay() const {
 }
 inline void CasterNode::set_pub_tcp_delay(::uint64_t value) {
   _internal_set_pub_tcp_delay(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.pub_tcp_delay)
 }
 inline ::uint64_t CasterNode::_internal_pub_tcp_delay() const {
@@ -1119,7 +1172,7 @@ inline void CasterNode::clear_send_total() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.send_total_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00002000U);
+                  0x00004000U);
 }
 inline ::uint64_t CasterNode::send_total() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.send_total)
@@ -1127,7 +1180,7 @@ inline ::uint64_t CasterNode::send_total() const {
 }
 inline void CasterNode::set_send_total(::uint64_t value) {
   _internal_set_send_total(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.send_total)
 }
 inline ::uint64_t CasterNode::_internal_send_total() const {
@@ -1144,7 +1197,7 @@ inline void CasterNode::clear_send_speed() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.send_speed_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00004000U);
+                  0x00008000U);
 }
 inline double CasterNode::send_speed() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.send_speed)
@@ -1152,7 +1205,7 @@ inline double CasterNode::send_speed() const {
 }
 inline void CasterNode::set_send_speed(double value) {
   _internal_set_send_speed(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.send_speed)
 }
 inline double CasterNode::_internal_send_speed() const {
@@ -1169,7 +1222,7 @@ inline void CasterNode::clear_recv_total() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.recv_total_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00008000U);
+                  0x00010000U);
 }
 inline ::uint64_t CasterNode::recv_total() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.recv_total)
@@ -1177,7 +1230,7 @@ inline ::uint64_t CasterNode::recv_total() const {
 }
 inline void CasterNode::set_recv_total(::uint64_t value) {
   _internal_set_recv_total(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.recv_total)
 }
 inline ::uint64_t CasterNode::_internal_recv_total() const {
@@ -1194,7 +1247,7 @@ inline void CasterNode::clear_recv_speed() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.recv_speed_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00010000U);
+                  0x00020000U);
 }
 inline double CasterNode::recv_speed() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.recv_speed)
@@ -1202,7 +1255,7 @@ inline double CasterNode::recv_speed() const {
 }
 inline void CasterNode::set_recv_speed(double value) {
   _internal_set_recv_speed(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.recv_speed)
 }
 inline double CasterNode::_internal_recv_speed() const {
@@ -1219,7 +1272,7 @@ inline void CasterNode::clear_connect_count() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.connect_count_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00020000U);
+                  0x00040000U);
 }
 inline ::uint64_t CasterNode::connect_count() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.connect_count)
@@ -1227,7 +1280,7 @@ inline ::uint64_t CasterNode::connect_count() const {
 }
 inline void CasterNode::set_connect_count(::uint64_t value) {
   _internal_set_connect_count(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.connect_count)
 }
 inline ::uint64_t CasterNode::_internal_connect_count() const {
@@ -1244,7 +1297,7 @@ inline void CasterNode::clear_server_count() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.server_count_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00040000U);
+                  0x00080000U);
 }
 inline ::uint64_t CasterNode::server_count() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.server_count)
@@ -1252,7 +1305,7 @@ inline ::uint64_t CasterNode::server_count() const {
 }
 inline void CasterNode::set_server_count(::uint64_t value) {
   _internal_set_server_count(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.server_count)
 }
 inline ::uint64_t CasterNode::_internal_server_count() const {
@@ -1269,7 +1322,7 @@ inline void CasterNode::clear_client_count() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.client_count_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00080000U);
+                  0x00100000U);
 }
 inline ::uint64_t CasterNode::client_count() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.client_count)
@@ -1277,7 +1330,7 @@ inline ::uint64_t CasterNode::client_count() const {
 }
 inline void CasterNode::set_client_count(::uint64_t value) {
   _internal_set_client_count(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.client_count)
 }
 inline ::uint64_t CasterNode::_internal_client_count() const {
@@ -1294,7 +1347,7 @@ inline void CasterNode::clear_online_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.online_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00100000U);
+                  0x00200000U);
 }
 inline ::uint64_t CasterNode::online_time() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.online_time)
@@ -1302,7 +1355,7 @@ inline ::uint64_t CasterNode::online_time() const {
 }
 inline void CasterNode::set_online_time(::uint64_t value) {
   _internal_set_online_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00100000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.online_time)
 }
 inline ::uint64_t CasterNode::_internal_online_time() const {
@@ -1319,7 +1372,7 @@ inline void CasterNode::clear_update_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.update_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00200000U);
+                  0x00400000U);
 }
 inline ::uint64_t CasterNode::update_time() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.update_time)
@@ -1327,7 +1380,7 @@ inline ::uint64_t CasterNode::update_time() const {
 }
 inline void CasterNode::set_update_time(::uint64_t value) {
   _internal_set_update_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00200000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.update_time)
 }
 inline ::uint64_t CasterNode::_internal_update_time() const {
@@ -1409,7 +1462,7 @@ inline void CasterNode::clear_listen_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.listen_port_ = 0u;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00400000U);
+                  0x00800000U);
 }
 inline ::uint32_t CasterNode::listen_port() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.listen_port)
@@ -1417,7 +1470,7 @@ inline ::uint32_t CasterNode::listen_port() const {
 }
 inline void CasterNode::set_listen_port(::uint32_t value) {
   _internal_set_listen_port(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.listen_port)
 }
 inline ::uint32_t CasterNode::_internal_listen_port() const {
@@ -1434,7 +1487,7 @@ inline void CasterNode::clear_http_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.http_port_ = 0u;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00800000U);
+                  0x01000000U);
 }
 inline ::uint32_t CasterNode::http_port() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.http_port)
@@ -1442,7 +1495,7 @@ inline ::uint32_t CasterNode::http_port() const {
 }
 inline void CasterNode::set_http_port(::uint32_t value) {
   _internal_set_http_port(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.http_port)
 }
 inline ::uint32_t CasterNode::_internal_http_port() const {
@@ -1459,7 +1512,7 @@ inline void CasterNode::clear_process_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.process_id_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x01000000U);
+                  0x02000000U);
 }
 inline ::uint64_t CasterNode::process_id() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.process_id)
@@ -1467,7 +1520,7 @@ inline ::uint64_t CasterNode::process_id() const {
 }
 inline void CasterNode::set_process_id(::uint64_t value) {
   _internal_set_process_id(value);
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.process_id)
 }
 inline ::uint64_t CasterNode::_internal_process_id() const {
@@ -1484,7 +1537,7 @@ inline void CasterNode::clear_http_enabled() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.http_enabled_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x02000000U);
+                  0x04000000U);
 }
 inline bool CasterNode::http_enabled() const {
   // @@protoc_insertion_point(field_get:caster.core.CasterNode.http_enabled)
@@ -1492,7 +1545,7 @@ inline bool CasterNode::http_enabled() const {
 }
 inline void CasterNode::set_http_enabled(bool value) {
   _internal_set_http_enabled(value);
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   // @@protoc_insertion_point(field_set:caster.core.CasterNode.http_enabled)
 }
 inline bool CasterNode::_internal_http_enabled() const {
@@ -1502,6 +1555,146 @@ inline bool CasterNode::_internal_http_enabled() const {
 inline void CasterNode::_internal_set_http_enabled(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.http_enabled_ = value;
+}
+
+// uint32 sse_clients = 27;
+inline void CasterNode::clear_sse_clients() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.sse_clients_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x08000000U);
+}
+inline ::uint32_t CasterNode::sse_clients() const {
+  // @@protoc_insertion_point(field_get:caster.core.CasterNode.sse_clients)
+  return _internal_sse_clients();
+}
+inline void CasterNode::set_sse_clients(::uint32_t value) {
+  _internal_set_sse_clients(value);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  // @@protoc_insertion_point(field_set:caster.core.CasterNode.sse_clients)
+}
+inline ::uint32_t CasterNode::_internal_sse_clients() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.sse_clients_;
+}
+inline void CasterNode::_internal_set_sse_clients(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.sse_clients_ = value;
+}
+
+// uint32 process_threads = 28;
+inline void CasterNode::clear_process_threads() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.process_threads_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x20000000U);
+}
+inline ::uint32_t CasterNode::process_threads() const {
+  // @@protoc_insertion_point(field_get:caster.core.CasterNode.process_threads)
+  return _internal_process_threads();
+}
+inline void CasterNode::set_process_threads(::uint32_t value) {
+  _internal_set_process_threads(value);
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  // @@protoc_insertion_point(field_set:caster.core.CasterNode.process_threads)
+}
+inline ::uint32_t CasterNode::_internal_process_threads() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.process_threads_;
+}
+inline void CasterNode::_internal_set_process_threads(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.process_threads_ = value;
+}
+
+// uint64 last_audit_seq = 29;
+inline void CasterNode::clear_last_audit_seq() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.last_audit_seq_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x10000000U);
+}
+inline ::uint64_t CasterNode::last_audit_seq() const {
+  // @@protoc_insertion_point(field_get:caster.core.CasterNode.last_audit_seq)
+  return _internal_last_audit_seq();
+}
+inline void CasterNode::set_last_audit_seq(::uint64_t value) {
+  _internal_set_last_audit_seq(value);
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
+  // @@protoc_insertion_point(field_set:caster.core.CasterNode.last_audit_seq)
+}
+inline ::uint64_t CasterNode::_internal_last_audit_seq() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.last_audit_seq_;
+}
+inline void CasterNode::_internal_set_last_audit_seq(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.last_audit_seq_ = value;
+}
+
+// string log_level = 30;
+inline void CasterNode::clear_log_level() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.log_level_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000040U);
+}
+inline const ::std::string& CasterNode::log_level() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.core.CasterNode.log_level)
+  return _internal_log_level();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void CasterNode::set_log_level(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  _impl_.log_level_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.core.CasterNode.log_level)
+}
+inline ::std::string* PROTOBUF_NONNULL CasterNode::mutable_log_level()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ::std::string* _s = _internal_mutable_log_level();
+  // @@protoc_insertion_point(field_mutable:caster.core.CasterNode.log_level)
+  return _s;
+}
+inline const ::std::string& CasterNode::_internal_log_level() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.log_level_.Get();
+}
+inline void CasterNode::_internal_set_log_level(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.log_level_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL CasterNode::_internal_mutable_log_level() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.log_level_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE CasterNode::release_log_level() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.core.CasterNode.log_level)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000040U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  auto* released = _impl_.log_level_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.log_level_.Set("", GetArena());
+  }
+  return released;
+}
+inline void CasterNode::set_allocated_log_level(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  }
+  _impl_.log_level_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.log_level_.IsDefault()) {
+    _impl_.log_level_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.core.CasterNode.log_level)
 }
 
 #ifdef __GNUC__

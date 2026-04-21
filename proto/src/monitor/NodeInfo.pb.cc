@@ -44,8 +44,43 @@ inline constexpr NodeInfo::Impl_::Impl_(
         uid_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        node_name_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        set_version_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        tag_version_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        run_platform_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        hostname_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         create_time_{::uint64_t{0u}},
-        update_time_{::uint64_t{0u}} {}
+        update_time_{::uint64_t{0u}},
+        listen_port_{0u},
+        http_port_{0u},
+        process_id_{::uint64_t{0u}},
+        cpu_usage_{0},
+        mem_usage_{::uint64_t{0u}},
+        queue_delay_{::uint64_t{0u}},
+        sub_ping_delay_{::uint64_t{0u}},
+        pub_ping_delay_{::uint64_t{0u}},
+        http_enabled_{false},
+        server_count_{0u},
+        send_total_{::uint64_t{0u}},
+        send_speed_{0},
+        recv_total_{::uint64_t{0u}},
+        recv_speed_{0},
+        connect_count_{0u},
+        online_{false},
+        master_{false},
+        online_time_{::uint64_t{0u}},
+        uptime_sec_{::uint64_t{0u}},
+        client_count_{0u} {}
 
 template <typename>
 constexpr NodeInfo::NodeInfo(::_pbi::ConstantInitialized)
@@ -77,13 +112,63 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_._has_bits_),
-        6, // hasbit index offset
+        31, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.update_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.node_name_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.set_version_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.tag_version_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.run_platform_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.hostname_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.listen_port_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.http_port_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.process_id_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.http_enabled_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.cpu_usage_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.mem_usage_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.queue_delay_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.sub_ping_delay_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.pub_ping_delay_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.send_total_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.send_speed_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.recv_total_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.recv_speed_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.connect_count_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.server_count_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.client_count_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.online_time_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.uptime_sec_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.online_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::NodeInfo, _impl_.master_),
         0,
+        6,
+        7,
         1,
         2,
+        3,
+        4,
+        5,
+        8,
+        9,
+        10,
+        16,
+        11,
+        12,
+        13,
+        14,
+        15,
+        18,
+        19,
+        20,
+        21,
+        22,
+        17,
+        27,
+        25,
+        26,
+        23,
+        24,
 };
 
 static const ::_pbi::MigrationSchema
@@ -96,14 +181,27 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_monitor_2fNodeInfo_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\026monitor/NodeInfo.proto\022\016caster.monitor"
-    "\"A\n\010NodeInfo\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_time"
-    "\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004b\006proto3"
+    "\"\277\004\n\010NodeInfo\022\013\n\003uid\030\001 \001(\t\022\023\n\013create_tim"
+    "e\030\002 \001(\004\022\023\n\013update_time\030\003 \001(\004\022\021\n\tnode_nam"
+    "e\030\n \001(\t\022\023\n\013set_version\030\013 \001(\t\022\023\n\013tag_vers"
+    "ion\030\014 \001(\t\022\024\n\014run_platform\030\r \001(\t\022\020\n\010hostn"
+    "ame\030\016 \001(\t\022\023\n\013listen_port\030\017 \001(\r\022\021\n\thttp_p"
+    "ort\030\020 \001(\r\022\022\n\nprocess_id\030\021 \001(\004\022\024\n\014http_en"
+    "abled\030\022 \001(\010\022\021\n\tcpu_usage\030\024 \001(\001\022\021\n\tmem_us"
+    "age\030\025 \001(\004\022\023\n\013queue_delay\030\026 \001(\004\022\026\n\016sub_pi"
+    "ng_delay\030\027 \001(\004\022\026\n\016pub_ping_delay\030\030 \001(\004\022\022"
+    "\n\nsend_total\030\036 \001(\004\022\022\n\nsend_speed\030\037 \001(\001\022\022"
+    "\n\nrecv_total\030  \001(\004\022\022\n\nrecv_speed\030! \001(\001\022\025"
+    "\n\rconnect_count\030( \001(\r\022\024\n\014server_count\030) "
+    "\001(\r\022\024\n\014client_count\030* \001(\r\022\023\n\013online_time"
+    "\0302 \001(\004\022\022\n\nuptime_sec\0303 \001(\004\022\016\n\006online\0304 \001"
+    "(\010\022\016\n\006master\0305 \001(\010b\006proto3"
 };
 static ::absl::once_flag descriptor_table_monitor_2fNodeInfo_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_monitor_2fNodeInfo_2eproto = {
     false,
     false,
-    115,
+    626,
     descriptor_table_protodef_monitor_2fNodeInfo_2eproto,
     "monitor/NodeInfo.proto",
     &descriptor_table_monitor_2fNodeInfo_2eproto_once,
@@ -143,7 +241,12 @@ PROTOBUF_NDEBUG_INLINE NodeInfo::Impl_::Impl_(
     [[maybe_unused]] const ::caster::monitor::NodeInfo& from_msg)
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
-        uid_(arena, from.uid_) {}
+        uid_(arena, from.uid_),
+        node_name_(arena, from.node_name_),
+        set_version_(arena, from.set_version_),
+        tag_version_(arena, from.tag_version_),
+        run_platform_(arena, from.run_platform_),
+        hostname_(arena, from.hostname_) {}
 
 NodeInfo::NodeInfo(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -162,9 +265,9 @@ NodeInfo::NodeInfo(
                offsetof(Impl_, create_time_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, create_time_),
-           offsetof(Impl_, update_time_) -
+           offsetof(Impl_, client_count_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::update_time_));
+               sizeof(Impl_::client_count_));
 
   // @@protoc_insertion_point(copy_constructor:caster.monitor.NodeInfo)
 }
@@ -172,16 +275,21 @@ PROTOBUF_NDEBUG_INLINE NodeInfo::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
-        uid_(arena) {}
+        uid_(arena),
+        node_name_(arena),
+        set_version_(arena),
+        tag_version_(arena),
+        run_platform_(arena),
+        hostname_(arena) {}
 
 inline void NodeInfo::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, create_time_),
            0,
-           offsetof(Impl_, update_time_) -
+           offsetof(Impl_, client_count_) -
                offsetof(Impl_, create_time_) +
-               sizeof(Impl_::update_time_));
+               sizeof(Impl_::client_count_));
 }
 NodeInfo::~NodeInfo() {
   // @@protoc_insertion_point(destructor:caster.monitor.NodeInfo)
@@ -195,6 +303,11 @@ inline void NodeInfo::SharedDtor(MessageLite& self) {
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.uid_.Destroy();
+  this_._impl_.node_name_.Destroy();
+  this_._impl_.set_version_.Destroy();
+  this_._impl_.tag_version_.Destroy();
+  this_._impl_.run_platform_.Destroy();
+  this_._impl_.hostname_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -259,16 +372,16 @@ NodeInfo::GetClassData() const {
   return NodeInfo_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<2, 3, 0, 35, 2>
+const ::_pbi::TcParseTable<5, 28, 0, 110, 9>
 NodeInfo::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_._has_bits_),
     0, // no _extensions_
-    3, 24,  // max_field_number, fast_idx_mask
+    53, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967288,  // skipmap
+    520356344,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    3,  // num_field_entries
+    28,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     NodeInfo_class_data_.base(),
@@ -284,28 +397,171 @@ NodeInfo::_table_ = {
      {10, 0, 0,
       PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.uid_)}},
     // uint64 create_time = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(NodeInfo, _impl_.create_time_), 1>(),
-     {16, 1, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(NodeInfo, _impl_.create_time_), 6>(),
+     {16, 6, 0,
       PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.create_time_)}},
     // uint64 update_time = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(NodeInfo, _impl_.update_time_), 2>(),
-     {24, 2, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(NodeInfo, _impl_.update_time_), 7>(),
+     {24, 7, 0,
       PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.update_time_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    // string node_name = 10;
+    {::_pbi::TcParser::FastUS1,
+     {82, 1, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.node_name_)}},
+    // string set_version = 11;
+    {::_pbi::TcParser::FastUS1,
+     {90, 2, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.set_version_)}},
+    // string tag_version = 12;
+    {::_pbi::TcParser::FastUS1,
+     {98, 3, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.tag_version_)}},
+    // string run_platform = 13;
+    {::_pbi::TcParser::FastUS1,
+     {106, 4, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.run_platform_)}},
+    // string hostname = 14;
+    {::_pbi::TcParser::FastUS1,
+     {114, 5, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.hostname_)}},
+    // uint32 listen_port = 15;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(NodeInfo, _impl_.listen_port_), 8>(),
+     {120, 8, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.listen_port_)}},
+    // uint32 http_port = 16;
+    {::_pbi::TcParser::FastV32S2,
+     {384, 9, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.http_port_)}},
+    // uint64 process_id = 17;
+    {::_pbi::TcParser::FastV64S2,
+     {392, 10, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.process_id_)}},
+    // bool http_enabled = 18;
+    {::_pbi::TcParser::FastV8S2,
+     {400, 16, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.http_enabled_)}},
+    // uint64 uptime_sec = 51;
+    {::_pbi::TcParser::FastV64S2,
+     {920, 26, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.uptime_sec_)}},
+    // double cpu_usage = 20;
+    {::_pbi::TcParser::FastF64S2,
+     {417, 11, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.cpu_usage_)}},
+    // uint64 mem_usage = 21;
+    {::_pbi::TcParser::FastV64S2,
+     {424, 12, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.mem_usage_)}},
+    // uint64 queue_delay = 22;
+    {::_pbi::TcParser::FastV64S2,
+     {432, 13, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.queue_delay_)}},
+    // uint64 sub_ping_delay = 23;
+    {::_pbi::TcParser::FastV64S2,
+     {440, 14, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.sub_ping_delay_)}},
+    // uint64 pub_ping_delay = 24;
+    {::_pbi::TcParser::FastV64S2,
+     {448, 15, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.pub_ping_delay_)}},
+    // uint32 server_count = 41;
+    {::_pbi::TcParser::FastV32S2,
+     {712, 17, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.server_count_)}},
+    // uint32 client_count = 42;
+    {::_pbi::TcParser::FastV32S2,
+     {720, 27, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.client_count_)}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::MiniParse, {}},
+    // uint64 send_total = 30;
+    {::_pbi::TcParser::FastV64S2,
+     {496, 18, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.send_total_)}},
+    // double send_speed = 31;
+    {::_pbi::TcParser::FastF64S2,
+     {505, 19, 0,
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.send_speed_)}},
   }}, {{
+    33, 0, 2,
+    64638, 20,
+    65505, 24,
     65535, 65535
   }}, {{
     // string uid = 1;
     {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.uid_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // uint64 create_time = 2;
-    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.create_time_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.create_time_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // uint64 update_time = 3;
-    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.update_time_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.update_time_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // string node_name = 10;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.node_name_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string set_version = 11;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.set_version_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string tag_version = 12;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.tag_version_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string run_platform = 13;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.run_platform_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // string hostname = 14;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.hostname_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // uint32 listen_port = 15;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.listen_port_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    // uint32 http_port = 16;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.http_port_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    // uint64 process_id = 17;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.process_id_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // bool http_enabled = 18;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.http_enabled_), _Internal::kHasBitsOffset + 16, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // double cpu_usage = 20;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.cpu_usage_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // uint64 mem_usage = 21;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.mem_usage_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 queue_delay = 22;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.queue_delay_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 sub_ping_delay = 23;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.sub_ping_delay_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 pub_ping_delay = 24;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.pub_ping_delay_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 send_total = 30;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.send_total_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // double send_speed = 31;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.send_speed_), _Internal::kHasBitsOffset + 19, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // uint64 recv_total = 32;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.recv_total_), _Internal::kHasBitsOffset + 20, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // double recv_speed = 33;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.recv_speed_), _Internal::kHasBitsOffset + 21, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // uint32 connect_count = 40;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.connect_count_), _Internal::kHasBitsOffset + 22, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    // uint32 server_count = 41;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.server_count_), _Internal::kHasBitsOffset + 17, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    // uint32 client_count = 42;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.client_count_), _Internal::kHasBitsOffset + 27, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    // uint64 online_time = 50;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.online_time_), _Internal::kHasBitsOffset + 25, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 uptime_sec = 51;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.uptime_sec_), _Internal::kHasBitsOffset + 26, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // bool online = 52;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.online_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // bool master = 53;
+    {PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.master_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
   }},
   // no aux_entries
   {{
-    "\27\3\0\0\0\0\0\0"
+    "\27\3\0\0\11\13\13\14\10\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
     "caster.monitor.NodeInfo"
     "uid"
+    "node_name"
+    "set_version"
+    "tag_version"
+    "run_platform"
+    "hostname"
   }},
 };
 PROTOBUF_NOINLINE void NodeInfo::Clear() {
@@ -316,13 +572,45 @@ PROTOBUF_NOINLINE void NodeInfo::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    _impl_.uid_.ClearNonDefaultToEmpty();
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+      _impl_.uid_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      _impl_.node_name_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      _impl_.set_version_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      _impl_.tag_version_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      _impl_.run_platform_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      _impl_.hostname_.ClearNonDefaultToEmpty();
+    }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000006U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000c0U)) {
     ::memset(&_impl_.create_time_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.update_time_) -
         reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.update_time_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    ::memset(&_impl_.listen_port_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.pub_ping_delay_) -
+        reinterpret_cast<char*>(&_impl_.listen_port_)) + sizeof(_impl_.pub_ping_delay_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    ::memset(&_impl_.http_enabled_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.online_) -
+        reinterpret_cast<char*>(&_impl_.http_enabled_)) + sizeof(_impl_.online_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    ::memset(&_impl_.master_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.client_count_) -
+        reinterpret_cast<char*>(&_impl_.master_)) + sizeof(_impl_.client_count_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -358,7 +646,7 @@ PROTOBUF_NOINLINE void NodeInfo::Clear() {
   }
 
   // uint64 create_time = 2;
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_create_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -367,11 +655,241 @@ PROTOBUF_NOINLINE void NodeInfo::Clear() {
   }
 
   // uint64 update_time = 3;
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
     if (this_._internal_update_time() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
           3, this_._internal_update_time(), target);
+    }
+  }
+
+  // string node_name = 10;
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (!this_._internal_node_name().empty()) {
+      const ::std::string& _s = this_._internal_node_name();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.NodeInfo.node_name");
+      target = stream->WriteStringMaybeAliased(10, _s, target);
+    }
+  }
+
+  // string set_version = 11;
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (!this_._internal_set_version().empty()) {
+      const ::std::string& _s = this_._internal_set_version();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.NodeInfo.set_version");
+      target = stream->WriteStringMaybeAliased(11, _s, target);
+    }
+  }
+
+  // string tag_version = 12;
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (!this_._internal_tag_version().empty()) {
+      const ::std::string& _s = this_._internal_tag_version();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.NodeInfo.tag_version");
+      target = stream->WriteStringMaybeAliased(12, _s, target);
+    }
+  }
+
+  // string run_platform = 13;
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (!this_._internal_run_platform().empty()) {
+      const ::std::string& _s = this_._internal_run_platform();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.NodeInfo.run_platform");
+      target = stream->WriteStringMaybeAliased(13, _s, target);
+    }
+  }
+
+  // string hostname = 14;
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (!this_._internal_hostname().empty()) {
+      const ::std::string& _s = this_._internal_hostname();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.monitor.NodeInfo.hostname");
+      target = stream->WriteStringMaybeAliased(14, _s, target);
+    }
+  }
+
+  // uint32 listen_port = 15;
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (this_._internal_listen_port() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          15, this_._internal_listen_port(), target);
+    }
+  }
+
+  // uint32 http_port = 16;
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    if (this_._internal_http_port() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          16, this_._internal_http_port(), target);
+    }
+  }
+
+  // uint64 process_id = 17;
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (this_._internal_process_id() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          17, this_._internal_process_id(), target);
+    }
+  }
+
+  // bool http_enabled = 18;
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (this_._internal_http_enabled() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          18, this_._internal_http_enabled(), target);
+    }
+  }
+
+  // double cpu_usage = 20;
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_cpu_usage()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          20, this_._internal_cpu_usage(), target);
+    }
+  }
+
+  // uint64 mem_usage = 21;
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (this_._internal_mem_usage() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          21, this_._internal_mem_usage(), target);
+    }
+  }
+
+  // uint64 queue_delay = 22;
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (this_._internal_queue_delay() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          22, this_._internal_queue_delay(), target);
+    }
+  }
+
+  // uint64 sub_ping_delay = 23;
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (this_._internal_sub_ping_delay() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          23, this_._internal_sub_ping_delay(), target);
+    }
+  }
+
+  // uint64 pub_ping_delay = 24;
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    if (this_._internal_pub_ping_delay() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          24, this_._internal_pub_ping_delay(), target);
+    }
+  }
+
+  // uint64 send_total = 30;
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (this_._internal_send_total() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          30, this_._internal_send_total(), target);
+    }
+  }
+
+  // double send_speed = 31;
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_send_speed()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          31, this_._internal_send_speed(), target);
+    }
+  }
+
+  // uint64 recv_total = 32;
+  if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+    if (this_._internal_recv_total() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          32, this_._internal_recv_total(), target);
+    }
+  }
+
+  // double recv_speed = 33;
+  if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_recv_speed()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          33, this_._internal_recv_speed(), target);
+    }
+  }
+
+  // uint32 connect_count = 40;
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    if (this_._internal_connect_count() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          40, this_._internal_connect_count(), target);
+    }
+  }
+
+  // uint32 server_count = 41;
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (this_._internal_server_count() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          41, this_._internal_server_count(), target);
+    }
+  }
+
+  // uint32 client_count = 42;
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+    if (this_._internal_client_count() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          42, this_._internal_client_count(), target);
+    }
+  }
+
+  // uint64 online_time = 50;
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (this_._internal_online_time() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          50, this_._internal_online_time(), target);
+    }
+  }
+
+  // uint64 uptime_sec = 51;
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (this_._internal_uptime_sec() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          51, this_._internal_uptime_sec(), target);
+    }
+  }
+
+  // bool online = 52;
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (this_._internal_online() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          52, this_._internal_online(), target);
+    }
+  }
+
+  // bool master = 53;
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (this_._internal_master() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          53, this_._internal_master(), target);
     }
   }
 
@@ -400,7 +918,7 @@ PROTOBUF_NOINLINE void NodeInfo::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // string uid = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_uid().empty()) {
@@ -408,18 +926,193 @@ PROTOBUF_NOINLINE void NodeInfo::Clear() {
                                         this_._internal_uid());
       }
     }
-    // uint64 create_time = 2;
+    // string node_name = 10;
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!this_._internal_node_name().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_node_name());
+      }
+    }
+    // string set_version = 11;
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!this_._internal_set_version().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_set_version());
+      }
+    }
+    // string tag_version = 12;
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!this_._internal_tag_version().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_tag_version());
+      }
+    }
+    // string run_platform = 13;
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!this_._internal_run_platform().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_run_platform());
+      }
+    }
+    // string hostname = 14;
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!this_._internal_hostname().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_hostname());
+      }
+    }
+    // uint64 create_time = 2;
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_create_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_create_time());
       }
     }
     // uint64 update_time = 3;
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (this_._internal_update_time() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_update_time());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // uint32 listen_port = 15;
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (this_._internal_listen_port() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_listen_port());
+      }
+    }
+    // uint32 http_port = 16;
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (this_._internal_http_port() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_http_port());
+      }
+    }
+    // uint64 process_id = 17;
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (this_._internal_process_id() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_process_id());
+      }
+    }
+    // double cpu_usage = 20;
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_cpu_usage()) != 0) {
+        total_size += 10;
+      }
+    }
+    // uint64 mem_usage = 21;
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (this_._internal_mem_usage() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_mem_usage());
+      }
+    }
+    // uint64 queue_delay = 22;
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (this_._internal_queue_delay() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_queue_delay());
+      }
+    }
+    // uint64 sub_ping_delay = 23;
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (this_._internal_sub_ping_delay() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_sub_ping_delay());
+      }
+    }
+    // uint64 pub_ping_delay = 24;
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (this_._internal_pub_ping_delay() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_pub_ping_delay());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    // bool http_enabled = 18;
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      if (this_._internal_http_enabled() != 0) {
+        total_size += 3;
+      }
+    }
+    // uint32 server_count = 41;
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      if (this_._internal_server_count() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_server_count());
+      }
+    }
+    // uint64 send_total = 30;
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+      if (this_._internal_send_total() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_send_total());
+      }
+    }
+    // double send_speed = 31;
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_send_speed()) != 0) {
+        total_size += 10;
+      }
+    }
+    // uint64 recv_total = 32;
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+      if (this_._internal_recv_total() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_recv_total());
+      }
+    }
+    // double recv_speed = 33;
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_recv_speed()) != 0) {
+        total_size += 10;
+      }
+    }
+    // uint32 connect_count = 40;
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      if (this_._internal_connect_count() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_connect_count());
+      }
+    }
+    // bool online = 52;
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+      if (this_._internal_online() != 0) {
+        total_size += 3;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    // bool master = 53;
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (this_._internal_master() != 0) {
+        total_size += 3;
+      }
+    }
+    // uint64 online_time = 50;
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (this_._internal_online_time() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_online_time());
+      }
+    }
+    // uint64 uptime_sec = 51;
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (this_._internal_uptime_sec() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_uptime_sec());
+      }
+    }
+    // uint32 client_count = 42;
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+      if (this_._internal_client_count() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
+                                        this_._internal_client_count());
       }
     }
   }
@@ -441,7 +1134,7 @@ void NodeInfo::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!from._internal_uid().empty()) {
         _this->_internal_set_uid(from._internal_uid());
@@ -452,13 +1145,164 @@ void NodeInfo::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (!from._internal_node_name().empty()) {
+        _this->_internal_set_node_name(from._internal_node_name());
+      } else {
+        if (_this->_impl_.node_name_.IsDefault()) {
+          _this->_internal_set_node_name("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+      if (!from._internal_set_version().empty()) {
+        _this->_internal_set_set_version(from._internal_set_version());
+      } else {
+        if (_this->_impl_.set_version_.IsDefault()) {
+          _this->_internal_set_set_version("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!from._internal_tag_version().empty()) {
+        _this->_internal_set_tag_version(from._internal_tag_version());
+      } else {
+        if (_this->_impl_.tag_version_.IsDefault()) {
+          _this->_internal_set_tag_version("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (!from._internal_run_platform().empty()) {
+        _this->_internal_set_run_platform(from._internal_run_platform());
+      } else {
+        if (_this->_impl_.run_platform_.IsDefault()) {
+          _this->_internal_set_run_platform("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!from._internal_hostname().empty()) {
+        _this->_internal_set_hostname(from._internal_hostname());
+      } else {
+        if (_this->_impl_.hostname_.IsDefault()) {
+          _this->_internal_set_hostname("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (from._internal_create_time() != 0) {
         _this->_impl_.create_time_ = from._impl_.create_time_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (from._internal_update_time() != 0) {
         _this->_impl_.update_time_ = from._impl_.update_time_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (from._internal_listen_port() != 0) {
+        _this->_impl_.listen_port_ = from._impl_.listen_port_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (from._internal_http_port() != 0) {
+        _this->_impl_.http_port_ = from._impl_.http_port_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (from._internal_process_id() != 0) {
+        _this->_impl_.process_id_ = from._impl_.process_id_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_cpu_usage()) != 0) {
+        _this->_impl_.cpu_usage_ = from._impl_.cpu_usage_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (from._internal_mem_usage() != 0) {
+        _this->_impl_.mem_usage_ = from._impl_.mem_usage_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (from._internal_queue_delay() != 0) {
+        _this->_impl_.queue_delay_ = from._impl_.queue_delay_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (from._internal_sub_ping_delay() != 0) {
+        _this->_impl_.sub_ping_delay_ = from._impl_.sub_ping_delay_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (from._internal_pub_ping_delay() != 0) {
+        _this->_impl_.pub_ping_delay_ = from._impl_.pub_ping_delay_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00ff0000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+      if (from._internal_http_enabled() != 0) {
+        _this->_impl_.http_enabled_ = from._impl_.http_enabled_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+      if (from._internal_server_count() != 0) {
+        _this->_impl_.server_count_ = from._impl_.server_count_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+      if (from._internal_send_total() != 0) {
+        _this->_impl_.send_total_ = from._impl_.send_total_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_send_speed()) != 0) {
+        _this->_impl_.send_speed_ = from._impl_.send_speed_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00100000U)) {
+      if (from._internal_recv_total() != 0) {
+        _this->_impl_.recv_total_ = from._impl_.recv_total_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00200000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_recv_speed()) != 0) {
+        _this->_impl_.recv_speed_ = from._impl_.recv_speed_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      if (from._internal_connect_count() != 0) {
+        _this->_impl_.connect_count_ = from._impl_.connect_count_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+      if (from._internal_online() != 0) {
+        _this->_impl_.online_ = from._impl_.online_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (from._internal_master() != 0) {
+        _this->_impl_.master_ = from._impl_.master_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (from._internal_online_time() != 0) {
+        _this->_impl_.online_time_ = from._impl_.online_time_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (from._internal_uptime_sec() != 0) {
+        _this->_impl_.uptime_sec_ = from._impl_.uptime_sec_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+      if (from._internal_client_count() != 0) {
+        _this->_impl_.client_count_ = from._impl_.client_count_;
       }
     }
   }
@@ -482,9 +1326,14 @@ void NodeInfo::InternalSwap(NodeInfo* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) 
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.uid_, &other->_impl_.uid_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.node_name_, &other->_impl_.node_name_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.set_version_, &other->_impl_.set_version_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.tag_version_, &other->_impl_.tag_version_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.run_platform_, &other->_impl_.run_platform_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hostname_, &other->_impl_.hostname_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.update_time_)
-      + sizeof(NodeInfo::_impl_.update_time_)
+      PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.client_count_)
+      + sizeof(NodeInfo::_impl_.client_count_)
       - PROTOBUF_FIELD_OFFSET(NodeInfo, _impl_.create_time_)>(
           reinterpret_cast<char*>(&_impl_.create_time_),
           reinterpret_cast<char*>(&other->_impl_.create_time_));

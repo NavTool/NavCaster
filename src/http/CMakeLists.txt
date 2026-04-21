@@ -8,6 +8,7 @@ set(SOURCES
     http_handler.h     http_handler.cpp
     redis_adapter.h    redis_adapter.cpp
     sse_manager.h      sse_manager.cpp
+    ring_log_view.h    ring_log_view.cpp
 )
 
 add_library(${PROJECT_NAME} STATIC ${SOURCES})

@@ -86,6 +86,9 @@ namespace CASTER
     void Set_Node_Runtime_Info(uint32_t listen_port, uint32_t http_port, uint32_t process_id);
     bool Is_Master_Node();
 
+    // 返回当前节点 ID (例如 host_listenPort_httpPort_pid)
+    std::string Get_Node_ID();
+
     std::string Get_Status();
 
     // 服务用函数---------------------------------------------------------------------------------------------------------

@@ -1,0 +1,19 @@
+// 审计日志条目
+syntax = "proto3";
+package caster.monitor;
+
+message AuditEntry {
+
+  uint64 id         = 1; // 自增/递增 序号
+  uint64 timestamp  = 2; // 写入秒级时间戳
+
+  string actor       = 3; // 执行者 (用户名)；anonymous 表示未登录
+  string source_ip   = 4; // 来源 IP
+  string node_id     = 5; // 处理该请求的节点 ID
+  string action      = 6; // 例如 PUT /api/accounts
+  string target_type = 7; // 资源类别，如 account/source/alias
+  string target_id   = 8; // 资源 UID
+  string payload     = 9; // 请求 body JSON (敏感字段已脱敏)
+  int32  result      = 10; // HTTP 状态码
+  string error_message = 11; // 失败时的提示
+}
