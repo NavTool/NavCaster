@@ -1,13 +1,13 @@
 #!/bin/bash
 
-cd $(dirname "$(readlink -f "$0")")
-cd ../../..
-# 获取当前服务的根目录
-#EXECUTABLE_DIR=$(dirname "$(readlink -f "$0")")
-EXECUTABLE_DIR=$(pwd)
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+PACKAGE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+EXECUTABLE_DIR="$PACKAGE_ROOT"
 
 # 固定的可执行程序名称
-EXECUTABLE_NAME="Caster_Service"
+EXECUTABLE_NAME="CasterService"
 
 # Supervisor注册的名称
 SUPERVISOR_NAME="CASTER_SERVICE"
@@ -19,8 +19,9 @@ CONFIG_FILE="/etc/supervisor/conf.d/$SUPERVISOR_NAME.conf"
 COMMAND="$EXECUTABLE_DIR/$EXECUTABLE_NAME"
 
 # 文件路径
-SUPERVISOR_SERVICE_PATH="/usr/lib/systemd/system/supervisor.service "
-echo "Supervisor服务配置路径: $SUPERVISOR_SERVICE_PATH"
+SUPERVISOR_OVERRIDE_DIR="/etc/systemd/system/supervisor.service.d"
+SUPERVISOR_OVERRIDE_PATH="$SUPERVISOR_OVERRIDE_DIR/override.conf"
+echo "Supervisor服务覆盖配置路径: $SUPERVISOR_OVERRIDE_PATH"
 
 # 检测系统包管理器并安装 Supervisor
 install_supervisor() {
@@ -47,7 +48,8 @@ fi
 
 
 # # 修改 Supervisor limit上限
-cat <<EOL > $SUPERVISOR_SERVICE_PATH
+sudo mkdir -p "$SUPERVISOR_OVERRIDE_DIR"
+sudo tee "$SUPERVISOR_OVERRIDE_PATH" >/dev/null <<EOL
 [Service]
 LimitNOFILE=65536
 LimitNPROC=65536
@@ -77,7 +79,7 @@ else
 fi
 
 # 创建或覆盖 Supervisor 配置文件
-cat <<EOL > $CONFIG_FILE
+sudo tee "$CONFIG_FILE" >/dev/null <<EOL
 [program:$SUPERVISOR_NAME]
 command=$COMMAND         
 directory=$EXECUTABLE_DIR    

@@ -1,0 +1,132 @@
+name: Package Linux Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+      - '*[0-9]*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      matrix:
+        include:
+          - version: ubuntu-20.04-amd64
+            platform: linux/amd64
+            dockerfile: deploy/docker/dockerfile.debian
+            docker_img: ubuntu:20.04
+          - version: ubuntu-18.04-amd64
+            platform: linux/amd64
+            dockerfile: deploy/docker/dockerfile.debian
+            docker_img: ubuntu:18.04
+          - version: ubuntu-20.04-arm64
+            platform: linux/arm64
+            dockerfile: deploy/docker/dockerfile.debian
+            docker_img: ubuntu:20.04
+          - version: ubuntu-18.04-arm64
+            platform: linux/arm64
+            dockerfile: deploy/docker/dockerfile.debian
+            docker_img: ubuntu:18.04  
+          - version: openeuler-22.03-amd64
+            platform: linux/amd64
+            dockerfile: deploy/docker/dockerfile.rhel
+            docker_img: openeuler/openeuler:22.03
+          - version: openeuler-22.03-arm64
+            platform: linux/arm64
+            dockerfile: deploy/docker/dockerfile.rhel
+            docker_img: openeuler/openeuler:22.03
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.ACTION_TOKEN || github.token }}
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build Web Assets
+        working-directory: ./web
+        run: |
+          npm ci
+          npm run build
+          rm -rf node_modules
+
+      - name: Resolve package metadata
+        id: meta
+        shell: bash
+        run: |
+          TAG_VERSION="$(git describe --tags --always --dirty=-dev)"
+          PACKAGE_NAME="NavCaster-${TAG_VERSION}-${{ matrix.version }}"
+          echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU for multi-platform support
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: ${{ matrix.platform }} 
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --tag build-image-${{ matrix.version }} \
+            --build-arg BASE_IMAGE=${{ matrix.docker_img }} \
+            -f ${{ matrix.dockerfile }} \
+            --load .
+
+      - name: Create container and run container
+        run: |
+          docker run --name build-container-${{ matrix.version }} -d build-image-${{ matrix.version }}
+               
+      - name: Run build script inside container
+        run: |
+          docker exec build-container-${{ matrix.version }} mkdir workspace
+          docker cp . build-container-${{ matrix.version }}:/workspace
+          docker exec -w /workspace build-container-${{ matrix.version }} git config --global --add safe.directory /workspace
+          docker exec -e BUILD_TYPE=${BUILD_TYPE} -e PACKAGE_NAME=${{ steps.meta.outputs.package_name }} -w /workspace build-container-${{ matrix.version }} chmod +x deploy/ci/build_in_linux.sh
+          docker exec -e BUILD_TYPE=${BUILD_TYPE} -e PACKAGE_NAME=${{ steps.meta.outputs.package_name }} -w /workspace build-container-${{ matrix.version }} bash deploy/ci/build_in_linux.sh
+
+      - name: Copy artifacts from container
+        run: |
+          mkdir -p output
+          docker cp build-container-${{ matrix.version }}:/workspace/release/${{ steps.meta.outputs.package_name }} ./output/
+          tar -C output -czf output/${{ steps.meta.outputs.package_name }}.tar.gz ${{ steps.meta.outputs.package_name }}
+
+      - name: Cleanup container
+        if: always()
+        run: |
+          docker stop build-container-${{ matrix.version }} || true
+          docker rm build-container-${{ matrix.version }} || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: ${{ steps.meta.outputs.package_name }}
+          path: ./output/${{ steps.meta.outputs.package_name }}.tar.gz
+          if-no-files-found: error
+
+

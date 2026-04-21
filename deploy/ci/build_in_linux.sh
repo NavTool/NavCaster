@@ -1,47 +1,63 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
+set -euo pipefail
 
-# # c_compiler=$1
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+BUILD_TYPE="${BUILD_TYPE:-Release}"
+BUILD_DIR="${ROOT_DIR}/build/ci-${BUILD_TYPE}"
+RUNTIME_DIR="${ROOT_DIR}/bin/${BUILD_TYPE}"
+PACKAGE_ROOT="${ROOT_DIR}/release"
+PACKAGE_NAME="${PACKAGE_NAME:-NavCaster-${BUILD_TYPE}}"
+PACKAGE_DIR="${PACKAGE_ROOT}/${PACKAGE_NAME}"
+WEB_DIST_DIR="${WEB_DIST_DIR:-${ROOT_DIR}/web/dist}"
 
-# # cpp_compiler=$2
+BINARIES=(
+	CasterService
+	reg_check
+	ntrip_client_sim_0.0.2
+	ntrip_server_sim_0.0.2
+	strsvr_mult
+	rtklib_rnx2rtkp
+	rtklib_rtkconv
+)
 
-# # 安装 Ninja（如果尚未安装）
-# if ! command -v ninja &> /dev/null; then
-#     echo "Ninja is not installed. Installing Ninja..."
-#     # sudo apt-get update
-#     sudo apt-get install -y ninja-build
-# fi
+echo "[ci] build type: ${BUILD_TYPE}"
+echo "[ci] build dir : ${BUILD_DIR}"
+echo "[ci] package dir: ${PACKAGE_DIR}"
 
-# #构建目录
-# mkdir build
-# #
-# cd build
-# #执行CMAKE
-# cmake -G Ninja ..
-# #构建
-# ninja
+rm -rf "${BUILD_DIR}" "${PACKAGE_DIR}"
 
+cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+cmake --build "${BUILD_DIR}" --parallel "$(nproc)"
 
-#构建主程序
-mkdir build
-#
-cd build
-#执行CMAKE
-cmake ..
-#构建
-make -j$(nproc)
-#切换回主目录
-cd ..
+if [[ ! -d "${RUNTIME_DIR}/conf" ]]; then
+	echo "[ci] missing runtime config directory: ${RUNTIME_DIR}/conf" >&2
+	exit 1
+fi
 
+if [[ ! -f "${WEB_DIST_DIR}/index.html" ]]; then
+	echo "[ci] missing web build output: ${WEB_DIST_DIR}/index.html" >&2
+	echo "[ci] run npm ci && npm run build in web/ before packaging" >&2
+	exit 1
+fi
 
-#构建依赖环境
-cd env/redis-7.2.1 && make MALLOC=libc -j$(nproc)
-cd ../..
-mkdir bin/env -p
-mkdir bin/env/redis -p
-cp env/redis-7.2.1/src/redis-server bin/env/redis/redis-server
-cp .cmake/redis_inux.conf.in    bin/env/redis/redis.config
+mkdir -p "${PACKAGE_DIR}/conf" "${PACKAGE_DIR}/logs" "${PACKAGE_DIR}/web" "${PACKAGE_DIR}/scripts"
 
-#复制部署脚本
-mkdir bin/env/scripts -p
-cp -r env/scripts/ bin/env
+for binary in "${BINARIES[@]}"; do
+	if [[ -f "${RUNTIME_DIR}/${binary}" ]]; then
+		cp "${RUNTIME_DIR}/${binary}" "${PACKAGE_DIR}/"
+	fi
+done
+
+cp -r "${RUNTIME_DIR}/conf/." "${PACKAGE_DIR}/conf/"
+cp -r "${WEB_DIST_DIR}/." "${PACKAGE_DIR}/web/"
+cp -r "${ROOT_DIR}/deploy/scripts/." "${PACKAGE_DIR}/scripts/"
+
+rm -f "${PACKAGE_DIR}/scripts/systemd/install_redis_service.sh"
+rm -f "${PACKAGE_DIR}/scripts/systemd/uninstall_redis_service.sh"
+rm -f "${PACKAGE_DIR}/scripts/supervisor/install_redis_service.sh"
+rm -f "${PACKAGE_DIR}/scripts/supervisor/uninstall_redis_service.sh"
+
+sed -i 's#Web_Root: ""#Web_Root: "./web"#' "${PACKAGE_DIR}/conf/Service_Setting.yml"
+
+echo "[ci] package ready: ${PACKAGE_DIR}"

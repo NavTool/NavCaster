@@ -8,7 +8,7 @@ sudo systemctl stop $SUPERVISOR_NAME
 sudo systemctl disable $SUPERVISOR_NAME
 
 #删除脚本
-sudo rm /usr/lib/systemd/system/$SUPERVISOR_NAME.service
+sudo rm -f /etc/systemd/system/$SUPERVISOR_NAME.service
 
 #重新加载systemctl
 sudo systemctl daemon-reload

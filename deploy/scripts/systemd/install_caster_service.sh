@@ -1,13 +1,13 @@
 #!/bin/bash
 
-cd $(dirname "$(readlink -f "$0")")
-cd ../../..
-# 获取当前服务的根目录
-#EXECUTABLE_DIR=$(dirname "$(readlink -f "$0")")
-EXECUTABLE_DIR=$(pwd)
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+PACKAGE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+EXECUTABLE_DIR="$PACKAGE_ROOT"
 
 # 固定的可执行程序名称
-EXECUTABLE_NAME="Caster_Service"
+EXECUTABLE_NAME="CasterService"
 
 # Supervisor注册的名称
 SUPERVISOR_NAME="CASTER_SERVICE"
@@ -17,12 +17,12 @@ SUPERVISOR_NAME="CASTER_SERVICE"
 COMMAND="$EXECUTABLE_DIR/$EXECUTABLE_NAME"
 
 # 文件路径
-SYSTEMD_CONF_PATH="/usr/lib/systemd/system/$SUPERVISOR_NAME.service "
+SYSTEMD_CONF_PATH="/etc/systemd/system/$SUPERVISOR_NAME.service"
 echo "Caster服务配置路径: $SYSTEMD_CONF_PATH"
 
 
 # # 生成Caster的systemd的配置文件
-cat <<EOL > $SYSTEMD_CONF_PATH
+sudo tee "$SYSTEMD_CONF_PATH" >/dev/null <<EOL
 [Unit]
 Description=Caster Service Running in the Background
 After=network-online.target
@@ -37,7 +37,7 @@ User=$USER
 WorkingDirectory=$EXECUTABLE_DIR
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=$SERVICE_NAME
+SyslogIdentifier=$SUPERVISOR_NAME
 LimitNOFILE=65535
 
 [Install]
