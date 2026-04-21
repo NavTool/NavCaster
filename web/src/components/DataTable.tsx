@@ -41,10 +41,16 @@ function DataTable<T extends Record<string, unknown>>({
     if (!filtered || filtered.length === 0) return;
     const keys = columns.map(c => String((c as { dataIndex?: string }).dataIndex || (c as { key?: string }).key || ''));
     const titles = columns.map(c => String((c as { title?: React.ReactNode }).title || ''));
+    const escape = (v: unknown): string => {
+      if (v == null) return '';
+      const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      // RFC 4180: 始终用双引号包裹，内部双引号转义为两个双引号
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
     const csv = [
-      titles.join(','),
-      ...filtered.map(row => keys.map(k => JSON.stringify(row[k] ?? '')).join(',')),
-    ].join('\n');
+      titles.map(t => escape(t)).join(','),
+      ...filtered.map(row => keys.map(k => escape(row[k])).join(',')),
+    ].join('\r\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

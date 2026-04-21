@@ -34,6 +34,7 @@ export function useSSE<T>(
   const [error, setError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectAttempt = useRef(0);
 
   const connect = useCallback(() => {
     const baseURL = getBaseURL();
@@ -52,6 +53,7 @@ export function useSSE<T>(
     es.onopen = () => {
       setConnected(true);
       setError(null);
+      reconnectAttempt.current = 0;
     };
 
     // Listen for the specific channel event
@@ -69,8 +71,10 @@ export function useSSE<T>(
       setError('SSE connection lost');
       es.close();
       esRef.current = null;
-      // Auto-reconnect after 3 seconds
-      reconnectTimer.current = setTimeout(connect, 3000);
+      // 指数退避重连：1s, 2s, 4s, ... 上限 30s
+      const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempt.current));
+      reconnectAttempt.current += 1;
+      reconnectTimer.current = setTimeout(connect, delay);
     };
   }, [channel, channels]);
 
@@ -105,6 +109,7 @@ export function useMultiSSE<T extends Record<string, unknown>>(
   const [error, setError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectAttempt = useRef(0);
   const channelsStr = channelNames.join(',');
 
   const connect = useCallback(() => {
@@ -123,6 +128,7 @@ export function useMultiSSE<T extends Record<string, unknown>>(
     es.onopen = () => {
       setConnected(true);
       setError(null);
+      reconnectAttempt.current = 0;
     };
 
     for (const ch of channelNames) {
@@ -141,7 +147,9 @@ export function useMultiSSE<T extends Record<string, unknown>>(
       setError('SSE connection lost');
       es.close();
       esRef.current = null;
-      reconnectTimer.current = setTimeout(connect, 3000);
+      const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempt.current));
+      reconnectAttempt.current += 1;
+      reconnectTimer.current = setTimeout(connect, delay);
     };
   }, [channelsStr]);
 

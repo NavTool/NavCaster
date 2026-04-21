@@ -206,12 +206,11 @@ int ntrip_caster::component_init()
     AUTH::Init(ntrip_config::getInstance()->_auth_verify_opt, _base);
 
     // 在 Caster 启动前注入节点身份信息 (hostname + 监听端口 + HTTP端口)，确保 node_id 稳定
+    // HTTP 端口始终参与哈希，使同主机多实例（无论是否实际启用 HTTP API）拥有不同的 node_id
     {
         auto *cfg = ntrip_config::getInstance();
         uint32_t listen_port = static_cast<uint32_t>(cfg->_listener_opt.listen_port());
-        uint32_t http_port = cfg->_http_api_config.force_enable
-                                  ? static_cast<uint32_t>(cfg->_http_api_config.port)
-                                  : static_cast<uint32_t>(cfg->_http_api_config.port); // 端口参与哈希以区分同主机多实例
+        uint32_t http_port = static_cast<uint32_t>(cfg->_http_api_config.port);
         CASTER::Set_Node_Runtime_Info(listen_port, http_port, static_cast<uint32_t>(getpid()));
     }
 

@@ -118,8 +118,6 @@ size_t sse_manager::client_count() const
 
 void sse_manager::broadcast(const std::string &event_name, const std::string &data)
 {
-    std::vector<evhttp_request *> dead_clients;
-
     for (auto &client : _clients)
     {
         if (client.subscribed_channels == "*" ||

@@ -40,6 +40,11 @@ const Dashboard: React.FC = () => {
   const clients = sseData.clients ?? null;
 
   const nodeList = nodes ? Object.values(nodes) : [];
+  const nowSec = Math.floor(Date.now() / 1000);
+  const onlineNodeCount = nodeList.filter(n => {
+    const ut = Number((n as { update_time?: number }).update_time || 0);
+    return ut === 0 || nowSec - ut < 60;
+  }).length;
   const serverCount = servers ? Object.keys(servers).length : 0;
   const clientCount = clients ? Object.keys(clients).length : 0;
 
@@ -103,7 +108,7 @@ const Dashboard: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>节点状态</div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>{nodeList.length}/{nodeList.length}</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>{onlineNodeCount}/{nodeList.length}</div>
               </div>
               <ClusterOutlined style={{ fontSize: 28, color: '#52c41a', opacity: 0.5 }} />
             </div>

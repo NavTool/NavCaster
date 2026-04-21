@@ -1135,4 +1135,43 @@ cd web && npx tsc --noEmit     # ✅ 通过
 - [ ] 旧 `LOG:MPT` / `LOG:USR` 单 HASH 数据需手动清理 (`DEL LOG:MPT LOG:USR`)
 - [ ] 旧 `NODE-XXXXXX` 历史节点条目需清理 (`HDEL CASTER:NODE NODE-XXXXXX...`)
 - [ ] 主节点漂移后 HTTP 主备切换的优雅停机（当前实现：一旦启动不再关闭）
-- [ ] `LOG:NODE:<id>` 日志的前端展示页面
+- [ ] `LOG:NODE:<id>` 日志的前端展示页面（已规划至 V3 D8 / D4）
+
+---
+
+## 进展记录 2025-11（追加）
+
+### 完成情况盘点
+
+V2 各章节实现状态（参照源代码核对）：
+
+| 章节 | 主题 | 状态 |
+|------|------|------|
+| 一/0 | HTTP 线程独立化 (`_http_base` + `_http_thread`) | ✅ 已实现 |
+| 一/3.1 | `sync_redis` 同步包装 | ✅ 已实现 |
+| 一/3.2 | `redis_adapter` 异步包装 | ✅ 已实现 |
+| 一/3.4 | SSE manager（13 个 channel + 2s 差异广播） | ✅ 已实现 |
+| 一/4.1 | 节点稳定 ID（`Set_Node_Runtime_Info`） | ✅ 已实现 |
+| 一/4.2 | LOG bucket 重构（LOG:MPT/USR/NODE） | ✅ 已实现 |
+| 一/5.5 | HTTP 主从控制（`Http_Gate_Callback`） | ✅ 已实现 |
+| 一/5.x | 集群监控字段修复 | ✅ 已实现 |
+| 二 | 节点三层历史聚合（5s/60s/5min） | ✅ 已实现 |
+| 三 | 前端组件库（DataTable/MetricCard/PageContainer/...） | ✅ 已实现 |
+| 三 | 7 分组导航 + 7 大类菜单 | ✅ 已实现 |
+| 三 | SystemMonitor / NodeDetail / Statistics | ✅ 已实现 |
+| 四 | 详情页深度（Server/Client/Account） | ⚠️ 仅基础版本（无 Tabs/订阅者/数据流图） |
+| 五 | 审计日志 / 节点远程控制 / 配置热更新 | ❌ 未实现，转 V3 |
+| 六 | proto/caster/monitor/* 字段化 | ❌ 仍为 10 LOC 占位，转 V3 |
+| 七 | 端到端 smoke 脚本 | ❌ 未实现，转 V3 |
+
+### 本批 BUG 修复（不影响功能、最小变更）
+
+1. `src/service/ntrip_caster.cpp`：`Set_Node_Runtime_Info` 调用处的死代码三元 `force_enable ? port : port` 移除，附注释说明 http_port 始终参与 node_id 哈希
+2. `src/http/sse_manager.cpp`：`broadcast()` 删除未使用的 `dead_clients` vector
+3. `web/src/pages/Dashboard.tsx`：节点状态改为 `onlineNodeCount/total`（按 `update_time` 60s 阈值），不再显示无意义的 `n/n`
+4. `web/src/components/DataTable.tsx`：CSV 导出改为 RFC 4180 双引号转义（`"` → `""`），换行用 `\r\n`
+5. `web/src/hooks/useSSE.ts`：`useSSE` 与 `useMultiSSE` 重连改为 1s/2s/4s/.../30s 指数退避，连接成功后重置计数
+
+### 后续计划
+
+详见 `doc/development-plan-v3.md`。
