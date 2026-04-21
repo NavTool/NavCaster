@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <iomanip>
 #include <set>
 #include <sstream>
@@ -2632,18 +2633,27 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
     auto master_val = redis.get("CASTER:MASTER");
     std::string master_node = master_val.is_string() ? master_val.get<std::string>() : "";
 
+    // 全局推/拉统计 (跨节点合计, 来自 PUSH:STAT / PULL:STAT 的字段数量)
+    int total_pull = 0;
+    int total_push = 0;
+    {
+        auto pull_h = redis.hgetall("PULL:STAT");
+        if (pull_h.is_object()) total_pull = static_cast<int>(pull_h.size());
+        auto push_h = redis.hgetall("PUSH:STAT");
+        if (push_h.is_object()) total_push = static_cast<int>(push_h.size());
+    }
+
     // Get all nodes
     auto nodes_raw = redis.hgetall(KEY_CASTER_NODE);
     int total_nodes = 0;
     int online_nodes = 0;
     int total_servers = 0;
     int total_clients = 0;
-    int total_pull = 0;
-    int total_push = 0;
     double total_cpu = 0.0;
-    long long total_mem = 0;
+    double total_mem = 0.0;
     double total_send = 0.0;
     double total_recv = 0.0;
+    long long now_ts = static_cast<long long>(std::time(nullptr));
     json nodes_array = json::array();
 
     for (auto &[uid, node_data] : nodes_raw.items())
@@ -2656,43 +2666,58 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
             continue;
 
         bool is_master = (uid == master_node);
-        int mpt = node_info.value("mpt_count", 0);
-        int usr = node_info.value("usr_count", 0);
-        int pull = node_info.value("pull_count", 0);
-        int push = node_info.value("push_count", 0);
+        // proto JSON 使用 snake_case (preserve_proto_field_names=true)
+        int mpt = node_info.value("server_count", 0);
+        int usr = node_info.value("client_count", 0);
+        int conn = node_info.value("connect_count", 0);
         double cpu = node_info.value("cpu_usage", 0.0);
-        long long mem = node_info.value("mem_usage", 0LL);
+        double mem = node_info.value("mem_usage", 0.0);
         double send_s = node_info.value("send_speed", 0.0);
         double recv_s = node_info.value("recv_speed", 0.0);
+        long long send_t = node_info.value("send_total", 0LL);
+        long long recv_t = node_info.value("recv_total", 0LL);
+        long long online_time = node_info.value("online_time", 0LL);
+        long long update_time = node_info.value("update_time", 0LL);
+        long long uptime_sec = (online_time > 0) ? (now_ts - online_time) : 0;
 
-        online_nodes++;
-        total_servers += mpt;
-        total_clients += usr;
-        total_pull += pull;
-        total_push += push;
-        total_cpu += cpu;
-        total_mem += mem;
-        total_send += send_s;
-        total_recv += recv_s;
+        // 节点心跳判定: update_time 超过 60s 视为掉线
+        bool online = (update_time == 0) || (now_ts - update_time < 60);
+        if (online)
+        {
+            online_nodes++;
+            total_servers += mpt;
+            total_clients += usr;
+            total_cpu += cpu;
+            total_mem += mem;
+            total_send += send_s;
+            total_recv += recv_s;
+        }
 
         nodes_array.push_back({
             {"uid", uid},
             {"node_name", node_info.value("node_name", "")},
             {"is_master", is_master},
+            {"online", online},
             {"cpu", cpu},
             {"mem", mem},
             {"mpt", mpt},
             {"usr", usr},
-            {"pull", pull},
-            {"push", push},
-            {"conn", node_info.value("conn_count", 0)},
+            {"conn", conn},
             {"send_speed", send_s},
             {"recv_speed", recv_s},
-            {"send_total", node_info.value("send_total", 0)},
-            {"recv_total", node_info.value("recv_total", 0)},
+            {"send_total", send_t},
+            {"recv_total", recv_t},
             {"set_version", node_info.value("set_version", "")},
             {"tag_version", node_info.value("tag_version", "")},
-            {"queue_delay", node_info.value("queue_delay", 0)}
+            {"queue_delay", node_info.value("queue_delay", 0)},
+            {"hostname", node_info.value("hostname", "")},
+            {"listen_port", node_info.value("listen_port", 0)},
+            {"http_port", node_info.value("http_port", 0)},
+            {"process_id", node_info.value("process_id", 0LL)},
+            {"http_enabled", node_info.value("http_enabled", false)},
+            {"online_time", online_time},
+            {"update_time", update_time},
+            {"uptime_sec", uptime_sec}
         });
     }
 

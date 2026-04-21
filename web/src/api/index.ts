@@ -238,12 +238,15 @@ export interface ClusterMonitorInfo {
   total_recv_speed: number;
   redis_latency_ms: number;
   nodes: {
-    uid: string; node_name: string; is_master: boolean;
+    uid: string; node_name: string; is_master: boolean; online: boolean;
     cpu: number; mem: number; mpt: number; usr: number;
-    pull: number; push: number; conn: number;
+    conn: number;
     send_speed: number; recv_speed: number;
     send_total: number; recv_total: number;
     set_version: string; tag_version: string; queue_delay: number;
+    hostname: string; listen_port: number; http_port: number;
+    process_id: number; http_enabled: boolean;
+    online_time: number; update_time: number; uptime_sec: number;
   }[];
 }
 

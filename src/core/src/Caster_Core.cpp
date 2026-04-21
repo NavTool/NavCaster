@@ -1,5 +1,7 @@
 #include "Caster_Core.h"
 #include <spdlog/spdlog.h>
+#include <unistd.h>
+#include <cstring>
 
 // #include "caster_core_internal.h"
 #include "caster_internal.h"
@@ -216,6 +218,22 @@ int CASTER::Free()
 {
     caster_internal::getInstance()->stop();
     return 0;
+}
+
+void CASTER::Set_Node_Runtime_Info(uint32_t listen_port, uint32_t http_port, uint32_t process_id)
+{
+    char host[256] = {0};
+    if (gethostname(host, sizeof(host) - 1) != 0)
+    {
+        std::strncpy(host, "unknown", sizeof(host) - 1);
+    }
+    caster_internal::getInstance()->set_node_identity(host, static_cast<int>(listen_port), static_cast<int>(http_port));
+    (void)process_id; // pid 通过 set_node_identity 内部 getpid() 获取
+}
+
+bool CASTER::Is_Master_Node()
+{
+    return caster_internal::getInstance()->is_master();
 }
 
 std::string CASTER::Get_Status()

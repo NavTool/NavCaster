@@ -31,6 +31,9 @@ struct HttpApiConfig
     std::string auth_redis_host = "127.0.0.1";
     int auth_redis_port = 6379;
     std::string auth_redis_password;
+
+    // 强制开启 HTTP API (默认仅主节点开启)
+    bool force_enable = false;
 };
 
 class http_handler

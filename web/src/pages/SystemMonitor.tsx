@@ -102,9 +102,11 @@ const SystemMonitor: React.FC = () => {
                       {node.is_master && <CrownOutlined style={{ color: '#faad14', marginRight: 6 }} />}
                       {node.node_name || node.uid}
                       {node.is_master && <Tag color="gold" style={{ marginLeft: 8, fontSize: 11 }}>Master</Tag>}
+                      {!node.online && <Tag color="default" style={{ marginLeft: 8, fontSize: 11 }}>Offline</Tag>}
+                      {node.http_enabled && <Tag color="blue" style={{ marginLeft: 8, fontSize: 11 }}>HTTP</Tag>}
                     </span>
                   }
-                  style={{ borderColor: node.is_master ? '#faad14' : '#2e3450' }}
+                  style={{ borderColor: node.is_master ? '#faad14' : (node.online ? '#2e3450' : '#444') }}
                 >
                   <Row gutter={8}>
                     <Col span={12}>
@@ -113,17 +115,26 @@ const SystemMonitor: React.FC = () => {
                     </Col>
                     <Col span={12}>
                       <Text type="secondary" style={{ fontSize: 12 }}>内存</Text>
-                      <div>{formatMemory(node.mem)}</div>
+                      <div>{node.mem.toFixed(1)}%</div>
                     </Col>
                   </Row>
                   <Row gutter={8} style={{ marginTop: 8 }}>
-                    <Col span={6}><Text type="secondary" style={{ fontSize: 12 }}>基站</Text><div>{node.mpt}</div></Col>
-                    <Col span={6}><Text type="secondary" style={{ fontSize: 12 }}>用户</Text><div>{node.usr}</div></Col>
-                    <Col span={6}><Text type="secondary" style={{ fontSize: 12 }}>Pull</Text><div>{node.pull}</div></Col>
-                    <Col span={6}><Text type="secondary" style={{ fontSize: 12 }}>Push</Text><div>{node.push}</div></Col>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>基站</Text><div>{node.mpt}</div></Col>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>用户</Text><div>{node.usr}</div></Col>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 12 }}>连接</Text><div>{node.conn}</div></Col>
                   </Row>
-                  <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
-                    {node.tag_version} · 延迟 {node.queue_delay}μs
+                  <Row gutter={8} style={{ marginTop: 8 }}>
+                    <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>↑速率</Text><div>{(node.send_speed / 1024).toFixed(1)} KB/s</div></Col>
+                    <Col span={12}><Text type="secondary" style={{ fontSize: 12 }}>↓速率</Text><div>{(node.recv_speed / 1024).toFixed(1)} KB/s</div></Col>
+                  </Row>
+                  <Descriptions column={1} size="small" style={{ marginTop: 8 }} labelStyle={{ color: '#8b90a8', fontSize: 12 }} contentStyle={{ fontSize: 12 }}>
+                    <Descriptions.Item label="主机">{node.hostname || '-'}</Descriptions.Item>
+                    <Descriptions.Item label="监听">{node.listen_port}{node.http_port > 0 ? ` / HTTP ${node.http_port}` : ''}</Descriptions.Item>
+                    <Descriptions.Item label="PID">{node.process_id}</Descriptions.Item>
+                    <Descriptions.Item label="运行">{formatDuration(node.uptime_sec)}</Descriptions.Item>
+                  </Descriptions>
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#666' }}>
+                    {node.tag_version} · 队列 {node.queue_delay}μs
                   </div>
                 </Card>
               </Col>

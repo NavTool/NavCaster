@@ -30,6 +30,13 @@ private:
     size_t _server_count = 0;
     size_t _client_count = 0;
 
+    // 扩展信息
+    std::string _hostname;
+    uint32_t _listen_port = 0;
+    uint32_t _http_port = 0;
+    uint64_t _process_id = 0;
+    bool _http_enabled = false;
+
 public:
     caster_node(std::string uid, std::string node_name, std::time_t online_time = 0)
     {
@@ -72,6 +79,17 @@ public:
         return 0;
     }
 
+    int set_extra_info(const std::string &hostname, uint32_t listen_port, uint32_t http_port,
+                        uint64_t process_id, bool http_enabled)
+    {
+        _hostname = hostname;
+        _listen_port = listen_port;
+        _http_port = http_port;
+        _process_id = process_id;
+        _http_enabled = http_enabled;
+        return 0;
+    }
+
     int fromString(const std::string &str)
     {
         caster::core::CasterNode proto;
@@ -95,6 +113,11 @@ public:
         _client_count = proto.client_count();
         _online_time = proto.online_time();
         _update_time = proto.update_time();
+        _hostname = proto.hostname();
+        _listen_port = proto.listen_port();
+        _http_port = proto.http_port();
+        _process_id = proto.process_id();
+        _http_enabled = proto.http_enabled();
         return 0;
     }
 
@@ -130,6 +153,12 @@ public:
 
         proto.set_online_time(_online_time);
         proto.set_update_time(_update_time);
+
+        proto.set_hostname(_hostname);
+        proto.set_listen_port(_listen_port);
+        proto.set_http_port(_http_port);
+        proto.set_process_id(_process_id);
+        proto.set_http_enabled(_http_enabled);
 
         return ProtoToJson(proto);
     }

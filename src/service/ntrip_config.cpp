@@ -171,6 +171,8 @@ int ntrip_config::load_Caster_Conf(std::string conf_file_path)
             _http_api_config.admin_password = Http_Setting["Admin_Password"].as<std::string>();
         if (Http_Setting["Web_Root"])
             _http_api_config.web_root = Http_Setting["Web_Root"].as<std::string>();
+        if (Http_Setting["Force_Enable"])
+            _http_api_config.force_enable = Http_Setting["Force_Enable"].as<bool>();
     }
 
     // Pass NTRIP listen port to HTTP API config for source table fetch

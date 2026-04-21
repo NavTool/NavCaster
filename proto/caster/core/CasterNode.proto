@@ -30,4 +30,11 @@ message CasterNode {
 
   uint64 online_time    = 20; // 节点上线时刻
   uint64 update_time    = 21; // 状态更新时刻
+
+  // 扩展信息 (v2 监控)
+  string hostname       = 22; // 主机名
+  uint32 listen_port    = 23; // NTRIP 监听端口
+  uint32 http_port      = 24; // HTTP API 端口 (0 表示未启用)
+  uint64 process_id     = 25; // 进程 ID
+  bool   http_enabled   = 26; // 当前节点是否对外开启 HTTP API
 }

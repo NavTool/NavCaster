@@ -216,8 +216,10 @@ using json = nlohmann::json;
 #define ALIAS_RULE_LIST "ALIAS:RULE" // 别名规则列表, 记录别名挂载点和实体挂载点的映射关系
 
 // 连接历史记录 (持久化, 不设过期时间)
-#define LOG_MPT_HISTORY "LOG:MPT" // 基站连接历史, HASH, field = mount:connect_key, value = JSON
-#define LOG_USR_HISTORY "LOG:USR" // 用户连接历史, HASH, field = user:connect_key, value = JSON
+// 结构升级: 按挂载点/用户名分桶, field = "<connect_time>_<connect_key>" 便于按时间区间查询
+#define LOG_MPT_PREFIX "LOG:MPT:" // 基站连接历史前缀, + mount_name -> HASH, field = "<ts>_<connect_key>", value = JSON
+#define LOG_USR_PREFIX "LOG:USR:" // 用户连接历史前缀, + user_name  -> HASH, field = "<ts>_<connect_key>", value = JSON
+#define LOG_NODE_PREFIX "LOG:NODE:" // 节点上下线历史前缀, + node_id -> HASH, field = "<ts>_<event>", value = JSON
 
 // 节点历史状态快照 — 三级分辨率存储
 #define NODE_HISTORY_PREFIX "NODE:HISTORY:" // + node_id (RAW 5s)
@@ -272,8 +274,14 @@ private:
     std::string _redis_Requirepass;
 
 private:
-    std::string _node_ID = util_generate_random_key(6);
-    std::string _node_name = "NODE-" + _node_ID;
+    // 节点身份: 由 hostname + listen_port + http_port 派生稳定 ID, 避免每次重启变化
+    // 通过 set_node_identity() 在 Init 之前调用; 默认值仅作回退
+    std::string _node_ID = "Node_00000";
+    std::string _node_name = "Node_00000";
+    int _listen_port = 0;
+    int _http_port = 0;
+    std::string _hostname;
+    long long _process_id = 0;
     bool _is_master = false;
     std::string _current_master_id; // 当前 master 节点 ID
 
@@ -339,6 +347,19 @@ public:
 
     int start();
     int stop();
+
+    // 设置节点身份 (在 init 之前调用), 由 hostname/listen_port/http_port 派生稳定 Node_XXXXX
+    void set_node_identity(const std::string &hostname, int listen_port, int http_port);
+
+    // 节点身份/角色查询 (HTTP/Service 层使用)
+    const std::string &node_id() const { return _node_ID; }
+    const std::string &node_name() const { return _node_name; }
+    bool is_master() const { return _is_master; }
+    int listen_port() const { return _listen_port; }
+    int http_port() const { return _http_port; }
+    long long startup_time() const { return _startup_time; }
+    const std::string &hostname() const { return _hostname; }
+    long long process_id() const { return _process_id; }
 
     // 优雅停机: 将所有在线会话的历史记录写入断开时间
     void flush_online_history();

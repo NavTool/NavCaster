@@ -4,6 +4,7 @@
 // #include <format>
 #include <spdlog/spdlog.h>
 #include <sstream>
+#include <unistd.h>
 #include "knt.h"
 #include "SysUsage.h"
 #include "version.h"
@@ -74,6 +75,26 @@ int caster_internal::init(CasterCoreOpt opt, event_base *base)
     return 0;
 }
 
+void caster_internal::set_node_identity(const std::string &hostname, int listen_port, int http_port)
+{
+    _hostname = hostname;
+    _listen_port = listen_port;
+    _http_port = http_port;
+    _process_id = static_cast<long long>(getpid());
+
+    // 由 hostname + listen_port + http_port 生成稳定 5 位 hex 标识
+    // 同一实例只要监听端口不变, 重启后 ID 一致; 同实例多节点(不同端口) 也会得到不同 ID
+    std::string seed = hostname + ":" + std::to_string(listen_port) + ":" + std::to_string(http_port);
+    std::hash<std::string> hasher;
+    size_t h = hasher(seed);
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "Node_%05X", static_cast<unsigned int>(h & 0xFFFFF));
+    _node_ID = buf;
+    _node_name = _node_ID;
+    spdlog::info("[caster_internal::set_node_identity]: host={} listen={} http={} -> {} (pid={})",
+                 hostname, listen_port, http_port, _node_ID, _process_id);
+}
+
 int caster_internal::start()
 {
 
@@ -115,8 +136,10 @@ void caster_internal::flush_online_history()
     {
         entry["disconnect_time"] = now;
         entry["last_update"] = now;
-        std::string field = entry["name"].get<std::string>() + ":" + ck;
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+        std::string mount = entry.value("name", std::string());
+        std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
+        std::string key = std::string(LOG_MPT_PREFIX) + mount;
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", key.c_str(), field.c_str(), entry.dump().c_str());
     }
     _base_history_map.clear();
 
@@ -124,14 +147,30 @@ void caster_internal::flush_online_history()
     {
         entry["disconnect_time"] = now;
         entry["last_update"] = now;
-        std::string field = entry["name"].get<std::string>() + ":" + ck;
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+        std::string user = entry.value("name", std::string());
+        std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
+        std::string key = std::string(LOG_USR_PREFIX) + user;
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", key.c_str(), field.c_str(), entry.dump().c_str());
     }
     _rover_history_map.clear();
 
     if (base_count > 0 || rover_count > 0)
     {
         spdlog::info("[caster_internal::flush_online_history]: Flushed {} base + {} rover disconnect records", base_count, rover_count);
+    }
+
+    // 写入节点下线事件
+    if (!_node_ID.empty() && _pub_context)
+    {
+        json node_event;
+        node_event["event"] = "stop";
+        node_event["node_id"] = _node_ID;
+        node_event["node_name"] = _node_name;
+        node_event["timestamp"] = now;
+        std::string node_key = std::string(LOG_NODE_PREFIX) + _node_ID;
+        std::string node_field = std::to_string(now) + "_stop";
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s",
+                          node_key.c_str(), node_field.c_str(), node_event.dump().c_str());
     }
 }
 
@@ -159,74 +198,90 @@ void caster_internal::cleanup_stale_history()
     auto now = util_get_now_second();
     int compensated = 0;
 
-    // 扫描 LOG:MPT, 补偿崩溃未断开的基站记录
-    {
-        auto *reply = static_cast<redisReply *>(redisCommand(ctx, "HGETALL " LOG_MPT_HISTORY));
-        if (reply && reply->type == REDIS_REPLY_ARRAY)
+    // 工具 lambda: 扫描指定前缀的 hash key, 补偿崩溃未写入断开时间的会话记录
+    auto scan_and_compensate = [&](const char *prefix) {
+        std::string match = std::string(prefix) + "*";
+        unsigned long long cursor = 0;
+        do
         {
-            for (size_t i = 0; i + 1 < reply->elements; i += 2)
+            auto *sreply = static_cast<redisReply *>(
+                redisCommand(ctx, "SCAN %llu MATCH %s COUNT 200 TYPE hash", cursor, match.c_str()));
+            if (!sreply)
+                break;
+            if (sreply->type == REDIS_REPLY_ARRAY && sreply->elements == 2)
             {
-                std::string field = reply->element[i]->str ? reply->element[i]->str : "";
-                std::string value = reply->element[i + 1]->str ? reply->element[i + 1]->str : "";
-                try
+                cursor = std::strtoull(sreply->element[0]->str, nullptr, 10);
+                auto *arr = sreply->element[1];
+                for (size_t i = 0; i < arr->elements; i++)
                 {
-                    auto entry = json::parse(value);
-                    if (entry.contains("disconnect_time") && entry["disconnect_time"].get<long long>() == 0 && entry.contains("last_update"))
+                    if (!arr->element[i]->str)
+                        continue;
+                    std::string key = arr->element[i]->str;
+                    auto *hreply = static_cast<redisReply *>(redisCommand(ctx, "HGETALL %s", key.c_str()));
+                    if (hreply && hreply->type == REDIS_REPLY_ARRAY)
                     {
-                        long long last_update = entry["last_update"].get<long long>();
-                        if (now - last_update > _key_expire_time)
+                        for (size_t j = 0; j + 1 < hreply->elements; j += 2)
                         {
-                            entry["disconnect_time"] = last_update;
-                            auto *r = static_cast<redisReply *>(
-                                redisCommand(ctx, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str()));
-                            if (r)
-                                freeReplyObject(r);
-                            compensated++;
+                            std::string field = hreply->element[j]->str ? hreply->element[j]->str : "";
+                            std::string value = hreply->element[j + 1]->str ? hreply->element[j + 1]->str : "";
+                            try
+                            {
+                                auto entry = json::parse(value);
+                                if (entry.contains("disconnect_time") &&
+                                    entry["disconnect_time"].get<long long>() == 0 &&
+                                    entry.contains("last_update"))
+                                {
+                                    long long last_update = entry["last_update"].get<long long>();
+                                    if (now - last_update > _key_expire_time)
+                                    {
+                                        entry["disconnect_time"] = last_update;
+                                        auto *r = static_cast<redisReply *>(
+                                            redisCommand(ctx, "HSET %s %s %s", key.c_str(), field.c_str(), entry.dump().c_str()));
+                                        if (r)
+                                            freeReplyObject(r);
+                                        compensated++;
+                                    }
+                                }
+                            }
+                            catch (...)
+                            {
+                            }
                         }
                     }
-                }
-                catch (...)
-                {
+                    if (hreply)
+                        freeReplyObject(hreply);
                 }
             }
-        }
-        if (reply)
-            freeReplyObject(reply);
-    }
+            else
+            {
+                freeReplyObject(sreply);
+                break;
+            }
+            freeReplyObject(sreply);
+        } while (cursor != 0);
+    };
 
-    // 扫描 LOG:USR, 补偿崩溃未断开的用户记录
+    scan_and_compensate(LOG_MPT_PREFIX);
+    scan_and_compensate(LOG_USR_PREFIX);
+
+    // 写入节点上线事件
+    if (!_node_ID.empty())
     {
-        auto *reply = static_cast<redisReply *>(redisCommand(ctx, "HGETALL " LOG_USR_HISTORY));
-        if (reply && reply->type == REDIS_REPLY_ARRAY)
-        {
-            for (size_t i = 0; i + 1 < reply->elements; i += 2)
-            {
-                std::string field = reply->element[i]->str ? reply->element[i]->str : "";
-                std::string value = reply->element[i + 1]->str ? reply->element[i + 1]->str : "";
-                try
-                {
-                    auto entry = json::parse(value);
-                    if (entry.contains("disconnect_time") && entry["disconnect_time"].get<long long>() == 0 && entry.contains("last_update"))
-                    {
-                        long long last_update = entry["last_update"].get<long long>();
-                        if (now - last_update > _key_expire_time)
-                        {
-                            entry["disconnect_time"] = last_update;
-                            auto *r = static_cast<redisReply *>(
-                                redisCommand(ctx, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str()));
-                            if (r)
-                                freeReplyObject(r);
-                            compensated++;
-                        }
-                    }
-                }
-                catch (...)
-                {
-                }
-            }
-        }
-        if (reply)
-            freeReplyObject(reply);
+        json node_event;
+        node_event["event"] = "start";
+        node_event["node_id"] = _node_ID;
+        node_event["node_name"] = _node_name;
+        node_event["hostname"] = _hostname;
+        node_event["listen_port"] = _listen_port;
+        node_event["http_port"] = _http_port;
+        node_event["process_id"] = _process_id;
+        node_event["timestamp"] = now;
+        std::string node_key = std::string(LOG_NODE_PREFIX) + _node_ID;
+        std::string node_field = std::to_string(now) + "_start";
+        auto *r = static_cast<redisReply *>(
+            redisCommand(ctx, "HSET %s %s %s", node_key.c_str(), node_field.c_str(), node_event.dump().c_str()));
+        if (r)
+            freeReplyObject(r);
     }
 
     redisFree(ctx);
@@ -719,6 +774,8 @@ int caster_internal::upload_node_status()
     node.set_delay_info(_queue_delay, _sub_ping_delay, _sub_tcp_delay, _pub_ping_delay, _pub_tcp_delay);
     node.set_traffic_info(_send_total, _send_speed, _recv_total, _recv_speed);
     node.set_connection_count(_server_status_map.size(), _client_status_map.size());
+    node.set_extra_info(_hostname, static_cast<uint32_t>(_listen_port), static_cast<uint32_t>(_http_port),
+                         static_cast<uint64_t>(_process_id), _http_port > 0);
 
     redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " CASTER_NODE_INFO_LIST " EX %s FIELDS 1 %s %s",
                       std::to_string(_key_expire_time).c_str(),
@@ -1113,11 +1170,28 @@ void caster_internal::Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, v
     {
         svr->_is_master = true;
         spdlog::info("[caster_internal]: Node {} confirmed as MASTER (TTL={}s)", svr->_node_ID, svr->_master_expire_time);
+        // 写入主节点获取事件
+        long long ts = util_get_now_second();
+        json ev;
+        ev["event"] = "master_acquired";
+        ev["node_id"] = svr->_node_ID;
+        ev["timestamp"] = ts;
+        std::string nk = std::string(LOG_NODE_PREFIX) + svr->_node_ID;
+        std::string nf = std::to_string(ts) + "_master_acquired";
+        redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", nk.c_str(), nf.c_str(), ev.dump().c_str());
     }
     else if (!renewed && svr->_is_master)
     {
         svr->_is_master = false;
         spdlog::warn("[caster_internal]: Node {} lost MASTER role", svr->_node_ID);
+        long long ts = util_get_now_second();
+        json ev;
+        ev["event"] = "master_lost";
+        ev["node_id"] = svr->_node_ID;
+        ev["timestamp"] = ts;
+        std::string nk = std::string(LOG_NODE_PREFIX) + svr->_node_ID;
+        std::string nf = std::to_string(ts) + "_master_lost";
+        redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", nk.c_str(), nf.c_str(), ev.dump().c_str());
     }
 
     if (renewed)
@@ -1472,14 +1546,18 @@ int caster_internal::upload_record_item()
         for (auto &[ck, entry] : _base_history_map)
         {
             entry["last_update"] = now;
-            std::string field = entry["name"].get<std::string>() + ":" + ck;
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+            std::string mount = entry.value("name", std::string());
+            std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
+            std::string key = std::string(LOG_MPT_PREFIX) + mount;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", key.c_str(), field.c_str(), entry.dump().c_str());
         }
         for (auto &[ck, entry] : _rover_history_map)
         {
             entry["last_update"] = now;
-            std::string field = entry["name"].get<std::string>() + ":" + ck;
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", field.c_str(), entry.dump().c_str());
+            std::string user = entry.value("name", std::string());
+            std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
+            std::string key = std::string(LOG_USR_PREFIX) + user;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", key.c_str(), field.c_str(), entry.dump().c_str());
         }
     }
 
@@ -1670,6 +1748,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
 
         // 写入连接历史记录 (持久化, 不设过期)
         {
+            long long now_ts = util_get_now_second();
             json log_entry;
             log_entry["name"] = channel;
             log_entry["connect_key"] = connect_key;
@@ -1678,12 +1757,13 @@ int caster_internal::register_base_channel(const char *channel, const char *user
             log_entry["account"] = user_name;
             log_entry["host"] = conn._ip;
             log_entry["port"] = conn._port;
-            log_entry["connect_time"] = util_get_now_second();
-            log_entry["last_update"] = util_get_now_second();
+            log_entry["connect_time"] = now_ts;
+            log_entry["last_update"] = now_ts;
             log_entry["disconnect_time"] = 0;
-            std::string log_field = std::string(channel) + ":" + connect_key;
+            std::string log_key = std::string(LOG_MPT_PREFIX) + channel;
+            std::string log_field = std::to_string(now_ts) + "_" + connect_key;
             _base_history_map[connect_key] = log_entry;
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", log_field.c_str(), log_entry.dump().c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", log_key.c_str(), log_field.c_str(), log_entry.dump().c_str());
         }
 
         // 将cb注册回调记录到本地
@@ -1764,6 +1844,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         // 写入连接历史记录 (持久化, 不设过期)
         {
+            long long now_ts = util_get_now_second();
             json log_entry;
             log_entry["name"] = user_name;
             log_entry["mount"] = channel;
@@ -1775,12 +1856,13 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
             decodeKey(connect_key, _s, _sp, _h, _hp);
             log_entry["host"] = _h;
             log_entry["port"] = _hp;
-            log_entry["connect_time"] = util_get_now_second();
-            log_entry["last_update"] = util_get_now_second();
+            log_entry["connect_time"] = now_ts;
+            log_entry["last_update"] = now_ts;
             log_entry["disconnect_time"] = 0;
-            std::string log_field = std::string(user_name) + ":" + connect_key;
+            std::string log_key = std::string(LOG_USR_PREFIX) + user_name;
+            std::string log_field = std::to_string(now_ts) + "_" + connect_key;
             _rover_history_map[connect_key] = log_entry;
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", log_field.c_str(), log_entry.dump().c_str());
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", log_key.c_str(), log_field.c_str(), log_entry.dump().c_str());
         }
 
         // 将cb注册回调记录到本地
@@ -1865,10 +1947,12 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
         auto hit = _base_history_map.find(connect_key);
         if (hit != _base_history_map.end())
         {
-            hit->second["disconnect_time"] = util_get_now_second();
-            hit->second["last_update"] = util_get_now_second();
-            std::string log_field = std::string(channel) + ":" + connect_key;
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_MPT_HISTORY " %s %s", log_field.c_str(), hit->second.dump().c_str());
+            long long now_ts = util_get_now_second();
+            hit->second["disconnect_time"] = now_ts;
+            hit->second["last_update"] = now_ts;
+            std::string log_key = std::string(LOG_MPT_PREFIX) + channel;
+            std::string log_field = std::to_string(hit->second.value("connect_time", now_ts)) + "_" + connect_key;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", log_key.c_str(), log_field.c_str(), hit->second.dump().c_str());
             _base_history_map.erase(hit);
         }
     }
@@ -1919,10 +2003,12 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
         auto hit = _rover_history_map.find(connect_key);
         if (hit != _rover_history_map.end())
         {
-            hit->second["disconnect_time"] = util_get_now_second();
-            hit->second["last_update"] = util_get_now_second();
-            std::string log_field = std::string(user_name) + ":" + connect_key;
-            redisAsyncCommand(_pub_context, NULL, NULL, "HSET " LOG_USR_HISTORY " %s %s", log_field.c_str(), hit->second.dump().c_str());
+            long long now_ts = util_get_now_second();
+            hit->second["disconnect_time"] = now_ts;
+            hit->second["last_update"] = now_ts;
+            std::string log_key = std::string(LOG_USR_PREFIX) + user_name;
+            std::string log_field = std::to_string(hit->second.value("connect_time", now_ts)) + "_" + connect_key;
+            redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", log_key.c_str(), log_field.c_str(), hit->second.dump().c_str());
             _rover_history_map.erase(hit);
         }
     }

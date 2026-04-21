@@ -1039,3 +1039,100 @@ ntrip_caster::extra_init()
 | `MONITOR:REDIS:HISTORY` | LIST | Redis 指标历史（最近 1440 条） |
 | `LOG:AUDIT` | LIST | 操作审计日志（最近 5000 条） |
 | `NODE:{id}:ACTION_RESULT` | STRING(TTL 60s) | 节点操作执行结果 |
+
+---
+
+## 进展记录
+
+### 2025-11 架构改进 (LOG/Node 重构)
+
+#### 1. LOG 键结构重构（按挂载点/用户分桶）
+
+**旧结构**：单 HASH `LOG:MPT` / `LOG:USR`，field 为 `<name>:<connect_key>`，所有节点的所有连接历史全部塞在两个 Key 中，规模上去后查询/扫描成本高。
+
+**新结构**：
+- `LOG:MPT:<挂载点名>` (HASH)，field = `<connect_time>_<connect_key>`
+- `LOG:USR:<用户名>` (HASH)，field = `<connect_time>_<connect_key>`
+- 单个挂载点/用户的历史可一次 `HGETALL` 拿到，跨范围查询用 `SCAN MATCH LOG:MPT:*` 遍历
+
+**影响代码**：
+- `src/core/src/caster_internal.h`：新增 `LOG_MPT_PREFIX`/`LOG_USR_PREFIX`/`LOG_NODE_PREFIX` 宏
+- `src/core/src/caster_internal.cpp`：`register_base_channel`、`register_rover_channel`、`withdraw_base_channel`、`withdraw_rover_channel`、`flush_online_history`、`cleanup_stale_history` 全量改写
+- `cleanup_stale_history` 改为 `SCAN MATCH ... TYPE hash` + `HGETALL` 逐桶扫描
+
+#### 2. 节点生命周期日志 `LOG:NODE:<id>`
+
+新增 HASH 记录节点 startup / master_acquired / master_lost / shutdown 事件，field = `<timestamp>_<event>`。
+
+#### 3. 稳定节点 ID `Node_XXXXX`
+
+**问题**：每次重启生成不同节点名，`CASTER:NODE` HASH 残留旧节点，监控页节点列表无意义。
+
+**方案**：
+- `caster_internal::set_node_identity(hostname, listen_port, http_port)`
+- ID = `Node_%05X`，hash 来源 = `hostname:listen_port:http_port`
+- 同主机不同实例（端口不同）→ 不同 ID；同实例重启 → 相同 ID
+- 通过新增公共 API `CASTER::Set_Node_Runtime_Info()` 在 `ntrip_caster::component_init` 中、`CASTER::Init` 之前注入
+- 进程 PID 通过 `getpid()` 自动采集
+
+#### 4. 节点信息扩展（端口/PID/运行时长/HTTP 状态）
+
+`CasterNode.proto` 新增字段：
+```
+string hostname       = 22;
+uint32 listen_port    = 23;
+uint32 http_port      = 24;
+uint64 process_id     = 25;
+bool   http_enabled   = 26;
+```
+
+`caster_node` 类新增 `set_extra_info()` setter；`upload_node_status()` 每周期写入。
+
+#### 5. HTTP API 主从控制
+
+**问题**：所有节点都开 8080 端口，多节点同主机会端口冲突。
+
+**方案**：
+- `HttpApiConfig` 新增 `force_enable` 字段（默认 `false`）
+- 默认：仅主节点开启 HTTP API
+- 配置 `Force_Enable: true` 可强制开启（用于固定 HTTP 节点 / 测试）
+- 实现：`ntrip_caster` 新增 `_http_gate_ev` 5s 周期定时器 + `start_http_api()` 函数；当 `CASTER::Is_Master_Node()` 返回 true 时启动一次（启动后不再关闭，避免在主节点漂移时频繁重启）
+- 配置文件 `bin/Debug/conf/Service_Setting.yml` 新增示例：
+  ```yaml
+  HTTP_API_Setting:
+    Force_Enable: false
+  ```
+- `CASTER::Is_Master_Node()` API 实现补全
+
+#### 6. 集群监控页字段修复
+
+**问题**：`/api/monitor/cluster` 返回字段名错误（`mpt_count`/`usr_count`/`pull_count`/`push_count`/`conn_count` 等均不存在），导致前端节点卡片显示全 0。
+
+**修复**：
+- `handle_get_monitor_cluster` 改用正确的 proto snake_case 字段（`server_count`/`client_count`/`connect_count`/`cpu_usage`/`mem_usage` 等）
+- 新增 `online` 字段：通过 `now - update_time < 60s` 判定
+- 新增 `uptime_sec`：基于 `online_time` 计算
+- `total_pull` / `total_push` 改为全局统计（`HLEN PULL:STAT` / `HLEN PUSH:STAT`），不再按节点累计
+- 节点对象新增上报字段：`hostname / listen_port / http_port / process_id / http_enabled / online_time / update_time / uptime_sec / online`
+
+#### 7. 前端 SystemMonitor 节点卡片增强
+
+`web/src/api/index.ts` 同步更新 TypeScript 接口；`web/src/pages/SystemMonitor.tsx` 节点卡片新增：
+- Master / HTTP / Offline 标签
+- 主机名、监听端口、HTTP 端口、PID、运行时长（`formatDuration`）
+- 上下行速率展示
+- 移除已废弃的 pull/push 字段
+
+#### 验证
+
+```bash
+cd build && ninja              # ✅ 通过
+cd web && npx tsc --noEmit     # ✅ 通过
+```
+
+#### 待办
+
+- [ ] 旧 `LOG:MPT` / `LOG:USR` 单 HASH 数据需手动清理 (`DEL LOG:MPT LOG:USR`)
+- [ ] 旧 `NODE-XXXXXX` 历史节点条目需清理 (`HDEL CASTER:NODE NODE-XXXXXX...`)
+- [ ] 主节点漂移后 HTTP 主备切换的优雅停机（当前实现：一旦启动不再关闭）
+- [ ] `LOG:NODE:<id>` 日志的前端展示页面

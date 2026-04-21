@@ -11,6 +11,7 @@
 #include "SysUsage.h"
 
 #include <malloc.h> //试图解决linux下（glibc）内存不自动释放问题
+#include <unistd.h>
 // https://blog.csdn.net/kenanxiuji/article/details/48547285
 // https://blog.csdn.net/u013259321/article/details/112031002
 
@@ -204,6 +205,16 @@ int ntrip_caster::component_init()
     // 用户验证模块
     AUTH::Init(ntrip_config::getInstance()->_auth_verify_opt, _base);
 
+    // 在 Caster 启动前注入节点身份信息 (hostname + 监听端口 + HTTP端口)，确保 node_id 稳定
+    {
+        auto *cfg = ntrip_config::getInstance();
+        uint32_t listen_port = static_cast<uint32_t>(cfg->_listener_opt.listen_port());
+        uint32_t http_port = cfg->_http_api_config.force_enable
+                                  ? static_cast<uint32_t>(cfg->_http_api_config.port)
+                                  : static_cast<uint32_t>(cfg->_http_api_config.port); // 端口参与哈希以区分同主机多实例
+        CASTER::Set_Node_Runtime_Info(listen_port, http_port, static_cast<uint32_t>(getpid()));
+    }
+
     // 初始化Caster数据分发核心：当前采用的是Redis，后续开发支持脱离redis运行
     CASTER::Init(ntrip_config::getInstance()->_caster_core_opt, _base);
 
@@ -233,32 +244,65 @@ int ntrip_caster::extra_init()
 {
     // init_license_check();
 
-    // Initialize HTTP API server
     auto *conf = ntrip_config::getInstance();
     auto &http_conf = conf->_http_api_config;
-
-    // Initialize Redis adapters for HTTP API
     auto &core_opt = conf->_caster_core_opt;
     auto &auth_opt = conf->_auth_verify_opt;
 
-    // Pass Redis params to HTTP API config for sync_redis
+    // 透传 Redis 参数
     http_conf.redis_host = core_opt.redis_host();
     http_conf.redis_port = core_opt.redis_port();
     http_conf.redis_password = core_opt.redis_password();
-
-    // Auth redis for account operations
     http_conf.auth_redis_host = auth_opt.redis_host();
     http_conf.auth_redis_port = auth_opt.redis_port();
     http_conf.auth_redis_password = auth_opt.redis_password();
 
-    // HTTP 组件绑定到独立的 _http_base，实现与 NTRIP 业务线程分离
+    if (http_conf.force_enable)
+    {
+        spdlog::info("[ntrip_caster::extra_init]: HTTP API force_enable=true, starting unconditionally");
+        start_http_api();
+    }
+    else
+    {
+        // 默认仅主节点开启 HTTP，注册周期定时器进行检查
+        spdlog::info("[ntrip_caster::extra_init]: HTTP API will only start on master node (set Force_Enable=true to override)");
+        _http_gate_ev = event_new(_http_base, -1, EV_PERSIST, Http_Gate_Callback, this);
+        event_add(_http_gate_ev, &_http_gate_tv);
+        // 立即检查一次（不等首个 tick）
+        Http_Gate_Callback(-1, 0, this);
+    }
+
+    return 0;
+}
+
+void ntrip_caster::Http_Gate_Callback(evutil_socket_t /*fd*/, short /*events*/, void *arg)
+{
+    auto *self = static_cast<ntrip_caster *>(arg);
+    if (self->_http_started)
+        return;
+    if (!CASTER::Is_Master_Node())
+        return;
+    spdlog::info("[ntrip_caster::Http_Gate_Callback]: This node became master, starting HTTP API");
+    self->start_http_api();
+}
+
+int ntrip_caster::start_http_api()
+{
+    if (_http_started)
+        return 0;
+
+    auto *conf = ntrip_config::getInstance();
+    auto &http_conf = conf->_http_api_config;
+    auto &core_opt = conf->_caster_core_opt;
+    auto &auth_opt = conf->_auth_verify_opt;
+
     int ret = _http_caster_redis.init(_http_base,
                                        core_opt.redis_host(),
                                        core_opt.redis_port(),
                                        core_opt.redis_password());
     if (ret != 0)
     {
-        spdlog::warn("[ntrip_caster::extra_init]: HTTP API caster Redis adapter init failed");
+        spdlog::warn("[ntrip_caster::start_http_api]: HTTP API caster Redis adapter init failed");
     }
 
     ret = _http_auth_redis.init(_http_base,
@@ -267,50 +311,54 @@ int ntrip_caster::extra_init()
                                  auth_opt.redis_password());
     if (ret != 0)
     {
-        spdlog::warn("[ntrip_caster::extra_init]: HTTP API auth Redis adapter init failed");
+        spdlog::warn("[ntrip_caster::start_http_api]: HTTP API auth Redis adapter init failed");
     }
 
     ret = _http_handler.init(_http_base, &_http_caster_redis, &_http_auth_redis, http_conf);
     if (ret != 0)
     {
-        spdlog::error("[ntrip_caster::extra_init]: HTTP API handler init failed on port {}", http_conf.port);
+        spdlog::error("[ntrip_caster::start_http_api]: HTTP API handler init failed on port {}", http_conf.port);
+        return ret;
     }
-    else
+    spdlog::info("[ntrip_caster::start_http_api]: HTTP API server started on {}:{}", http_conf.bind_addr, http_conf.port);
+    _http_started = true;
+
+    // 将当前配置写入 Redis
     {
-        spdlog::info("[ntrip_caster::extra_init]: HTTP API server started on {}:{}", http_conf.bind_addr, http_conf.port);
+        using json = nlohmann::json;
+        json service_json;
+        service_json["listener"] = json::parse(ProtoToJson(conf->_listener_opt));
+        service_json["server"] = json::parse(ProtoToJson(conf->_ntrip_server_opt));
+        service_json["client"] = json::parse(ProtoToJson(conf->_ntrip_client_opt));
+        service_json["common"] = json::parse(ProtoToJson(conf->_service_opt));
+        service_json["http_api"] = {
+            {"port", http_conf.port},
+            {"bind_addr", http_conf.bind_addr},
+            {"cors_origin", http_conf.cors_origin},
+            {"web_root", http_conf.web_root},
+            {"force_enable", http_conf.force_enable}
+        };
+        _http_handler.save_config("service", service_json.dump());
 
-        // 将当前配置写入 Redis
-        {
-            using json = nlohmann::json;
-            json service_json;
-            service_json["listener"] = json::parse(ProtoToJson(conf->_listener_opt));
-            service_json["server"] = json::parse(ProtoToJson(conf->_ntrip_server_opt));
-            service_json["client"] = json::parse(ProtoToJson(conf->_ntrip_client_opt));
-            service_json["common"] = json::parse(ProtoToJson(conf->_service_opt));
-            service_json["http_api"] = {
-                {"port", http_conf.port},
-                {"bind_addr", http_conf.bind_addr},
-                {"cors_origin", http_conf.cors_origin},
-                {"web_root", http_conf.web_root}
-            };
-            _http_handler.save_config("service", service_json.dump());
+        json core_json = json::parse(ProtoToJson(core_opt));
+        _http_handler.save_config("core", core_json.dump());
 
-            json core_json = json::parse(ProtoToJson(core_opt));
-            _http_handler.save_config("core", core_json.dump());
+        json auth_json = json::parse(ProtoToJson(auth_opt));
+        _http_handler.save_config("auth", auth_json.dump());
 
-            json auth_json = json::parse(ProtoToJson(auth_opt));
-            _http_handler.save_config("auth", auth_json.dump());
-
-            spdlog::info("[ntrip_caster::extra_init]: Configuration saved to Redis");
-        }
+        spdlog::info("[ntrip_caster::start_http_api]: Configuration saved to Redis");
     }
-
     return 0;
 }
 
 int ntrip_caster::extra_stop()
 {
     // 停止 HTTP 事件循环并等待线程退出
+    if (_http_gate_ev)
+    {
+        event_free(_http_gate_ev);
+        _http_gate_ev = nullptr;
+    }
     if (_http_base)
     {
         event_base_loopbreak(_http_base);

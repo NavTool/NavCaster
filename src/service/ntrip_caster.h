@@ -118,6 +118,13 @@ private:
     redis_adapter _http_caster_redis;
     redis_adapter _http_auth_redis;
 
+    // HTTP 主从控制 (默认仅主节点开启 HTTP API)
+    bool _http_started = false;
+    event *_http_gate_ev = nullptr;
+    timeval _http_gate_tv = {5, 0};
+    int start_http_api();
+    static void Http_Gate_Callback(evutil_socket_t fd, short events, void *arg);
+
     // private:
     //     // 扩展模块 心跳上传功能--------------------------------------------------------------------------
     //     event *_heart_beat_ev;
