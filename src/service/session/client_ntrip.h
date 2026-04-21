@@ -18,6 +18,8 @@ public:
 
     DetachedTask run() override
     {
+        auto self = shared_from_this(); // 保持 carrier 存活直到协程退出
+
         // 1. 认证
         auto auth = co_await co_auth_login(AuthType::CLIENT);
         if (auth.type != AuthReply::OK)

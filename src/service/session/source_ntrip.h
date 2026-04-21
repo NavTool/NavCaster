@@ -21,6 +21,8 @@ public:
 
     DetachedTask run() override
     {
+        auto self = shared_from_this(); // 保持 carrier 存活直到协程退出
+
         // 1. 构建源表并发送
         start_bev(false, 0, true, 0);
         _source_list = CASTER::Get_Source_Table_Text();
