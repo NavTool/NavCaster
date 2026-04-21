@@ -50,6 +50,7 @@ out
 
 data
 imports
+release
 
 CMakePresets.json
 CMakeUserPresets.json
