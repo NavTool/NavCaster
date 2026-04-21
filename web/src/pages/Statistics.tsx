@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card, Row, Col, Statistic, Table, Segmented, Spin, DatePicker } from 'antd';
+const { RangePicker } = DatePicker;
 import {
   CloudServerOutlined, UserOutlined, SwapOutlined, ClockCircleOutlined,
 } from '@ant-design/icons';
@@ -9,11 +10,12 @@ import {
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import {
-  getStatsOverview, getStatsDaily, getMptRanking, getUsrRanking,
+  getStatsOverview, getMptRanking, getUsrRanking,
   type StatsOverview, type MptRankingItem, type UsrRankingItem,
 } from '../api';
 
 type RangeKey = 'today' | '7d' | '30d' | 'custom';
+type DateRange = [Dayjs | null, Dayjs | null] | null;
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}秒`;
@@ -62,7 +64,7 @@ const usrColumns = [
 
 const Statistics: React.FC = () => {
   const [range, setRange] = useState<RangeKey>('today');
-  const [customDate, setCustomDate] = useState<Dayjs | null>(null);
+  const [customRange, setCustomRange] = useState<DateRange>(null);
   const [overview, setOverview] = useState<StatsOverview | null>(null);
   const [mptRanking, setMptRanking] = useState<MptRankingItem[]>([]);
   const [usrRanking, setUsrRanking] = useState<UsrRankingItem[]>([]);
@@ -73,31 +75,20 @@ const Statistics: React.FC = () => {
     try {
       let params: { start?: number; end?: number; date?: string } = {};
       const now = Math.floor(Date.now() / 1000);
-      let useDailyApi = false;
-      let dailyDate = '';
       if (range === 'today') {
         // Use default (server returns today)
       } else if (range === '7d') {
         params = { start: now - 7 * 86400, end: now };
       } else if (range === '30d') {
         params = { start: now - 30 * 86400, end: now };
-      } else if (range === 'custom' && customDate) {
-        dailyDate = customDate.format('YYYY-MM-DD');
-        const isToday = customDate.isSame(dayjs(), 'day');
-        if (!isToday) {
-          useDailyApi = true; // use cached daily endpoint for past dates
-        } else {
-          params = { date: dailyDate };
-        }
+      } else if (range === 'custom' && customRange?.[0] && customRange?.[1]) {
+        const startDay = customRange[0];
+        const endDay = customRange[1];
+        params = { start: startDay.unix(), end: endDay.unix() };
       }
 
-      const overviewPromise = useDailyApi
-        ? getStatsDaily(dailyDate)
-        : getStatsOverview(params);
-
-      const rankingParams = useDailyApi
-        ? { start: customDate!.startOf('day').unix(), end: customDate!.endOf('day').unix(), limit: 20 }
-        : { start: params.start, end: params.end, limit: 20 };
+      const overviewPromise = getStatsOverview(params);
+      const rankingParams = { start: params.start, end: params.end, limit: 20 };
 
       const [ov, mpt, usr] = await Promise.all([
         overviewPromise,
@@ -114,7 +105,7 @@ const Statistics: React.FC = () => {
     }
   }, [range, customDate]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData, customRange]);
 
   const trendData = overview?.hourly_trend?.map(h => ({
     ...h,
@@ -138,12 +129,13 @@ const Statistics: React.FC = () => {
           onChange={v => setRange(v as RangeKey)}
         />
         {range === 'custom' && (
-          <DatePicker
-            value={customDate}
-            onChange={v => setCustomDate(v)}
-            format="YYYY-MM-DD"
+          <RangePicker
+            value={customRange as [Dayjs, Dayjs] | null}
+            onChange={v => setCustomRange(v as DateRange)}
+            showTime={{ format: 'HH:mm' }}
+            format="MM-DD HH:mm"
             allowClear={false}
-            style={{ width: 160 }}
+            style={{ width: 340 }}
           />
         )}
       </div>

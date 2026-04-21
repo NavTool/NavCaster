@@ -3,6 +3,7 @@ import { Table, Typography, Tabs, Tag, Input } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { HistoryOutlined } from '@ant-design/icons';
 import { usePolling } from '../hooks/usePolling';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { formatOnlineTime } from '../utils/format';
 
@@ -60,6 +61,7 @@ async function fetchClientLogs(): Promise<Record<string, HistoryRecord>> {
 }
 
 const ConnectionHistory: React.FC = () => {
+  const navigate = useNavigate();
   const { data: serverData, loading: serverLoading } = usePolling(fetchServerLogs, 10000);
   const { data: clientData, loading: clientLoading } = usePolling(fetchClientLogs, 10000);
   const [search, setSearch] = useState('');
@@ -155,6 +157,10 @@ const ConnectionHistory: React.FC = () => {
                   size="small"
                   pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
                   scroll={{ x: 1100 }}
+                  onRow={(record) => ({
+                    onClick: () => navigate(`/history/server/${encodeURIComponent(record.name)}`),
+                    style: { cursor: 'pointer' },
+                  })}
                 />
               </div>
             ),
@@ -171,6 +177,10 @@ const ConnectionHistory: React.FC = () => {
                   size="small"
                   pagination={{ pageSize: 50, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
                   scroll={{ x: 1200 }}
+                  onRow={(record) => ({
+                    onClick: () => navigate(`/history/client/${encodeURIComponent(record.name)}`),
+                    style: { cursor: 'pointer' },
+                  })}
                 />
               </div>
             ),

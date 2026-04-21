@@ -61,6 +61,9 @@ public:
         return 0;
     }
 
+    double getSendTotal() const { return _send_total; }
+    double getRecvTotal() const { return _recv_total; }
+
     int fromString(const std::string &str)
     {
         return 0; // 目前不需要从字符串解析状态，后续如果需要再实现

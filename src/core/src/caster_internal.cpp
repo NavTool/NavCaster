@@ -136,6 +136,12 @@ void caster_internal::flush_online_history()
     {
         entry["disconnect_time"] = now;
         entry["last_update"] = now;
+        auto stt = _stream_status_map.find(ck);
+        if (stt != _stream_status_map.end())
+        {
+            entry["send_total"] = stt->second.getSendTotal();
+            entry["recv_total"] = stt->second.getRecvTotal();
+        }
         std::string mount = entry.value("name", std::string());
         std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
         std::string key = std::string(LOG_MPT_PREFIX) + mount;
@@ -147,6 +153,12 @@ void caster_internal::flush_online_history()
     {
         entry["disconnect_time"] = now;
         entry["last_update"] = now;
+        auto stt = _stream_status_map.find(ck);
+        if (stt != _stream_status_map.end())
+        {
+            entry["send_total"] = stt->second.getSendTotal();
+            entry["recv_total"] = stt->second.getRecvTotal();
+        }
         std::string user = entry.value("name", std::string());
         std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
         std::string key = std::string(LOG_USR_PREFIX) + user;
@@ -1934,6 +1946,16 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
         return 3;
     }
     _server_status_map.erase(connect_key);
+    // Capture stream totals before erasing
+    double log_send_total = 0, log_recv_total = 0;
+    {
+        auto stt = _stream_status_map.find(connect_key);
+        if (stt != _stream_status_map.end())
+        {
+            log_send_total = stt->second.getSendTotal();
+            log_recv_total = stt->second.getRecvTotal();
+        }
+    }
     _stream_status_map.erase(connect_key);
     _base_decoder_map.erase(connect_key);
     // // 向云端插入记录
@@ -1950,6 +1972,8 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
             long long now_ts = util_get_now_second();
             hit->second["disconnect_time"] = now_ts;
             hit->second["last_update"] = now_ts;
+            hit->second["send_total"] = log_send_total;
+            hit->second["recv_total"] = log_recv_total;
             std::string log_key = std::string(LOG_MPT_PREFIX) + channel;
             std::string log_field = std::to_string(hit->second.value("connect_time", now_ts)) + "_" + connect_key;
             redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", log_key.c_str(), log_field.c_str(), hit->second.dump().c_str());
@@ -1989,6 +2013,16 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
         return 3;
     }
     _client_status_map.erase(connect_key);
+    // Capture stream totals before erasing
+    double log_send_total = 0, log_recv_total = 0;
+    {
+        auto stt = _stream_status_map.find(connect_key);
+        if (stt != _stream_status_map.end())
+        {
+            log_send_total = stt->second.getSendTotal();
+            log_recv_total = stt->second.getRecvTotal();
+        }
+    }
     _stream_status_map.erase(connect_key);
     _rover_decoder_map.erase(connect_key);
     _base_near_sub_map.erase(connect_key);
@@ -2006,6 +2040,8 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
             long long now_ts = util_get_now_second();
             hit->second["disconnect_time"] = now_ts;
             hit->second["last_update"] = now_ts;
+            hit->second["send_total"] = log_send_total;
+            hit->second["recv_total"] = log_recv_total;
             std::string log_key = std::string(LOG_USR_PREFIX) + user_name;
             std::string log_field = std::to_string(hit->second.value("connect_time", now_ts)) + "_" + connect_key;
             redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s", log_key.c_str(), log_field.c_str(), hit->second.dump().c_str());

@@ -176,6 +176,8 @@ export interface ConnectionHistoryItem {
   disconnect_time: number;
   duration: number;
   online: boolean;
+  send_total?: number;
+  recv_total?: number;
 }
 
 export async function getMptHistory(mount: string): Promise<ConnectionHistoryItem[]> {
