@@ -246,6 +246,7 @@ export interface ClusterMonitorInfo {
     set_version: string; tag_version: string; queue_delay: number;
     hostname: string; listen_port: number; http_port: number;
     process_id: number; http_enabled: boolean;
+    pub_ping_delay: number; sub_ping_delay: number;
     online_time: number; update_time: number; uptime_sec: number;
   }[];
 }

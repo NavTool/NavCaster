@@ -159,7 +159,7 @@ const Dashboard: React.FC = () => {
       <Title level={4} style={{ marginTop: 24 }}>节点状态</Title>
       <Row gutter={[16, 16]}>
         {nodeList.map((node: CasterNode) => (
-          <Col xs={24} sm={12} lg={8} key={node.uid}>
+          <Col xs={24} sm={12} md={8} lg={6} key={node.uid}>
             <Card className="node-card" style={{ borderColor: '#2e3450', cursor: 'pointer' }}
               onClick={() => navigate(`/nodes/${encodeURIComponent(node.uid)}`)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

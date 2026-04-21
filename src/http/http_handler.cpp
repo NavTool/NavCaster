@@ -2717,7 +2717,9 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
             {"http_enabled", node_info.value("http_enabled", false)},
             {"online_time", online_time},
             {"update_time", update_time},
-            {"uptime_sec", uptime_sec}
+            {"uptime_sec", uptime_sec},
+            {"pub_ping_delay", node_info.value("pub_ping_delay", 0LL)},
+            {"sub_ping_delay", node_info.value("sub_ping_delay", 0LL)}
         });
     }
 

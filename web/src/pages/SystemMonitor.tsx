@@ -3,14 +3,14 @@ import { Card, Col, Row, Typography, Spin, Table, Tag, Progress, Descriptions, T
 import {
   DatabaseOutlined, ClusterOutlined, CloudServerOutlined,
   DashboardOutlined, HddOutlined, ThunderboltOutlined,
-  CheckCircleOutlined, FieldTimeOutlined, ApiOutlined,
+  CheckCircleOutlined, ApiOutlined,
   CrownOutlined,
 } from '@ant-design/icons';
 import {
   getRedisMonitor, getRedisKeys, getClusterMonitor,
   type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo,
 } from '../api';
-import { formatBytes, formatDuration } from '../utils/format';
+import { formatBytes, formatDuration, formatDelay } from '../utils/format';
 import MetricCard from '../components/MetricCard';
 
 const { Title, Text } = Typography;
@@ -86,15 +86,12 @@ const SystemMonitor: React.FC = () => {
             <Col xs={12} sm={8} md={4}>
               <MetricCard title="Push" value={clusterInfo.total_push} prefix={<ThunderboltOutlined />} />
             </Col>
-            <Col xs={12} sm={8} md={4}>
-              <MetricCard title="Redis 延迟" value={clusterInfo.redis_latency_ms.toFixed(2)} suffix="ms" prefix={<FieldTimeOutlined />} />
-            </Col>
           </Row>
 
           {/* Node cards */}
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             {clusterInfo.nodes.map((node) => (
-              <Col xs={24} sm={12} md={8} key={node.uid}>
+              <Col xs={24} sm={12} md={6} key={node.uid}>
                 <Card
                   size="small"
                   title={
@@ -115,7 +112,7 @@ const SystemMonitor: React.FC = () => {
                     </Col>
                     <Col span={12}>
                       <Text type="secondary" style={{ fontSize: 12 }}>内存</Text>
-                      <div>{node.mem.toFixed(1)}%</div>
+                      <div>{formatMemory(node.mem)}</div>
                     </Col>
                   </Row>
                   <Row gutter={8} style={{ marginTop: 8 }}>
@@ -134,7 +131,7 @@ const SystemMonitor: React.FC = () => {
                     <Descriptions.Item label="运行">{formatDuration(node.uptime_sec)}</Descriptions.Item>
                   </Descriptions>
                   <div style={{ marginTop: 6, fontSize: 12, color: '#666' }}>
-                    {node.tag_version} · 队列 {node.queue_delay}μs
+                    {node.tag_version} · 队列 {node.queue_delay}μs · Redis {formatDelay(node.pub_ping_delay ?? 0)}
                   </div>
                 </Card>
               </Col>

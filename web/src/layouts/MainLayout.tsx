@@ -44,18 +44,25 @@ const menuItems = [
     children: [
       { key: '/servers', icon: <CloudServerOutlined />, label: '基准站' },
       { key: '/clients', icon: <UserOutlined />, label: '移动站' },
-      { key: '/history', icon: <HistoryOutlined />, label: '连接历史' },
     ],
   },
   {
-    key: 'config',
-    icon: <SettingOutlined />,
-    label: '配置',
+    key: 'user',
+    icon: <TeamOutlined />,
+    label: '用户',
+    children: [
+      { key: '/accounts', icon: <TeamOutlined />, label: '账号管理' },
+      { key: '/access', icon: <LockOutlined />, label: '访问管理' },
+    ],
+  },
+  {
+    key: 'mountpoint',
+    icon: <DatabaseOutlined />,
+    label: '挂载点',
     children: [
       { key: '/sources', icon: <DatabaseOutlined />, label: '源列表' },
       { key: '/aliases', icon: <BranchesOutlined />, label: '挂载点别名' },
-      { key: '/access', icon: <LockOutlined />, label: '访问管理' },
-      { key: '/accounts', icon: <TeamOutlined />, label: '账号管理' },
+      { key: '/sourcetable', icon: <TableOutlined />, label: '源表视图' },
     ],
   },
   {
@@ -65,7 +72,14 @@ const menuItems = [
     children: [
       { key: '/relay/pull', icon: <SwapOutlined />, label: '数据接入' },
       { key: '/relay/push', icon: <SwapOutlined />, label: '数据推送' },
-      { key: '/sourcetable', icon: <TableOutlined />, label: '源表视图' },
+    ],
+  },
+  {
+    key: 'logs',
+    icon: <HistoryOutlined />,
+    label: '日志',
+    children: [
+      { key: '/history', icon: <HistoryOutlined />, label: '连接历史' },
     ],
   },
   {
