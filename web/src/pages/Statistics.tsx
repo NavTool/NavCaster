@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Card, Row, Col, Statistic, Table, Segmented, Spin, DatePicker } from 'antd';
+import { Card, Row, Col, Statistic, Table, Segmented, Spin, DatePicker, Button, Checkbox } from 'antd';
 const { RangePicker } = DatePicker;
 import {
   CloudServerOutlined, UserOutlined, SwapOutlined, ClockCircleOutlined,
 } from '@ant-design/icons';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
@@ -65,26 +65,28 @@ const usrColumns = [
 const Statistics: React.FC = () => {
   const [range, setRange] = useState<RangeKey>('today');
   const [customRange, setCustomRange] = useState<DateRange>(null);
+  // committedRange drives actual data fetching; custom range only commits on explicit query
+  const [committedRange, setCommittedRange] = useState<{ key: RangeKey; custom: DateRange }>({ key: 'today', custom: null });
   const [overview, setOverview] = useState<StatsOverview | null>(null);
   const [mptRanking, setMptRanking] = useState<MptRankingItem[]>([]);
   const [usrRanking, setUsrRanking] = useState<UsrRankingItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visibleSeries, setVisibleSeries] = useState<Array<'mpt' | 'usr' | 'pull' | 'push'>>(['mpt', 'usr', 'pull', 'push']);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       let params: { start?: number; end?: number; date?: string } = {};
       const now = Math.floor(Date.now() / 1000);
-      if (range === 'today') {
+      const { key, custom } = committedRange;
+      if (key === 'today') {
         // Use default (server returns today)
-      } else if (range === '7d') {
+      } else if (key === '7d') {
         params = { start: now - 7 * 86400, end: now };
-      } else if (range === '30d') {
+      } else if (key === '30d') {
         params = { start: now - 30 * 86400, end: now };
-      } else if (range === 'custom' && customRange?.[0] && customRange?.[1]) {
-        const startDay = customRange[0];
-        const endDay = customRange[1];
-        params = { start: startDay.unix(), end: endDay.unix() };
+      } else if (key === 'custom' && custom?.[0] && custom?.[1]) {
+        params = { start: custom[0].unix(), end: custom[1].unix() };
       }
 
       const overviewPromise = getStatsOverview(params);
@@ -103,13 +105,27 @@ const Statistics: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [range, customDate]);
+  }, [committedRange]);
 
-  useEffect(() => { loadData(); }, [loadData, customRange]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Preset ranges commit immediately; custom range waits for explicit query
+  const handleRangeChange = (v: RangeKey) => {
+    setRange(v);
+    if (v !== 'custom') {
+      setCommittedRange({ key: v, custom: null });
+    }
+  };
+
+  const handleCustomQuery = () => {
+    if (customRange?.[0] && customRange?.[1]) {
+      setCommittedRange({ key: 'custom', custom: customRange });
+    }
+  };
 
   const trendData = overview?.hourly_trend?.map(h => ({
     ...h,
-    label: (overview.hourly_trend.length > 48) ? formatDate(h.ts) : formatHour(h.ts),
+    label: ((overview.bucket_seconds ?? 3600) >= 86400) ? formatDate(h.ts) : formatHour(h.ts),
   })) ?? [];
 
   const mptDataSource = mptRanking.map((item, idx) => ({ ...item, rank: idx + 1, key: item.name }));
@@ -126,17 +142,26 @@ const Statistics: React.FC = () => {
             { label: '自定义', value: 'custom' },
           ]}
           value={range}
-          onChange={v => setRange(v as RangeKey)}
+          onChange={v => handleRangeChange(v as RangeKey)}
         />
         {range === 'custom' && (
-          <RangePicker
-            value={customRange as [Dayjs, Dayjs] | null}
-            onChange={v => setCustomRange(v as DateRange)}
-            showTime={{ format: 'HH:mm' }}
-            format="MM-DD HH:mm"
-            allowClear={false}
-            style={{ width: 340 }}
-          />
+          <>
+            <RangePicker
+              value={customRange as [Dayjs, Dayjs] | null}
+              onChange={v => setCustomRange(v as DateRange)}
+              showTime={{ format: 'HH:mm' }}
+              format="MM-DD HH:mm"
+              allowClear={false}
+              style={{ width: 340 }}
+            />
+            <Button
+              type="primary"
+              onClick={handleCustomQuery}
+              disabled={!customRange?.[0] || !customRange?.[1]}
+            >
+              查询
+            </Button>
+          </>
         )}
       </div>
 
@@ -155,12 +180,32 @@ const Statistics: React.FC = () => {
           </Col>
           <Col xs={12} sm={6}>
             <Card style={statCardStyle} size="small">
+              <Statistic title="Pull 连接数" value={overview?.pull_connections ?? 0} prefix={<SwapOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Card style={statCardStyle} size="small">
+              <Statistic title="Push 连接数" value={overview?.push_connections ?? 0} prefix={<SwapOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Card style={statCardStyle} size="small">
               <Statistic title="峰值基站并发" value={overview?.peak_concurrent_mpt ?? 0} prefix={<SwapOutlined />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card style={statCardStyle} size="small">
               <Statistic title="峰值用户并发" value={overview?.peak_concurrent_usr ?? 0} prefix={<SwapOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Card style={statCardStyle} size="small">
+              <Statistic title="峰值 Pull 并发" value={overview?.peak_concurrent_pull ?? 0} prefix={<SwapOutlined />} />
+            </Card>
+          </Col>
+          <Col xs={12} sm={6}>
+            <Card style={statCardStyle} size="small">
+              <Statistic title="峰值 Push 并发" value={overview?.peak_concurrent_push ?? 0} prefix={<SwapOutlined />} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
@@ -186,9 +231,25 @@ const Statistics: React.FC = () => {
         </Row>
 
         {/* Hourly trend chart */}
-        <Card title="连接数趋势" style={{ ...cardStyle, marginTop: 16 }} size="small">
+        <Card
+          title="连接数趋势"
+          style={{ ...cardStyle, marginTop: 16 }}
+          size="small"
+          extra={
+            <Checkbox.Group
+              value={visibleSeries}
+              onChange={(v) => setVisibleSeries(v as Array<'mpt' | 'usr' | 'pull' | 'push'>)}
+              options={[
+                { label: '基站', value: 'mpt' },
+                { label: '用户', value: 'usr' },
+                { label: 'Pull', value: 'pull' },
+                { label: 'Push', value: 'push' },
+              ]}
+            />
+          }
+        >
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={trendData}>
+            <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2e3450" />
               <XAxis dataKey="label" stroke="#6b7194" tick={{ fontSize: 11 }}
                 interval={trendData.length > 48 ? Math.floor(trendData.length / 12) : undefined} />
@@ -198,9 +259,19 @@ const Statistics: React.FC = () => {
                 labelStyle={{ color: '#9da1b8' }}
               />
               <Legend />
-              <Bar dataKey="mpt" name="基站" fill="#4a8eff" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="usr" name="用户" fill="#52c41a" radius={[2, 2, 0, 0]} />
-            </BarChart>
+              {visibleSeries.includes('mpt') && (
+                <Line type="monotone" dataKey="mpt" name="基站" stroke="#4a8eff" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              )}
+              {visibleSeries.includes('usr') && (
+                <Line type="monotone" dataKey="usr" name="用户" stroke="#52c41a" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              )}
+              {visibleSeries.includes('pull') && (
+                <Line type="monotone" dataKey="pull" name="Pull" stroke="#faad14" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              )}
+              {visibleSeries.includes('push') && (
+                <Line type="monotone" dataKey="push" name="Push" stroke="#eb2f96" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              )}
+            </LineChart>
           </ResponsiveContainer>
         </Card>
 

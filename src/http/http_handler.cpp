@@ -1,6 +1,7 @@
 #include "http_handler.h"
 #include "SysUsage.h"
 #include "Caster_Core.h"
+#include "broadcast_msg.h"
 #include "base64.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -408,6 +409,58 @@ namespace
             return keys;
         }
 
+        // SCAN prefix* (hash keys only) + HGETALL each → aggregated json object {field: parsed_value, ...}
+        json scan_hgetall_prefix(const char *prefix)
+        {
+            if (!ensure_connected())
+                return json::object();
+
+            json result = json::object();
+            std::string pattern = std::string(prefix) + "*";
+            unsigned long long cursor = 0;
+            do
+            {
+                auto *sreply = static_cast<redisReply *>(
+                    redisCommand(_ctx, "SCAN %llu MATCH %s COUNT 200 TYPE hash", cursor, pattern.c_str()));
+                if (!sreply)
+                {
+                    reconnect();
+                    break;
+                }
+                if (sreply->type == REDIS_REPLY_ARRAY && sreply->elements == 2)
+                {
+                    cursor = std::strtoull(sreply->element[0]->str, nullptr, 10);
+                    auto *arr = sreply->element[1];
+                    for (size_t i = 0; i < arr->elements; i++)
+                    {
+                        if (!arr->element[i]->str)
+                            continue;
+                        const char *hkey = arr->element[i]->str;
+                        auto *hreply = static_cast<redisReply *>(redisCommand(_ctx, "HGETALL %s", hkey));
+                        if (hreply && hreply->type == REDIS_REPLY_ARRAY)
+                        {
+                            for (size_t j = 0; j + 1 < hreply->elements; j += 2)
+                            {
+                                std::string field = hreply->element[j]->str ? hreply->element[j]->str : "";
+                                std::string value = hreply->element[j + 1]->str ? hreply->element[j + 1]->str : "";
+                                try { result[field] = json::parse(value); }
+                                catch (...) { result[field] = value; }
+                            }
+                        }
+                        if (hreply)
+                            freeReplyObject(hreply);
+                    }
+                }
+                else
+                {
+                    freeReplyObject(sreply);
+                    break;
+                }
+                freeReplyObject(sreply);
+            } while (cursor != 0);
+            return result;
+        }
+
         // TYPE key → string
         std::string type(const char *key)
         {
@@ -592,12 +645,16 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     // ==================== Servers (read-only) ====================
     _server.route(EVHTTP_REQ_GET, "/api/servers", [this](auto &req, auto &resp)
                   { handle_get_servers(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/servers/kick/*", [this](auto &req, auto &resp)
+                  { handle_kick_server(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/servers/*", [this](auto &req, auto &resp)
                   { handle_get_server(req, resp); });
 
     // ==================== Clients (read-only) ====================
     _server.route(EVHTTP_REQ_GET, "/api/clients", [this](auto &req, auto &resp)
                   { handle_get_clients(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/clients/kick/*", [this](auto &req, auto &resp)
+                  { handle_kick_client(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/clients/*", [this](auto &req, auto &resp)
                   { handle_get_client(req, resp); });
 
@@ -1113,6 +1170,52 @@ IMPL_GET_ONE(handle_get_server, KEY_SERVER_STATE)
 IMPL_GET_ALL(handle_get_clients, KEY_CLIENT_STATE)
 IMPL_GET_ONE(handle_get_client, KEY_CLIENT_STATE)
 
+// ==================== Force Offline (Kick) ====================
+
+static int publish_kick_broadcast(const std::string &uid, bool is_server, const std::string &reason)
+{
+    broadcast_msg item;
+    item.type = is_server ? caster::core::BOARDCAST_TYPE_SERVER_OPERATE
+                          : caster::core::BOARDCAST_TYPE_CLIENT_OPERATE;
+    item.operate = caster::core::BOARDCAST_OPERATE_DELETE;
+    item.target = uid;
+    item.msg_str = "";
+    item.reason_str = reason;
+    return sync_redis::instance().publish("CASTER:BROADCAST", item.toString()) ? 0 : 1;
+}
+
+void http_handler::handle_kick_server(const HttpRequest &req, HttpResponse &resp)
+{
+    // URL: /api/servers/kick/{uid}
+    std::string uid = get_resource_id(req);
+    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing UID"})"; return; }
+
+    auto val = sync_redis::instance().hget(KEY_SERVER_STATE, uid.c_str());
+    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Server not found"})"; return; }
+
+    int rc = publish_kick_broadcast(uid, true, "Force offline by administrator");
+    if (rc != 0) { resp.status_code = 500; resp.body = R"({"error":"Failed to publish kick broadcast"})"; return; }
+
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+}
+
+void http_handler::handle_kick_client(const HttpRequest &req, HttpResponse &resp)
+{
+    // URL: /api/clients/kick/{uid}
+    std::string uid = get_resource_id(req);
+    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing UID"})"; return; }
+
+    auto val = sync_redis::instance().hget(KEY_CLIENT_STATE, uid.c_str());
+    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Client not found"})"; return; }
+
+    int rc = publish_kick_broadcast(uid, false, "Force offline by administrator");
+    if (rc != 0) { resp.status_code = 500; resp.body = R"({"error":"Failed to publish kick broadcast"})"; return; }
+
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+}
+
 // ==================== Streams (STR:STAT) read-only ====================
 
 IMPL_GET_ALL(handle_get_streams, KEY_STREAM_STATE)
@@ -1547,26 +1650,47 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     if (end_ts == 0) end_ts = now_ts + 1;
 
     auto &redis = sync_redis::instance();
-    json mpt_logs = redis.hgetall(KEY_LOG_MPT);
-    json usr_logs = redis.hgetall(KEY_LOG_USR);
+    json mpt_logs = redis.scan_hgetall_prefix("LOG:MPT:");
+    json usr_logs = redis.scan_hgetall_prefix("LOG:USR:");
+
+    // PULL=5, PUSH=6 (CasterRegisterType enum values)
+    static constexpr int TYPE_PULL = 5;
+    static constexpr int TYPE_PUSH = 6;
 
     // Aggregate
     long long mpt_connections = 0, usr_connections = 0;
+    long long pull_connections = 0, push_connections = 0;
     long long total_duration_mpt = 0, total_duration_usr = 0;
     int peak_concurrent_mpt = 0, peak_concurrent_usr = 0;
+    int peak_concurrent_pull = 0, peak_concurrent_push = 0;
     std::set<std::string> unique_mounts, unique_users;
 
-    // Time-slot concurrency (hourly buckets for the queried range, max 168 buckets = 7 days)
-    int num_hours = std::min(168LL, (end_ts - start_ts + 3599) / 3600);
-    if (num_hours <= 0) num_hours = 24;
+    // Time-slot concurrency: adapt bucket size to range
+    //  - <= 48h : 1h buckets
+    //  - <= 31d : 1d buckets
+    //  - else   : weekly buckets, capped at 200 buckets
+    long long range_secs = std::max(1LL, end_ts - start_ts);
+    long long bucket_secs;
+    if (range_secs <= 48LL * 3600LL) bucket_secs = 3600LL;
+    else if (range_secs <= 31LL * 86400LL) bucket_secs = 86400LL;
+    else bucket_secs = 7LL * 86400LL;
+    int num_hours = static_cast<int>((range_secs + bucket_secs - 1) / bucket_secs);
+    if (num_hours <= 0) num_hours = 1;
+    if (num_hours > 200) num_hours = 200;
     std::vector<int> mpt_hourly(num_hours, 0);
     std::vector<int> usr_hourly(num_hours, 0);
+    std::vector<int> pull_hourly(num_hours, 0);
+    std::vector<int> push_hourly(num_hours, 0);
 
     auto process_logs = [&](const json &logs, bool is_mpt)
     {
         for (auto &[field, entry] : logs.items())
         {
             if (!entry.is_object()) continue;
+            int type_val = entry.value("type", 0);
+            bool is_pull = is_mpt && (type_val == TYPE_PULL);
+            bool is_push = !is_mpt && (type_val == TYPE_PUSH);
+
             long long ct = entry.value("connect_time", 0LL);
             long long dt = entry.value("disconnect_time", 0LL);
             if (dt == 0) dt = now_ts; // still online
@@ -1574,13 +1698,22 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
             // Skip if completely outside range
             if (dt < start_ts || ct >= end_ts) continue;
 
-            if (is_mpt)
+            long long overlap_start = std::max(ct, start_ts);
+            long long overlap_end = std::min(dt, end_ts);
+
+            if (is_pull)
+            {
+                pull_connections++;
+            }
+            else if (is_push)
+            {
+                push_connections++;
+            }
+            else if (is_mpt)
             {
                 mpt_connections++;
                 std::string name = entry.value("name", "");
                 if (!name.empty()) unique_mounts.insert(name);
-                long long overlap_start = std::max(ct, start_ts);
-                long long overlap_end = std::min(dt, end_ts);
                 total_duration_mpt += (overlap_end - overlap_start);
             }
             else
@@ -1588,21 +1721,23 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
                 usr_connections++;
                 std::string name = entry.value("name", "");
                 if (!name.empty()) unique_users.insert(name);
-                long long overlap_start = std::max(ct, start_ts);
-                long long overlap_end = std::min(dt, end_ts);
                 total_duration_usr += (overlap_end - overlap_start);
             }
 
-            // Hourly concurrency: mark each hour this session overlaps
+            // Bucket concurrency: mark each bucket this session overlaps
             long long h_start = std::max(ct, start_ts);
             long long h_end = std::min(dt, end_ts);
-            int bucket_begin = static_cast<int>((h_start - start_ts) / 3600);
-            int bucket_end = static_cast<int>((h_end - start_ts) / 3600);
+            int bucket_begin = static_cast<int>((h_start - start_ts) / bucket_secs);
+            int bucket_end = static_cast<int>((h_end - start_ts) / bucket_secs);
             if (bucket_begin < 0) bucket_begin = 0;
             if (bucket_end >= num_hours) bucket_end = num_hours - 1;
-            auto &hourly = is_mpt ? mpt_hourly : usr_hourly;
+            if (bucket_end < bucket_begin) continue;
+            std::vector<int> *hourly_ptr = is_pull ? &pull_hourly
+                                         : is_push ? &push_hourly
+                                         : is_mpt  ? &mpt_hourly
+                                                   : &usr_hourly;
             for (int b = bucket_begin; b <= bucket_end; b++)
-                hourly[b]++;
+                (*hourly_ptr)[b]++;
         }
     };
 
@@ -1613,16 +1748,20 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     {
         if (mpt_hourly[i] > peak_concurrent_mpt) peak_concurrent_mpt = mpt_hourly[i];
         if (usr_hourly[i] > peak_concurrent_usr) peak_concurrent_usr = usr_hourly[i];
+        if (pull_hourly[i] > peak_concurrent_pull) peak_concurrent_pull = pull_hourly[i];
+        if (push_hourly[i] > peak_concurrent_push) peak_concurrent_push = push_hourly[i];
     }
 
-    // Build hourly trend
+    // Build trend
     json hourly_trend = json::array();
     for (int i = 0; i < num_hours; i++)
     {
         json h;
-        h["ts"] = start_ts + i * 3600;
+        h["ts"] = start_ts + i * bucket_secs;
         h["mpt"] = mpt_hourly[i];
         h["usr"] = usr_hourly[i];
+        h["pull"] = pull_hourly[i];
+        h["push"] = push_hourly[i];
         hourly_trend.push_back(h);
     }
 
@@ -1631,13 +1770,18 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     result["end"] = end_ts;
     result["mpt_connections"] = mpt_connections;
     result["usr_connections"] = usr_connections;
+    result["pull_connections"] = pull_connections;
+    result["push_connections"] = push_connections;
     result["peak_concurrent_mpt"] = peak_concurrent_mpt;
     result["peak_concurrent_usr"] = peak_concurrent_usr;
+    result["peak_concurrent_pull"] = peak_concurrent_pull;
+    result["peak_concurrent_push"] = peak_concurrent_push;
     result["avg_duration_mpt"] = mpt_connections > 0 ? total_duration_mpt / mpt_connections : 0;
     result["avg_duration_usr"] = usr_connections > 0 ? total_duration_usr / usr_connections : 0;
     result["unique_mountpoints"] = static_cast<int>(unique_mounts.size());
     result["unique_users"] = static_cast<int>(unique_users.size());
     result["hourly_trend"] = hourly_trend;
+    result["bucket_seconds"] = bucket_secs;
 
     resp.status_code = 200;
     resp.body = result.dump();
@@ -1686,50 +1830,76 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
     }
 
     // Compute from logs
-    json mpt_logs = redis.hgetall(KEY_LOG_MPT);
-    json usr_logs = redis.hgetall(KEY_LOG_USR);
+    json mpt_logs = redis.scan_hgetall_prefix("LOG:MPT:");
+    json usr_logs = redis.scan_hgetall_prefix("LOG:USR:");
+
+    // PULL=5, PUSH=6 (CasterRegisterType enum values)
+    static constexpr int TYPE_PULL_D = 5;
+    static constexpr int TYPE_PUSH_D = 6;
 
     long long mpt_connections = 0, usr_connections = 0;
+    long long pull_connections = 0, push_connections = 0;
     long long total_duration_mpt = 0, total_duration_usr = 0;
     int peak_concurrent_mpt = 0, peak_concurrent_usr = 0;
+    int peak_concurrent_pull = 0, peak_concurrent_push = 0;
     std::set<std::string> unique_mounts, unique_users;
 
     int num_hours = 24;
     std::vector<int> mpt_hourly(num_hours, 0);
     std::vector<int> usr_hourly(num_hours, 0);
+    std::vector<int> pull_hourly(num_hours, 0);
+    std::vector<int> push_hourly(num_hours, 0);
 
     auto process_logs = [&](const json &logs, bool is_mpt)
     {
         for (auto &[field, entry] : logs.items())
         {
             if (!entry.is_object()) continue;
+            int type_val = entry.value("type", 0);
+            bool is_pull = is_mpt && (type_val == TYPE_PULL_D);
+            bool is_push = !is_mpt && (type_val == TYPE_PUSH_D);
+
             long long ct = entry.value("connect_time", 0LL);
             long long dt = entry.value("disconnect_time", 0LL);
             if (dt == 0) dt = now_ts;
             if (dt < start_ts || ct >= end_ts) continue;
 
-            if (is_mpt)
+            long long overlap_start = std::max(ct, start_ts);
+            long long overlap_end = std::min(dt, end_ts);
+
+            if (is_pull)
+            {
+                pull_connections++;
+            }
+            else if (is_push)
+            {
+                push_connections++;
+            }
+            else if (is_mpt)
             {
                 mpt_connections++;
                 std::string name = entry.value("name", "");
                 if (!name.empty()) unique_mounts.insert(name);
-                total_duration_mpt += (std::min(dt, end_ts) - std::max(ct, start_ts));
+                total_duration_mpt += (overlap_end - overlap_start);
             }
             else
             {
                 usr_connections++;
                 std::string name = entry.value("name", "");
                 if (!name.empty()) unique_users.insert(name);
-                total_duration_usr += (std::min(dt, end_ts) - std::max(ct, start_ts));
+                total_duration_usr += (overlap_end - overlap_start);
             }
 
             long long h_start = std::max(ct, start_ts);
             long long h_end = std::min(dt, end_ts);
             int bucket_begin = std::max(0, static_cast<int>((h_start - start_ts) / 3600));
             int bucket_end = std::min(num_hours - 1, static_cast<int>((h_end - start_ts) / 3600));
-            auto &hourly = is_mpt ? mpt_hourly : usr_hourly;
+            std::vector<int> *hourly_ptr = is_pull ? &pull_hourly
+                                         : is_push ? &push_hourly
+                                         : is_mpt  ? &mpt_hourly
+                                                   : &usr_hourly;
             for (int b = bucket_begin; b <= bucket_end; b++)
-                hourly[b]++;
+                (*hourly_ptr)[b]++;
         }
     };
 
@@ -1740,6 +1910,8 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
     {
         if (mpt_hourly[i] > peak_concurrent_mpt) peak_concurrent_mpt = mpt_hourly[i];
         if (usr_hourly[i] > peak_concurrent_usr) peak_concurrent_usr = usr_hourly[i];
+        if (pull_hourly[i] > peak_concurrent_pull) peak_concurrent_pull = pull_hourly[i];
+        if (push_hourly[i] > peak_concurrent_push) peak_concurrent_push = push_hourly[i];
     }
 
     json hourly_trend = json::array();
@@ -1749,6 +1921,8 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
         h["ts"] = start_ts + i * 3600;
         h["mpt"] = mpt_hourly[i];
         h["usr"] = usr_hourly[i];
+        h["pull"] = pull_hourly[i];
+        h["push"] = push_hourly[i];
         hourly_trend.push_back(h);
     }
 
@@ -1758,8 +1932,12 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
     result["end"] = end_ts;
     result["mpt_connections"] = mpt_connections;
     result["usr_connections"] = usr_connections;
+    result["pull_connections"] = pull_connections;
+    result["push_connections"] = push_connections;
     result["peak_concurrent_mpt"] = peak_concurrent_mpt;
     result["peak_concurrent_usr"] = peak_concurrent_usr;
+    result["peak_concurrent_pull"] = peak_concurrent_pull;
+    result["peak_concurrent_push"] = peak_concurrent_push;
     result["avg_duration_mpt"] = mpt_connections > 0 ? total_duration_mpt / mpt_connections : 0;
     result["avg_duration_usr"] = usr_connections > 0 ? total_duration_usr / usr_connections : 0;
     result["unique_mountpoints"] = static_cast<int>(unique_mounts.size());
@@ -1791,15 +1969,16 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
     if (limit <= 0) limit = 20;
     if (limit > 100) limit = 100;
 
-    json mpt_logs = sync_redis::instance().hgetall(KEY_LOG_MPT);
+    json mpt_logs = sync_redis::instance().scan_hgetall_prefix("LOG:MPT:");
 
-    // Aggregate per mountpoint
+    // Aggregate per mountpoint (exclude PULL relay type=5)
     struct MptStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; };
     std::map<std::string, MptStat> stats;
 
     for (auto &[field, entry] : mpt_logs.items())
     {
         if (!entry.is_object()) continue;
+        if (entry.value("type", 0) == 5) continue; // skip PULL relay entries
         long long ct = entry.value("connect_time", 0LL);
         long long dt = entry.value("disconnect_time", 0LL);
         if (dt == 0) dt = now_ts;
@@ -1852,7 +2031,7 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
     if (limit <= 0) limit = 20;
     if (limit > 100) limit = 100;
 
-    json usr_logs = sync_redis::instance().hgetall(KEY_LOG_USR);
+    json usr_logs = sync_redis::instance().scan_hgetall_prefix("LOG:USR:");
 
     struct UsrStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; std::set<std::string> mounts; };
     std::map<std::string, UsrStat> stats;
@@ -1860,6 +2039,7 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
     for (auto &[field, entry] : usr_logs.items())
     {
         if (!entry.is_object()) continue;
+        if (entry.value("type", 0) == 6) continue; // skip PUSH relay entries
         long long ct = entry.value("connect_time", 0LL);
         long long dt = entry.value("disconnect_time", 0LL);
         if (dt == 0) dt = now_ts;
@@ -1905,15 +2085,14 @@ void http_handler::handle_get_stats_mpt_history(const HttpRequest &req, HttpResp
     std::string mount = get_resource_id(req);
     if (mount.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint name"})"; return; }
 
-    json mpt_logs = sync_redis::instance().hgetall(KEY_LOG_MPT);
+    std::string log_key = "LOG:MPT:" + mount;
+    json mpt_logs = sync_redis::instance().hgetall(log_key.c_str());
     long long now_ts = static_cast<long long>(time(nullptr));
 
     json result = json::array();
     for (auto &[field, entry] : mpt_logs.items())
     {
         if (!entry.is_object()) continue;
-        std::string name = entry.value("name", "");
-        if (name != mount) continue;
 
         json item = entry;
         // Add computed duration
@@ -1938,15 +2117,14 @@ void http_handler::handle_get_stats_usr_history(const HttpRequest &req, HttpResp
     std::string user = get_resource_id(req);
     if (user.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing user name"})"; return; }
 
-    json usr_logs = sync_redis::instance().hgetall(KEY_LOG_USR);
+    std::string log_key = "LOG:USR:" + user;
+    json usr_logs = sync_redis::instance().hgetall(log_key.c_str());
     long long now_ts = static_cast<long long>(time(nullptr));
 
     json result = json::array();
     for (auto &[field, entry] : usr_logs.items())
     {
         if (!entry.is_object()) continue;
-        std::string name = entry.value("name", "");
-        if (name != user) continue;
 
         json item = entry;
         long long ct = entry.value("connect_time", 0LL);

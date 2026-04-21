@@ -20,31 +20,65 @@ import ConnectionHistory from './pages/ConnectionHistory';
 import ConnectionHistoryDetail from './pages/ConnectionHistoryDetail';
 import Statistics from './pages/Statistics';
 import SystemMonitor from './pages/SystemMonitor';
-import { getToken, getBaseURL } from './api/client';
-import { getHealthCheck } from './api';
+import { getToken, getBaseURL, probeBackend, setToken, setAuthUser } from './api/client';
 import { useEffect, useState } from 'react';
-import { Spin } from 'antd';
+import { Spin, Result, Button } from 'antd';
+import ErrorBoundary from './components/ErrorBoundary';
+
+type GuardState = 'checking' | 'ok' | 'unauth' | 'unreachable';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const [checking, setChecking] = useState(true);
+  const [state, setState] = useState<GuardState>('checking');
 
   useEffect(() => {
     if (!getToken() || !getBaseURL()) {
-      setChecking(false);
+      setState('unauth');
       return;
     }
-    getHealthCheck()
-      .then(() => setChecking(false))
-      .catch(() => setChecking(false));
+    let cancelled = false;
+    probeBackend().then((ok) => {
+      if (cancelled) return;
+      if (ok) {
+        setState('ok');
+      } else if (!getToken()) {
+        // probeBackend cleared token via 401/403 interceptor
+        setState('unauth');
+      } else {
+        setState('unreachable');
+      }
+    });
+    return () => { cancelled = true; };
   }, []);
 
-  if (!getToken() || !getBaseURL()) {
+  if (state === 'unauth') {
     return <Navigate to="/login" replace />;
   }
-  if (checking) {
+  if (state === 'checking') {
     return <Spin size="large" style={{ display: 'block', margin: '200px auto' }} />;
   }
-  return <>{children}</>;
+  if (state === 'unreachable') {
+    return (
+      <Result
+        status="warning"
+        title="无法连接到 NavCaster 后端"
+        subTitle="请检查服务器是否在线或网络连通性，然后重新登录。"
+        extra={
+          <Button
+            type="primary"
+            onClick={() => {
+              setToken(null);
+              setAuthUser(null);
+              window.location.hash = '#/login';
+            }}
+          >
+            返回登录页
+          </Button>
+        }
+        style={{ marginTop: 80 }}
+      />
+    );
+  }
+  return <ErrorBoundary>{children}</ErrorBoundary>;
 }
 
 export default function AppRouter() {

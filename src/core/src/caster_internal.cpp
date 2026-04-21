@@ -949,6 +949,7 @@ int caster_internal::relay_push_task_distribution()
     for (auto &list_iter : _push_record_map)
     {
         auto stat_iter = _push_status_map.find(list_iter.first);
+        std::string current_json = list_iter.second.toString();
         if (stat_iter == _push_status_map.end() && list_iter.second.is_enabled())
         {
             // STAT中不包含这个任务且已启用，创建任务
@@ -956,11 +957,28 @@ int caster_internal::relay_push_task_distribution()
             msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
             msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
             msg.target = list_iter.first;              // target填充UID
-            msg.msg_str = list_iter.second.toString();  // msg_str为PushRecord的JSON
+            msg.msg_str = current_json;                 // msg_str为PushRecord的JSON
             msg.reason_str = "Push Task Active";
 
             // 向某个节点发送广播，当前默认选择主节点执行这个任务
             redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
+            _push_record_distributed[list_iter.first] = current_json;
+        }
+        else if (stat_iter != _push_status_map.end() && list_iter.second.is_enabled())
+        {
+            // 任务正在运行, 检测配置是否变更: 变更则先发INACTIVE, 下一轮会重新ACTIVE
+            auto dist_it = _push_record_distributed.find(list_iter.first);
+            if (dist_it == _push_record_distributed.end() || dist_it->second != current_json)
+            {
+                broadcast_msg msg;
+                msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
+                msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
+                msg.target = list_iter.first;
+                msg.msg_str = stat_iter->second.toString();
+                msg.reason_str = "Push Task Config Changed";
+                redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
+                _push_record_distributed.erase(list_iter.first);
+            }
         }
     }
 
@@ -980,6 +998,7 @@ int caster_internal::relay_push_task_distribution()
 
             // 向指定节点发送广播
             redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
+            _push_record_distributed.erase(stat_iter.first);
         }
     }
 
@@ -994,6 +1013,7 @@ int caster_internal::relay_pull_task_distribution()
     for (auto &list_iter : _pull_record_map)
     {
         auto stat_iter = _pull_status_map.find(list_iter.first);
+        std::string current_json = list_iter.second.toString();
         if (stat_iter == _pull_status_map.end() && list_iter.second.is_enabled())
         {
             // STAT中不包含这个任务且已启用，创建任务
@@ -1001,11 +1021,28 @@ int caster_internal::relay_pull_task_distribution()
             msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
             msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
             msg.target = list_iter.first;              // target填充UID
-            msg.msg_str = list_iter.second.toString();  // msg_str为PullRecord的JSON
+            msg.msg_str = current_json;                 // msg_str为PullRecord的JSON
             msg.reason_str = "Pull Task Active";
 
             // 向某个节点发送广播，当前默认选择主节点执行这个任务
             redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
+            _pull_record_distributed[list_iter.first] = current_json;
+        }
+        else if (stat_iter != _pull_status_map.end() && list_iter.second.is_enabled())
+        {
+            // 任务正在运行, 检测配置是否变更: 变更则先发INACTIVE, 下一轮会重新ACTIVE
+            auto dist_it = _pull_record_distributed.find(list_iter.first);
+            if (dist_it == _pull_record_distributed.end() || dist_it->second != current_json)
+            {
+                broadcast_msg msg;
+                msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
+                msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
+                msg.target = list_iter.first;
+                msg.msg_str = stat_iter->second.toString();
+                msg.reason_str = "Pull Task Config Changed";
+                redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
+                _pull_record_distributed.erase(list_iter.first);
+            }
         }
     }
 
@@ -1025,6 +1062,7 @@ int caster_internal::relay_pull_task_distribution()
 
             // 向指定节点发送广播
             redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
+            _pull_record_distributed.erase(stat_iter.first);
         }
     }
 
@@ -1552,12 +1590,18 @@ int caster_internal::upload_record_item()
         }
     }
 
-    // 刷新连接历史记录的 last_update
+    // 刷新连接历史记录的 last_update 以及收发统计
     {
         auto now = util_get_now_second();
         for (auto &[ck, entry] : _base_history_map)
         {
             entry["last_update"] = now;
+            auto stt = _stream_status_map.find(ck);
+            if (stt != _stream_status_map.end())
+            {
+                entry["send_total"] = stt->second.getSendTotal();
+                entry["recv_total"] = stt->second.getRecvTotal();
+            }
             std::string mount = entry.value("name", std::string());
             std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
             std::string key = std::string(LOG_MPT_PREFIX) + mount;
@@ -1566,6 +1610,12 @@ int caster_internal::upload_record_item()
         for (auto &[ck, entry] : _rover_history_map)
         {
             entry["last_update"] = now;
+            auto stt = _stream_status_map.find(ck);
+            if (stt != _stream_status_map.end())
+            {
+                entry["send_total"] = stt->second.getSendTotal();
+                entry["recv_total"] = stt->second.getRecvTotal();
+            }
             std::string user = entry.value("name", std::string());
             std::string field = std::to_string(entry.value("connect_time", 0LL)) + "_" + ck;
             std::string key = std::string(LOG_USR_PREFIX) + user;
@@ -1772,6 +1822,8 @@ int caster_internal::register_base_channel(const char *channel, const char *user
             log_entry["connect_time"] = now_ts;
             log_entry["last_update"] = now_ts;
             log_entry["disconnect_time"] = 0;
+            log_entry["send_total"] = 0;
+            log_entry["recv_total"] = 0;
             std::string log_key = std::string(LOG_MPT_PREFIX) + channel;
             std::string log_field = std::to_string(now_ts) + "_" + connect_key;
             _base_history_map[connect_key] = log_entry;
@@ -1871,6 +1923,8 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
             log_entry["connect_time"] = now_ts;
             log_entry["last_update"] = now_ts;
             log_entry["disconnect_time"] = 0;
+            log_entry["send_total"] = 0;
+            log_entry["recv_total"] = 0;
             std::string log_key = std::string(LOG_USR_PREFIX) + user_name;
             std::string log_field = std::to_string(now_ts) + "_" + connect_key;
             _rover_history_map[connect_key] = log_entry;
@@ -1890,6 +1944,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
             throw std::invalid_argument("Connect_Key is already in the register map");
         }
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
+        _kick_map[connect_key] = cb_item;
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性，即：查询到的结果已经包含当前记录，因此避免查询-插入-再查询的时候
         // 向云端插入记录
@@ -1935,6 +1990,7 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
 
     // 删除该条记录
     channel_registers->second.erase(item);
+    _kick_map.erase(connect_key);
     // 删除Redis记录
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_CONNECTION_LIST ":%s %s", channel, connect_key);
 
@@ -2002,6 +2058,7 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
 
     // 删除该条记录
     channel_registers->second.erase(item);
+    _kick_map.erase(connect_key);
     // 删除Redis记录
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_CONNECTION_LIST ":%s %s", user_name, connect_key);
 
@@ -2763,6 +2820,23 @@ int caster_internal::broadcast_response(std::string req_str)
     if (req.fromString(req_str))
     {
         return 1; // 解析失败
+    }
+
+    // 强制下线: operate=DELETE 且 target 为具体连接key 时, 直接通过 _kick_map 派发 ERR 回调
+    if (req.operate == caster::core::BOARDCAST_OPERATE_DELETE && !req.target.empty()
+        && (req.type == caster::core::BOARDCAST_TYPE_SERVER_OPERATE
+            || req.type == caster::core::BOARDCAST_TYPE_CLIENT_OPERATE))
+    {
+        auto kit = _kick_map.find(req.target);
+        if (kit != _kick_map.end())
+        {
+            caster_reply Reply;
+            Reply.type = CasterReply::ERR;
+            Reply.str = req.reason_str.empty() ? "Force offline by administrator" : req.reason_str.c_str();
+            auto cb_item = kit->second;
+            cb_item.cb(NULL, cb_item.arg, &Reply);
+        }
+        return 0;
     }
 
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> *item_map = nullptr;

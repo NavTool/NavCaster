@@ -55,17 +55,43 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor — handle 401
+// Response interceptor — handle 401/403 (auth failure -> force re-login)
+function redirectToLogin() {
+  // Avoid double-redirect when already on login page
+  if (window.location.hash.startsWith('#/login')) return;
+  setToken(null);
+  setAuthUser(null);
+  window.location.hash = '#/login';
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      setToken(null);
-      setAuthUser(null);
-      window.location.hash = '#/login';
+    const status = error.response?.status;
+    if (status === 401 || status === 403) {
+      redirectToLogin();
     }
     return Promise.reject(error);
   }
 );
+
+// Lightweight reachability + auth probe used by route guards / fallback.
+// Resolves with true when backend is reachable AND current credentials are
+// accepted; false otherwise. On hard auth failure, also clears token.
+export async function probeBackend(): Promise<boolean> {
+  if (!authToken || !api.defaults.baseURL) return false;
+  try {
+    await api.get('/api/status/health', { timeout: 5000 });
+    return true;
+  } catch (err: any) {
+    const status = err?.response?.status;
+    if (status === 401 || status === 403) {
+      // interceptor already redirected
+      return false;
+    }
+    // Network / 5xx: keep token but report unreachable
+    return false;
+  }
+}
 
 export default api;

@@ -108,7 +108,9 @@ const SystemMonitor: React.FC = () => {
                   <Row gutter={8}>
                     <Col span={12}>
                       <Text type="secondary" style={{ fontSize: 12 }}>CPU</Text>
-                      <Progress percent={Number(node.cpu.toFixed(1))} size="small" strokeColor={node.cpu > 80 ? '#ff4d4f' : node.cpu > 50 ? '#faad14' : '#52c41a'} />
+                      <div style={{ color: node.cpu > 80 ? '#ff4d4f' : node.cpu > 50 ? '#faad14' : undefined }}>
+                        {(node.cpu ?? 0).toFixed(1)}%
+                      </div>
                     </Col>
                     <Col span={12}>
                       <Text type="secondary" style={{ fontSize: 12 }}>内存</Text>

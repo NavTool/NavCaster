@@ -302,6 +302,7 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _base_register_map;  // channel/connect_key/cb_arg
     std::unordered_map<std::string, std::unordered_map<std::string, caster_cb_item>> _rover_register_map; // channel/connect_key/cb_arg
     std::unordered_map<std::string, caster_cb_item> _base_near_sub_map;                                   // 连接key/cb_arg
+    std::unordered_map<std::string, caster_cb_item> _kick_map;                                            // connect_key -> cb (用于强制下线，连接维度直接索引)
 
     // 本节点维护的状态信息 挂载点解析的状态信息
     std::unordered_map<std::string, stream_status> _stream_status_map; // 记录每个连接的数据流统计信息(基站和用户的连接都记录在这里, 连接key为Mount_Point-ConnectKey)
@@ -542,6 +543,9 @@ private:
     std::unordered_map<std::string, pull_status> _pull_status_map; // 拉取连接的状态信息
     std::unordered_map<std::string, push_status> _push_status_map; // 推送连接的状态信息
                                                                    //  流的信息不在这里统计
+    // 已分发任务的最近一次配置JSON快照, 用于检测配置变化触发重启
+    std::unordered_map<std::string, std::string> _pull_record_distributed;
+    std::unordered_map<std::string, std::string> _push_record_distributed;
 
     int try_set_master_node();          // 尝试设置为主节点
     int sync_cluster_state();           // 主节点同步全局信息到本地

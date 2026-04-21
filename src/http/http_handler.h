@@ -85,10 +85,12 @@ private:
     // Server States (MPT:STAT) — read-only
     void handle_get_servers(const HttpRequest &req, HttpResponse &resp);
     void handle_get_server(const HttpRequest &req, HttpResponse &resp);
+    void handle_kick_server(const HttpRequest &req, HttpResponse &resp);
 
     // Client States (USR:STAT) — read-only
     void handle_get_clients(const HttpRequest &req, HttpResponse &resp);
     void handle_get_client(const HttpRequest &req, HttpResponse &resp);
+    void handle_kick_client(const HttpRequest &req, HttpResponse &resp);
 
     // Stream States (STR:STAT) — read-only
     void handle_get_streams(const HttpRequest &req, HttpResponse &resp);

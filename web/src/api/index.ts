@@ -86,6 +86,12 @@ export const resourceApi = {
     const { data } = await api.get('/api/mountpoints/subscribers');
     return data;
   },
+  async kickServer(uid: string): Promise<void> {
+    await api.post(`/api/servers/kick/${encodeURIComponent(uid)}`);
+  },
+  async kickClient(uid: string): Promise<void> {
+    await api.post(`/api/clients/kick/${encodeURIComponent(uid)}`);
+  },
 };
 
 // Node history (time-series snapshots)
@@ -117,13 +123,18 @@ export interface StatsOverview {
   end: number;
   mpt_connections: number;
   usr_connections: number;
+  pull_connections: number;
+  push_connections: number;
   peak_concurrent_mpt: number;
   peak_concurrent_usr: number;
+  peak_concurrent_pull: number;
+  peak_concurrent_push: number;
   avg_duration_mpt: number;
   avg_duration_usr: number;
   unique_mountpoints: number;
   unique_users: number;
-  hourly_trend: { ts: number; mpt: number; usr: number }[];
+  hourly_trend: { ts: number; mpt: number; usr: number; pull: number; push: number }[];
+  bucket_seconds?: number;
 }
 
 export interface MptRankingItem {
