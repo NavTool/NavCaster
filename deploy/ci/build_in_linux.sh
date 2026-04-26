@@ -10,6 +10,10 @@ PACKAGE_ROOT="${ROOT_DIR}/release"
 PACKAGE_NAME="${PACKAGE_NAME:-NavCaster-${BUILD_TYPE}}"
 PACKAGE_DIR="${PACKAGE_ROOT}/${PACKAGE_NAME}"
 WEB_DIST_DIR="${WEB_DIST_DIR:-${ROOT_DIR}/web/dist}"
+REDIS_VERSION="${REDIS_VERSION:-7.4.0}"
+REDIS_REPO_URL="${REDIS_REPO_URL:-https://github.com/redis/redis.git}"
+REDIS_SRC_DIR="${BUILD_DIR}/redis-src"
+REDIS_PACKAGE_DIR="${PACKAGE_DIR}/env/redis"
 
 BINARIES=(
 	CasterService
@@ -20,6 +24,62 @@ BINARIES=(
 	rtklib_rnx2rtkp
 	rtklib_rtkconv
 )
+
+clone_redis_source() {
+	local candidate_refs=("${REDIS_VERSION}")
+
+	if [[ "${REDIS_VERSION}" == v* ]]; then
+		candidate_refs+=("${REDIS_VERSION#v}")
+	else
+		candidate_refs+=("v${REDIS_VERSION}")
+	fi
+
+	for ref in "${candidate_refs[@]}"; do
+		rm -rf "${REDIS_SRC_DIR}"
+		if git clone --depth 1 --branch "${ref}" "${REDIS_REPO_URL}" "${REDIS_SRC_DIR}"; then
+			return 0
+		fi
+	done
+
+	echo "[ci] failed to fetch redis source for version: ${REDIS_VERSION}" >&2
+	return 1
+}
+
+build_and_package_redis() {
+	echo "[ci] redis version: ${REDIS_VERSION}"
+
+	rm -rf "${REDIS_SRC_DIR}" "${REDIS_PACKAGE_DIR}"
+	clone_redis_source
+
+	make -C "${REDIS_SRC_DIR}" BUILD_TLS=no MALLOC=libc -j"$(nproc)"
+
+	if [[ ! -f "${REDIS_SRC_DIR}/src/redis-server" ]]; then
+		echo "[ci] missing redis build output: ${REDIS_SRC_DIR}/src/redis-server" >&2
+		exit 1
+	fi
+
+	mkdir -p "${REDIS_PACKAGE_DIR}"
+
+	local redis_binaries=(
+		redis-server
+		redis-cli
+		redis-benchmark
+		redis-check-aof
+		redis-check-rdb
+		redis-sentinel
+	)
+
+	for binary in "${redis_binaries[@]}"; do
+		if [[ -f "${REDIS_SRC_DIR}/src/${binary}" ]]; then
+			cp "${REDIS_SRC_DIR}/src/${binary}" "${REDIS_PACKAGE_DIR}/"
+		fi
+	done
+
+	if [[ -f "${REDIS_SRC_DIR}/redis.conf" ]]; then
+		cp "${REDIS_SRC_DIR}/redis.conf" "${REDIS_PACKAGE_DIR}/redis.conf"
+		cp "${REDIS_SRC_DIR}/redis.conf" "${REDIS_PACKAGE_DIR}/redis.config"
+	fi
+}
 
 echo "[ci] build type: ${BUILD_TYPE}"
 echo "[ci] build dir : ${BUILD_DIR}"
@@ -41,7 +101,7 @@ if [[ ! -f "${WEB_DIST_DIR}/index.html" ]]; then
 	exit 1
 fi
 
-mkdir -p "${PACKAGE_DIR}/conf" "${PACKAGE_DIR}/logs" "${PACKAGE_DIR}/web" "${PACKAGE_DIR}/scripts"
+mkdir -p "${PACKAGE_DIR}/conf" "${PACKAGE_DIR}/logs" "${PACKAGE_DIR}/web" "${PACKAGE_DIR}/scripts" "${PACKAGE_DIR}/env"
 
 for binary in "${BINARIES[@]}"; do
 	if [[ -f "${RUNTIME_DIR}/${binary}" ]]; then
@@ -53,10 +113,7 @@ cp -r "${RUNTIME_DIR}/conf/." "${PACKAGE_DIR}/conf/"
 cp -r "${WEB_DIST_DIR}/." "${PACKAGE_DIR}/web/"
 cp -r "${ROOT_DIR}/deploy/scripts/." "${PACKAGE_DIR}/scripts/"
 
-rm -f "${PACKAGE_DIR}/scripts/systemd/install_redis_service.sh"
-rm -f "${PACKAGE_DIR}/scripts/systemd/uninstall_redis_service.sh"
-rm -f "${PACKAGE_DIR}/scripts/supervisor/install_redis_service.sh"
-rm -f "${PACKAGE_DIR}/scripts/supervisor/uninstall_redis_service.sh"
+build_and_package_redis
 
 sed -i 's#Web_Root: ""#Web_Root: "./web"#' "${PACKAGE_DIR}/conf/Service_Setting.yml"
 

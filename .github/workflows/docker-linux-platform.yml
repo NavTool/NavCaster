@@ -14,6 +14,7 @@ on:
 
 env:
   BUILD_TYPE: Release
+  REDIS_VERSION: 7.4.0
 
 jobs:
   build:
@@ -108,7 +109,7 @@ jobs:
           docker cp . build-container-${{ matrix.version }}:/workspace
           docker exec -w /workspace build-container-${{ matrix.version }} git config --global --add safe.directory /workspace
           docker exec -e BUILD_TYPE=${BUILD_TYPE} -e PACKAGE_NAME=${{ steps.meta.outputs.package_name }} -w /workspace build-container-${{ matrix.version }} chmod +x deploy/ci/build_in_linux.sh
-          docker exec -e BUILD_TYPE=${BUILD_TYPE} -e PACKAGE_NAME=${{ steps.meta.outputs.package_name }} -w /workspace build-container-${{ matrix.version }} bash deploy/ci/build_in_linux.sh
+          docker exec -e BUILD_TYPE=${BUILD_TYPE} -e PACKAGE_NAME=${{ steps.meta.outputs.package_name }} -e REDIS_VERSION=${REDIS_VERSION} -w /workspace build-container-${{ matrix.version }} bash deploy/ci/build_in_linux.sh
 
       - name: Copy artifacts from container
         run: |

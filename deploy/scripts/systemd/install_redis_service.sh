@@ -1,10 +1,13 @@
 #!/bin/bash
 
 cd $(dirname "$(readlink -f "$0")")
-cd ../../redis
-# 获取当前服务的根目录
-#EXECUTABLE_DIR=$(dirname "$(readlink -f "$0")")
+cd ../../env/redis
 EXECUTABLE_DIR=$(pwd)
+
+CONFIG_FILE="$EXECUTABLE_DIR/redis.conf"
+if [ ! -f "$CONFIG_FILE" ] && [ -f "$EXECUTABLE_DIR/redis.config" ]; then
+	CONFIG_FILE="$EXECUTABLE_DIR/redis.config"
+fi
 
 # 固定的可执行程序名称
 EXECUTABLE_NAME="redis-server"
@@ -14,7 +17,7 @@ SUPERVISOR_NAME="REDIS_SERVICE"
 
 
 # 守护进程的完整路径
-COMMAND="$EXECUTABLE_DIR/$EXECUTABLE_NAME $EXECUTABLE_DIR/redis.config"
+COMMAND="$EXECUTABLE_DIR/$EXECUTABLE_NAME $CONFIG_FILE"
 
 # 文件路径
 SYSTEMD_CONF_PATH="/usr/lib/systemd/system/$SUPERVISOR_NAME.service "

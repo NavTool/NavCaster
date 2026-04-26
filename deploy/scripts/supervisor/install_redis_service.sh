@@ -1,10 +1,13 @@
 #!/bin/bash
 
 cd $(dirname "$(readlink -f "$0")")
-cd ../../redis
-# 获取当前服务的根目录
-#EXECUTABLE_DIR=$(dirname "$(readlink -f "$0")")
+cd ../../env/redis
 EXECUTABLE_DIR=$(pwd)
+
+REDIS_CONFIG_FILE="$EXECUTABLE_DIR/redis.conf"
+if [ ! -f "$REDIS_CONFIG_FILE" ] && [ -f "$EXECUTABLE_DIR/redis.config" ]; then
+    REDIS_CONFIG_FILE="$EXECUTABLE_DIR/redis.config"
+fi
 
 # 固定的可执行程序名称
 EXECUTABLE_NAME="redis-server"
@@ -13,10 +16,10 @@ EXECUTABLE_NAME="redis-server"
 SUPERVISOR_NAME="REDIS_SERVICE"
 
 # 配置文件路径
-CONFIG_FILE="/etc/supervisor/conf.d/$SUPERVISOR_NAME.conf"
+SUPERVISOR_CONFIG_FILE="/etc/supervisor/conf.d/$SUPERVISOR_NAME.conf"
 
 # 守护进程的完整路径
-COMMAND="$EXECUTABLE_DIR/$EXECUTABLE_NAME  $EXECUTABLE_DIR/redis.config"
+COMMAND="$EXECUTABLE_DIR/$EXECUTABLE_NAME $REDIS_CONFIG_FILE"
 
 # 文件路径
 SUPERVISOR_SERVICE_PATH="/usr/lib/systemd/system/supervisor.service "
@@ -70,14 +73,14 @@ systemctl restart supervisor
 echo "Systemd 配置已重新加载。"
 
 # 检查文件是否存在，存在则覆盖
-if [ -f "$CONFIG_FILE" ]; then
-    echo "配置文件已存在，将覆盖 $CONFIG_FILE"
+if [ -f "$SUPERVISOR_CONFIG_FILE" ]; then
+    echo "配置文件已存在，将覆盖 $SUPERVISOR_CONFIG_FILE"
 else
-    echo "创建新的配置文件: $CONFIG_FILE"
+    echo "创建新的配置文件: $SUPERVISOR_CONFIG_FILE"
 fi
 
 # 创建或覆盖 Supervisor 配置文件
-cat <<EOL > $CONFIG_FILE
+cat <<EOL > $SUPERVISOR_CONFIG_FILE
 [program:$SUPERVISOR_NAME]
 command=$COMMAND         
 directory=$EXECUTABLE_DIR    
