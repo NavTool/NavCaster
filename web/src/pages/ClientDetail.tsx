@@ -5,7 +5,7 @@ import { useSSE } from '../hooks/useSSE';
 import ConnectionHistoryTable from '../components/ConnectionHistoryTable';
 import type { ClientState, StreamState } from '../api/types';
 import { getUsrHistory } from '../api';
-import { formatBytes, formatOnlineTime, formatDelay, formatSpeed, getLocalTime, formatQuality } from '../utils/format';
+import { formatBytes, formatOnlineTime, formatDelay, formatSpeed, getLocalTime, formatQuality, ecefToGeodetic, formatLatLon, formatHeight, formatEcef } from '../utils/format';
 
 const { Title } = Typography;
 
@@ -53,14 +53,43 @@ const ClientDetail: React.FC = () => {
               </Card>
             </Col>
           </Row>
+          {(() => {
+            const geo = ecefToGeodetic(client.ecef_x, client.ecef_y, client.ecef_z);
+            const q = formatQuality(client.quality);
+            return (
+              <Card title="定位与坐标信息" style={{ marginBottom: 16, borderColor: '#2e3450' }}>
+                <Descriptions column={2} size="small">
+                  <Descriptions.Item label="定位状态">
+                    <Tag color={q.color}>{q.text}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="卫星数">{client.sat_num || 0}</Descriptions.Item>
+                  <Descriptions.Item label="差分延迟">{client.diff ? `${client.diff.toFixed(1)} s` : '-'}</Descriptions.Item>
+                  <Descriptions.Item label="距基站距离">{client.distance ? `${(client.distance / 1000).toFixed(2)} km` : '-'}</Descriptions.Item>
+                  {geo.valid ? (
+                    <>
+                      <Descriptions.Item label="纬度">{formatLatLon(geo.lat, 'lat')}</Descriptions.Item>
+                      <Descriptions.Item label="经度">{formatLatLon(geo.lng, 'lng')}</Descriptions.Item>
+                      <Descriptions.Item label="椭球高">{formatHeight(geo.height)}</Descriptions.Item>
+                    </>
+                  ) : (
+                    <Descriptions.Item label="大地坐标" span={2}>无定位数据</Descriptions.Item>
+                  )}
+                  <Descriptions.Item label="ECEF X">{formatEcef(client.ecef_x)}</Descriptions.Item>
+                  <Descriptions.Item label="ECEF Y">{formatEcef(client.ecef_y)}</Descriptions.Item>
+                  <Descriptions.Item label="ECEF Z">{formatEcef(client.ecef_z)}</Descriptions.Item>
+                  <Descriptions.Item label="位置更新时间" span={2}>
+                    {client.position_update_time ? getLocalTime(client.position_update_time) : '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+            );
+          })()}
           <Card title="连接信息" style={{ marginBottom: 16, borderColor: '#2e3450' }}>
             <Descriptions column={2} size="small">
               <Descriptions.Item label="挂载点">{client.login_mpt}</Descriptions.Item>
               <Descriptions.Item label="别名挂载点">{client.alias_mpt || '-'}</Descriptions.Item>
               <Descriptions.Item label="账号">{client.account}</Descriptions.Item>
               <Descriptions.Item label="IP">{client.ip}:{client.port}</Descriptions.Item>
-              <Descriptions.Item label="差分龄期">{client.diff || 0}s</Descriptions.Item>
-              <Descriptions.Item label="距基站距离">{client.distance ? `${(client.distance / 1000).toFixed(1)} km` : '-'}</Descriptions.Item>
               <Descriptions.Item label="上线时间">{getLocalTime(client.online_time)}</Descriptions.Item>
               <Descriptions.Item label="更新时间">{getLocalTime(client.update_time)}</Descriptions.Item>
             </Descriptions>

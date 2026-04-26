@@ -103,3 +103,72 @@ export function formatQuality(quality: number): { text: string; color: string } 
 export function formatSpeed(bytesPerSec: number): string {
   return formatBytes(bytesPerSec) + '/s';
 }
+
+// ==================== 坐标转换 ====================
+
+/** WGS84 椭球参数 */
+const WGS84_A = 6378137.0;           // 长半轴 (m)
+const WGS84_F = 1 / 298.257223563;   // 扁率
+const WGS84_E2 = 2 * WGS84_F - WGS84_F * WGS84_F; // 第一偏心率平方
+
+export interface GeodeticCoord {
+  lat: number;  // 纬度 (度)
+  lng: number;  // 经度 (度)
+  height: number; // 椭球高 (m)
+  valid: boolean;
+}
+
+/** ECEF (X,Y,Z) → 大地坐标 (lat, lng, height)，WGS84 椭球 */
+export function ecefToGeodetic(x: number, y: number, z: number): GeodeticCoord {
+  // 坐标全为 0 时视为无效
+  if (x === 0 && y === 0 && z === 0) {
+    return { lat: 0, lng: 0, height: 0, valid: false };
+  }
+
+  const lng = Math.atan2(y, x);
+  const p = Math.sqrt(x * x + y * y);
+
+  // 迭代初值
+  let lat = Math.atan2(z, p * (1 - WGS84_E2));
+  let height = 0;
+
+  // Bowring 迭代 (3-4 次足够收敛到 mm 级)
+  for (let i = 0; i < 5; i++) {
+    const sinLat = Math.sin(lat);
+    const N = WGS84_A / Math.sqrt(1 - WGS84_E2 * sinLat * sinLat);
+    height = p / Math.cos(lat) - N;
+    lat = Math.atan2(z, p * (1 - WGS84_E2 * N / (N + height)));
+  }
+
+  return {
+    lat: (lat * 180) / Math.PI,
+    lng: (lng * 180) / Math.PI,
+    height,
+    valid: true,
+  };
+}
+
+/** 格式化纬/经度 (十进制度 → 度°分′秒″ + 十进制度) */
+export function formatLatLon(deg: number, type: 'lat' | 'lng'): string {
+  const abs = Math.abs(deg);
+  const d = Math.floor(abs);
+  const m = Math.floor((abs - d) * 60);
+  const s = ((abs - d - m / 60) * 3600).toFixed(3);
+
+  const hemi =
+    type === 'lat'
+      ? (deg >= 0 ? 'N' : 'S')
+      : (deg >= 0 ? 'E' : 'W');
+
+  return `${d}°${String(m).padStart(2, '0')}′${parseFloat(s).toFixed(3)}″${hemi} (${deg.toFixed(7)}°)`;
+}
+
+/** 格式化椭球高 */
+export function formatHeight(h: number): string {
+  return `${h.toFixed(3)} m`;
+}
+
+/** 格式化 ECEF 坐标 */
+export function formatEcef(x: number): string {
+  return `${x.toFixed(3)} m`;
+}

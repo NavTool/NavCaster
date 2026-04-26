@@ -6,7 +6,7 @@ import StatusIndicator from '../components/StatusIndicator';
 import ConnectionHistoryTable from '../components/ConnectionHistoryTable';
 import type { ServerState, StreamState } from '../api/types';
 import { getMptHistory } from '../api';
-import { formatBytes, formatOnlineTime, formatDelay, formatSpeed, getLocalTime } from '../utils/format';
+import { formatBytes, formatOnlineTime, formatDelay, formatSpeed, getLocalTime, ecefToGeodetic, formatLatLon, formatHeight, formatEcef } from '../utils/format';
 
 const { Title } = Typography;
 
@@ -51,6 +51,35 @@ const ServerDetail: React.FC = () => {
               </Card>
             </Col>
           </Row>
+          {(() => {
+            const geo = ecefToGeodetic(server.ecef_x, server.ecef_y, server.ecef_z);
+            return geo.valid ? (
+              <Card title="坐标信息" style={{ marginBottom: 16, borderColor: '#2e3450' }}>
+                <Descriptions column={2} size="small">
+                  <Descriptions.Item label="纬度">{formatLatLon(geo.lat, 'lat')}</Descriptions.Item>
+                  <Descriptions.Item label="经度">{formatLatLon(geo.lng, 'lng')}</Descriptions.Item>
+                  <Descriptions.Item label="椭球高">{formatHeight(geo.height)}</Descriptions.Item>
+                  <Descriptions.Item label="ECEF X">{formatEcef(server.ecef_x)}</Descriptions.Item>
+                  <Descriptions.Item label="ECEF Y">{formatEcef(server.ecef_y)}</Descriptions.Item>
+                  <Descriptions.Item label="ECEF Z">{formatEcef(server.ecef_z)}</Descriptions.Item>
+                  <Descriptions.Item label="位置更新时间" span={2}>
+                    {server.position_update_time ? getLocalTime(server.position_update_time) : '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+            ) : (
+              <Card title="坐标信息" style={{ marginBottom: 16, borderColor: '#2e3450' }}>
+                <Descriptions column={2} size="small">
+                  <Descriptions.Item label="ECEF X">{formatEcef(server.ecef_x)}</Descriptions.Item>
+                  <Descriptions.Item label="ECEF Y">{formatEcef(server.ecef_y)}</Descriptions.Item>
+                  <Descriptions.Item label="ECEF Z">{formatEcef(server.ecef_z)}</Descriptions.Item>
+                  <Descriptions.Item label="位置更新时间" span={2}>
+                    {server.position_update_time ? getLocalTime(server.position_update_time) : '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Card>
+            );
+          })()}
           <Card title="连接信息" style={{ marginBottom: 16, borderColor: '#2e3450' }}>
             <Descriptions column={2} size="small">
               <Descriptions.Item label="挂载点">{server.login_mpt}</Descriptions.Item>
