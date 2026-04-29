@@ -1,13 +1,11 @@
 # This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: Package Windows Release
+name: Package Windows Release (legacy, disabled)
 
+# Temporarily disabled. The active build/package pipeline is
+# .github/workflows/build-and-package.yml. This file is kept for
+# reference and can be re-enabled later when needed.
 on:
-  push:
-    branches: [ "main" ]
-    tags: [ "v*", "*[0-9]*" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 env:

@@ -10,7 +10,7 @@ import {
   getRedisMonitor, getRedisKeys, getClusterMonitor,
   type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo,
 } from '../api';
-import { formatBytes, formatDuration, formatDelay } from '../utils/format';
+import { formatDuration, formatDelay } from '../utils/format';
 import MetricCard from '../components/MetricCard';
 
 const { Title, Text } = Typography;
@@ -252,14 +252,14 @@ const SystemMonitor: React.FC = () => {
                     </Tag>
                   ),
                 },
-                { title: 'Key 数', dataIndex: 'count', key: 'count', width: 80, sorter: (a: { count: number }, b: { count: number }) => a.count - b.count },
-                { title: '字段/元素数', dataIndex: 'fields', key: 'fields', width: 110, sorter: (a: { fields: number }, b: { fields: number }) => a.fields - b.fields },
+                { title: 'Key 数', dataIndex: 'count', key: 'count', width: 80, sorter: (a: any, b: any) => a.count - b.count },
+                { title: '字段/元素数', dataIndex: 'fields', key: 'fields', width: 110, sorter: (a: any, b: any) => a.fields - b.fields },
                 {
                   title: '内存',
                   dataIndex: 'memory',
                   key: 'memory',
                   width: 100,
-                  sorter: (a: { memory: number }, b: { memory: number }) => a.memory - b.memory,
+                  sorter: (a: any, b: any) => a.memory - b.memory,
                   defaultSortOrder: 'descend' as const,
                   render: (bytes: number) => formatMemory(bytes),
                 },

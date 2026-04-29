@@ -108,7 +108,7 @@ const MainLayout: React.FC = () => {
 
   const nodes = sseData.nodes || {};
   const nodeCount = Object.keys(nodes).length;
-  const masterNode = Object.values(nodes).find(n => n.is_master);
+  const masterNode = Object.values(nodes).find(n => n.master);
   const serverCount = Object.keys(sseData.servers || {}).length;
   const clientCount = Object.keys(sseData.clients || {}).length;
 

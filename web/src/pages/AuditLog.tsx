@@ -61,7 +61,7 @@ const AuditLog: React.FC = () => {
       <DataTable
         rowKey="id"
         columns={columns as any}
-        dataSource={items}
+        dataSource={items as any}
         loading={loading}
         size="small"
         pagination={{ pageSize: 50, showSizeChanger: true }}

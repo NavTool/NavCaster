@@ -1,15 +1,9 @@
-name: Package Linux Release
+name: Package Linux Release (legacy, disabled)
 
+# Temporarily disabled. The active build/package pipeline is
+# .github/workflows/build-and-package.yml. This file is kept for
+# reference and can be re-enabled later when needed.
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - v*
-      - '*[0-9]*'
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 env:
