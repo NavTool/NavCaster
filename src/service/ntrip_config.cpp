@@ -191,6 +191,8 @@ int ntrip_config::load_Core_Conf(std::string conf_file_path)
 
     _caster_core_opt.set_upload_base_stat(Caster_Setting["Upload_Base_Stat"].as<bool>());
     _caster_core_opt.set_upload_rover_stat(Caster_Setting["Upload_Rover_Stat"].as<bool>());
+    if (Caster_Setting["Near_Switch_Distance"])
+        _caster_core_opt.set_near_switch_distance(Caster_Setting["Near_Switch_Distance"].as<double>());
 
     auto Base_Setting = Conf["Base_Setting"];
     _caster_core_opt.set_base_enable_mult(Base_Setting["Enable_Mult"].as<bool>());

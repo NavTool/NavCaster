@@ -64,15 +64,34 @@ include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})
 #spdlog
 include_directories(${PROJECT_NAME} ${SPDLOG_INCLUDE_PATH})
 
-# reg_check tool
-set(REG_SOURCES
+# reg_check tool — 校验本机许可
+set(REG_CHECK_SOURCES
     test/reg_check.cpp
     extra/license_check/register.h
     extra/license_check/register.cpp
+    extra/license_check/license_codec.h
+    extra/license_check/license_codec.cpp
+    extra/license_check/license_check.h
+    extra/license_check/license_check.cpp
 )
-add_executable(reg_check ${REG_SOURCES})
+add_executable(reg_check ${REG_CHECK_SOURCES})
 target_include_directories(reg_check PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/extra
 )
 include_directories(reg_check ${SPDLOG_INCLUDE_PATH})
-set_target_properties(reg_check PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${PROJECT_NAME}/tool")
+set_target_properties(reg_check PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
+
+# reg_gen tool — 注册机/License 生成器
+set(REG_GEN_SOURCES
+    test/reg_gen.cpp
+    extra/license_check/register.h
+    extra/license_check/register.cpp
+    extra/license_check/license_codec.h
+    extra/license_check/license_codec.cpp
+)
+add_executable(reg_gen ${REG_GEN_SOURCES})
+target_include_directories(reg_gen PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/extra
+)
+include_directories(reg_gen ${SPDLOG_INCLUDE_PATH})
+set_target_properties(reg_gen PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")

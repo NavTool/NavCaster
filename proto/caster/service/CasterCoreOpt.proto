@@ -23,4 +23,9 @@ message CasterCoreOpt {
   bool rover_keep_early     = 12;
   bool rover_noify_inactive = 13;
 
+  // 最近基站切换距离阈值，单位米。
+  // 当 NEAREST 模式订阅者的位置变化超过该值时，才触发新一轮最近基站检索。
+  // 设置为 0 时，每次 GGA 上报都会触发检索（兼容旧行为）。
+  double near_switch_distance = 14;
+
 }

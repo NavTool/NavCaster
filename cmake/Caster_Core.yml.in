@@ -6,6 +6,7 @@ Caster_Setting:
   Key_Expire_Time: 10      #内部键值续期时间，设置键值的默认超时/续期时间
   Upload_Base_Stat: true    #上报基站数据流统计信息
   Upload_Rover_Stat: true   #上报用户数据流统计信息
+  Near_Switch_Distance: 3000  #最近基站切换距离阈值(米)，用户位置变化超过该值才触发新一轮最近基站检索；0表示每次GGA上报都触发
 
 
 Base_Setting:

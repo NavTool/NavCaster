@@ -53,6 +53,9 @@ int caster_internal::init(CasterCoreOpt opt, event_base *base)
 {
     _update_intv = opt.update_intv();
     _key_expire_time = opt.key_expire_time();
+    // 仅当配置项显式提供(>0)时覆盖默认阈值；0 表示沿用默认值(50m)
+    if (opt.near_switch_distance() > 0.0)
+        _near_switch_distance = opt.near_switch_distance();
 
     _upload_base_stat = opt.upload_base_stat();
     _upload_rover_stat = opt.upload_rover_stat();
@@ -528,6 +531,7 @@ int caster_internal::unsub_base_channel(const char *channel, const char *connect
     if (near_item != _base_near_sub_map.end()) // 如果这个订阅是使用的最近基站订阅模式，那么就删除这个记录
     {
         _base_near_sub_map.erase(near_item);
+        _near_pos_cache_map.erase(connect_key);
     }
 
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_SUBSCRIBE_LIST ":%s %s", channel, connect_key);
@@ -2083,6 +2087,7 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     _stream_status_map.erase(connect_key);
     _rover_decoder_map.erase(connect_key);
     _base_near_sub_map.erase(connect_key);
+    _near_pos_cache_map.erase(connect_key);
     // 向云端插入记录
     if (_upload_rover_stat)
     {
@@ -2192,13 +2197,43 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
                                      dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z,
                                      dec->second._quality, dec->second._sat_num, dec->second._diff);
 
-                // 将ECEF转换为经纬度，触发最近基站查询
-                double lat = 0.0, lon = 0.0, alt = 0.0;
-                util_ecef2pos(dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z, lat, lon, alt);
+                // 距离阈值判断：仅当首次或位置变化超过 _near_switch_distance(米) 时才触发最近基站检索，
+                // 避免在静止/微小漂移下频繁切换基站
+                bool need_query = false;
+                auto pos_it = _near_pos_cache_map.find(connect_key);
+                if (pos_it == _near_pos_cache_map.end())
+                {
+                    need_query = true;
+                }
+                else
+                {
+                    double dx = dec->second._ecef_x - pos_it->second.ecef_x;
+                    double dy = dec->second._ecef_y - pos_it->second.ecef_y;
+                    double dz = dec->second._ecef_z - pos_it->second.ecef_z;
+                    double dist2 = dx * dx + dy * dy + dz * dz;
+                    double thr = _near_switch_distance;
+                    if (thr <= 0.0 || dist2 >= thr * thr)
+                    {
+                        need_query = true;
+                    }
+                }
 
-                // 调用sub_near_channel更新最近基站订阅
-                sub_near_channel(near->second.channel.c_str(), near->second.user_name.c_str(),
-                                 lat, lon, connect_key, near->second.cb, near->second.arg);
+                if (need_query)
+                {
+                    // 将ECEF转换为经纬度，触发最近基站查询
+                    double lat = 0.0, lon = 0.0, alt = 0.0;
+                    util_ecef2pos(dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z, lat, lon, alt);
+
+                    // 更新参考坐标，下次以此点为基准计算距离
+                    near_pos_cache &cache = _near_pos_cache_map[connect_key];
+                    cache.ecef_x = dec->second._ecef_x;
+                    cache.ecef_y = dec->second._ecef_y;
+                    cache.ecef_z = dec->second._ecef_z;
+
+                    // 调用sub_near_channel更新最近基站订阅
+                    sub_near_channel(near->second.channel.c_str(), near->second.user_name.c_str(),
+                                     lat, lon, connect_key, near->second.cb, near->second.arg);
+                }
             }
         }
     }

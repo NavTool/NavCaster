@@ -1,10 +1,8 @@
 #include "license_check.h"
-#include "register.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <iphlpapi.h>
 #include <windows.h>
-#include <vector>
 #pragma comment(lib, "iphlpapi.lib")
 #else
 #include <ifaddrs.h>
@@ -12,258 +10,134 @@
 #include <netpacket/packet.h>
 #endif
 
-#include <vector>
+#include <algorithm>
+#include <cstdio>
 #include <cstring>
-#include <iomanip>
-#include <cstdint>
-#include <ctime>   // 包含 std::tm 和 std::mktime
-#include <sstream> // 包含 std::istringstream
 #include <fstream>
 
-// 将日期字符串（格式：YYYY-MM-DD）转换为 UTC 时间戳（秒）
-static std::time_t convertStringToUTCSeconds(const std::string &dateStr)
+license_check::license_check()
 {
-    // 创建 tm 结构体
-    std::tm timeStruct = {};
+    _primary_mac = pick_primary_mac();
+    _machine_id  = license_codec::normalize_mac(_primary_mac);
+}
 
-    // 解析字符串中的年、月、日
-    int year, month, day;
-    char dash1, dash2; // 用于存储 '-' 分隔符
+int license_check::load_license_file(const std::string &license_file_path)
+{
+    _active = false;
+    _info   = license_info{};
 
-    std::istringstream iss(dateStr);
-    iss >> year >> dash1 >> month >> dash2 >> day;
-
-    // 检查日期格式是否正确
-    if (iss.fail() || dash1 != '-' || dash2 != '-')
-    {
-        // std::cerr << "日期格式不正确！应该为 YYYY-MM-DD" << std::endl;
+    std::ifstream infile(license_file_path);
+    if (!infile)
         return -1;
-    }
 
-    // 设置 tm 结构体的年月日
-    timeStruct.tm_year = year - 1900; // 年份需要减去 1900
-    timeStruct.tm_mon = month - 1;    // 月份从 0 开始，减去 1
-    timeStruct.tm_mday = day;         // 日
+    std::string content((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+    // 去除空白字符
+    content.erase(std::remove_if(content.begin(), content.end(),
+                                 [](unsigned char c) { return std::isspace(c); }),
+                  content.end());
 
-    // 设置时、分、秒为 0，表示当天的 00:00:00
-    timeStruct.tm_hour = 0;
-    timeStruct.tm_min = 0;
-    timeStruct.tm_sec = 0;
+    if (content.empty())
+        return -2;
 
-    // 使用 mktime 将本地时间转换为时间戳
-    std::time_t utcSeconds = std::mktime(&timeStruct);
+    if (!license_codec::decode(content, _primary_mac, _info))
+        return -3;
 
-    // 如果转换失败，返回 -1
-    if (utcSeconds == -1)
-    {
-        // std::cerr << "时间转换失败！" << std::endl;
-    }
-
-    return utcSeconds;
+    _active = !is_expired();
+    return _active ? 0 : -4;
 }
 
-license_check::license_check(/* args */)
+int license_check::write_register_file(const std::string &register_file_path)
 {
-    _client_limit = 10;
-    _server_limit = 10;
-    _expiration_time = 9999999999;
-}
-
-license_check::~license_check()
-{
-}
-
-std::string license_check::gen_register_file(std::string file_path)
-{
-    auto macs=getAllMacAddresses();
-    _register_str="00:00:00:00:00:00";
-    for(auto iter:macs)
-    {
-        if(iter !="00:00:00:00:00:00")
-        {
-            _register_str=iter;
-        }
-    }
-    // _register_str = getMacAddress("eth0");
-    CRegister reg;
-    auto reg_str = reg.genMachineCode(_register_str.substr(6));
-
-    std::ofstream outfile(file_path);
-    if (outfile)
-    {
-        outfile << reg_str << std::endl;
-        outfile.close();
-    }
-
-    return reg_str;
-}
-
-int license_check::load_license_file(std::string file_path)
-{
-    std::ifstream infile(file_path);
-
-    if (infile)
-    {
-        std::string fileContent((std::istreambuf_iterator<char>(infile)),
-                                std::istreambuf_iterator<char>());
-        _license_str = fileContent;
-    }
-
-    fresh_license_file();
-
+    std::ofstream outfile(register_file_path);
+    if (!outfile)
+        return -1;
+    outfile << _primary_mac << std::endl;
     return 0;
 }
 
-int license_check::fresh_license_file()
+bool license_check::is_expired() const
 {
-    if (_license_str != _prev_license_str)
-    {
-        _prev_license_str = _license_str;
-
-        // 检查许可信息
-        CRegister reg;
-
-        if (reg.checkRegest(_register_str, _prev_license_str))
-        {
-            _is_active = true;
-            _client_limit = reg.m_client_limit;
-            _server_limit = reg.m_server_limit;
-            _expiration_time = convertStringToUTCSeconds(reg.m_endTime);
-        }
-        else
-        {
-            _is_active = false;
-            _client_limit = 10;
-            _server_limit = 10;
-            _expiration_time = 9999999999;
-        }
-
-        // 更新许可信息
-    }
-    return 0;
+    if (_info.expire_days == 0)
+        return false; // 永不过期
+    return license_codec::today_days() > _info.expire_days;
 }
 
-int license_check::enable_license_check(event_base *base)
+int license_check::remaining_days() const
 {
-    return 0;
+    if (_info.expire_days == 0)
+        return -1; // 永不过期
+    int diff = static_cast<int>(_info.expire_days) - static_cast<int>(license_codec::today_days());
+    return diff < 0 ? 0 : diff;
 }
 
-// 获取网卡的MAC地址
-#ifdef WIN32
-std::string license_check::getMacAddress(const std::string &interfaceName)
+std::string license_check::expire_date() const
 {
+    if (_info.expire_days == 0)
+        return "never";
+    return license_codec::days_to_date(_info.expire_days);
+}
+
+// ---------------------------------------------------------------------------
+// MAC 地址采集
+// ---------------------------------------------------------------------------
+#ifdef _WIN32
+std::vector<std::string> license_check::get_all_macs()
+{
+    std::vector<std::string> macs;
     ULONG bufferSize = 0;
-    GetAdaptersInfo(nullptr, &bufferSize); // 获取所需的缓冲区大小
-
+    GetAdaptersInfo(nullptr, &bufferSize);
     std::vector<BYTE> buffer(bufferSize);
-    IP_ADAPTER_INFO *adapterInfo = reinterpret_cast<IP_ADAPTER_INFO *>(buffer.data());
-
+    auto *adapterInfo = reinterpret_cast<IP_ADAPTER_INFO *>(buffer.data());
     if (GetAdaptersInfo(adapterInfo, &bufferSize) == ERROR_SUCCESS)
     {
-        char macStr[18];
-        std::snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-                      adapterInfo->Address[0], adapterInfo->Address[1], adapterInfo->Address[2],
-                      adapterInfo->Address[3], adapterInfo->Address[4], adapterInfo->Address[5]);
-        return std::string(macStr);
-    }
-
-    // std::cerr << "Adapter not found or failed to retrieve MAC address." << std::endl;
-    return std::string();
-}
-#else
-std::string license_check::getMacAddress(const std::string &interfaceName)
-{
-    struct ifaddrs *ifaddr, *ifa;
-    char mac_address[18] = {0}; // 用于存储MAC地址的缓冲区
-
-    // 获取系统中所有接口的地址
-    if (getifaddrs(&ifaddr) == -1)
-    {
-        perror("getifaddrs");
-        return "";
-    }
-
-    // 遍历接口列表
-    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
-    {
-        if (ifa->ifa_addr == NULL)
-            continue;
-
-        // 检查接口是否是AF_PACKET类型（用于获取MAC地址）并且接口名称匹配
-        if (ifa->ifa_addr->sa_family == AF_PACKET && strcmp(ifa->ifa_name, interfaceName.c_str()) == 0)
-        {
-            struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-            snprintf(mac_address, sizeof(mac_address), "%02x:%02x:%02x:%02x:%02x:%02x",
-                     s->sll_addr[0], s->sll_addr[1], s->sll_addr[2],
-                     s->sll_addr[3], s->sll_addr[4], s->sll_addr[5]);
-            break; // 找到匹配的接口后跳出循环
-        }
-    }
-
-    freeifaddrs(ifaddr); // 释放地址结构
-    return std::string(mac_address);
-}
-#endif
-
-#ifdef WIN32
-std::vector<std::string> license_check::getAllMacAddresses()
-{
-    ULONG bufferSize = 0;
-    GetAdaptersInfo(nullptr, &bufferSize); // 获取所需的缓冲区大小
-
-    std::vector<BYTE> buffer(bufferSize);
-    IP_ADAPTER_INFO *adapterInfo = reinterpret_cast<IP_ADAPTER_INFO *>(buffer.data());
-
-    std::vector<std::string> macAddresses;
-
-    if (GetAdaptersInfo(adapterInfo, &bufferSize) == ERROR_SUCCESS)
-    {
-        IP_ADAPTER_INFO *pAdapter = adapterInfo;
-        while (pAdapter)
+        for (auto *p = adapterInfo; p; p = p->Next)
         {
             char macStr[18];
-            std::snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-                          pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2],
-                          pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
-            macAddresses.push_back(std::string(macStr));
-            pAdapter = pAdapter->Next;
+            std::snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+                          p->Address[0], p->Address[1], p->Address[2],
+                          p->Address[3], p->Address[4], p->Address[5]);
+            macs.emplace_back(macStr);
         }
     }
-
-    return macAddresses;
+    return macs;
 }
 #else
-std::vector<std::string> license_check::getAllMacAddresses()
+std::vector<std::string> license_check::get_all_macs()
 {
-    struct ifaddrs *ifaddr, *ifa;
-    std::vector<std::string> macAddresses;
-
-    // 获取系统中所有接口的地址
+    std::vector<std::string> macs;
+    struct ifaddrs *ifaddr = nullptr;
     if (getifaddrs(&ifaddr) == -1)
+        return macs;
+
+    for (auto *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next)
     {
-        perror("getifaddrs");
-        return macAddresses; // 如果获取失败，返回空列表
+        if (ifa->ifa_addr == nullptr) continue;
+        if (ifa->ifa_addr->sa_family != AF_PACKET) continue;
+
+        // 排除回环和无 MAC 接口
+        if (ifa->ifa_flags & IFF_LOOPBACK) continue;
+
+        auto *s = reinterpret_cast<struct sockaddr_ll *>(ifa->ifa_addr);
+        if (s->sll_halen != 6) continue;
+
+        char buf[18];
+        std::snprintf(buf, sizeof(buf), "%02x:%02x:%02x:%02x:%02x:%02x",
+                      s->sll_addr[0], s->sll_addr[1], s->sll_addr[2],
+                      s->sll_addr[3], s->sll_addr[4], s->sll_addr[5]);
+        macs.emplace_back(buf);
     }
-
-    // 遍历接口列表
-    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
-    {
-        if (ifa->ifa_addr == NULL)
-            continue;
-
-        // 检查接口是否是AF_PACKET类型
-        if (ifa->ifa_addr->sa_family == AF_PACKET)
-        {
-            struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-            char mac_address[18];
-            snprintf(mac_address, sizeof(mac_address), "%02x:%02x:%02x:%02x:%02x:%02x",
-                     s->sll_addr[0], s->sll_addr[1], s->sll_addr[2],
-                     s->sll_addr[3], s->sll_addr[4], s->sll_addr[5]);
-            macAddresses.push_back(std::string(mac_address));
-        }
-    }
-
-    freeifaddrs(ifaddr); // 释放地址结构
-    return macAddresses;
+    freeifaddrs(ifaddr);
+    return macs;
 }
 #endif
+
+std::string license_check::pick_primary_mac()
+{
+    auto macs = get_all_macs();
+    for (const auto &m : macs)
+    {
+        if (m != "00:00:00:00:00:00")
+            return m;
+    }
+    return "00:00:00:00:00:00";
+}

@@ -228,6 +228,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterCoreOpt final : public ::goog
     kUploadRoverStatFieldNumber = 7,
     kBaseEnableMultFieldNumber = 8,
     kBaseKeepEarlyFieldNumber = 9,
+    kNearSwitchDistanceFieldNumber = 14,
     kBaseNotifyInactiveFieldNumber = 10,
     kRoverEnableMultFieldNumber = 11,
     kRoverKeepEarlyFieldNumber = 12,
@@ -333,6 +334,16 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterCoreOpt final : public ::goog
   void _internal_set_base_keep_early(bool value);
 
   public:
+  // double near_switch_distance = 14;
+  void clear_near_switch_distance() ;
+  [[nodiscard]] double near_switch_distance() const;
+  void set_near_switch_distance(double value);
+
+  private:
+  double _internal_near_switch_distance() const;
+  void _internal_set_near_switch_distance(double value);
+
+  public:
   // bool base_notify_inactive = 10;
   void clear_base_notify_inactive() ;
   [[nodiscard]] bool base_notify_inactive() const;
@@ -377,7 +388,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterCoreOpt final : public ::goog
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 13,
+  static const ::google::protobuf::internal::TcParseTable<4, 14,
                                    0, 69,
                                    2>
       _table_;
@@ -410,6 +421,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED CasterCoreOpt final : public ::goog
     bool upload_rover_stat_;
     bool base_enable_mult_;
     bool base_keep_early_;
+    double near_switch_distance_;
     bool base_notify_inactive_;
     bool rover_enable_mult_;
     bool rover_keep_early_;
@@ -748,7 +760,7 @@ inline void CasterCoreOpt::clear_base_notify_inactive() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.base_notify_inactive_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000200U);
+                  0x00000400U);
 }
 inline bool CasterCoreOpt::base_notify_inactive() const {
   // @@protoc_insertion_point(field_get:caster.service.CasterCoreOpt.base_notify_inactive)
@@ -756,7 +768,7 @@ inline bool CasterCoreOpt::base_notify_inactive() const {
 }
 inline void CasterCoreOpt::set_base_notify_inactive(bool value) {
   _internal_set_base_notify_inactive(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
   // @@protoc_insertion_point(field_set:caster.service.CasterCoreOpt.base_notify_inactive)
 }
 inline bool CasterCoreOpt::_internal_base_notify_inactive() const {
@@ -773,7 +785,7 @@ inline void CasterCoreOpt::clear_rover_enable_mult() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.rover_enable_mult_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000400U);
+                  0x00000800U);
 }
 inline bool CasterCoreOpt::rover_enable_mult() const {
   // @@protoc_insertion_point(field_get:caster.service.CasterCoreOpt.rover_enable_mult)
@@ -781,7 +793,7 @@ inline bool CasterCoreOpt::rover_enable_mult() const {
 }
 inline void CasterCoreOpt::set_rover_enable_mult(bool value) {
   _internal_set_rover_enable_mult(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
   // @@protoc_insertion_point(field_set:caster.service.CasterCoreOpt.rover_enable_mult)
 }
 inline bool CasterCoreOpt::_internal_rover_enable_mult() const {
@@ -798,7 +810,7 @@ inline void CasterCoreOpt::clear_rover_keep_early() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.rover_keep_early_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000800U);
+                  0x00001000U);
 }
 inline bool CasterCoreOpt::rover_keep_early() const {
   // @@protoc_insertion_point(field_get:caster.service.CasterCoreOpt.rover_keep_early)
@@ -806,7 +818,7 @@ inline bool CasterCoreOpt::rover_keep_early() const {
 }
 inline void CasterCoreOpt::set_rover_keep_early(bool value) {
   _internal_set_rover_keep_early(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
   // @@protoc_insertion_point(field_set:caster.service.CasterCoreOpt.rover_keep_early)
 }
 inline bool CasterCoreOpt::_internal_rover_keep_early() const {
@@ -823,7 +835,7 @@ inline void CasterCoreOpt::clear_rover_noify_inactive() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.rover_noify_inactive_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00001000U);
+                  0x00002000U);
 }
 inline bool CasterCoreOpt::rover_noify_inactive() const {
   // @@protoc_insertion_point(field_get:caster.service.CasterCoreOpt.rover_noify_inactive)
@@ -831,7 +843,7 @@ inline bool CasterCoreOpt::rover_noify_inactive() const {
 }
 inline void CasterCoreOpt::set_rover_noify_inactive(bool value) {
   _internal_set_rover_noify_inactive(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
   // @@protoc_insertion_point(field_set:caster.service.CasterCoreOpt.rover_noify_inactive)
 }
 inline bool CasterCoreOpt::_internal_rover_noify_inactive() const {
@@ -841,6 +853,31 @@ inline bool CasterCoreOpt::_internal_rover_noify_inactive() const {
 inline void CasterCoreOpt::_internal_set_rover_noify_inactive(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.rover_noify_inactive_ = value;
+}
+
+// double near_switch_distance = 14;
+inline void CasterCoreOpt::clear_near_switch_distance() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.near_switch_distance_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000200U);
+}
+inline double CasterCoreOpt::near_switch_distance() const {
+  // @@protoc_insertion_point(field_get:caster.service.CasterCoreOpt.near_switch_distance)
+  return _internal_near_switch_distance();
+}
+inline void CasterCoreOpt::set_near_switch_distance(double value) {
+  _internal_set_near_switch_distance(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  // @@protoc_insertion_point(field_set:caster.service.CasterCoreOpt.near_switch_distance)
+}
+inline double CasterCoreOpt::_internal_near_switch_distance() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.near_switch_distance_;
+}
+inline void CasterCoreOpt::_internal_set_near_switch_distance(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.near_switch_distance_ = value;
 }
 
 #ifdef __GNUC__

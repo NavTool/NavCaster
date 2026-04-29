@@ -54,6 +54,7 @@ inline constexpr CasterCoreOpt::Impl_::Impl_(
         upload_rover_stat_{false},
         base_enable_mult_{false},
         base_keep_early_{false},
+        near_switch_distance_{0},
         base_notify_inactive_{false},
         rover_enable_mult_{false},
         rover_keep_early_{false},
@@ -89,7 +90,7 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_._has_bits_),
-        16, // hasbit index offset
+        17, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_.redis_host_),
         PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_.redis_port_),
         PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_.redis_password_),
@@ -103,6 +104,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_.rover_enable_mult_),
         PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_.rover_keep_early_),
         PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_.rover_noify_inactive_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::CasterCoreOpt, _impl_.near_switch_distance_),
         0,
         2,
         1,
@@ -112,10 +114,11 @@ const ::uint32_t
         6,
         7,
         8,
-        9,
         10,
         11,
         12,
+        13,
+        9,
 };
 
 static const ::_pbi::MigrationSchema
@@ -128,7 +131,7 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_service_2fCasterCoreOpt_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\033service/CasterCoreOpt.proto\022\016caster.se"
-    "rvice\"\326\002\n\rCasterCoreOpt\022\022\n\nredis_host\030\001 "
+    "rvice\"\364\002\n\rCasterCoreOpt\022\022\n\nredis_host\030\001 "
     "\001(\t\022\022\n\nredis_port\030\002 \001(\005\022\026\n\016redis_passwor"
     "d\030\003 \001(\t\022\023\n\013update_intv\030\004 \001(\005\022\027\n\017key_expi"
     "re_time\030\005 \001(\005\022\030\n\020upload_base_stat\030\006 \001(\010\022"
@@ -136,13 +139,14 @@ const char descriptor_table_protodef_service_2fCasterCoreOpt_2eproto[] ABSL_ATTR
     "e_mult\030\010 \001(\010\022\027\n\017base_keep_early\030\t \001(\010\022\034\n"
     "\024base_notify_inactive\030\n \001(\010\022\031\n\021rover_ena"
     "ble_mult\030\013 \001(\010\022\030\n\020rover_keep_early\030\014 \001(\010"
-    "\022\034\n\024rover_noify_inactive\030\r \001(\010b\006proto3"
+    "\022\034\n\024rover_noify_inactive\030\r \001(\010\022\034\n\024near_s"
+    "witch_distance\030\016 \001(\001b\006proto3"
 };
 static ::absl::once_flag descriptor_table_service_2fCasterCoreOpt_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_service_2fCasterCoreOpt_2eproto = {
     false,
     false,
-    398,
+    428,
     descriptor_table_protodef_service_2fCasterCoreOpt_2eproto,
     "service/CasterCoreOpt.proto",
     &descriptor_table_service_2fCasterCoreOpt_2eproto_once,
@@ -301,16 +305,16 @@ CasterCoreOpt::GetClassData() const {
   return CasterCoreOpt_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<4, 13, 0, 69, 2>
+const ::_pbi::TcParseTable<4, 14, 0, 69, 2>
 CasterCoreOpt::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_._has_bits_),
     0, // no _extensions_
-    13, 120,  // max_field_number, fast_idx_mask
+    14, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294959104,  // skipmap
+    4294950912,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    13,  // num_field_entries
+    14,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     CasterCoreOpt_class_data_.base(),
@@ -358,22 +362,25 @@ CasterCoreOpt::_table_ = {
      {72, 8, 0,
       PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.base_keep_early_)}},
     // bool base_notify_inactive = 10;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.base_notify_inactive_), 9>(),
-     {80, 9, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.base_notify_inactive_), 10>(),
+     {80, 10, 0,
       PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.base_notify_inactive_)}},
     // bool rover_enable_mult = 11;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.rover_enable_mult_), 10>(),
-     {88, 10, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.rover_enable_mult_), 11>(),
+     {88, 11, 0,
       PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_enable_mult_)}},
     // bool rover_keep_early = 12;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.rover_keep_early_), 11>(),
-     {96, 11, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.rover_keep_early_), 12>(),
+     {96, 12, 0,
       PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_keep_early_)}},
     // bool rover_noify_inactive = 13;
-    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.rover_noify_inactive_), 12>(),
-     {104, 12, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(CasterCoreOpt, _impl_.rover_noify_inactive_), 13>(),
+     {104, 13, 0,
       PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_noify_inactive_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // double near_switch_distance = 14;
+    {::_pbi::TcParser::FastF64S1,
+     {113, 9, 0,
+      PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.near_switch_distance_)}},
     {::_pbi::TcParser::MiniParse, {}},
   }}, {{
     65535, 65535
@@ -397,13 +404,15 @@ CasterCoreOpt::_table_ = {
     // bool base_keep_early = 9;
     {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.base_keep_early_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
     // bool base_notify_inactive = 10;
-    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.base_notify_inactive_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.base_notify_inactive_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
     // bool rover_enable_mult = 11;
-    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_enable_mult_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_enable_mult_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
     // bool rover_keep_early = 12;
-    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_keep_early_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_keep_early_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
     // bool rover_noify_inactive = 13;
-    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_noify_inactive_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.rover_noify_inactive_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+    // double near_switch_distance = 14;
+    {PROTOBUF_FIELD_OFFSET(CasterCoreOpt, _impl_.near_switch_distance_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
   }},
   // no aux_entries
   {{
@@ -434,7 +443,7 @@ PROTOBUF_NOINLINE void CasterCoreOpt::Clear() {
         reinterpret_cast<char*>(&_impl_.base_enable_mult_) -
         reinterpret_cast<char*>(&_impl_.redis_port_)) + sizeof(_impl_.base_enable_mult_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00001f00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00003f00U)) {
     ::memset(&_impl_.base_keep_early_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.rover_noify_inactive_) -
         reinterpret_cast<char*>(&_impl_.base_keep_early_)) + sizeof(_impl_.rover_noify_inactive_));
@@ -546,7 +555,7 @@ PROTOBUF_NOINLINE void CasterCoreOpt::Clear() {
   }
 
   // bool base_notify_inactive = 10;
-  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
     if (this_._internal_base_notify_inactive() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -555,7 +564,7 @@ PROTOBUF_NOINLINE void CasterCoreOpt::Clear() {
   }
 
   // bool rover_enable_mult = 11;
-  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
     if (this_._internal_rover_enable_mult() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -564,7 +573,7 @@ PROTOBUF_NOINLINE void CasterCoreOpt::Clear() {
   }
 
   // bool rover_keep_early = 12;
-  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
     if (this_._internal_rover_keep_early() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -573,11 +582,20 @@ PROTOBUF_NOINLINE void CasterCoreOpt::Clear() {
   }
 
   // bool rover_noify_inactive = 13;
-  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
     if (this_._internal_rover_noify_inactive() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
           13, this_._internal_rover_noify_inactive(), target);
+    }
+  }
+
+  // double near_switch_distance = 14;
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_near_switch_distance()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          14, this_._internal_near_switch_distance(), target);
     }
   }
 
@@ -661,33 +679,39 @@ PROTOBUF_NOINLINE void CasterCoreOpt::Clear() {
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00001f00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00003f00U)) {
     // bool base_keep_early = 9;
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_base_keep_early() != 0) {
         total_size += 2;
       }
     }
-    // bool base_notify_inactive = 10;
+    // double near_switch_distance = 14;
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_near_switch_distance()) != 0) {
+        total_size += 9;
+      }
+    }
+    // bool base_notify_inactive = 10;
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
       if (this_._internal_base_notify_inactive() != 0) {
         total_size += 2;
       }
     }
     // bool rover_enable_mult = 11;
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (this_._internal_rover_enable_mult() != 0) {
         total_size += 2;
       }
     }
     // bool rover_keep_early = 12;
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
       if (this_._internal_rover_keep_early() != 0) {
         total_size += 2;
       }
     }
     // bool rover_noify_inactive = 13;
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (this_._internal_rover_noify_inactive() != 0) {
         total_size += 2;
       }
@@ -761,28 +785,33 @@ void CasterCoreOpt::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00001f00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00003f00U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (from._internal_base_keep_early() != 0) {
         _this->_impl_.base_keep_early_ = from._impl_.base_keep_early_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_near_switch_distance()) != 0) {
+        _this->_impl_.near_switch_distance_ = from._impl_.near_switch_distance_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
       if (from._internal_base_notify_inactive() != 0) {
         _this->_impl_.base_notify_inactive_ = from._impl_.base_notify_inactive_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (from._internal_rover_enable_mult() != 0) {
         _this->_impl_.rover_enable_mult_ = from._impl_.rover_enable_mult_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
       if (from._internal_rover_keep_early() != 0) {
         _this->_impl_.rover_keep_early_ = from._impl_.rover_keep_early_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (from._internal_rover_noify_inactive() != 0) {
         _this->_impl_.rover_noify_inactive_ = from._impl_.rover_noify_inactive_;
       }

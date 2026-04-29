@@ -36,7 +36,14 @@ public:
         CFB = 2
     };
 
+    // AES-128-ECB 基础原语 (供 license_codec 复用)：
+    //   AES128Encrypt: 输入任意长度字节串，输出 2*N 位大写十六进制字符串
+    //   AES128Decrypt: 输入十六进制字符串，输出对应字节串
+    void AES128Encrypt(std::string strSrc, const char key[16], std::string &strDest);
+    void AES128Decrypt(std::string pstrSrc, const char key[16], std::string &strDest);
+
 private:
+    bool MakeKey(char const *key, char const *chain, int keylength, int blockSize);
     void Xor(char *buff, char const *chain)
     {
         if (false == m_bKeyInit)
@@ -45,10 +52,6 @@ private:
             *(buff++) ^= *(chain++);
     }
 
-    void AES128Encrypt(std::string strSrc, const char key[16], std::string &strDest);
-    void AES128Decrypt(std::string pstrSrc, const char key[16], std::string &strDest);
-
-    bool MakeKey(char const *key, char const *chain, int keylength, int blockSize);
     bool Encrypt(char const *in, char *result, size_t n, int iMode);
     bool Decrypt(char const *in, char *result, size_t n, int iMode);
     void sz2HexString(unsigned char *szInput, int inputLen, char *szDestBuf, int iType = 0);
