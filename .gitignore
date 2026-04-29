@@ -58,3 +58,5 @@ CMakeUserPresets.json
 
 
 .vscode/settings.json
+
+.vite
