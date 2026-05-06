@@ -26,6 +26,7 @@ private:
     // 内部成员变量
     std::string _connect_key;
     std::string _mount_point;
+    std::string _alias_mpt;   // 实际订阅的挂载点名（alias/near切换后的真实名）
     std::string _user_name;
     bool _ntrip_version2 = false;
     bool _transfer_with_chunked = false;

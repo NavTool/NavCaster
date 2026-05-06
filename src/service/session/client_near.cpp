@@ -223,6 +223,19 @@ void client_near::CasterSubscribeCallback(const char *request, void *arg, caster
     {
         session->transfer_sub_raw_data(reply->str, reply->len);
     }
+    else if (reply->type == CasterReply::OK)
+    {
+        if (reply->str)
+        {
+            if (!session->_alias_mpt.empty() && session->_alias_mpt != reply->str)
+            {
+                spdlog::info("[{}]: nearest base switched [{} -> {}], user [{}], addr:[{}:{}]",
+                             session->__class__, session->_alias_mpt, reply->str,
+                             session->_user_name, session->_info.addr(), session->_info.port());
+            }
+            session->_alias_mpt = reply->str;
+        }
+    }
     else if (reply->type == CasterReply::ERR)
     {
         spdlog::warn("[{}]: subscribe failed/kicked, user [{}], mount [{}], addr:[{}:{}]", session->__class__, session->_user_name, session->_mount_point, session->_info.addr(), session->_info.port());

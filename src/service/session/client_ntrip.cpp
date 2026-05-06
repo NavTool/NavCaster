@@ -57,7 +57,8 @@ int client_ntrip::stop()
     AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), _auth_type);
     if (_registered)
     {
-        CASTER::Unsub_Raw_Data(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), _register_type);
+        const std::string &unsub_mpt = _alias_mpt.empty() ? _mount_point : _alias_mpt;
+        CASTER::Unsub_Raw_Data(_connect_key.c_str(), unsub_mpt.c_str(), _user_name.c_str(), _register_type);
         CASTER::Withdraw_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), _register_type);
         _registered = false;
     }
@@ -194,6 +195,8 @@ void client_ntrip::CasterSubscribeCallback(const char *request, void *arg, caste
     }
     else if (reply->type == CasterReply::OK)
     {
+        if (reply->str)
+            session->_alias_mpt = reply->str;
         session->running();
     }
     else if (reply->type == CasterReply::ERR)
