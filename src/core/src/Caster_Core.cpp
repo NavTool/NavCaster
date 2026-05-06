@@ -345,10 +345,12 @@ int CASTER::Unsub_Raw_Data(const char *connect_key, const char *mount_point, con
         Unsub_Rover_Raw_Data(user_name, connect_key);
         break;
     case CasterRegisterType::CLIENT:
-    case CasterRegisterType::NEAREST:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
         Unsub_Base_Raw_Data(mount_point, connect_key);
+        break;
+    case CasterRegisterType::NEAREST:
+        Unsub_Near_Raw_Data(connect_key);
         break;
     default:
         break;
@@ -379,6 +381,11 @@ int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, co
 int CASTER::Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
 {
     return caster_internal::getInstance()->sub_near_channel(mount_point, user_name, lat, lon, connect_key, cb, arg);
+}
+
+int CASTER::Unsub_Near_Raw_Data(const char *connect_key)
+{
+    return caster_internal::getInstance()->unsub_near_channel(connect_key);
 }
 
 int CASTER::Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)

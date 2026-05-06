@@ -35,4 +35,8 @@ message SourceRecord {
   string bitrate        = 21; // 比特率
   string misc           = 22; // 其他信息
 
+  double ecef_x = 26; // ECEF X坐标
+  double ecef_y = 27; // ECEF Y坐标
+  double ecef_z = 28; // ECEF Z坐标
+
 }

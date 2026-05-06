@@ -11,7 +11,6 @@
 #include "client_near.h"
 #include "relay_pull.h"
 #include "relay_push.h"
-#include "carrier_base.h"
 
 // #include "extra/heart_beat/heart_beat.h"
 #include "license_check/license_check.h"

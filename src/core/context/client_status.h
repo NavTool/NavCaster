@@ -55,6 +55,11 @@ public:
         return 0;
     }
 
+    const std::string &alias_mpt() const
+    {
+        return _alias_mpt;
+    }
+
     int set_coord_info(double ecef_x,double ecef_y,double ecef_z,int Q,int sat,double diff)
     {
         _ecef_x=ecef_x;

@@ -105,6 +105,9 @@ inline constexpr SourceRecord::Impl_::Impl_(
         update_time_{::uint64_t{0u}},
         decode_type_{static_cast< ::caster::SourceDecordType >(0)},
         display_type_{static_cast< ::caster::SourceDisplayType >(0)},
+        ecef_x_{0},
+        ecef_y_{0},
+        ecef_z_{0},
         record_type_{static_cast< ::caster::SourceRecordType >(0)} {}
 
 template <typename>
@@ -137,7 +140,7 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_._has_bits_),
-        28, // hasbit index offset
+        31, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.create_time_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.update_time_),
@@ -163,11 +166,14 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.fee_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.bitrate_),
         PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.misc_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.ecef_x_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.ecef_y_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::SourceRecord, _impl_.ecef_z_),
         0,
         20,
         21,
         1,
-        24,
+        27,
         22,
         23,
         2,
@@ -188,6 +194,9 @@ const ::uint32_t
         17,
         18,
         19,
+        24,
+        25,
+        26,
 };
 
 static const ::_pbi::MigrationSchema
@@ -200,7 +209,7 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_core_2fSourceRecord_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\027core/SourceRecord.proto\022\013caster.core\032\014"
-    "Common.proto\"\270\004\n\014SourceRecord\022\013\n\003uid\030\001 \001"
+    "Common.proto\"\350\004\n\014SourceRecord\022\013\n\003uid\030\001 \001"
     "(\t\022\023\n\013create_time\030\002 \001(\004\022\023\n\013update_time\030\003"
     " \001(\004\022\030\n\020source_group_uid\030\004 \001(\t\022-\n\013record"
     "_type\030\031 \001(\0162\030.caster.SourceRecordType\022-\n"
@@ -214,7 +223,8 @@ const char descriptor_table_protodef_core_2fSourceRecord_2eproto[] ABSL_ATTRIBUT
     "\t\022\014\n\004nmea\030\017 \001(\t\022\020\n\010solution\030\020 \001(\t\022\021\n\tgen"
     "erator\030\021 \001(\t\022\025\n\rcompr_encrryp\030\022 \001(\t\022\026\n\016a"
     "uthentication\030\023 \001(\t\022\013\n\003fee\030\024 \001(\t\022\017\n\007bitr"
-    "ate\030\025 \001(\t\022\014\n\004misc\030\026 \001(\tb\006proto3"
+    "ate\030\025 \001(\t\022\014\n\004misc\030\026 \001(\t\022\016\n\006ecef_x\030\032 \001(\001\022"
+    "\016\n\006ecef_y\030\033 \001(\001\022\016\n\006ecef_z\030\034 \001(\001b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_core_2fSourceRecord_2eproto_deps[1] = {
@@ -224,7 +234,7 @@ static ::absl::once_flag descriptor_table_core_2fSourceRecord_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fSourceRecord_2eproto = {
     false,
     false,
-    631,
+    679,
     descriptor_table_protodef_core_2fSourceRecord_2eproto,
     "core/SourceRecord.proto",
     &descriptor_table_core_2fSourceRecord_2eproto_once,
@@ -437,16 +447,16 @@ SourceRecord::GetClassData() const {
   return SourceRecord_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 25, 0, 226, 2>
+const ::_pbi::TcParseTable<5, 28, 0, 226, 2>
 SourceRecord::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_._has_bits_),
     0, // no _extensions_
-    25, 248,  // max_field_number, fast_idx_mask
+    28, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4261412864,  // skipmap
+    4026531840,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    25,  // num_field_entries
+    28,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     SourceRecord_class_data_.base(),
@@ -555,11 +565,20 @@ SourceRecord::_table_ = {
       PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.display_type_)}},
     // .caster.SourceRecordType record_type = 25;
     {::_pbi::TcParser::FastV32S2,
-     {456, 24, 0,
+     {456, 27, 0,
       PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.record_type_)}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // double ecef_x = 26;
+    {::_pbi::TcParser::FastF64S2,
+     {465, 24, 0,
+      PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.ecef_x_)}},
+    // double ecef_y = 27;
+    {::_pbi::TcParser::FastF64S2,
+     {473, 25, 0,
+      PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.ecef_y_)}},
+    // double ecef_z = 28;
+    {::_pbi::TcParser::FastF64S2,
+     {481, 26, 0,
+      PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.ecef_z_)}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
@@ -615,7 +634,13 @@ SourceRecord::_table_ = {
     // .caster.SourceDisplayType display_type = 24;
     {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.display_type_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     // .caster.SourceRecordType record_type = 25;
-    {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.record_type_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.record_type_), _Internal::kHasBitsOffset + 27, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    // double ecef_x = 26;
+    {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.ecef_x_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // double ecef_y = 27;
+    {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.ecef_y_), _Internal::kHasBitsOffset + 25, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // double ecef_z = 28;
+    {PROTOBUF_FIELD_OFFSET(SourceRecord, _impl_.ecef_z_), _Internal::kHasBitsOffset + 26, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
   }},
   // no aux_entries
   {{
@@ -722,7 +747,11 @@ PROTOBUF_NOINLINE void SourceRecord::Clear() {
         reinterpret_cast<char*>(&_impl_.display_type_) -
         reinterpret_cast<char*>(&_impl_.create_time_)) + sizeof(_impl_.display_type_));
   }
-  _impl_.record_type_ = 0;
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    ::memset(&_impl_.ecef_x_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.record_type_) -
+        reinterpret_cast<char*>(&_impl_.ecef_x_)) + sizeof(_impl_.record_type_));
+  }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -983,11 +1012,38 @@ PROTOBUF_NOINLINE void SourceRecord::Clear() {
   }
 
   // .caster.SourceRecordType record_type = 25;
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
     if (this_._internal_record_type() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
           25, this_._internal_record_type(), target);
+    }
+  }
+
+  // double ecef_x = 26;
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_x()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          26, this_._internal_ecef_x(), target);
+    }
+  }
+
+  // double ecef_y = 27;
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_y()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          27, this_._internal_ecef_y(), target);
+    }
+  }
+
+  // double ecef_z = 28;
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_z()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          28, this_._internal_ecef_z(), target);
     }
   }
 
@@ -1190,9 +1246,27 @@ PROTOBUF_NOINLINE void SourceRecord::Clear() {
       }
     }
   }
-   {
-    // .caster.SourceRecordType record_type = 25;
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    // double ecef_x = 26;
     if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_x()) != 0) {
+        total_size += 10;
+      }
+    }
+    // double ecef_y = 27;
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_y()) != 0) {
+        total_size += 10;
+      }
+    }
+    // double ecef_z = 28;
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_ecef_z()) != 0) {
+        total_size += 10;
+      }
+    }
+    // .caster.SourceRecordType record_type = 25;
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (this_._internal_record_type() != 0) {
         total_size += 2 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_record_type());
@@ -1423,9 +1497,26 @@ void SourceRecord::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
   }
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
-    if (from._internal_record_type() != 0) {
-      _this->_impl_.record_type_ = from._impl_.record_type_;
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_ecef_x()) != 0) {
+        _this->_impl_.ecef_x_ = from._impl_.ecef_x_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_ecef_y()) != 0) {
+        _this->_impl_.ecef_y_ = from._impl_.ecef_y_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_ecef_z()) != 0) {
+        _this->_impl_.ecef_z_ = from._impl_.ecef_z_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
+      if (from._internal_record_type() != 0) {
+        _this->_impl_.record_type_ = from._impl_.record_type_;
+      }
     }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;

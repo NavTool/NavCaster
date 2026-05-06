@@ -1,175 +1,78 @@
 /*
-    relay_pull.h — 协程版本的 relay 拉取 Carrier（混合设计）
-    初始化：create_bev → 等待连接 → 发送请求 → 等待握手 → caster_register（顺序 co_await）
-    running：co_await _events.next() 事件循环（读取数据→publish / 踢下线 / 断连→重连）
+    relay_pull.h - non-coroutine relay pull session.
 */
 #pragma once
-#include "carrier_base.h"
 
-class relay_pull : public carrier_base
+#include "ntrip_msg.h"
+
+#include <string>
+
+#include <event2/buffer.h>
+#include <event2/bufferevent.h>
+#include <event2/event.h>
+
+class relay_pull
 {
-    bool _stopped = false;
-    int _retry_delay = 5; // exponential backoff: 5 → 10 → 20 → 40 → 60 (cap)
+private:
+    //  固定信息
+    const CasterRegisterType _register_type = CasterRegisterType::PULL;
+    std::string __class__ = "relay_pull";
 
-    void backoff() { _retry_delay = std::min(_retry_delay * 2, 60); }
-    void reset_backoff() { _retry_delay = 5; }
+private:
+    // 传递信息
+    ConnectInfo _info;
+
+private:
+    // 内部成员变量
+    enum class State
+    {
+        Idle,
+        Connecting,
+        Handshaking,
+        Registering,
+        Running,
+        WaitingRetry
+    };
+
+    std::string _connect_key;
+    std::string _mount_point;
+    std::string _user_name;
+    bool _ntrip_version2 = false;
+    bool _transfer_with_chunked = false;
+    size_t _chunked_size = 0;
+    bool _stopped = false;
+    bool _registered = false;
+    int _retry_delay = 5;
+    State _state = State::Idle;
+
+    bufferevent *_bev = nullptr;
+    evbuffer *_recv_evbuf = nullptr;
+    event *_timeout_ev = nullptr;
+    timeval _timeout_tv{};
+    bool _timeout_ev_flag = false;
 
 public:
-    relay_pull(ConnectInfo info) : carrier_base(info)
-    {
-        __class__ = "relay_pull";
-    }
+    explicit relay_pull(ConnectInfo info);
+    ~relay_pull();
 
-    ~relay_pull() = default;
+    int start();
+    int stop();
 
-    int stop() override
-    {
-        _stopped = true;
-        stop_bev();
-        stop_timeout_event();
-        caster_withdraw();
-        _events.close();
+private:
+    void backoff();
+    void reset_backoff();
+    int start_connect();
+    int handle_connected();
+    int handle_handshake();
+    int running();
+    int cleanup_connection();
+    int schedule_retry(const std::string &reason);
+    int publish_recv_raw_data();
+    int publish_data_from_evbuf();
+    int publish_data_from_chunk();
 
-        spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]",
-                     __class__, _info.mount_point(), _info.addr(), _info.port());
-        return 0;
-    }
-
-    DetachedTask run() override
-    {
-        auto self = shared_from_this(); // 保持 carrier 存活直到协程退出
-
-        while (!_stopped)
-        {
-            // 1. 创建 bufferevent 并发起 TCP 连接
-            _connect_key = create_bev(_info.addr(), _info.port());
-            if (_connect_key.empty())
-            {
-                spdlog::warn("[{}]: create_bev failed (DNS/connect), mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
-                co_await co_sleep(_retry_delay);
-                backoff();
-                continue;
-            }
-            start_bev(true, 0, false, 0);
-
-            // 2. 等待连接建立
-            auto events = co_await co_wait_bev_event();
-            if (!(events & BEV_EVENT_CONNECTED))
-            {
-                spdlog::warn("[{}]: connect failed, mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
-                destroy_bev(_connect_key);
-                co_await co_sleep(_retry_delay);
-                backoff();
-                continue;
-            }
-
-            // TCP 已连接，重新计算 connect_key（从 fd 获取四元组）
-            auto new_key = connect_bev::getInstance()->recalculate_key(_connect_key);
-            if (new_key != _connect_key)
-            {
-                _connect_key = new_key;
-                _bev = connect_bev::getInstance()->get_bev(_connect_key);
-            }
-            // Relay 连接的账户统一标记为 SYSTEM
-            _user_name = "SYSTEM";
-
-            // 3. 发送 NTRIP 拉取请求（使用 mount_para 中的远端挂载点名称）
-            auto target_mpt = _info.mount_para().empty() ? _info.mount_point() : _info.mount_para();
-            auto req = build_ntrip_request(ConnectType::CONNECT_TYPE_PULL,
-                                           _ntrip_version2,
-                                           target_mpt,
-                                           _info.http_host(),
-                                           _info.ntrip_auth());
-            send_data(req.c_str(), req.size(), false);
-
-            // 4. 等待握手响应
-            auto resp_data = co_await co_wait_bev_read();
-            if (resp_data.empty())
-            {
-                spdlog::warn("[{}]: handshake failed (no data), mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
-                destroy_bev(_connect_key);
-                co_await co_sleep(_retry_delay);
-                backoff();
-                continue;
-            }
-
-            bool v2 = false, chunked = false;
-            bool ok = verify_ntrip_response(reinterpret_cast<const char *>(resp_data.data()), resp_data.size(), v2, chunked);
-            if (!ok)
-            {
-                spdlog::warn("[{}]: handshake verify failed, mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
-                destroy_bev(_connect_key);
-                co_await co_sleep(_retry_delay);
-                backoff();
-                continue;
-            }
-            _ntrip_version2 = v2;
-            _transfer_with_chunked = chunked;
-
-            // 5. 注册到 caster
-            auto reg = co_await co_caster_register(CasterRegisterType::PULL);
-            if (reg.type != CasterReply::OK)
-            {
-                spdlog::warn("[{}]: caster register failed, mount [{}], addr:[{}:{}], retry in {}s", __class__, _info.mount_point(), _info.addr(), _info.port(), _retry_delay);
-                destroy_bev(_connect_key);
-                co_await co_sleep(_retry_delay);
-                backoff();
-                continue;
-            }
-
-            // 6. 进入 running 状态
-            reset_backoff();
-            start_bev(true, 0, false, 0);
-            spdlog::info("[{}]: running, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
-
-            // 7. 统一事件循环 — 读取数据 / 踢下线 / 断连
-            bool disconnected = false;
-            while (auto evt = co_await _events.next())
-            {
-                switch (evt->type)
-                {
-                case CarrierEventType::BevRead:
-                {
-                    auto data = read_data(_transfer_with_chunked);
-                    publish_data(reinterpret_cast<const char *>(data.data()), data.size());
-                    break;
-                }
-
-                case CarrierEventType::RegisterReply:
-                    if (evt->caster_type == CasterReply::ERR)
-                    {
-                        spdlog::warn("[{}]: caster kicked, mount [{}]", __class__, _info.mount_point());
-                        disconnected = true;
-                    }
-                    break;
-
-                case CarrierEventType::BevEvent:
-                    disconnected = true;
-                    break;
-
-                default:
-                    break;
-                }
-                if (disconnected)
-                    break;
-            }
-
-            // 外部stop()导致EventChannel关闭 → 退出协程
-            if (_stopped)
-                break;
-
-            // 自然断连 → 重连准备
-            spdlog::info("[{}]: disconnected, will retry in {}s, mount [{}], addr:[{}:{}]", __class__, _retry_delay, _info.mount_point(), _info.addr(), _info.port());
-            stop_bev();
-            caster_withdraw();
-            destroy_bev(_connect_key);
-            _events.reset();
-            co_await co_sleep(_retry_delay);
-            backoff();
-        }
-
-        // 清理动态创建的 bev（stop() 或 reconnect 可能已清理，destroy_bev 内部会做幂等检查）
-        destroy_bev(_connect_key);
-        co_return;
-    }
+    static void ReadCallback(bufferevent *bev, void *arg);
+    static void EventCallback(bufferevent *bev, short events, void *arg);
+    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
+    static void CasterRegisterCallback(const char *request, void *arg, caster_reply *reply);
 };

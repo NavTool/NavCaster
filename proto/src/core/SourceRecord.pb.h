@@ -244,6 +244,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceRecord final : public ::googl
     kUpdateTimeFieldNumber = 3,
     kDecodeTypeFieldNumber = 23,
     kDisplayTypeFieldNumber = 24,
+    kEcefXFieldNumber = 26,
+    kEcefYFieldNumber = 27,
+    kEcefZFieldNumber = 28,
     kRecordTypeFieldNumber = 25,
   };
   // string uid = 1;
@@ -586,6 +589,36 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceRecord final : public ::googl
   void _internal_set_display_type(::caster::SourceDisplayType value);
 
   public:
+  // double ecef_x = 26;
+  void clear_ecef_x() ;
+  [[nodiscard]] double ecef_x() const;
+  void set_ecef_x(double value);
+
+  private:
+  double _internal_ecef_x() const;
+  void _internal_set_ecef_x(double value);
+
+  public:
+  // double ecef_y = 27;
+  void clear_ecef_y() ;
+  [[nodiscard]] double ecef_y() const;
+  void set_ecef_y(double value);
+
+  private:
+  double _internal_ecef_y() const;
+  void _internal_set_ecef_y(double value);
+
+  public:
+  // double ecef_z = 28;
+  void clear_ecef_z() ;
+  [[nodiscard]] double ecef_z() const;
+  void set_ecef_z(double value);
+
+  private:
+  double _internal_ecef_z() const;
+  void _internal_set_ecef_z(double value);
+
+  public:
   // .caster.SourceRecordType record_type = 25;
   void clear_record_type() ;
   [[nodiscard]] ::caster::SourceRecordType record_type() const;
@@ -600,7 +633,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceRecord final : public ::googl
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<5, 25,
+  static const ::google::protobuf::internal::TcParseTable<5, 28,
                                    0, 226,
                                    2>
       _table_;
@@ -648,6 +681,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED SourceRecord final : public ::googl
     ::uint64_t update_time_;
     int decode_type_;
     int display_type_;
+    double ecef_x_;
+    double ecef_y_;
+    double ecef_z_;
     int record_type_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -858,7 +894,7 @@ inline void SourceRecord::clear_record_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.record_type_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x01000000U);
+                  0x08000000U);
 }
 inline ::caster::SourceRecordType SourceRecord::record_type() const {
   // @@protoc_insertion_point(field_get:caster.core.SourceRecord.record_type)
@@ -866,7 +902,7 @@ inline ::caster::SourceRecordType SourceRecord::record_type() const {
 }
 inline void SourceRecord::set_record_type(::caster::SourceRecordType value) {
   _internal_set_record_type(value);
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   // @@protoc_insertion_point(field_set:caster.core.SourceRecord.record_type)
 }
 inline ::caster::SourceRecordType SourceRecord::_internal_record_type() const {
@@ -2096,6 +2132,81 @@ inline void SourceRecord::set_allocated_misc(::std::string* PROTOBUF_NULLABLE va
     _impl_.misc_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:caster.core.SourceRecord.misc)
+}
+
+// double ecef_x = 26;
+inline void SourceRecord::clear_ecef_x() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ecef_x_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x01000000U);
+}
+inline double SourceRecord::ecef_x() const {
+  // @@protoc_insertion_point(field_get:caster.core.SourceRecord.ecef_x)
+  return _internal_ecef_x();
+}
+inline void SourceRecord::set_ecef_x(double value) {
+  _internal_set_ecef_x(value);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  // @@protoc_insertion_point(field_set:caster.core.SourceRecord.ecef_x)
+}
+inline double SourceRecord::_internal_ecef_x() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ecef_x_;
+}
+inline void SourceRecord::_internal_set_ecef_x(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ecef_x_ = value;
+}
+
+// double ecef_y = 27;
+inline void SourceRecord::clear_ecef_y() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ecef_y_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x02000000U);
+}
+inline double SourceRecord::ecef_y() const {
+  // @@protoc_insertion_point(field_get:caster.core.SourceRecord.ecef_y)
+  return _internal_ecef_y();
+}
+inline void SourceRecord::set_ecef_y(double value) {
+  _internal_set_ecef_y(value);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  // @@protoc_insertion_point(field_set:caster.core.SourceRecord.ecef_y)
+}
+inline double SourceRecord::_internal_ecef_y() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ecef_y_;
+}
+inline void SourceRecord::_internal_set_ecef_y(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ecef_y_ = value;
+}
+
+// double ecef_z = 28;
+inline void SourceRecord::clear_ecef_z() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ecef_z_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x04000000U);
+}
+inline double SourceRecord::ecef_z() const {
+  // @@protoc_insertion_point(field_get:caster.core.SourceRecord.ecef_z)
+  return _internal_ecef_z();
+}
+inline void SourceRecord::set_ecef_z(double value) {
+  _internal_set_ecef_z(value);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  // @@protoc_insertion_point(field_set:caster.core.SourceRecord.ecef_z)
+}
+inline double SourceRecord::_internal_ecef_z() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.ecef_z_;
+}
+inline void SourceRecord::_internal_set_ecef_z(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.ecef_z_ = value;
 }
 
 #ifdef __GNUC__

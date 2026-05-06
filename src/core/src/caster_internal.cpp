@@ -1,6 +1,8 @@
 #include "caster_internal.h"
 #include <chrono>
+#include <cmath>
 #include <list>
+#include <memory>
 // #include <format>
 #include <spdlog/spdlog.h>
 #include <sstream>
@@ -438,11 +440,25 @@ int caster_internal::sub_near_channel(const char *channel, const char *user_name
         find->second.arg = arg;
     }
 
-    find = _base_near_sub_map.find(connect_key);
-    caster_cb_item *ptr = &find->second;
+    if (lat == 0.0 && lon == 0.0)
+    {
+        spdlog::info("[{}:{}]: wait GGA before nearest query, mount [{}], user [{}], connect [{}]", __class__, __func__, channel, user_name, connect_key);
+        caster_reply Reply;
+        Reply.type = CasterReply::OK;
+        Reply.str = channel;
+        cb(NULL, arg, &Reply);
+        return 0;
+    }
+
     // 添加一个查询，查询最近的站点
 
-    redisAsyncCommand(_pub_context, Redis_Geo_Radius_Callback, ptr, "GEORADIUS " MPT_POSITION_LIST " %s %s 100 KM WITHDIST ASC", std::to_string(lon).c_str(), std::to_string(lat).c_str());
+    auto query_connect_key = std::make_unique<std::string>(connect_key);
+    if (redisAsyncCommand(_pub_context, Redis_Geo_Radius_Callback, query_connect_key.get(), "GEORADIUS " MPT_POSITION_LIST " %s %s 100 KM WITHDIST ASC", std::to_string(lon).c_str(), std::to_string(lat).c_str()) != REDIS_OK)
+    {
+        spdlog::warn("[{}:{}]: GEORADIUS command failed, mount [{}], user [{}], connect [{}]", __class__, __func__, channel, user_name, connect_key);
+        return 1;
+    }
+    query_connect_key.release();
 
     return 0;
 }
@@ -513,6 +529,11 @@ int caster_internal::sub_alias_channel(const char *channel, const char *user_nam
 
 int caster_internal::unsub_base_channel(const char *channel, const char *connect_key)
 {
+    if (_base_near_sub_map.find(connect_key) != _base_near_sub_map.end())
+    {
+        return unsub_near_channel(connect_key);
+    }
+
     auto channel_subs = _base_sub_map.find(channel);
     if (channel_subs == _base_sub_map.end())
     {
@@ -527,15 +548,33 @@ int caster_internal::unsub_base_channel(const char *channel, const char *connect
     // 更新订阅者列表
     channel_subs->second.erase(item);
 
-    auto near_item = _base_near_sub_map.find(connect_key);
-    if (near_item != _base_near_sub_map.end()) // 如果这个订阅是使用的最近基站订阅模式，那么就删除这个记录
-    {
-        _base_near_sub_map.erase(near_item);
-        _near_pos_cache_map.erase(connect_key);
-    }
-
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_SUBSCRIBE_LIST ":%s %s", channel, connect_key);
 
+    return 0;
+}
+
+int caster_internal::unsub_near_channel(const char *connect_key)
+{
+    auto near_item = _base_near_sub_map.find(connect_key);
+    if (near_item == _base_near_sub_map.end())
+    {
+        _near_pos_cache_map.erase(connect_key);
+        return 0;
+    }
+
+    auto channel_subs = _base_sub_map.find(near_item->second.channel);
+    if (channel_subs != _base_sub_map.end())
+    {
+        auto item = channel_subs->second.find(connect_key);
+        if (item != channel_subs->second.end())
+        {
+            channel_subs->second.erase(item);
+            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_SUBSCRIBE_LIST ":%s %s", near_item->second.channel.c_str(), connect_key);
+        }
+    }
+
+    _base_near_sub_map.erase(near_item);
+    _near_pos_cache_map.erase(connect_key);
     return 0;
 }
 
@@ -620,6 +659,23 @@ int caster_internal::set_rover_coord_info(const char *user_name, const char *con
     util_ecef2pos(ecef_x, ecef_y, ecef_z, lat, lon, alt);
     // 更新坐标到GEO表中
     redisAsyncCommand(_pub_context, NULL, NULL, "GEOADD " USR_POSITION_LIST " %s %s %s", std::to_string(lon).c_str(), std::to_string(lat).c_str(), connect_key); //
+
+    item->second.set_distance(0.0);
+    const std::string &alias_mpt = item->second.alias_mpt();
+    auto source = _source_decode_map.find(alias_mpt);
+    if (source != _source_decode_map.end())
+    {
+        double base_ecef_x = 0.0;
+        double base_ecef_y = 0.0;
+        double base_ecef_z = 0.0;
+        if (source->second.get_ecef_coord(base_ecef_x, base_ecef_y, base_ecef_z))
+        {
+            double dx = ecef_x - base_ecef_x;
+            double dy = ecef_y - base_ecef_y;
+            double dz = ecef_z - base_ecef_z;
+            item->second.set_distance(std::sqrt(dx * dx + dy * dy + dz * dz));
+        }
+    }
 
     return 0;
 }
@@ -1901,11 +1957,9 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         _stream_status_map.insert(std::pair<std::string, stream_status>(connect_key, str));
 
-        // 为NEAREST类型的用户创建NMEA解码器，用于Core解析GGA坐标并管理最近基站切换
-        if (type == CasterRegisterType::NEAREST)
-        {
-            _rover_decoder_map.emplace(connect_key, decode_nmea{});
-        }
+        // 创建NMEA解码器
+        _rover_decoder_map.emplace(connect_key, decode_nmea{});
+        
 
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, conn.toString().c_str()); // 更新挂载点数据生产者的更新时间
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " STR_STATUS_LIST " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), connect_key, str.toString().c_str());
@@ -2086,8 +2140,7 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     }
     _stream_status_map.erase(connect_key);
     _rover_decoder_map.erase(connect_key);
-    _base_near_sub_map.erase(connect_key);
-    _near_pos_cache_map.erase(connect_key);
+    unsub_near_channel(connect_key);
     // 向云端插入记录
     if (_upload_rover_stat)
     {
@@ -2182,21 +2235,22 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
         add_sum_recv(data_length);
     }
 
-    // 对于near模式的订阅者，解析NMEA/GGA数据并触发最近基站切换
-    auto near = _base_near_sub_map.find(connect_key);
-    if (near != _base_near_sub_map.end())
+    // 解析NMEA/GGA数据并更新用户坐标（所有订阅类型均执行）
+    auto dec = _rover_decoder_map.find(connect_key);
+    if (dec != _rover_decoder_map.end())
     {
-        auto dec = _rover_decoder_map.find(connect_key);
-        if (dec != _rover_decoder_map.end())
+        dec->second.Decode(data, data_length);
+        if (dec->second._has_position)
         {
-            dec->second.Decode(data, data_length);
-            if (dec->second._has_position)
-            {
-                // 更新用户坐标
-                set_rover_coord_info(user_name, connect_key,
-                                     dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z,
-                                     dec->second._quality, dec->second._sat_num, dec->second._diff);
+            // 更新用户坐标
+            set_rover_coord_info(user_name, connect_key,
+                                 dec->second._ecef_x, dec->second._ecef_y, dec->second._ecef_z,
+                                 dec->second._quality, dec->second._sat_num, dec->second._diff);
 
+            // 对于near模式的订阅者，额外触发最近基站切换
+            auto near = _base_near_sub_map.find(connect_key);
+            if (near != _base_near_sub_map.end())
+            {
                 // 距离阈值判断：仅当首次或位置变化超过 _near_switch_distance(米) 时才触发最近基站检索，
                 // 避免在静止/微小漂移下频繁切换基站
                 bool need_query = false;
@@ -3148,7 +3202,20 @@ void caster_internal::Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, voi
 void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     auto reply = static_cast<redisReply *>(r);
-    auto cb_item = static_cast<caster_cb_item *>(privdata);
+    std::unique_ptr<std::string> connect_key(static_cast<std::string *>(privdata));
+
+    if (!connect_key)
+    {
+        return;
+    }
+
+    auto *svr = caster_internal::getInstance();
+    auto near_item = svr->_base_near_sub_map.find(*connect_key);
+    if (near_item == svr->_base_near_sub_map.end())
+    {
+        return;
+    }
+    auto *cb_item = &near_item->second;
 
     if (!reply)
     {
@@ -3175,10 +3242,10 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
         auto value = reply_item->element[1]->str;
 
         // 判断所有符合要求的挂载点
-        auto iter = caster_internal::getInstance()->_active_mount_map.find(field); // 查找这个挂载点是否处于在线状态
-        if (iter == caster_internal::getInstance()->_active_mount_map.end())       // 如果不在线，那么要把这个记录删掉
+        auto iter = svr->_active_mount_map.find(field); // 查找这个挂载点是否处于在线状态
+        if (iter == svr->_active_mount_map.end())       // 如果不在线，那么要把这个记录删掉
         {
-            redisAsyncCommand(caster_internal::getInstance()->_pub_context, NULL, NULL, "ZREM " MPT_POSITION_LIST " %s", field);
+            redisAsyncCommand(svr->_pub_context, NULL, NULL, "ZREM " MPT_POSITION_LIST " %s", field);
             continue;
         }
         else // 如果在线,订阅这个挂载点
@@ -3194,27 +3261,27 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
             // 如果不一致，要先把旧的订阅移除，然后添加到新的订阅上
 
             // 查询当前connect_key是否已经有订阅站点，
-            auto sub_base_item = caster_internal::getInstance()->_base_sub_map.find(cb_item->channel);
-            if (sub_base_item != caster_internal::getInstance()->_base_sub_map.end()) // 没有这个订阅记录
+            auto sub_base_item = svr->_base_sub_map.find(cb_item->channel);
+            if (sub_base_item != svr->_base_sub_map.end()) // 没有这个订阅记录
             {
                 auto sub_item = sub_base_item->second.find(cb_item->connect_key);
                 if (sub_item != sub_base_item->second.end())
                 {
                     // 找到这个订阅记录，取消订阅
-                    caster_internal::getInstance()->_base_sub_map[cb_item->channel].erase(cb_item->connect_key);
+                    svr->_base_sub_map[cb_item->channel].erase(cb_item->connect_key);
                 }
             }
 
             // 更新用户订阅的挂载点信息
-            auto item = caster_internal::getInstance()->_client_status_map.find(cb_item->connect_key);
-            if (item != caster_internal::getInstance()->_client_status_map.end())
+            auto item = svr->_client_status_map.find(cb_item->connect_key);
+            if (item != svr->_client_status_map.end())
             {
                 item->second.set_alias_mpt(field);
             }
 
             // 添加到新的订阅上去
             cb_item->channel = field;
-            caster_internal::getInstance()->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg);
+            svr->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg);
 
             return;
         }

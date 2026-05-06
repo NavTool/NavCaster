@@ -137,6 +137,9 @@ public:
             util_ecef2pos(_ecef_x, _ecef_y, _ecef_z, lat, lon, alt);
             proto.set_latitude(std::to_string(lat));
             proto.set_longitude(std::to_string(lon));
+            proto.set_ecef_x(_ecef_x);
+            proto.set_ecef_y(_ecef_y);
+            proto.set_ecef_z(_ecef_z);
         }
         // 生成json
         return ProtoToJson(proto);

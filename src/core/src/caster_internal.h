@@ -258,7 +258,7 @@ private:
     int _update_intv = 1;
     int _key_expire_time = 30; // Hash键值默认续期时间
     int _master_expire_time = 15; // Master锁TTL, 缩短以加速故障切换
-    double _near_switch_distance = 50.0; // 最近基站切换距离阈值(米)，0表示每次都触发
+    double _near_switch_distance = 1000.0; // 最近基站切换距离阈值(米)，0表示每次都触发
     int _node_history_counter = 0; // 节点历史记录计数器, 每 5 次 TimeoutCallback 记录一次
     int _1min_agg_counter = 0;     // 每 12 个 RAW 触发 1M 聚合 (12 × 5s = 60s)
     int _5min_agg_counter = 0;     // 每 5 个 1M 触发 5M 聚合 (5 × 60s = 300s)
@@ -400,6 +400,8 @@ public:
     int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 订阅最近频道
     int sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    // 取消最近频道订阅
+    int unsub_near_channel(const char *connect_key);
     // 订阅别名频道
     int sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
     // 取消订阅频道

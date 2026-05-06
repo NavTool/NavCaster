@@ -12,6 +12,9 @@ private:
     std::string _longitude;       // 经度
     std::string _format_details;  // RTCM报文类型，如 "1005(1),1074(120)"
     std::string _nav_system;      // 卫星系统，如 "GPS+GLO+GAL+BDS"
+    double _ecef_x = 0.0;
+    double _ecef_y = 0.0;
+    double _ecef_z = 0.0;
 
 public:
     source_record(std::string uid)
@@ -20,6 +23,18 @@ public:
     }
 
     void set_mountpoint(const std::string &mpt) { _mountpoint = mpt; }
+
+    bool get_ecef_coord(double &ecef_x, double &ecef_y, double &ecef_z) const
+    {
+        if (_ecef_x == 0.0 && _ecef_y == 0.0 && _ecef_z == 0.0)
+        {
+            return false;
+        }
+        ecef_x = _ecef_x;
+        ecef_y = _ecef_y;
+        ecef_z = _ecef_z;
+        return true;
+    }
 
     int fromString(const std::string &str)
     {
@@ -38,6 +53,9 @@ public:
             _format_details = proto.format_details();
         if (!proto.nav_system().empty())
             _nav_system = proto.nav_system();
+        _ecef_x = proto.ecef_x();
+        _ecef_y = proto.ecef_y();
+        _ecef_z = proto.ecef_z();
         return 0;
     }
     std::string toString()
@@ -53,6 +71,9 @@ public:
             proto.set_format_details(_format_details);
         if (!_nav_system.empty())
             proto.set_nav_system(_nav_system);
+        proto.set_ecef_x(_ecef_x);
+        proto.set_ecef_y(_ecef_y);
+        proto.set_ecef_z(_ecef_z);
         return ProtoToJson(proto);
     }
 

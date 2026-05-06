@@ -105,7 +105,6 @@ public:
             m_obj_map.erase(existing);
         }
         m_obj_map.insert(std::pair(req.connect_key(), obj));
-        obj->init();
         obj->start();
         return 0;
     }

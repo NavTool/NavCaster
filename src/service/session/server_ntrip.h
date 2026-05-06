@@ -1,94 +1,67 @@
 /*
-    server_ntrip.h — 协程版本的基站 Carrier（混合设计）
-    初始化：auth_login → caster_register（顺序 co_await）
-    running：co_await _events.next() 事件循环（上传数据→publish / 踢下线 / 断连）
+    server_ntrip.h - non-coroutine base-station session.
 */
 #pragma once
-#include "carrier_base.h"
 
-class server_ntrip : public carrier_base
+#include "ntrip_msg.h"
+
+#include <string>
+
+#include <event2/buffer.h>
+#include <event2/bufferevent.h>
+#include <event2/event.h>
+
+class server_ntrip
 {
+private:
+    //  固定信息
+    const CasterRegisterType _register_type = CasterRegisterType::SERVER;
+    const AuthType _auth_type = AuthType::SERVER;
+    std::string __class__ = "server_ntrip";
+private:
+    // 传递信息
+        ConnectInfo _info;
+        
+private:
+    // 内部成员变量
+    std::string _connect_key;
+    std::string _mount_point;
+    std::string _user_name;
+    bool _ntrip_version2 = false;
+    bool _transfer_with_chunked = false;
+    size_t _chunked_size = 0;
+    bool _stopped = false;
+    bool _registered = false;
+
+
+    bufferevent *_bev = nullptr;
+    evbuffer *_send_evbuf = nullptr;
+    evbuffer *_recv_evbuf = nullptr;
+    event *_timeout_ev = nullptr;
+    timeval _timeout_tv{};
+    bool _timeout_ev_flag = false;
+
+
 public:
-    server_ntrip(ConnectInfo info) : carrier_base(info)
-    {
-        __class__ = "server_ntrip";
-    }
+    explicit server_ntrip(ConnectInfo info);
+    ~server_ntrip();
 
-    ~server_ntrip() = default;
+    int start();
+    int stop();
 
-    DetachedTask run() override
-    {
-        auto self = shared_from_this(); // 保持 carrier 存活直到协程退出
+private:
 
-        // 1. 认证
-        auto auth = co_await co_auth_login(AuthType::SERVER);
-        if (auth.type != AuthReply::OK)
-        {
-            spdlog::warn("[{}]: auth login failed, addr:[{}:{}]", __class__, _info.addr(), _info.port());
-            stop();
-            co_return;
-        }
 
-        // 2. 注册
-        auto reg = co_await co_caster_register(CasterRegisterType::SERVER);
-        if (reg.type != CasterReply::OK)
-        {
-            spdlog::warn("[{}]: caster register failed, addr:[{}:{}]", __class__, _info.addr(), _info.port());
-            stop();
-            co_return;
-        }
+    int running();
+    int send_reply();
+    int send_heart_beat_to_server();
+    int publish_recv_raw_data();
+    int publish_data_from_evbuf();
+    int publish_data_from_chunk();
 
-        // 3. 注册成功，进入 running 状态
-        start_bev(true, 0, false, 0);
-        start_timeout_event(5);
-        auto reply_str = build_nrtip_reply(CONNECT_TYPE_SERVER, _ntrip_version2, _transfer_with_chunked);
-        send_data(reply_str.c_str(), reply_str.size(), false);
-        spdlog::info("[{}]: running, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
-
-        // 4. 统一事件循环 — 上传数据 / 响应踢下线 / TCP 断连
-        while (auto evt = co_await _events.next())
-        {
-            switch (evt->type)
-            {
-            case CarrierEventType::BevRead:
-            {
-                // 基站上传数据，发布到 caster（RTCM解析由Core统一执行）
-                auto data = read_data(_transfer_with_chunked);
-                publish_data(reinterpret_cast<const char *>(data.data()), data.size());
-                break;
-            }
-
-            case CarrierEventType::AuthReply:
-                if (evt->auth_type != AuthReply::OK)
-                {
-                    spdlog::warn("[{}]: auth kicked, addr:[{}:{}]", __class__, _info.addr(), _info.port());
-                    stop();
-                    co_return;
-                }
-                break;
-
-            case CarrierEventType::RegisterReply:
-                if (evt->caster_type == CasterReply::ERR)
-                {
-                    spdlog::warn("[{}]: caster kicked, addr:[{}:{}]", __class__, _info.addr(), _info.port());
-                    stop();
-                    co_return;
-                }
-                break;
-
-            case CarrierEventType::BevEvent:
-                spdlog::info("[{}]: disconnected, mount [{}], addr:[{}:{}]", __class__, _info.mount_point(), _info.addr(), _info.port());
-                stop();
-                co_return;
-
-            case CarrierEventType::Timeout:
-                break;
-
-            default:
-                break;
-            }
-        }
-
-        co_return;
-    }
+    static void ReadCallback(bufferevent *bev, void *arg);
+    static void EventCallback(bufferevent *bev, short events, void *arg);
+    static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
+    static void AuthLoginCallback(const char *request, void *arg, auth_reply *reply);
+    static void CasterRegisterCallback(const char *request, void *arg, caster_reply *reply);
 };
