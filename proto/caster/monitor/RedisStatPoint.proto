@@ -11,4 +11,13 @@ message RedisStatPoint {
   uint64 hits               = 5;
   uint64 misses             = 6;
   uint32 connected_clients  = 7;
+  uint64 used_memory_rss    = 8;
+  uint64 used_memory_peak   = 9;
+  double mem_fragmentation_ratio = 10;
+  uint64 total_commands_processed = 11;
+  uint64 total_connections_received = 12;
+  double hit_rate           = 13;
+  uint32 blocked_clients    = 14;
+  double input_kbps         = 15;
+  double output_kbps        = 16;
 }

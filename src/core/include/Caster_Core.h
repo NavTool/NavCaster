@@ -98,27 +98,27 @@ namespace CASTER
 
     bool Check_Alias_Mpt(const char *mount_point);
 
-    int Register_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type);
+    int Register_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid = "default");
     int Withdraw_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type);
 
     int Pub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, const char *data, size_t data_length, CasterRegisterType type);
-    int Sub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type);
+    int Sub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid = "default");
     int Unsub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type);
 
     // 将基站注册到Caster中（Server上线的时候主动调用）
-    int Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
+    int Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid = "default");
     // 将基站从Caster中注销（Server下线的时候主动调用）
     int Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布基站数据
     int Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅基站数据
-    int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid = "default");
     // 最近点基站模式
-    int Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid = "default");
     // 取消最近点基站模式订阅
     int Unsub_Near_Raw_Data(const char *connect_key);
     // 订阅基站数据
-    int Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid = "default");
     // 取消订阅基站数据
     int Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key);
     // 设置基站坐标信息
@@ -135,13 +135,13 @@ namespace CASTER
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, const std::string &format_details, const std::string &nav_system);
 
     // 将移动站注册到Caster中（Client上线的时候主动调用）
-    int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
+    int Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid = "default");
     // 将移动站从Caster中注销（Client下线的时候主动调用）
     int Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key);
     // 发布移动站数据
     int Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length);
     // 订阅移动站数据
-    int Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid = "default");
     // 取消订阅移动站数据
     int Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key);
     // 设置用户坐标信息
@@ -150,7 +150,7 @@ namespace CASTER
     int Set_Delay_Info(const char *connect_key, uint64_t delay);
 
     // 获取文本形式的源列表
-    std::string Get_Source_Table_Text();
+    std::string Get_Source_Table_Text(const char *group_uid = "default");
 
     int Relay_Register_Callback(RelayCallback cb, void *arg);
 

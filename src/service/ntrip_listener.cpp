@@ -389,6 +389,7 @@ int ntrip_listener::create_request(auth_reply *reply, ConnectInfo req)
     if (reply->type == AuthReply::OK)
     {
         req.set_operate(OPERATE_TYPE_CREATE);
+        req.set_group_uid(reply->group_uid.empty() ? "default" : reply->group_uid);
         QUEUE::Push(req);
     }
     else
@@ -442,14 +443,24 @@ int ntrip_listener::Process_GET_Request(bufferevent *bev, std::string connect_ke
     std::string userID = req.user_base64();
     std::string user_name = req.user_name();
     std::string user_pwd = req.user_pwd();
-    auto ctx = new std::pair<ntrip_listener *, ConnectInfo>(this, req);
 
     if (req.type() == CONNECT_TYPE_SOURCE)
     {
+        if (user_name.empty() && user_pwd.empty())
+        {
+            auth_reply Reply;
+            Reply.type = AuthReply::OK;
+            Reply.group_uid = "default";
+            create_request(&Reply, req);
+            return 0;
+        }
+
+        auto ctx = new std::pair<ntrip_listener *, ConnectInfo>(this, req);
         AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SOURCE);
     }
     else
     {
+        auto ctx = new std::pair<ntrip_listener *, ConnectInfo>(this, req);
         AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::CLIENT);
     }
     return 0;

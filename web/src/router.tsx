@@ -8,6 +8,7 @@ import Accounts from './pages/Accounts';
 import Sources from './pages/Sources';
 import Aliases from './pages/Aliases';
 import AccessGroups from './pages/AccessGroups';
+import AccessGroupDetail from './pages/AccessGroupDetail';
 import PullRelay from './pages/PullRelay';
 import PushRelay from './pages/PushRelay';
 import Settings from './pages/Settings';
@@ -108,6 +109,7 @@ export default function AppRouter() {
           <Route path="sources" element={<Sources />} />
           <Route path="aliases" element={<Aliases />} />
           <Route path="access" element={<AccessGroups />} />
+          <Route path="access/:id" element={<AccessGroupDetail />} />
           <Route path="sourcetable" element={<SourceTable />} />
           <Route path="relay/pull" element={<PullRelay />} />
           <Route path="relay/push" element={<PushRelay />} />

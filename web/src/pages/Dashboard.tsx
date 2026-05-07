@@ -8,7 +8,7 @@ import {
 import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { CasterNode, ServerState, ClientState } from '../api/types';
-import { formatBytes, formatMbps, formatOnlineTime, formatDelay, formatUsage, formatSpeed } from '../utils/format';
+import { formatBytes, formatMbps, formatOnlineTime, formatDelay, formatSpeed, formatCpuPercent, normalizeCpuPercent } from '../utils/format';
 import { useNavigate } from 'react-router-dom';
 import { getSystemStatus } from '../api';
 
@@ -51,7 +51,7 @@ const Dashboard: React.FC = () => {
   // Aggregate from nodes — match QML CasterResourceController
   const totalSendSpeed = nodeList.reduce((s, n) => s + (n.send_speed || 0), 0);
   const totalRecvSpeed = nodeList.reduce((s, n) => s + (n.recv_speed || 0), 0);
-  const avgCpu = nodeList.length > 0 ? nodeList.reduce((s, n) => s + (n.cpu_usage || 0), 0) / nodeList.length : 0;
+  const avgCpu = nodeList.length > 0 ? nodeList.reduce((s, n) => s + normalizeCpuPercent(n.cpu_usage || 0), 0) / nodeList.length : 0;
   const totalMem = nodeList.reduce((s, n) => s + (n.mem_usage || 0), 0);
   const minOnlineTime = nodeList.length > 0 ? Math.min(...nodeList.map(n => n.online_time || 0)) : 0;
 
@@ -73,11 +73,11 @@ const Dashboard: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 13, color: '#8b90a8', marginBottom: 4 }}>负载</div>
-                <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>{formatUsage(avgCpu)}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5 }}>{formatCpuPercent(avgCpu)}</div>
               </div>
               <DashboardOutlined style={{ fontSize: 28, color: '#4a8eff', opacity: 0.5 }} />
             </div>
-            <Progress percent={Math.round(avgCpu)} size="small" showInfo={false} strokeColor={cpuColor}
+            <Progress percent={Math.min(Math.round(avgCpu), 100)} size="small" showInfo={false} strokeColor={cpuColor}
               style={{ marginTop: 8 }} />
           </Card>
         </Col>
@@ -207,10 +207,10 @@ const Dashboard: React.FC = () => {
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                   <span style={{ color: '#6b7194' }}>CPU 负载</span>
-                  <span style={{ fontWeight: 500 }}>{(node.cpu_usage || 0).toFixed(1)}%</span>
+                  <span style={{ fontWeight: 500 }}>{formatCpuPercent(node.cpu_usage || 0)}</span>
                 </div>
-                <Progress percent={Math.round(node.cpu_usage || 0)} size="small" showInfo={false}
-                  strokeColor={(node.cpu_usage || 0) > 85 ? '#ff4d4f' : (node.cpu_usage || 0) > 50 ? '#faad14' : '#52c41a'} />
+                <Progress percent={Math.min(Math.round(normalizeCpuPercent(node.cpu_usage || 0)), 100)} size="small" showInfo={false}
+                  strokeColor={normalizeCpuPercent(node.cpu_usage || 0) > 85 ? '#ff4d4f' : normalizeCpuPercent(node.cpu_usage || 0) > 50 ? '#faad14' : '#52c41a'} />
               </div>
 
               {/* Memory bar */}

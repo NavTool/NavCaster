@@ -241,12 +241,14 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED NodeInfo final : public ::google::p
     kSendSpeedFieldNumber = 31,
     kRecvTotalFieldNumber = 32,
     kRecvSpeedFieldNumber = 33,
+    kClientCountFieldNumber = 42,
+    kPullFieldNumber = 43,
     kConnectCountFieldNumber = 40,
     kOnlineFieldNumber = 52,
     kMasterFieldNumber = 53,
     kOnlineTimeFieldNumber = 50,
     kUptimeSecFieldNumber = 51,
-    kClientCountFieldNumber = 42,
+    kPushFieldNumber = 44,
   };
   // string uid = 1;
   void clear_uid() ;
@@ -498,6 +500,26 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED NodeInfo final : public ::google::p
   void _internal_set_recv_speed(double value);
 
   public:
+  // uint32 client_count = 42;
+  void clear_client_count() ;
+  [[nodiscard]] ::uint32_t client_count() const;
+  void set_client_count(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_client_count() const;
+  void _internal_set_client_count(::uint32_t value);
+
+  public:
+  // uint32 pull = 43;
+  void clear_pull() ;
+  [[nodiscard]] ::uint32_t pull() const;
+  void set_pull(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_pull() const;
+  void _internal_set_pull(::uint32_t value);
+
+  public:
   // uint32 connect_count = 40;
   void clear_connect_count() ;
   [[nodiscard]] ::uint32_t connect_count() const;
@@ -548,21 +570,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED NodeInfo final : public ::google::p
   void _internal_set_uptime_sec(::uint64_t value);
 
   public:
-  // uint32 client_count = 42;
-  void clear_client_count() ;
-  [[nodiscard]] ::uint32_t client_count() const;
-  void set_client_count(::uint32_t value);
+  // uint32 push = 44;
+  void clear_push() ;
+  [[nodiscard]] ::uint32_t push() const;
+  void set_push(::uint32_t value);
 
   private:
-  ::uint32_t _internal_client_count() const;
-  void _internal_set_client_count(::uint32_t value);
+  ::uint32_t _internal_push() const;
+  void _internal_set_push(::uint32_t value);
 
   public:
   // @@protoc_insertion_point(class_scope:caster.monitor.NodeInfo)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<5, 28,
+  static const ::google::protobuf::internal::TcParseTable<5, 30,
                                    0, 110,
                                    9>
       _table_;
@@ -608,12 +630,14 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED NodeInfo final : public ::google::p
     double send_speed_;
     ::uint64_t recv_total_;
     double recv_speed_;
+    ::uint32_t client_count_;
+    ::uint32_t pull_;
     ::uint32_t connect_count_;
     bool online_;
     bool master_;
     ::uint64_t online_time_;
     ::uint64_t uptime_sec_;
-    ::uint32_t client_count_;
+    ::uint32_t push_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -1408,7 +1432,7 @@ inline void NodeInfo::clear_connect_count() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.connect_count_ = 0u;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00400000U);
+                  0x01000000U);
 }
 inline ::uint32_t NodeInfo::connect_count() const {
   // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.connect_count)
@@ -1416,7 +1440,7 @@ inline ::uint32_t NodeInfo::connect_count() const {
 }
 inline void NodeInfo::set_connect_count(::uint32_t value) {
   _internal_set_connect_count(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
   // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.connect_count)
 }
 inline ::uint32_t NodeInfo::_internal_connect_count() const {
@@ -1458,7 +1482,7 @@ inline void NodeInfo::clear_client_count() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.client_count_ = 0u;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x08000000U);
+                  0x00400000U);
 }
 inline ::uint32_t NodeInfo::client_count() const {
   // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.client_count)
@@ -1466,7 +1490,7 @@ inline ::uint32_t NodeInfo::client_count() const {
 }
 inline void NodeInfo::set_client_count(::uint32_t value) {
   _internal_set_client_count(value);
-  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
   // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.client_count)
 }
 inline ::uint32_t NodeInfo::_internal_client_count() const {
@@ -1478,12 +1502,62 @@ inline void NodeInfo::_internal_set_client_count(::uint32_t value) {
   _impl_.client_count_ = value;
 }
 
+// uint32 pull = 43;
+inline void NodeInfo::clear_pull() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pull_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00800000U);
+}
+inline ::uint32_t NodeInfo::pull() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.pull)
+  return _internal_pull();
+}
+inline void NodeInfo::set_pull(::uint32_t value) {
+  _internal_set_pull(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.pull)
+}
+inline ::uint32_t NodeInfo::_internal_pull() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pull_;
+}
+inline void NodeInfo::_internal_set_pull(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pull_ = value;
+}
+
+// uint32 push = 44;
+inline void NodeInfo::clear_push() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.push_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x20000000U);
+}
+inline ::uint32_t NodeInfo::push() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.push)
+  return _internal_push();
+}
+inline void NodeInfo::set_push(::uint32_t value) {
+  _internal_set_push(value);
+  SetHasBit(_impl_._has_bits_[0], 0x20000000U);
+  // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.push)
+}
+inline ::uint32_t NodeInfo::_internal_push() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.push_;
+}
+inline void NodeInfo::_internal_set_push(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.push_ = value;
+}
+
 // uint64 online_time = 50;
 inline void NodeInfo::clear_online_time() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.online_time_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x02000000U);
+                  0x08000000U);
 }
 inline ::uint64_t NodeInfo::online_time() const {
   // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.online_time)
@@ -1491,7 +1565,7 @@ inline ::uint64_t NodeInfo::online_time() const {
 }
 inline void NodeInfo::set_online_time(::uint64_t value) {
   _internal_set_online_time(value);
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.online_time)
 }
 inline ::uint64_t NodeInfo::_internal_online_time() const {
@@ -1508,7 +1582,7 @@ inline void NodeInfo::clear_uptime_sec() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.uptime_sec_ = ::uint64_t{0u};
   ClearHasBit(_impl_._has_bits_[0],
-                  0x04000000U);
+                  0x10000000U);
 }
 inline ::uint64_t NodeInfo::uptime_sec() const {
   // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.uptime_sec)
@@ -1516,7 +1590,7 @@ inline ::uint64_t NodeInfo::uptime_sec() const {
 }
 inline void NodeInfo::set_uptime_sec(::uint64_t value) {
   _internal_set_uptime_sec(value);
-  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x10000000U);
   // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.uptime_sec)
 }
 inline ::uint64_t NodeInfo::_internal_uptime_sec() const {
@@ -1533,7 +1607,7 @@ inline void NodeInfo::clear_online() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.online_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00800000U);
+                  0x02000000U);
 }
 inline bool NodeInfo::online() const {
   // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.online)
@@ -1541,7 +1615,7 @@ inline bool NodeInfo::online() const {
 }
 inline void NodeInfo::set_online(bool value) {
   _internal_set_online(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
   // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.online)
 }
 inline bool NodeInfo::_internal_online() const {
@@ -1558,7 +1632,7 @@ inline void NodeInfo::clear_master() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.master_ = false;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x01000000U);
+                  0x04000000U);
 }
 inline bool NodeInfo::master() const {
   // @@protoc_insertion_point(field_get:caster.monitor.NodeInfo.master)
@@ -1566,7 +1640,7 @@ inline bool NodeInfo::master() const {
 }
 inline void NodeInfo::set_master(bool value) {
   _internal_set_master(value);
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   // @@protoc_insertion_point(field_set:caster.monitor.NodeInfo.master)
 }
 inline bool NodeInfo::_internal_master() const {

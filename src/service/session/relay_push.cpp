@@ -136,7 +136,7 @@ int relay_push::handle_handshake()
     _ntrip_version2 = version2;
     _transfer_with_chunked = chunked;
     _state = State::Registering;
-    CASTER::Register_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), CasterRegisterCallback, this, _register_type);
+    CASTER::Register_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), CasterRegisterCallback, this, _register_type, "SYSTEM");
     return 0;
 }
 
@@ -269,7 +269,7 @@ void relay_push::CasterRegisterCallback(const char *request, void *arg, caster_r
     {
         session->_registered = true;
         session->_state = State::Subscribing;
-        CASTER::Sub_Raw_Data(session->_connect_key.c_str(), session->_mount_point.c_str(), session->_user_name.c_str(), CasterSubscribeCallback, session, session->_register_type);
+        CASTER::Sub_Raw_Data(session->_connect_key.c_str(), session->_mount_point.c_str(), session->_user_name.c_str(), CasterSubscribeCallback, session, session->_register_type, "SYSTEM");
     }
     else if (reply->type == CasterReply::ERR)
     {

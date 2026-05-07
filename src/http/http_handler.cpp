@@ -636,6 +636,22 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
             {"allow_nearby_outside_group", true}
         };
         sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, "default", default_group.dump());
+
+        json system_group = {
+            {"uid", "SYSTEM"},
+            {"group_name", "SYSTEM"},
+            {"create_time", ms},
+            {"update_time", ms},
+            {"nearest_mpt_enable", true},
+            {"nearest_mpt_source_name", ""},
+            {"allow_visible_inside_group", true},
+            {"allow_access_inside_group", true},
+            {"allow_nearby_inside_group", true},
+            {"allow_visible_outside_group", true},
+            {"allow_access_outside_group", true},
+            {"allow_nearby_outside_group", true}
+        };
+        sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, "SYSTEM", system_group.dump());
         spdlog::info("[{}:{}]: Ensured default access group exists", __class__, __func__);
     }
 
@@ -1359,14 +1375,40 @@ void http_handler::handle_create_access_group(const HttpRequest &req, HttpRespon
     std::string uid = body.value("uid", "");
     if (uid.empty()) uid = body.value("group_uid", "");
     if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing group uid"})"; return; }
+    body["uid"] = uid;
     bool ok = sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, uid.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Group already exists"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
     resp.status_code = 201;
     resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
 
-IMPL_UPDATE(handle_update_access_group, KEY_ACCESS_GROUP)
-IMPL_DELETE(handle_delete_access_group, KEY_ACCESS_GROUP)
+void http_handler::handle_update_access_group(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+    body["uid"] = id;
+    bool ok = sync_redis::instance().hset(KEY_ACCESS_GROUP, id.c_str(), body.dump());
+    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
+
+void http_handler::handle_delete_access_group(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    if (id == "default" || id == "SYSTEM") { resp.status_code = 403; resp.body = R"({"error":"Built-in group cannot be deleted"})"; return; }
+    bool ok = sync_redis::instance().hdel(KEY_ACCESS_GROUP, id.c_str());
+    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
 
 // ==================== Access Items (ACCESS:ITEM:<group_uid>) ====================
 
@@ -1399,13 +1441,17 @@ void http_handler::handle_create_access_item(const HttpRequest &req, HttpRespons
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
 
-    std::string mount = body.value("mountpoint", "");
+    std::string mount = body.value("mount_point_name", "");
+    if (mount.empty()) mount = body.value("mountpoint", "");
     if (mount.empty()) mount = body.value("mount", "");
     if (mount.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint"})"; return; }
+    body["uid"] = body.value("uid", mount);
+    body["mount_point_name"] = mount;
 
     std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
     bool ok = sync_redis::instance().hsetnx(key.c_str(), mount.c_str(), body.dump());
     if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Item already exists"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
     resp.status_code = 201;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1418,7 +1464,8 @@ void http_handler::handle_update_access_item(const HttpRequest &req, HttpRespons
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
 
     std::string group_uid = body.value("group_uid", get_resource_id(req));
-    std::string mount = body.value("mountpoint", "");
+    std::string mount = body.value("mount_point_name", "");
+    if (mount.empty()) mount = body.value("mountpoint", "");
     if (mount.empty()) mount = body.value("mount", "");
     if (group_uid.empty() || mount.empty())
     {
@@ -1426,10 +1473,13 @@ void http_handler::handle_update_access_item(const HttpRequest &req, HttpRespons
         resp.body = R"({"error":"Missing group_uid or mountpoint"})";
         return;
     }
+    body["uid"] = body.value("uid", mount);
+    body["mount_point_name"] = mount;
 
     std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
     bool ok = sync_redis::instance().hset(key.c_str(), mount.c_str(), body.dump());
     if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1441,8 +1491,10 @@ void http_handler::handle_delete_access_item(const HttpRequest &req, HttpRespons
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON, need group_uid and mountpoint"})"; return; }
 
     std::string group_uid = body.value("group_uid", get_resource_id(req));
-    std::string mount = body.value("mountpoint", "");
+    std::string mount = body.value("mount_point_name", "");
+    if (mount.empty()) mount = body.value("mountpoint", "");
     if (mount.empty()) mount = body.value("mount", "");
+    if (mount.empty()) mount = body.value("uid", "");
     if (group_uid.empty() || mount.empty())
     {
         resp.status_code = 400;
@@ -1453,6 +1505,7 @@ void http_handler::handle_delete_access_item(const HttpRequest &req, HttpRespons
     std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
     bool ok = sync_redis::instance().hdel(key.c_str(), mount.c_str());
     if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Item not found"})"; return; }
+    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1648,12 +1701,12 @@ void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse 
     if (range == "5m")
     {
         key = "NODE:HISTORY:" + node_id + ":5M";
-        max_limit = 96480;
+        max_limit = 8640;
     }
     else if (range == "1m")
     {
         key = "NODE:HISTORY:" + node_id + ":1M";
-        max_limit = 33120;
+        max_limit = 43200;
     }
     else
     {
@@ -2945,15 +2998,41 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
     auto master_val = redis.get("CASTER:MASTER");
     std::string master_node = master_val.is_string() ? master_val.get<std::string>() : "";
 
-    // 全局推/拉统计 (跨节点合计, 来自 PUSH:STAT / PULL:STAT 的字段数量)
+    // 全局推/拉统计 (跨节点合计，仅统计 state==1 的有效连接)
     int total_pull = 0;
     int total_push = 0;
-    {
-        auto pull_h = redis.hgetall("PULL:STAT");
-        if (pull_h.is_object()) total_pull = static_cast<int>(pull_h.size());
-        auto push_h = redis.hgetall("PUSH:STAT");
-        if (push_h.is_object()) total_push = static_cast<int>(push_h.size());
-    }
+    std::unordered_map<std::string, int> pull_by_node;
+    std::unordered_map<std::string, int> push_by_node;
+    auto collect_running_relays = [](const json &states, std::unordered_map<std::string, int> &by_node) {
+        int total = 0;
+        if (!states.is_object())
+        {
+            return total;
+        }
+        for (const auto &[uid, value] : states.items())
+        {
+            json item = value;
+            if (item.is_string())
+            {
+                try { item = json::parse(item.get<std::string>()); }
+                catch (...) { continue; }
+            }
+            if (!item.is_object() || item.value("state", 0) != 1)
+            {
+                continue;
+            }
+            total++;
+            std::string node_uid = item.value("node_uid", std::string());
+            if (!node_uid.empty())
+            {
+                by_node[node_uid]++;
+            }
+        }
+        return total;
+    };
+
+    total_pull = collect_running_relays(redis.hgetall("PULL:STAT"), pull_by_node);
+    total_push = collect_running_relays(redis.hgetall("PUSH:STAT"), push_by_node);
 
     // Get all nodes
     auto nodes_raw = redis.hgetall(KEY_CASTER_NODE);
@@ -2981,6 +3060,8 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
         // proto JSON 使用 snake_case (preserve_proto_field_names=true)
         int mpt = node_info.value("server_count", 0);
         int usr = node_info.value("client_count", 0);
+        int pull = pull_by_node[uid];
+        int push = push_by_node[uid];
         int conn = node_info.value("connect_count", 0);
         double cpu = node_info.value("cpu_usage", 0.0);
         double mem = node_info.value("mem_usage", 0.0);
@@ -3014,6 +3095,8 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
             {"mem", mem},
             {"mpt", mpt},
             {"usr", usr},
+            {"pull", pull},
+            {"push", push},
             {"conn", conn},
             {"send_speed", send_s},
             {"recv_speed", recv_s},
@@ -3075,7 +3158,7 @@ namespace
     static const char *KEY_AUDIT_SEQ = "LOG:AUDIT:SEQ";
     static const int   AUDIT_KEEP    = 50000;
     static const char *KEY_REDIS_HISTORY = "MONITOR:REDIS:HISTORY";
-    static const int   REDIS_HISTORY_KEEP = 1440; // 24h * 60min
+    static const int   REDIS_HISTORY_KEEP = 10080; // 7d * 24h * 60min
 
     // Mask sensitive fields in a JSON body (in-place).
     void mask_secrets(json &j)
@@ -3345,32 +3428,44 @@ void http_handler::sample_redis_history()
     std::string info = redis.info("ALL");
     if (info.empty()) return;
 
-    auto extract = [&info](const std::string &key) -> std::string {
-        auto pos = info.find(key + ":");
-        if (pos == std::string::npos) return "";
-        pos += key.size() + 1;
-        auto end = info.find('\r', pos);
-        if (end == std::string::npos) end = info.find('\n', pos);
-        return end == std::string::npos ? info.substr(pos) : info.substr(pos, end - pos);
-    };
+    auto parsed = parse_redis_info(info);
+    if (!parsed.contains("memory") || !parsed.contains("stats") || !parsed.contains("clients"))
+    {
+        spdlog::warn("[{}:{}]: skip redis history sample, INFO missing required sections", __class__, __func__);
+        return;
+    }
 
-    auto to_ull = [](const std::string &s) -> unsigned long long {
-        if (s.empty()) return 0;
-        try { return std::stoull(s); } catch (...) { return 0; }
-    };
-    auto to_dbl = [](const std::string &s) -> double {
-        if (s.empty()) return 0.0;
-        try { return std::stod(s); } catch (...) { return 0.0; }
-    };
+    const auto &memory = parsed["memory"];
+    const auto &stats = parsed["stats"];
+    const auto &clients = parsed["clients"];
+    const auto used_memory = memory.value("used_memory", 0ULL);
+    if (used_memory == 0)
+    {
+        spdlog::warn("[{}:{}]: skip redis history sample, used_memory is 0", __class__, __func__);
+        return;
+    }
+
+    const auto hits = stats.value("keyspace_hits", 0ULL);
+    const auto misses = stats.value("keyspace_misses", 0ULL);
+    const double hit_rate = hits + misses > 0 ? static_cast<double>(hits) / static_cast<double>(hits + misses) : 0.0;
 
     json point = {
-        {"t",                 std::time(nullptr)},
-        {"used_memory",       to_ull(extract("used_memory"))},
-        {"total_keys",        redis.dbsize()},
-        {"ops_per_sec",       to_dbl(extract("instantaneous_ops_per_sec"))},
-        {"hits",              to_ull(extract("keyspace_hits"))},
-        {"misses",            to_ull(extract("keyspace_misses"))},
-        {"connected_clients", to_ull(extract("connected_clients"))}
+        {"t",                         std::time(nullptr)},
+        {"used_memory",               used_memory},
+        {"used_memory_rss",           memory.value("used_memory_rss", 0ULL)},
+        {"used_memory_peak",          memory.value("used_memory_peak", 0ULL)},
+        {"mem_fragmentation_ratio",   memory.value("mem_fragmentation_ratio", 0.0)},
+        {"total_keys",                redis.dbsize()},
+        {"ops_per_sec",               stats.value("instantaneous_ops_per_sec", 0.0)},
+        {"total_commands_processed",  stats.value("total_commands_processed", 0ULL)},
+        {"total_connections_received", stats.value("total_connections_received", 0ULL)},
+        {"hits",                      hits},
+        {"misses",                    misses},
+        {"hit_rate",                  hit_rate},
+        {"connected_clients",         clients.value("connected_clients", 0ULL)},
+        {"blocked_clients",           clients.value("blocked_clients", 0ULL)},
+        {"input_kbps",                stats.value("instantaneous_input_kbps", 0.0)},
+        {"output_kbps",               stats.value("instantaneous_output_kbps", 0.0)}
     };
     redis.lpush(KEY_REDIS_HISTORY, point.dump());
     redis.ltrim(KEY_REDIS_HISTORY, 0, REDIS_HISTORY_KEEP - 1);
@@ -3385,6 +3480,7 @@ void http_handler::handle_get_monitor_redis_history(const HttpRequest &req, Http
         const std::string &r = it->second;
         if (r == "6h")  minutes = 360;
         else if (r == "24h") minutes = 1440;
+        else if (r == "7d") minutes = 10080;
         else if (r == "1h")  minutes = 60;
     }
     auto &redis = sync_redis::instance();
@@ -3392,7 +3488,13 @@ void http_handler::handle_get_monitor_redis_history(const HttpRequest &req, Http
     // Redis \u5b58\u4ee5 LPUSH\uff08\u6700\u65b0\u5728\u5934\uff09\uff0c\u53cd\u8f6c\u4e3a\u65f6\u95f4\u5347\u5e8f
     json items = json::array();
     for (auto it2 = arr.rbegin(); it2 != arr.rend(); ++it2)
+    {
+        if (!it2->is_object() || it2->value("t", 0LL) <= 0 || it2->value("used_memory", 0ULL) == 0)
+        {
+            continue;
+        }
         items.push_back(*it2);
+    }
     json result = {{"items", items}, {"count", items.size()}};
     resp.status_code = 200;
     resp.body = result.dump();

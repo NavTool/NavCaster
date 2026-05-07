@@ -256,19 +256,19 @@ bool CASTER::Check_Alias_Mpt(const char *mount_point)
     return caster_internal::getInstance()->is_alias_mpt(mount_point);
 }
 
-int CASTER::Register_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type)
+int CASTER::Register_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
     switch (type)
     {
     case CasterRegisterType::SERVER:
     case CasterRegisterType::PULL:
-        Register_Base_Record(mount_point, user_name, connect_key, cb, arg, type);
+        Register_Base_Record(mount_point, user_name, connect_key, cb, arg, type, group_uid);
         break;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
-        Register_Rover_Record(mount_point, user_name, connect_key, cb, arg, type);
+        Register_Rover_Record(mount_point, user_name, connect_key, cb, arg, type, group_uid);
         break;
     default:
         break;
@@ -316,19 +316,19 @@ int CASTER::Pub_Raw_Data(const char *connect_key, const char *mount_point, const
     return 0;
 }
 
-int CASTER::Sub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type)
+int CASTER::Sub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
     switch (type)
     {
     case CasterRegisterType::SERVER:
     case CasterRegisterType::PULL:
-        Sub_Rover_Raw_Data(mount_point, user_name, connect_key, cb, arg);
+        Sub_Rover_Raw_Data(mount_point, user_name, connect_key, cb, arg, group_uid);
         break;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
-        Sub_Base_Raw_Data(mount_point, user_name, connect_key, cb, arg);
+        Sub_Base_Raw_Data(mount_point, user_name, connect_key, cb, arg, group_uid);
         break;
     default:
         break;
@@ -358,9 +358,9 @@ int CASTER::Unsub_Raw_Data(const char *connect_key, const char *mount_point, con
     return 0;
 }
 
-int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
+int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
-    return caster_internal::getInstance()->register_base_channel(mount_point, user_name, connect_key, cb, arg, type);
+    return caster_internal::getInstance()->register_base_channel(mount_point, user_name, connect_key, cb, arg, type, group_uid);
 }
 
 int CASTER::Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key)
@@ -373,14 +373,14 @@ int CASTER::Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, 
     return caster_internal::getInstance()->pub_base_channel(mount_point, connect_key, data, data_length);
 }
 
-int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, connect_key, cb, arg, group_uid);
 }
 
-int CASTER::Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int CASTER::Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_near_channel(mount_point, user_name, lat, lon, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_near_channel(mount_point, user_name, lat, lon, connect_key, cb, arg, group_uid);
 }
 
 int CASTER::Unsub_Near_Raw_Data(const char *connect_key)
@@ -388,9 +388,9 @@ int CASTER::Unsub_Near_Raw_Data(const char *connect_key)
     return caster_internal::getInstance()->unsub_near_channel(connect_key);
 }
 
-int CASTER::Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int CASTER::Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_alias_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_alias_channel(mount_point, user_name, connect_key, cb, arg, group_uid);
 }
 
 int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key)
@@ -398,9 +398,9 @@ int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key
     return caster_internal::getInstance()->unsub_base_channel(mount_point, connect_key);
 }
 
-int CASTER::Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
+int CASTER::Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
-    return caster_internal::getInstance()->register_rover_channel(mount_point, user_name, connect_key, cb, arg, type);
+    return caster_internal::getInstance()->register_rover_channel(mount_point, user_name, connect_key, cb, arg, type, group_uid);
 }
 
 int CASTER::Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key)
@@ -413,9 +413,9 @@ int CASTER::Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, c
     return caster_internal::getInstance()->pub_rover_channel(user_name, connect_key, data, data_length);
 }
 
-int CASTER::Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int CASTER::Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_rover_channel(mount_point, user_name, connect_key, cb, arg);
+    return caster_internal::getInstance()->sub_rover_channel(mount_point, user_name, connect_key, cb, arg, group_uid);
 }
 
 int CASTER::Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key)
@@ -473,9 +473,9 @@ int CASTER::Set_Grid_Source_Info(const char *mount_point, const char *connect_ke
     return 0;
 }
 
-std::string CASTER::Get_Source_Table_Text()
+std::string CASTER::Get_Source_Table_Text(const char *group_uid)
 {
-    return caster_internal::getInstance()->get_source_list_text();
+    return caster_internal::getInstance()->get_source_list_text(group_uid == nullptr ? "default" : group_uid);
 }
 
 int CASTER::Relay_Register_Callback(RelayCallback cb, void *arg)

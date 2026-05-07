@@ -83,6 +83,9 @@ inline constexpr ConnectInfo::Impl_::Impl_(
         addr_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        group_uid_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         type_{static_cast< ::caster::service::ConnectType >(0)},
         operate_{static_cast< ::caster::service::OperateType >(0)},
         ntrip_lat_{0},
@@ -119,7 +122,7 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_._has_bits_),
-        22, // hasbit index offset
+        23, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_.connect_key_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_.type_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_.operate_),
@@ -139,9 +142,10 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_.port_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_.ntrip_lat_),
         PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_.ntrip_lon_),
+        PROTOBUF_FIELD_OFFSET(::caster::service::ConnectInfo, _impl_.group_uid_),
         0,
-        14,
         15,
+        16,
         1,
         2,
         3,
@@ -155,9 +159,10 @@ const ::uint32_t
         11,
         12,
         13,
-        18,
-        16,
+        19,
         17,
+        18,
+        14,
 };
 
 static const ::_pbi::MigrationSchema
@@ -170,7 +175,7 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_service_2fConnectInfo_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\031service/ConnectInfo.proto\022\016caster.serv"
-    "ice\"\257\003\n\013ConnectInfo\022\023\n\013connect_key\030\001 \001(\t"
+    "ice\"\302\003\n\013ConnectInfo\022\023\n\013connect_key\030\001 \001(\t"
     "\022)\n\004type\030\002 \001(\0162\033.caster.service.ConnectT"
     "ype\022,\n\007operate\030\003 \001(\0162\033.caster.service.Op"
     "erateType\022\023\n\013mount_point\030\004 \001(\t\022\022\n\nmount_"
@@ -180,24 +185,25 @@ const char descriptor_table_protodef_service_2fConnectInfo_2eproto[] ABSL_ATTRIB
     "ent\030\013 \001(\t\022\022\n\nmount_info\030\014 \001(\t\022\025\n\rntrip_v"
     "ersion\030\r \001(\t\022\021\n\tntrip_gga\030\016 \001(\t\022\022\n\nntrip"
     "_auth\030\017 \001(\t\022\014\n\004addr\030\020 \001(\t\022\014\n\004port\030\021 \001(\005\022"
-    "\021\n\tntrip_lat\030\022 \001(\001\022\021\n\tntrip_lon\030\023 \001(\001*\227\002"
-    "\n\013ConnectType\022\030\n\024CONNECT_TYPE_UNKNOWN\020\000\022"
-    "\027\n\023CONNECT_TYPE_SOURCE\020\001\022\027\n\023CONNECT_TYPE"
-    "_SERVER\020\002\022\027\n\023CONNECT_TYPE_CLIENT\020\003\022\030\n\024CO"
-    "NNECT_TYPE_NEAREST\020\004\022\026\n\022CONNECT_TYPE_PRO"
-    "XY\020\005\022\026\n\022CONNECT_TYPE_ALIAS\020\006\022\025\n\021CONNECT_"
-    "TYPE_PULL\020\007\022\025\n\021CONNECT_TYPE_PUSH\020\010\022\025\n\021CO"
-    "NNECT_TYPE_GRID\020\t\022\024\n\020CONNECT_TYPE_VRS\020\n*"
-    "\213\001\n\013OperateType\022\030\n\024OPERATE_TYPE_UNKNOWN\020"
-    "\000\022\027\n\023OPERATE_TYPE_CREATE\020\001\022\030\n\024OPERATE_TY"
-    "PE_DESTROY\020\002\022\026\n\022OPERATE_TYPE_PAUSE\020\003\022\027\n\023"
-    "OPERATE_TYPE_UPDATE\020\004b\006proto3"
+    "\021\n\tntrip_lat\030\022 \001(\001\022\021\n\tntrip_lon\030\023 \001(\001\022\021\n"
+    "\tgroup_uid\030\024 \001(\t*\227\002\n\013ConnectType\022\030\n\024CONN"
+    "ECT_TYPE_UNKNOWN\020\000\022\027\n\023CONNECT_TYPE_SOURC"
+    "E\020\001\022\027\n\023CONNECT_TYPE_SERVER\020\002\022\027\n\023CONNECT_"
+    "TYPE_CLIENT\020\003\022\030\n\024CONNECT_TYPE_NEAREST\020\004\022"
+    "\026\n\022CONNECT_TYPE_PROXY\020\005\022\026\n\022CONNECT_TYPE_"
+    "ALIAS\020\006\022\025\n\021CONNECT_TYPE_PULL\020\007\022\025\n\021CONNEC"
+    "T_TYPE_PUSH\020\010\022\025\n\021CONNECT_TYPE_GRID\020\t\022\024\n\020"
+    "CONNECT_TYPE_VRS\020\n*\213\001\n\013OperateType\022\030\n\024OP"
+    "ERATE_TYPE_UNKNOWN\020\000\022\027\n\023OPERATE_TYPE_CRE"
+    "ATE\020\001\022\030\n\024OPERATE_TYPE_DESTROY\020\002\022\026\n\022OPERA"
+    "TE_TYPE_PAUSE\020\003\022\027\n\023OPERATE_TYPE_UPDATE\020\004"
+    "b\006proto3"
 };
 static ::absl::once_flag descriptor_table_service_2fConnectInfo_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_service_2fConnectInfo_2eproto = {
     false,
     false,
-    909,
+    928,
     descriptor_table_protodef_service_2fConnectInfo_2eproto,
     "service/ConnectInfo.proto",
     &descriptor_table_service_2fConnectInfo_2eproto_once,
@@ -264,7 +270,8 @@ PROTOBUF_NDEBUG_INLINE ConnectInfo::Impl_::Impl_(
         ntrip_version_(arena, from.ntrip_version_),
         ntrip_gga_(arena, from.ntrip_gga_),
         ntrip_auth_(arena, from.ntrip_auth_),
-        addr_(arena, from.addr_) {}
+        addr_(arena, from.addr_),
+        group_uid_(arena, from.group_uid_) {}
 
 ConnectInfo::ConnectInfo(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -306,7 +313,8 @@ PROTOBUF_NDEBUG_INLINE ConnectInfo::Impl_::Impl_(
         ntrip_version_(arena),
         ntrip_gga_(arena),
         ntrip_auth_(arena),
-        addr_(arena) {}
+        addr_(arena),
+        group_uid_(arena) {}
 
 inline void ConnectInfo::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -342,6 +350,7 @@ inline void ConnectInfo::SharedDtor(MessageLite& self) {
   this_._impl_.ntrip_gga_.Destroy();
   this_._impl_.ntrip_auth_.Destroy();
   this_._impl_.addr_.Destroy();
+  this_._impl_.group_uid_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -406,16 +415,16 @@ ConnectInfo::GetClassData() const {
   return ConnectInfo_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 19, 0, 188, 2>
+const ::_pbi::TcParseTable<5, 20, 0, 197, 2>
 ConnectInfo::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_._has_bits_),
     0, // no _extensions_
-    19, 248,  // max_field_number, fast_idx_mask
+    20, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294443008,  // skipmap
+    4293918720,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    19,  // num_field_entries
+    20,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     ConnectInfo_class_data_.base(),
@@ -431,12 +440,12 @@ ConnectInfo::_table_ = {
      {10, 0, 0,
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.connect_key_)}},
     // .caster.service.ConnectType type = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ConnectInfo, _impl_.type_), 14>(),
-     {16, 14, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ConnectInfo, _impl_.type_), 15>(),
+     {16, 15, 0,
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.type_)}},
     // .caster.service.OperateType operate = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ConnectInfo, _impl_.operate_), 15>(),
-     {24, 15, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ConnectInfo, _impl_.operate_), 16>(),
+     {24, 16, 0,
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.operate_)}},
     // string mount_point = 4;
     {::_pbi::TcParser::FastUS1,
@@ -492,17 +501,20 @@ ConnectInfo::_table_ = {
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.addr_)}},
     // int32 port = 17;
     {::_pbi::TcParser::FastV32S2,
-     {392, 18, 0,
+     {392, 19, 0,
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.port_)}},
     // double ntrip_lat = 18;
     {::_pbi::TcParser::FastF64S2,
-     {401, 16, 0,
+     {401, 17, 0,
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.ntrip_lat_)}},
     // double ntrip_lon = 19;
     {::_pbi::TcParser::FastF64S2,
-     {409, 17, 0,
+     {409, 18, 0,
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.ntrip_lon_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // string group_uid = 20;
+    {::_pbi::TcParser::FastUS2,
+     {418, 14, 0,
+      PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.group_uid_)}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
@@ -520,9 +532,9 @@ ConnectInfo::_table_ = {
     // string connect_key = 1;
     {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.connect_key_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // .caster.service.ConnectType type = 2;
-    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.type_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.type_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     // .caster.service.OperateType operate = 3;
-    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.operate_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.operate_), _Internal::kHasBitsOffset + 16, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     // string mount_point = 4;
     {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.mount_point_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // string mount_para = 5;
@@ -550,15 +562,17 @@ ConnectInfo::_table_ = {
     // string addr = 16;
     {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.addr_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     // int32 port = 17;
-    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.port_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.port_), _Internal::kHasBitsOffset + 19, 0, (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
     // double ntrip_lat = 18;
-    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.ntrip_lat_), _Internal::kHasBitsOffset + 16, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.ntrip_lat_), _Internal::kHasBitsOffset + 17, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
     // double ntrip_lon = 19;
-    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.ntrip_lon_), _Internal::kHasBitsOffset + 17, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.ntrip_lon_), _Internal::kHasBitsOffset + 18, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // string group_uid = 20;
+    {PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.group_uid_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
   }},
   // no aux_entries
   {{
-    "\32\13\0\0\13\12\13\11\10\11\14\12\12\15\11\12\4\0\0\0\0\0\0\0"
+    "\32\13\0\0\13\12\13\11\10\11\14\12\12\15\11\12\4\0\0\0\11\0\0\0"
     "caster.service.ConnectInfo"
     "connect_key"
     "mount_point"
@@ -574,6 +588,7 @@ ConnectInfo::_table_ = {
     "ntrip_gga"
     "ntrip_auth"
     "addr"
+    "group_uid"
   }},
 };
 PROTOBUF_NOINLINE void ConnectInfo::Clear() {
@@ -610,7 +625,7 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
       _impl_.http_chunked_.ClearNonDefaultToEmpty();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00003f00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       _impl_.user_agent_.ClearNonDefaultToEmpty();
     }
@@ -629,16 +644,15 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
     if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       _impl_.addr_.ClearNonDefaultToEmpty();
     }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      _impl_.group_uid_.ClearNonDefaultToEmpty();
+    }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x0000c000U)) {
-    ::memset(&_impl_.type_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.operate_) -
-        reinterpret_cast<char*>(&_impl_.type_)) + sizeof(_impl_.operate_));
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00070000U)) {
-    ::memset(&_impl_.ntrip_lat_, 0, static_cast<::size_t>(
+  _impl_.type_ = 0;
+  if (BatchCheckHasBit(cached_has_bits, 0x000f0000U)) {
+    ::memset(&_impl_.operate_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.port_) -
-        reinterpret_cast<char*>(&_impl_.ntrip_lat_)) + sizeof(_impl_.port_));
+        reinterpret_cast<char*>(&_impl_.operate_)) + sizeof(_impl_.port_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -674,7 +688,7 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
   }
 
   // .caster.service.ConnectType type = 2;
-  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
     if (this_._internal_type() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -683,7 +697,7 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
   }
 
   // .caster.service.OperateType operate = 3;
-  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
     if (this_._internal_operate() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -822,7 +836,7 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
   }
 
   // int32 port = 17;
-  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00080000U)) {
     if (this_._internal_port() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteInt32ToArray(
@@ -831,7 +845,7 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
   }
 
   // double ntrip_lat = 18;
-  if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
     if (::absl::bit_cast<::uint64_t>(this_._internal_ntrip_lat()) != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteDoubleToArray(
@@ -840,11 +854,21 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
   }
 
   // double ntrip_lon = 19;
-  if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00040000U)) {
     if (::absl::bit_cast<::uint64_t>(this_._internal_ntrip_lon()) != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteDoubleToArray(
           19, this_._internal_ntrip_lon(), target);
+    }
+  }
+
+  // string group_uid = 20;
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (!this_._internal_group_uid().empty()) {
+      const ::std::string& _s = this_._internal_group_uid();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.service.ConnectInfo.group_uid");
+      target = stream->WriteStringMaybeAliased(20, _s, target);
     }
   }
 
@@ -974,36 +998,43 @@ PROTOBUF_NOINLINE void ConnectInfo::Clear() {
                                         this_._internal_addr());
       }
     }
-    // .caster.service.ConnectType type = 2;
+    // string group_uid = 20;
     if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (!this_._internal_group_uid().empty()) {
+        total_size += 2 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_group_uid());
+      }
+    }
+    // .caster.service.ConnectType type = 2;
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (this_._internal_type() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_type());
       }
     }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x000f0000U)) {
     // .caster.service.OperateType operate = 3;
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
       if (this_._internal_operate() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_operate());
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00070000U)) {
     // double ntrip_lat = 18;
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (::absl::bit_cast<::uint64_t>(this_._internal_ntrip_lat()) != 0) {
         total_size += 10;
       }
     }
     // double ntrip_lon = 19;
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (::absl::bit_cast<::uint64_t>(this_._internal_ntrip_lon()) != 0) {
         total_size += 10;
       }
     }
     // int32 port = 17;
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       if (this_._internal_port() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::Int32Size(
                                         this_._internal_port());
@@ -1158,28 +1189,37 @@ void ConnectInfo::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (!from._internal_group_uid().empty()) {
+        _this->_internal_set_group_uid(from._internal_group_uid());
+      } else {
+        if (_this->_impl_.group_uid_.IsDefault()) {
+          _this->_internal_set_group_uid("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (from._internal_type() != 0) {
         _this->_impl_.type_ = from._impl_.type_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x000f0000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
       if (from._internal_operate() != 0) {
         _this->_impl_.operate_ = from._impl_.operate_;
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00070000U)) {
-    if (CheckHasBit(cached_has_bits, 0x00010000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
       if (::absl::bit_cast<::uint64_t>(from._internal_ntrip_lat()) != 0) {
         _this->_impl_.ntrip_lat_ = from._impl_.ntrip_lat_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00020000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
       if (::absl::bit_cast<::uint64_t>(from._internal_ntrip_lon()) != 0) {
         _this->_impl_.ntrip_lon_ = from._impl_.ntrip_lon_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00040000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00080000U)) {
       if (from._internal_port() != 0) {
         _this->_impl_.port_ = from._impl_.port_;
       }
@@ -1218,6 +1258,7 @@ void ConnectInfo::InternalSwap(ConnectInfo* PROTOBUF_RESTRICT PROTOBUF_NONNULL o
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.ntrip_gga_, &other->_impl_.ntrip_gga_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.ntrip_auth_, &other->_impl_.ntrip_auth_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.addr_, &other->_impl_.addr_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.group_uid_, &other->_impl_.group_uid_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(ConnectInfo, _impl_.port_)
       + sizeof(ConnectInfo::_impl_.port_)

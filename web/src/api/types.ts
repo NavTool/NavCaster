@@ -282,6 +282,8 @@ export interface CasterNode {
   connect_count: number;
   server_count: number;
   client_count: number;
+  pull_count?: number;
+  push_count?: number;
   online_time: number;
   update_time: number;
   // v2 扩展
@@ -329,11 +331,20 @@ export interface RingLogEntry {
 export interface RedisStatPoint {
   t: number;
   used_memory: number;
+  used_memory_rss?: number;
+  used_memory_peak?: number;
+  mem_fragmentation_ratio?: number;
   total_keys: number;
   ops_per_sec: number;
+  total_commands_processed?: number;
+  total_connections_received?: number;
   hits: number;
   misses: number;
+  hit_rate?: number;
   connected_clients: number;
+  blocked_clients?: number;
+  input_kbps?: number;
+  output_kbps?: number;
 }
 
 /** 节点配置快照 */

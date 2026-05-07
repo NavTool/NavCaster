@@ -47,7 +47,16 @@ inline constexpr RedisStatPoint::Impl_::Impl_(
         ops_per_sec_{0},
         hits_{::uint64_t{0u}},
         misses_{::uint64_t{0u}},
-        connected_clients_{0u} {}
+        used_memory_rss_{::uint64_t{0u}},
+        used_memory_peak_{::uint64_t{0u}},
+        mem_fragmentation_ratio_{0},
+        connected_clients_{0u},
+        blocked_clients_{0u},
+        total_commands_processed_{::uint64_t{0u}},
+        total_connections_received_{::uint64_t{0u}},
+        hit_rate_{0},
+        input_kbps_{0},
+        output_kbps_{0} {}
 
 template <typename>
 constexpr RedisStatPoint::RedisStatPoint(::_pbi::ConstantInitialized)
@@ -79,7 +88,7 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_._has_bits_),
-        10, // hasbit index offset
+        19, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.t_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.used_memory_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.total_keys_),
@@ -87,13 +96,31 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.hits_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.misses_),
         PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.connected_clients_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.used_memory_rss_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.used_memory_peak_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.mem_fragmentation_ratio_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.total_commands_processed_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.total_connections_received_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.hit_rate_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.blocked_clients_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.input_kbps_),
+        PROTOBUF_FIELD_OFFSET(::caster::monitor::RedisStatPoint, _impl_.output_kbps_),
         0,
         1,
         2,
         3,
         4,
         5,
+        9,
         6,
+        7,
+        8,
+        11,
+        12,
+        13,
+        10,
+        14,
+        15,
 };
 
 static const ::_pbi::MigrationSchema
@@ -106,17 +133,23 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 const char descriptor_table_protodef_monitor_2fRedisStatPoint_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
     "\n\034monitor/RedisStatPoint.proto\022\016caster.m"
-    "onitor\"\222\001\n\016RedisStatPoint\022\t\n\001t\030\001 \001(\004\022\023\n\013"
+    "onitor\"\200\003\n\016RedisStatPoint\022\t\n\001t\030\001 \001(\004\022\023\n\013"
     "used_memory\030\002 \001(\004\022\022\n\ntotal_keys\030\003 \001(\004\022\023\n"
     "\013ops_per_sec\030\004 \001(\001\022\014\n\004hits\030\005 \001(\004\022\016\n\006miss"
-    "es\030\006 \001(\004\022\031\n\021connected_clients\030\007 \001(\rb\006pro"
-    "to3"
+    "es\030\006 \001(\004\022\031\n\021connected_clients\030\007 \001(\r\022\027\n\017u"
+    "sed_memory_rss\030\010 \001(\004\022\030\n\020used_memory_peak"
+    "\030\t \001(\004\022\037\n\027mem_fragmentation_ratio\030\n \001(\001\022"
+    " \n\030total_commands_processed\030\013 \001(\004\022\"\n\032tot"
+    "al_connections_received\030\014 \001(\004\022\020\n\010hit_rat"
+    "e\030\r \001(\001\022\027\n\017blocked_clients\030\016 \001(\r\022\022\n\ninpu"
+    "t_kbps\030\017 \001(\001\022\023\n\013output_kbps\030\020 \001(\001b\006proto"
+    "3"
 };
 static ::absl::once_flag descriptor_table_monitor_2fRedisStatPoint_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_monitor_2fRedisStatPoint_2eproto = {
     false,
     false,
-    203,
+    441,
     descriptor_table_protodef_monitor_2fRedisStatPoint_2eproto,
     "monitor/RedisStatPoint.proto",
     &descriptor_table_monitor_2fRedisStatPoint_2eproto_once,
@@ -171,9 +204,9 @@ inline void RedisStatPoint::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, t_),
            0,
-           offsetof(Impl_, connected_clients_) -
+           offsetof(Impl_, output_kbps_) -
                offsetof(Impl_, t_) +
-               sizeof(Impl_::connected_clients_));
+               sizeof(Impl_::output_kbps_));
 }
 RedisStatPoint::~RedisStatPoint() {
   // @@protoc_insertion_point(destructor:caster.monitor.RedisStatPoint)
@@ -250,16 +283,16 @@ RedisStatPoint::GetClassData() const {
   return RedisStatPoint_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<3, 7, 0, 0, 2>
+const ::_pbi::TcParseTable<4, 16, 0, 0, 2>
 RedisStatPoint::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_._has_bits_),
     0, // no _extensions_
-    7, 56,  // max_field_number, fast_idx_mask
+    16, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967168,  // skipmap
+    4294901760,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    7,  // num_field_entries
+    16,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     RedisStatPoint_class_data_.base(),
@@ -269,7 +302,10 @@ RedisStatPoint::_table_ = {
     ::_pbi::TcParser::GetTable<::caster::monitor::RedisStatPoint>(),  // to_prefetch
     #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
   }, {{
-    {::_pbi::TcParser::MiniParse, {}},
+    // double output_kbps = 16;
+    {::_pbi::TcParser::FastF64S2,
+     {385, 15, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.output_kbps_)}},
     // uint64 t = 1;
     {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(RedisStatPoint, _impl_.t_), 0>(),
      {8, 0, 0,
@@ -295,9 +331,41 @@ RedisStatPoint::_table_ = {
      {48, 5, 0,
       PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.misses_)}},
     // uint32 connected_clients = 7;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(RedisStatPoint, _impl_.connected_clients_), 6>(),
-     {56, 6, 0,
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(RedisStatPoint, _impl_.connected_clients_), 9>(),
+     {56, 9, 0,
       PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.connected_clients_)}},
+    // uint64 used_memory_rss = 8;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(RedisStatPoint, _impl_.used_memory_rss_), 6>(),
+     {64, 6, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.used_memory_rss_)}},
+    // uint64 used_memory_peak = 9;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(RedisStatPoint, _impl_.used_memory_peak_), 7>(),
+     {72, 7, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.used_memory_peak_)}},
+    // double mem_fragmentation_ratio = 10;
+    {::_pbi::TcParser::FastF64S1,
+     {81, 8, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.mem_fragmentation_ratio_)}},
+    // uint64 total_commands_processed = 11;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(RedisStatPoint, _impl_.total_commands_processed_), 11>(),
+     {88, 11, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.total_commands_processed_)}},
+    // uint64 total_connections_received = 12;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(RedisStatPoint, _impl_.total_connections_received_), 12>(),
+     {96, 12, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.total_connections_received_)}},
+    // double hit_rate = 13;
+    {::_pbi::TcParser::FastF64S1,
+     {105, 13, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.hit_rate_)}},
+    // uint32 blocked_clients = 14;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(RedisStatPoint, _impl_.blocked_clients_), 10>(),
+     {112, 10, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.blocked_clients_)}},
+    // double input_kbps = 15;
+    {::_pbi::TcParser::FastF64S1,
+     {121, 14, 0,
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.input_kbps_)}},
   }}, {{
     65535, 65535
   }}, {{
@@ -314,7 +382,25 @@ RedisStatPoint::_table_ = {
     // uint64 misses = 6;
     {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.misses_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // uint32 connected_clients = 7;
-    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.connected_clients_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.connected_clients_), _Internal::kHasBitsOffset + 9, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    // uint64 used_memory_rss = 8;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.used_memory_rss_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 used_memory_peak = 9;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.used_memory_peak_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // double mem_fragmentation_ratio = 10;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.mem_fragmentation_ratio_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // uint64 total_commands_processed = 11;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.total_commands_processed_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 total_connections_received = 12;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.total_connections_received_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // double hit_rate = 13;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.hit_rate_), _Internal::kHasBitsOffset + 13, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // uint32 blocked_clients = 14;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.blocked_clients_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    // double input_kbps = 15;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.input_kbps_), _Internal::kHasBitsOffset + 14, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
+    // double output_kbps = 16;
+    {PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.output_kbps_), _Internal::kHasBitsOffset + 15, 0, (0 | ::_fl::kFcOptional | ::_fl::kDouble)},
   }},
   // no aux_entries
   {{
@@ -328,10 +414,15 @@ PROTOBUF_NOINLINE void RedisStatPoint::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     ::memset(&_impl_.t_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.connected_clients_) -
-        reinterpret_cast<char*>(&_impl_.t_)) + sizeof(_impl_.connected_clients_));
+        reinterpret_cast<char*>(&_impl_.used_memory_peak_) -
+        reinterpret_cast<char*>(&_impl_.t_)) + sizeof(_impl_.used_memory_peak_));
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    ::memset(&_impl_.mem_fragmentation_ratio_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.output_kbps_) -
+        reinterpret_cast<char*>(&_impl_.mem_fragmentation_ratio_)) + sizeof(_impl_.output_kbps_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -411,11 +502,92 @@ PROTOBUF_NOINLINE void RedisStatPoint::Clear() {
   }
 
   // uint32 connected_clients = 7;
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
     if (this_._internal_connected_clients() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
           7, this_._internal_connected_clients(), target);
+    }
+  }
+
+  // uint64 used_memory_rss = 8;
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (this_._internal_used_memory_rss() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          8, this_._internal_used_memory_rss(), target);
+    }
+  }
+
+  // uint64 used_memory_peak = 9;
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_used_memory_peak() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          9, this_._internal_used_memory_peak(), target);
+    }
+  }
+
+  // double mem_fragmentation_ratio = 10;
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_mem_fragmentation_ratio()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          10, this_._internal_mem_fragmentation_ratio(), target);
+    }
+  }
+
+  // uint64 total_commands_processed = 11;
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (this_._internal_total_commands_processed() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          11, this_._internal_total_commands_processed(), target);
+    }
+  }
+
+  // uint64 total_connections_received = 12;
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (this_._internal_total_connections_received() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          12, this_._internal_total_connections_received(), target);
+    }
+  }
+
+  // double hit_rate = 13;
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_hit_rate()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          13, this_._internal_hit_rate(), target);
+    }
+  }
+
+  // uint32 blocked_clients = 14;
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (this_._internal_blocked_clients() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
+          14, this_._internal_blocked_clients(), target);
+    }
+  }
+
+  // double input_kbps = 15;
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_input_kbps()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          15, this_._internal_input_kbps(), target);
+    }
+  }
+
+  // double output_kbps = 16;
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+    if (::absl::bit_cast<::uint64_t>(this_._internal_output_kbps()) != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteDoubleToArray(
+          16, this_._internal_output_kbps(), target);
     }
   }
 
@@ -444,7 +616,7 @@ PROTOBUF_NOINLINE void RedisStatPoint::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // uint64 t = 1;
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (this_._internal_t() != 0) {
@@ -486,11 +658,72 @@ PROTOBUF_NOINLINE void RedisStatPoint::Clear() {
             this_._internal_misses());
       }
     }
-    // uint32 connected_clients = 7;
+    // uint64 used_memory_rss = 8;
     if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_used_memory_rss() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_used_memory_rss());
+      }
+    }
+    // uint64 used_memory_peak = 9;
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (this_._internal_used_memory_peak() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_used_memory_peak());
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // double mem_fragmentation_ratio = 10;
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_mem_fragmentation_ratio()) != 0) {
+        total_size += 9;
+      }
+    }
+    // uint32 connected_clients = 7;
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (this_._internal_connected_clients() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
             this_._internal_connected_clients());
+      }
+    }
+    // uint32 blocked_clients = 14;
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (this_._internal_blocked_clients() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
+            this_._internal_blocked_clients());
+      }
+    }
+    // uint64 total_commands_processed = 11;
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (this_._internal_total_commands_processed() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_total_commands_processed());
+      }
+    }
+    // uint64 total_connections_received = 12;
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (this_._internal_total_connections_received() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_total_connections_received());
+      }
+    }
+    // double hit_rate = 13;
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_hit_rate()) != 0) {
+        total_size += 9;
+      }
+    }
+    // double input_kbps = 15;
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_input_kbps()) != 0) {
+        total_size += 9;
+      }
+    }
+    // double output_kbps = 16;
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (::absl::bit_cast<::uint64_t>(this_._internal_output_kbps()) != 0) {
+        total_size += 10;
       }
     }
   }
@@ -512,7 +745,7 @@ void RedisStatPoint::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (from._internal_t() != 0) {
         _this->_impl_.t_ = from._impl_.t_;
@@ -544,8 +777,55 @@ void RedisStatPoint::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (from._internal_used_memory_rss() != 0) {
+        _this->_impl_.used_memory_rss_ = from._impl_.used_memory_rss_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (from._internal_used_memory_peak() != 0) {
+        _this->_impl_.used_memory_peak_ = from._impl_.used_memory_peak_;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_mem_fragmentation_ratio()) != 0) {
+        _this->_impl_.mem_fragmentation_ratio_ = from._impl_.mem_fragmentation_ratio_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (from._internal_connected_clients() != 0) {
         _this->_impl_.connected_clients_ = from._impl_.connected_clients_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+      if (from._internal_blocked_clients() != 0) {
+        _this->_impl_.blocked_clients_ = from._impl_.blocked_clients_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (from._internal_total_commands_processed() != 0) {
+        _this->_impl_.total_commands_processed_ = from._impl_.total_commands_processed_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (from._internal_total_connections_received() != 0) {
+        _this->_impl_.total_connections_received_ = from._impl_.total_connections_received_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_hit_rate()) != 0) {
+        _this->_impl_.hit_rate_ = from._impl_.hit_rate_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_input_kbps()) != 0) {
+        _this->_impl_.input_kbps_ = from._impl_.input_kbps_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
+      if (::absl::bit_cast<::uint64_t>(from._internal_output_kbps()) != 0) {
+        _this->_impl_.output_kbps_ = from._impl_.output_kbps_;
       }
     }
   }
@@ -567,8 +847,8 @@ void RedisStatPoint::InternalSwap(RedisStatPoint* PROTOBUF_RESTRICT PROTOBUF_NON
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.connected_clients_)
-      + sizeof(RedisStatPoint::_impl_.connected_clients_)
+      PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.output_kbps_)
+      + sizeof(RedisStatPoint::_impl_.output_kbps_)
       - PROTOBUF_FIELD_OFFSET(RedisStatPoint, _impl_.t_)>(
           reinterpret_cast<char*>(&_impl_.t_),
           reinterpret_cast<char*>(&other->_impl_.t_));

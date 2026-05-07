@@ -4,19 +4,18 @@ import { useParams, Link } from 'react-router-dom';
 import { useMultiSSE } from '../hooks/useSSE';
 import StatusIndicator from '../components/StatusIndicator';
 import type { CasterNode } from '../api/types';
-import { formatBytes, formatOnlineTime, formatDelay, formatSpeed } from '../utils/format';
+import { formatBytes, formatCpuPercent, formatOnlineTime, formatDelay, formatSpeed, normalizeCpuPercent } from '../utils/format';
 import { getNodeHistory, type NodeHistorySnapshot } from '../api';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const { Title } = Typography;
 
 const TIME_RANGES = [
-  { label: '1小时', value: 720, range: 'raw' as const },
-  { label: '6小时', value: 4320, range: 'raw' as const },
-  { label: '24小时', value: 17280, range: 'raw' as const },
-  { label: '7天', value: 120960, range: 'raw' as const },
-  { label: '30天', value: 33120, range: '1m' as const },
-  { label: '1年', value: 96480, range: '5m' as const },
+  { label: '1小时', duration: 3600, limit: 720, range: 'raw' as const, bucket: 5 },
+  { label: '6小时', duration: 21600, limit: 4320, range: 'raw' as const, bucket: 30 },
+  { label: '24小时', duration: 86400, limit: 17280, range: 'raw' as const, bucket: 120 },
+  { label: '7天', duration: 604800, limit: 120960, range: 'raw' as const, bucket: 900 },
+  { label: '30天', duration: 2592000, limit: 43200, range: '1m' as const, bucket: 3600 },
 ];
 
 function formatTime(ts: number, longRange?: boolean): string {
@@ -27,15 +26,87 @@ function formatTime(ts: number, longRange?: boolean): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-const chartCardStyle = { borderColor: '#2e3450', marginTop: 16 };
+const chartCardStyle = { borderColor: '#2e3450' };
 const chartHeight = 220;
+
+interface ChartPoint {
+  time: string;
+  cpu: number;
+  mem: number;
+  mpt: number;
+  usr: number;
+  send: number;
+  recv: number;
+  delay: number;
+}
+
+function resolveTimelineEnd(history: NodeHistorySnapshot[], bucketSeconds: number) {
+  const end = Math.floor(Date.now() / 1000);
+  const latest = history.reduce((max, snapshot) => Math.max(max, snapshot.t || 0), 0);
+  const staleAfter = Math.max(bucketSeconds * 3, 60);
+  return Math.floor((latest > 0 && end - latest <= staleAfter ? latest : end) / bucketSeconds) * bucketSeconds;
+}
+
+function buildChartData(history: NodeHistorySnapshot[], durationSeconds: number, bucketSeconds: number, longRange: boolean) {
+  const end = resolveTimelineEnd(history, bucketSeconds);
+  const start = end - durationSeconds;
+  const firstBucket = Math.ceil(start / bucketSeconds) * bucketSeconds;
+  const lastBucket = Math.floor(end / bucketSeconds) * bucketSeconds;
+  const shortGapSeconds = Math.max(bucketSeconds * 3, 60);
+  const buckets = new Map<number, {
+    samples: number; cpu: number; mem: number; mpt: number; usr: number; send: number; recv: number; delay: number;
+  }>();
+
+  history.forEach((snapshot) => {
+    if (snapshot.t < start || snapshot.t > end) return;
+    const bucket = Math.floor(snapshot.t / bucketSeconds) * bucketSeconds;
+    const current = buckets.get(bucket) || { samples: 0, cpu: 0, mem: 0, mpt: 0, usr: 0, send: 0, recv: 0, delay: 0 };
+    current.samples += 1;
+    current.cpu += normalizeCpuPercent(snapshot.cpu || 0);
+    current.mem += snapshot.mem || 0;
+    current.mpt += snapshot.mpt || 0;
+    current.usr += snapshot.usr || 0;
+    current.send += snapshot.send_speed || 0;
+    current.recv += snapshot.recv_speed || 0;
+    current.delay += snapshot.q_delay || 0;
+    buckets.set(bucket, current);
+  });
+
+  const points: ChartPoint[] = [];
+  let lastSeen = 0;
+  let lastPoint: Omit<ChartPoint, 'time'> | null = null;
+  for (let t = firstBucket; t <= lastBucket; t += bucketSeconds) {
+    const bucket = buckets.get(t);
+    let point: Omit<ChartPoint, 'time'>;
+    if (bucket) {
+      const samples = Math.max(bucket.samples, 1);
+      point = {
+        cpu: +(bucket.cpu / samples).toFixed(1),
+        mem: +(bucket.mem / samples / 1024 / 1024).toFixed(1),
+        mpt: Math.round(bucket.mpt / samples),
+        usr: Math.round(bucket.usr / samples),
+        send: +(bucket.send / samples / 1024).toFixed(1),
+        recv: +(bucket.recv / samples / 1024).toFixed(1),
+        delay: bucket.delay / samples,
+      };
+      lastSeen = t;
+      lastPoint = point;
+    } else if (lastPoint && t - lastSeen <= shortGapSeconds) {
+      point = lastPoint;
+    } else {
+      point = { cpu: 0, mem: 0, mpt: 0, usr: 0, send: 0, recv: 0, delay: 0 };
+    }
+    points.push({ time: formatTime(t, longRange), ...point });
+  }
+  return points;
+}
 
 const NodeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { data: sseData } = useMultiSSE<{ nodes: Record<string, CasterNode> }>(['nodes']);
   const node = sseData.nodes?.[id || ''];
 
-  const [history, setHistory] = useState<NodeHistorySnapshot[]>([]);
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [selectedRange, setSelectedRange] = useState(0); // index into TIME_RANGES
 
   const currentRange = TIME_RANGES[selectedRange];
@@ -44,9 +115,9 @@ const NodeDetail: React.FC = () => {
     if (!id) return;
     try {
       const r = TIME_RANGES[selectedRange];
-      const data = await getNodeHistory(id, r.value, r.range);
-      // API returns newest-first (LPUSH), reverse for chronological order
-      setHistory([...data].reverse());
+      const data = await getNodeHistory(id, r.limit, r.range);
+      const longRange = r.range !== 'raw' || r.duration > 86400;
+      setChartData(buildChartData(data, r.duration, r.bucket, longRange));
     } catch { /* ignore */ }
   }, [id, selectedRange]);
 
@@ -57,19 +128,6 @@ const NodeDetail: React.FC = () => {
     const timer = setInterval(loadHistory, interval);
     return () => clearInterval(timer);
   }, [loadHistory, currentRange.range]);
-
-  const isLongRange = currentRange.range !== 'raw' || currentRange.value > 17280;
-
-  const chartData = history.map(s => ({
-    time: formatTime(s.t, isLongRange),
-    cpu: +s.cpu.toFixed(1),
-    mem: +(s.mem / 1024 / 1024).toFixed(1),
-    mpt: s.mpt,
-    usr: s.usr,
-    send: +(s.send_speed / 1024).toFixed(1),
-    recv: +(s.recv_speed / 1024).toFixed(1),
-    delay: s.q_delay,
-  }));
 
   return (
     <div>
@@ -89,7 +147,7 @@ const NodeDetail: React.FC = () => {
             </Col>
             <Col span={6}>
               <Card style={{ borderColor: '#2e3450' }}>
-                <Statistic title="CPU" value={`${(node.cpu_usage || 0).toFixed(1)}%`} />
+                <Statistic title="CPU" value={formatCpuPercent(node.cpu_usage || 0)} />
               </Card>
             </Col>
             <Col span={6}>
@@ -133,13 +191,15 @@ const NodeDetail: React.FC = () => {
             </Row>
           </Card>
 
-          <Card title="历史趋势" style={chartCardStyle}
-            extra={<Segmented options={TIME_RANGES.map((r, i) => ({ label: r.label, value: i }))}
-              value={selectedRange} onChange={v => setSelectedRange(v as number)} size="small" />}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+            <Title level={5} style={{ margin: 0 }}>历史趋势</Title>
+            <Segmented options={TIME_RANGES.map((r, i) => ({ label: r.label, value: i }))}
+              value={selectedRange} onChange={v => setSelectedRange(v as number)} size="small" />
+          </div>
             {chartData.length > 0 ? (
               <>
-                <Row gutter={16}>
-                  <Col span={12}>
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} lg={12}>
                     <Card size="small" title="CPU (%)" style={chartCardStyle}>
                       <ResponsiveContainer width="100%" height={chartHeight}>
                         <LineChart data={chartData}>
@@ -147,12 +207,12 @@ const NodeDetail: React.FC = () => {
                           <XAxis dataKey="time" stroke="#8b90a8" fontSize={11} />
                           <YAxis stroke="#8b90a8" fontSize={11} />
                           <Tooltip contentStyle={{ background: '#1a1e34', border: '1px solid #2e3450' }} />
-                          <Line type="monotone" dataKey="cpu" stroke="#4a8eff" dot={false} strokeWidth={1.5} />
+                          <Line type="monotone" dataKey="cpu" stroke="#4a8eff" dot={false} strokeWidth={1.5} isAnimationActive={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </Card>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} lg={12}>
                     <Card size="small" title="内存 (MB)" style={chartCardStyle}>
                       <ResponsiveContainer width="100%" height={chartHeight}>
                         <LineChart data={chartData}>
@@ -160,14 +220,12 @@ const NodeDetail: React.FC = () => {
                           <XAxis dataKey="time" stroke="#8b90a8" fontSize={11} />
                           <YAxis stroke="#8b90a8" fontSize={11} />
                           <Tooltip contentStyle={{ background: '#1a1e34', border: '1px solid #2e3450' }} />
-                          <Line type="monotone" dataKey="mem" stroke="#52c41a" dot={false} strokeWidth={1.5} />
+                          <Line type="monotone" dataKey="mem" stroke="#52c41a" dot={false} strokeWidth={1.5} isAnimationActive={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </Card>
                   </Col>
-                </Row>
-                <Row gutter={16}>
-                  <Col span={12}>
+                  <Col xs={24} lg={12}>
                     <Card size="small" title="连接数" style={chartCardStyle}>
                       <ResponsiveContainer width="100%" height={chartHeight}>
                         <LineChart data={chartData}>
@@ -176,13 +234,13 @@ const NodeDetail: React.FC = () => {
                           <YAxis stroke="#8b90a8" fontSize={11} />
                           <Tooltip contentStyle={{ background: '#1a1e34', border: '1px solid #2e3450' }} />
                           <Legend />
-                          <Line type="monotone" dataKey="mpt" name="基站" stroke="#4a8eff" dot={false} strokeWidth={1.5} />
-                          <Line type="monotone" dataKey="usr" name="用户" stroke="#faad14" dot={false} strokeWidth={1.5} />
+                          <Line type="monotone" dataKey="mpt" name="基站" stroke="#4a8eff" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                          <Line type="monotone" dataKey="usr" name="用户" stroke="#faad14" dot={false} strokeWidth={1.5} isAnimationActive={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </Card>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} lg={12}>
                     <Card size="small" title="流量 (KB/s)" style={chartCardStyle}>
                       <ResponsiveContainer width="100%" height={chartHeight}>
                         <LineChart data={chartData}>
@@ -191,8 +249,8 @@ const NodeDetail: React.FC = () => {
                           <YAxis stroke="#8b90a8" fontSize={11} />
                           <Tooltip contentStyle={{ background: '#1a1e34', border: '1px solid #2e3450' }} />
                           <Legend />
-                          <Line type="monotone" dataKey="recv" name="接收" stroke="#52c41a" dot={false} strokeWidth={1.5} />
-                          <Line type="monotone" dataKey="send" name="发送" stroke="#ff4d4f" dot={false} strokeWidth={1.5} />
+                          <Line type="monotone" dataKey="recv" name="接收" stroke="#52c41a" dot={false} strokeWidth={1.5} isAnimationActive={false} />
+                          <Line type="monotone" dataKey="send" name="发送" stroke="#ff4d4f" dot={false} strokeWidth={1.5} isAnimationActive={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </Card>
@@ -202,7 +260,6 @@ const NodeDetail: React.FC = () => {
             ) : (
               <Empty description="暂无历史数据，数据每分钟采集一次" />
             )}
-          </Card>
         </>
       ) : (
         <Card style={{ borderColor: '#2e3450' }}>

@@ -43,4 +43,6 @@ message CasterNode {
   uint32 process_threads = 28; // 进程线程数 (来自 /proc 或 std::thread)
   uint64 last_audit_seq = 29; // 该节点最近一次审计事件序号
   string log_level      = 30; // 当前日志级别 (trace/debug/info/warn/error)
+  uint64 pull_count     = 31; // 当前有效 Pull 连接数
+  uint64 push_count     = 32; // 当前有效 Push 连接数
 }

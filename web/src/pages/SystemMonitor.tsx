@@ -10,7 +10,7 @@ import {
   getRedisMonitor, getRedisKeys, getClusterMonitor,
   type RedisMonitorInfo, type RedisKeysAnalysis, type ClusterMonitorInfo,
 } from '../api';
-import { formatDuration, formatDelay } from '../utils/format';
+import { formatDuration, formatDelay, formatCpuPercent, normalizeCpuPercent } from '../utils/format';
 import MetricCard from '../components/MetricCard';
 
 const { Title, Text } = Typography;
@@ -101,7 +101,9 @@ const SystemMonitor: React.FC = () => {
 
           {/* Node cards */}
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            {clusterInfo.nodes.map((node) => (
+            {clusterInfo.nodes.map((node) => {
+              const nodeCpu = normalizeCpuPercent(node.cpu || 0);
+              return (
               <Col xs={24} sm={12} md={6} key={node.uid}>
                 <Card
                   size="small"
@@ -119,8 +121,8 @@ const SystemMonitor: React.FC = () => {
                   <Row gutter={8}>
                     <Col span={12}>
                       <Text type="secondary" style={{ fontSize: 12 }}>CPU</Text>
-                      <div style={{ color: node.cpu > 80 ? '#ff4d4f' : node.cpu > 50 ? '#faad14' : undefined }}>
-                        {(node.cpu ?? 0).toFixed(1)}%
+                      <div style={{ color: nodeCpu > 80 ? '#ff4d4f' : nodeCpu > 50 ? '#faad14' : undefined }}>
+                        {formatCpuPercent(nodeCpu)}
                       </div>
                     </Col>
                     <Col span={12}>
@@ -148,7 +150,8 @@ const SystemMonitor: React.FC = () => {
                   </div>
                 </Card>
               </Col>
-            ))}
+              );
+            })}
           </Row>
         </>
       )}

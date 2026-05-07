@@ -1,5 +1,6 @@
 #pragma once
 #include <event2/event.h>
+#include <string>
 #include "service/AuthVerifyOpt.pb.h"
 using namespace caster::service;
 
@@ -31,6 +32,7 @@ struct auth_reply
     size_t len;
     int integer = 0;
     double dval = 0.0;
+    std::string group_uid;
 };
 
 enum class AuthBroadcastType

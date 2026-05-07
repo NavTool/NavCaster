@@ -14,6 +14,7 @@ client_near::client_near(ConnectInfo info)
     _connect_key = _info.connect_key();
     _mount_point = _info.mount_point();
     _user_name = _info.user_name();
+    _group_uid = _info.group_uid().empty() ? "default" : _info.group_uid();
     _ntrip_version2 = _info.ntrip_version() == "Ntrip/2.0";
     _transfer_with_chunked = _info.http_chunked() == "chunked";
 
@@ -159,7 +160,7 @@ int client_near::subscribe_initial_position()
         spdlog::info("[{}]: wait GGA position before nearest query, mount [{}], user [{}]", __class__, _mount_point, _user_name);
     }
 
-    CASTER::Sub_Near_Raw_Data(_mount_point.c_str(), init_lat, init_lon, _user_name.c_str(), _connect_key.c_str(), CasterSubscribeCallback, this);
+    CASTER::Sub_Near_Raw_Data(_mount_point.c_str(), init_lat, init_lon, _user_name.c_str(), _connect_key.c_str(), CasterSubscribeCallback, this, _group_uid.c_str());
     return 0;
 }
 
@@ -190,7 +191,8 @@ void client_near::AuthLoginCallback(const char *request, void *arg, auth_reply *
     auto *session = static_cast<client_near *>(arg);
     if (reply->type == AuthReply::OK)
     {
-        CASTER::Register_Record(session->_connect_key.c_str(), session->_mount_point.c_str(), session->_user_name.c_str(), CasterRegisterCallback, session, session->_register_type);
+        session->_group_uid = reply->group_uid.empty() ? session->_group_uid : reply->group_uid;
+        CASTER::Register_Record(session->_connect_key.c_str(), session->_mount_point.c_str(), session->_user_name.c_str(), CasterRegisterCallback, session, session->_register_type, session->_group_uid.c_str());
         return;
     }
 

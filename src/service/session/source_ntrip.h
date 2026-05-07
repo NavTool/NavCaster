@@ -24,6 +24,7 @@ private:
     // 内部成员变量
     std::string _connect_key;
     std::string _user_name;
+    std::string _group_uid = "default";
     bool _ntrip_version2 = false;
     bool _stopped = false;
 

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <list>
 #include <memory>
+#include <set>
 // #include <format>
 #include <spdlog/spdlog.h>
 #include <sstream>
@@ -12,6 +13,49 @@
 #include "version.h"
 
 #define __class__ "caster_internal"
+
+namespace
+{
+constexpr const char *SYSTEM_ACCESS_GROUP = "SYSTEM";
+
+std::string normalize_access_group_uid(const char *group_uid)
+{
+    if (group_uid == nullptr || group_uid[0] == '\0')
+    {
+        return "default";
+    }
+    return group_uid;
+}
+
+std::string normalize_access_group_uid(const std::string &group_uid)
+{
+    return group_uid.empty() ? "default" : group_uid;
+}
+
+bool is_privileged_access_group(const std::string &group_uid)
+{
+    return group_uid == SYSTEM_ACCESS_GROUP;
+}
+
+template <typename StatusMap>
+size_t count_running_relay_statuses(const StatusMap &statuses, const std::string &node_id = std::string())
+{
+    size_t count = 0;
+    for (const auto &item : statuses)
+    {
+        if (!item.second.running())
+        {
+            continue;
+        }
+        if (!node_id.empty() && item.second.node_uid() != node_id)
+        {
+            continue;
+        }
+        count++;
+    }
+    return count;
+}
+}
 
 /*
     设计的的Redis表和频道组成
@@ -332,11 +376,16 @@ std::string caster_internal::get_status_str()
     // return std::format("Connection: {}, Active Server: {}, Active Client: {}", , _active_mount_set.size(), _active_user_set.size());
 }
 
-bool caster_internal::is_nearest_mpt(std::string mount_point)
+bool caster_internal::is_nearest_mpt(std::string mount_point) const
 {
-    if (mount_point == "NEAREST")
+    for (const auto &group_policy : _access_group_map)
     {
-        return true;
+        if (group_policy.second.nearest_mpt_enable() &&
+            !group_policy.second.nearest_mpt_source_name().empty() &&
+            group_policy.second.nearest_mpt_source_name() == mount_point)
+        {
+            return true;
+        }
     }
 
     return false;
@@ -348,14 +397,310 @@ bool caster_internal::is_alias_mpt(std::string mount_point)
     return _alias_rule_map.find(mount_point) != _alias_rule_map.end();
 }
 
-int caster_internal::sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+std::string caster_internal::resolve_mount_group(const std::string &mount_point) const
+{
+    auto record = _source_record_map.find(mount_point);
+    if (record != _source_record_map.end() && record->second.source_group_uid() != "default")
+    {
+        return record->second.source_group_uid();
+    }
+
+    auto decode = _source_decode_map.find(mount_point);
+    if (decode != _source_decode_map.end() && decode->second.source_group_uid() != "default")
+    {
+        return decode->second.source_group_uid();
+    }
+
+    for (const auto &group_items : _access_item_map)
+    {
+        if (group_items.second.find(mount_point) != group_items.second.end())
+        {
+            return group_items.first;
+        }
+    }
+
+    for (const auto &group_policy : _access_group_map)
+    {
+        if (group_policy.second.nearest_mpt_enable() &&
+            !group_policy.second.nearest_mpt_source_name().empty() &&
+            group_policy.second.nearest_mpt_source_name() == mount_point)
+        {
+            return group_policy.first;
+        }
+    }
+
+    return "default";
+}
+
+bool caster_internal::is_mount_inside_group(const std::string &group_uid, const std::string &mount_point) const
+{
+    const auto group = normalize_access_group_uid(group_uid);
+
+    auto record = _source_record_map.find(mount_point);
+    if (record != _source_record_map.end() && record->second.source_group_uid() == group)
+    {
+        return true;
+    }
+
+    auto decode = _source_decode_map.find(mount_point);
+    if (decode != _source_decode_map.end() && decode->second.source_group_uid() == group)
+    {
+        return true;
+    }
+
+    auto group_items = _access_item_map.find(group);
+    if (group_items != _access_item_map.end() && group_items->second.find(mount_point) != group_items->second.end())
+    {
+        return true;
+    }
+
+    auto group_policy = _access_group_map.find(group);
+    if (group_policy != _access_group_map.end() &&
+        group_policy->second.nearest_mpt_enable() &&
+        group_policy->second.nearest_mpt_source_name() == mount_point)
+    {
+        return true;
+    }
+
+    return resolve_mount_group(mount_point) == group;
+}
+
+bool caster_internal::check_nearest_mount_login(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
+{
+    if (_access_group_map.empty())
+    {
+        if (reason)
+        {
+            *reason = "Access group policy not loaded";
+        }
+        return false;
+    }
+
+    const auto group = normalize_access_group_uid(group_uid);
+    if (is_privileged_access_group(group))
+    {
+        return is_nearest_mpt(mount_point);
+    }
+
+    auto group_policy = _access_group_map.find(group);
+    if (group_policy == _access_group_map.end())
+    {
+        if (reason)
+        {
+            *reason = "Access group not found";
+        }
+        return false;
+    }
+    if (!group_policy->second.nearest_mpt_enable())
+    {
+        if (reason)
+        {
+            *reason = "Nearest mount point disabled by group policy";
+        }
+        return false;
+    }
+    if (group_policy->second.nearest_mpt_source_name() != mount_point)
+    {
+        if (reason)
+        {
+            *reason = "Nearest mount point not configured for group";
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool caster_internal::check_mount_visible(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
+{
+    if (_access_group_map.empty() && _access_item_map.empty())
+    {
+        return true;
+    }
+
+    const auto group = normalize_access_group_uid(group_uid);
+    if (is_privileged_access_group(group))
+    {
+        return true;
+    }
+
+    auto group_policy = _access_group_map.find(group);
+    if (group_policy == _access_group_map.end())
+    {
+        if (reason)
+        {
+            *reason = "Access group not found";
+        }
+        return false;
+    }
+
+    auto group_items = _access_item_map.find(group);
+    if (group_items != _access_item_map.end())
+    {
+        auto item = group_items->second.find(mount_point);
+        if (item != group_items->second.end())
+        {
+            if (item->second.allow_visible() == caster::core::ACCESS_STATE_ENABLE)
+            {
+                return true;
+            }
+            if (item->second.allow_visible() == caster::core::ACCESS_STATE_DISABLE)
+            {
+                if (reason)
+                {
+                    *reason = "Mount point visible disabled by item policy";
+                }
+                return false;
+            }
+        }
+    }
+
+    const bool inside_group = is_mount_inside_group(group, mount_point);
+    const bool allowed = inside_group ? group_policy->second.allow_visible_inside_group()
+                                      : group_policy->second.allow_visible_outside_group();
+    if (!allowed && reason)
+    {
+        *reason = inside_group ? "Mount point visible disabled inside group"
+                               : "Mount point visible disabled outside group";
+    }
+    return allowed;
+}
+
+bool caster_internal::check_mount_access(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
+{
+    if (_access_group_map.empty() && _access_item_map.empty())
+    {
+        return true;
+    }
+
+    const auto group = normalize_access_group_uid(group_uid);
+    if (is_privileged_access_group(group))
+    {
+        return true;
+    }
+
+    auto group_policy = _access_group_map.find(group);
+    if (group_policy == _access_group_map.end())
+    {
+        if (reason)
+        {
+            *reason = "Access group not found";
+        }
+        return false;
+    }
+    auto group_items = _access_item_map.find(group);
+    if (group_items != _access_item_map.end())
+    {
+        auto item = group_items->second.find(mount_point);
+        if (item != group_items->second.end())
+        {
+            if (item->second.allow_access() == caster::core::ACCESS_STATE_ENABLE)
+            {
+                return true;
+            }
+            if (item->second.allow_access() == caster::core::ACCESS_STATE_DISABLE)
+            {
+                if (reason)
+                {
+                    *reason = "Mount point access disabled by item policy";
+                }
+                return false;
+            }
+        }
+    }
+
+    const bool inside_group = is_mount_inside_group(group, mount_point);
+    const bool allowed = inside_group ? group_policy->second.allow_access_inside_group()
+                                      : group_policy->second.allow_access_outside_group();
+    if (!allowed && reason)
+    {
+        *reason = inside_group ? "Mount point access disabled inside group"
+                               : "Mount point access disabled outside group";
+    }
+    return allowed;
+}
+
+bool caster_internal::check_mount_nearby(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
+{
+    if (_access_group_map.empty() && _access_item_map.empty())
+    {
+        return true;
+    }
+
+    const auto group = normalize_access_group_uid(group_uid);
+    if (is_privileged_access_group(group))
+    {
+        return true;
+    }
+
+    auto group_policy = _access_group_map.find(group);
+    if (group_policy == _access_group_map.end())
+    {
+        if (reason)
+        {
+            *reason = "Access group not found";
+        }
+        return false;
+    }
+    if (!group_policy->second.nearest_mpt_enable())
+    {
+        if (reason)
+        {
+            *reason = "Nearest mount point disabled by group policy";
+        }
+        return false;
+    }
+
+    auto group_items = _access_item_map.find(group);
+    if (group_items != _access_item_map.end())
+    {
+        auto item = group_items->second.find(mount_point);
+        if (item != group_items->second.end())
+        {
+            if (item->second.allow_nearby() == caster::core::ACCESS_STATE_ENABLE)
+            {
+                return true;
+            }
+            if (item->second.allow_nearby() == caster::core::ACCESS_STATE_DISABLE)
+            {
+                if (reason)
+                {
+                    *reason = "Mount point nearby disabled by item policy";
+                }
+                return false;
+            }
+        }
+    }
+
+    const bool inside_group = is_mount_inside_group(group, mount_point);
+    const bool allowed = inside_group ? group_policy->second.allow_nearby_inside_group()
+                                      : group_policy->second.allow_nearby_outside_group();
+    if (!allowed && reason)
+    {
+        *reason = inside_group ? "Mount point nearby disabled inside group"
+                               : "Mount point nearby disabled outside group";
+    }
+    return allowed;
+}
+
+int caster_internal::sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid, bool skip_access_check)
 {
     try
     {
         // 自动识别别名挂载点：如果 channel 是别名，委托给 sub_alias_channel 处理
         if (is_alias_mpt(channel))
         {
-            return sub_alias_channel(channel, user_name, connect_key, cb, arg);
+            return sub_alias_channel(channel, user_name, connect_key, cb, arg, group_uid);
+        }
+
+        std::string deny_reason;
+        if (!skip_access_check && !check_mount_access(normalize_access_group_uid(group_uid), channel, &deny_reason))
+        {
+            caster_reply Reply;
+            Reply.type = CasterReply::ERR;
+            Reply.str = deny_reason.c_str();
+            cb(NULL, arg, &Reply);
+            return 1;
         }
 
         if (_active_mount_map.find(channel) == _active_mount_map.end()) // 不是活跃频道
@@ -391,6 +736,7 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
         cb_item.connect_key = connect_key;
         cb_item.channel = channel;
         cb_item.user_name = user_name;
+        cb_item.group_uid = normalize_access_group_uid(group_uid);
         cb_item.cb = cb;
         cb_item.arg = arg;
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
@@ -418,8 +764,18 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
     return 0;
 }
 
-int caster_internal::sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg)
+int caster_internal::sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
+    std::string deny_reason;
+    if (!check_nearest_mount_login(normalize_access_group_uid(group_uid), channel, &deny_reason))
+    {
+        caster_reply Reply;
+        Reply.type = CasterReply::ERR;
+        Reply.str = deny_reason.c_str();
+        cb(NULL, arg, &Reply);
+        return 1;
+    }
+
     // 查找是否是已经订阅过最近基站
     auto find = _base_near_sub_map.find(connect_key);
     if (find == _base_near_sub_map.end())
@@ -429,6 +785,7 @@ int caster_internal::sub_near_channel(const char *channel, const char *user_name
         cb_item.connect_key = connect_key;
         cb_item.channel = channel;
         cb_item.user_name = user_name;
+        cb_item.group_uid = normalize_access_group_uid(group_uid);
         cb_item.cb = cb;
         cb_item.arg = arg;
         _base_near_sub_map.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
@@ -436,6 +793,7 @@ int caster_internal::sub_near_channel(const char *channel, const char *user_name
     else
     {
         // 已经订阅过，更新回调函数和参数
+        find->second.group_uid = normalize_access_group_uid(group_uid);
         find->second.cb = cb;
         find->second.arg = arg;
     }
@@ -463,7 +821,7 @@ int caster_internal::sub_near_channel(const char *channel, const char *user_name
     return 0;
 }
 
-int caster_internal::sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int caster_internal::sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
     // 先从别名映射表中查找实体基站列表
 
@@ -514,7 +872,7 @@ int caster_internal::sub_alias_channel(const char *channel, const char *user_nam
             }
 
             // 添加到新的订阅上去
-            return caster_internal::getInstance()->sub_base_channel(alias_mpt.c_str(), user_name, connect_key, cb, arg);
+            return caster_internal::getInstance()->sub_base_channel(alias_mpt.c_str(), user_name, connect_key, cb, arg, group_uid);
         }
     }
 
@@ -578,7 +936,7 @@ int caster_internal::unsub_near_channel(const char *connect_key)
     return 0;
 }
 
-int caster_internal::sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg)
+int caster_internal::sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
     try
     {
@@ -606,6 +964,7 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
         cb_item.connect_key = connect_key;
         cb_item.channel = channel;
         cb_item.user_name = user_name;
+        cb_item.group_uid = normalize_access_group_uid(group_uid);
         cb_item.cb = cb;
         cb_item.arg = arg;
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
@@ -691,8 +1050,9 @@ int caster_internal::set_connect_delay_info(const char *connect_key, uint64_t de
     return 0;
 }
 
-std::string caster_internal::get_source_list_text()
+std::string caster_internal::get_source_list_text(const std::string &group_uid)
 {
+    const auto group = normalize_access_group_uid(group_uid);
     // 合并自动解析和手动设置的源列表，手动设置的优先级更高
     std::unordered_map<std::string, source_record> merged_map = _source_decode_map;
     for (const auto &item : _source_record_map)
@@ -701,9 +1061,15 @@ std::string caster_internal::get_source_list_text()
     }
 
     std::string str;
+    std::set<std::string> emitted_mounts;
     for (const auto &iter : merged_map)
     {
+        if (!check_mount_visible(group, iter.first))
+        {
+            continue;
+        }
         str += iter.second.toSourceItem();
+        emitted_mounts.insert(iter.second.mountpoint());
     }
 
     // 添加可见的别名挂载点到源表 (使用源挂载点的信息，但替换挂载点名为别名)
@@ -713,7 +1079,9 @@ std::string caster_internal::get_source_list_text()
         const std::string &source_name = alias.second;
 
         // 跳过已经存在同名的挂载点（避免重复）
-        if (merged_map.find(alias_name) != merged_map.end())
+        if (emitted_mounts.find(alias_name) != emitted_mounts.end())
+            continue;
+        if (!check_mount_visible(group, alias_name))
             continue;
 
         // 从已合并的源中查找原始挂载点信息
@@ -724,7 +1092,22 @@ std::string caster_internal::get_source_list_text()
             source_record alias_record = src_it->second;
             alias_record.set_mountpoint(alias_name);
             str += alias_record.toSourceItem();
+            emitted_mounts.insert(alias_name);
         }
+    }
+
+    auto group_policy = _access_group_map.find(group);
+    if (group_policy != _access_group_map.end() && group_policy->second.nearest_mpt_enable())
+    {
+        const auto &nearest_mount = group_policy->second.nearest_mpt_source_name();
+        if (nearest_mount.empty() || emitted_mounts.find(nearest_mount) != emitted_mounts.end())
+        {
+            return str;
+        }
+
+        auto nearest_info = build_default_mount_info(nearest_mount);
+        str += convert_mount_info_to_string(nearest_info);
+        emitted_mounts.insert(nearest_mount);
     }
 
     return str;
@@ -852,38 +1235,45 @@ int caster_internal::upload_node_status()
     node.set_delay_info(_queue_delay, _sub_ping_delay, _sub_tcp_delay, _pub_ping_delay, _pub_tcp_delay);
     node.set_traffic_info(_send_total, _send_speed, _recv_total, _recv_speed);
     node.set_connection_count(_server_status_map.size(), _client_status_map.size());
+    node.set_relay_count(count_running_relay_statuses(_pull_status_map, _node_ID),
+                         count_running_relay_statuses(_push_status_map, _node_ID));
     node.set_extra_info(_hostname, static_cast<uint32_t>(_listen_port), static_cast<uint32_t>(_http_port),
                          static_cast<uint64_t>(_process_id), _http_port > 0);
+
+    std::string node_json_text = node.toString();
+    auto node_json = json::parse(node_json_text);
 
     redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " CASTER_NODE_INFO_LIST " EX %s FIELDS 1 %s %s",
                       std::to_string(_key_expire_time).c_str(),
                       _node_ID.c_str(),
-                      node.toString().c_str());
+                      node_json_text.c_str());
 
     // 节点历史快照 (每 NODE_HISTORY_INTERVAL 次调用记录一次)
     if (++_node_history_counter >= NODE_HISTORY_INTERVAL)
     {
         _node_history_counter = 0;
-        record_node_history();
+        record_node_history(node_json);
     }
 
     return 0;
 }
 
-void caster_internal::record_node_history()
+void caster_internal::record_node_history(const json &node_json)
 {
     json snapshot;
     snapshot["t"] = util_get_now_second();
-    snapshot["cpu"] = SysUsage::getInstance()->getProcessCPU();
-    snapshot["mem"] = static_cast<double>(SysUsage::getInstance()->getProcessMemory());
-    snapshot["mpt"] = _server_status_map.size();
-    snapshot["usr"] = _client_status_map.size();
-    snapshot["conn"] = _server_status_map.size() + _client_status_map.size();
-    snapshot["send_speed"] = _send_speed;
-    snapshot["recv_speed"] = _recv_speed;
-    snapshot["send_total"] = _send_total;
-    snapshot["recv_total"] = _recv_total;
-    snapshot["q_delay"] = _queue_delay;
+    snapshot["cpu"] = node_json.value("cpu_usage", 0.0);
+    snapshot["mem"] = node_json.value("mem_usage", 0.0);
+    snapshot["mpt"] = node_json.value("server_count", 0);
+    snapshot["usr"] = node_json.value("client_count", 0);
+    snapshot["pull"] = node_json.value("pull_count", 0);
+    snapshot["push"] = node_json.value("push_count", 0);
+    snapshot["conn"] = node_json.value("connect_count", 0);
+    snapshot["send_speed"] = node_json.value("send_speed", 0.0);
+    snapshot["recv_speed"] = node_json.value("recv_speed", 0.0);
+    snapshot["send_total"] = node_json.value("send_total", 0LL);
+    snapshot["recv_total"] = node_json.value("recv_total", 0LL);
+    snapshot["q_delay"] = node_json.value("queue_delay", 0.0);
 
     std::string raw_key = std::string(NODE_HISTORY_PREFIX) + _node_ID;
     std::string value = snapshot.dump();
@@ -900,7 +1290,7 @@ void caster_internal::record_node_history()
         json agg;
         double cpu_sum = 0, mem_sum = 0, delay_sum = 0;
         double send_spd_sum = 0, recv_spd_sum = 0;
-        int mpt_sum = 0, usr_sum = 0, conn_sum = 0;
+        int mpt_sum = 0, usr_sum = 0, pull_sum = 0, push_sum = 0, conn_sum = 0;
         long long last_send_total = 0, last_recv_total = 0;
         long long t_sum = 0;
         int n = static_cast<int>(_1min_agg_buffer.size());
@@ -911,6 +1301,8 @@ void caster_internal::record_node_history()
             mem_sum += s["mem"].get<double>();
             mpt_sum += s["mpt"].get<int>();
             usr_sum += s["usr"].get<int>();
+            pull_sum += s.value("pull", 0);
+            push_sum += s.value("push", 0);
             conn_sum += s["conn"].get<int>();
             send_spd_sum += s["send_speed"].get<double>();
             recv_spd_sum += s["recv_speed"].get<double>();
@@ -923,6 +1315,8 @@ void caster_internal::record_node_history()
         agg["mem"] = mem_sum / n;
         agg["mpt"] = mpt_sum / n;
         agg["usr"] = usr_sum / n;
+        agg["pull"] = pull_sum / n;
+        agg["push"] = push_sum / n;
         agg["conn"] = conn_sum / n;
         agg["send_speed"] = send_spd_sum / n;
         agg["recv_speed"] = recv_spd_sum / n;
@@ -943,7 +1337,7 @@ void caster_internal::record_node_history()
             json agg5;
             double cpu5 = 0, mem5 = 0, delay5 = 0;
             double ss5 = 0, rs5 = 0;
-            int mpt5 = 0, usr5 = 0, conn5 = 0;
+            int mpt5 = 0, usr5 = 0, pull5 = 0, push5 = 0, conn5 = 0;
             long long lst = 0, lrt = 0, t5 = 0;
             int m = static_cast<int>(_5min_agg_buffer.size());
             for (auto &a : _5min_agg_buffer)
@@ -953,6 +1347,8 @@ void caster_internal::record_node_history()
                 mem5 += a["mem"].get<double>();
                 mpt5 += a["mpt"].get<int>();
                 usr5 += a["usr"].get<int>();
+                pull5 += a.value("pull", 0);
+                push5 += a.value("push", 0);
                 conn5 += a["conn"].get<int>();
                 ss5 += a["send_speed"].get<double>();
                 rs5 += a["recv_speed"].get<double>();
@@ -965,6 +1361,8 @@ void caster_internal::record_node_history()
             agg5["mem"] = mem5 / m;
             agg5["mpt"] = mpt5 / m;
             agg5["usr"] = usr5 / m;
+            agg5["pull"] = pull5 / m;
+            agg5["push"] = push5 / m;
             agg5["conn"] = conn5 / m;
             agg5["send_speed"] = ss5 / m;
             agg5["recv_speed"] = rs5 / m;
@@ -1448,6 +1846,7 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
     }
 
     svr->_pull_status_map.clear();
+    size_t running_count = 0;
 
     for (int i = 0; i < reply->elements; i += 2)
     {
@@ -1461,8 +1860,13 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
             // 解析失败
             continue;
         }
+        if (item.running())
+        {
+            running_count++;
+        }
         svr->_pull_status_map.insert(std::pair<std::string, pull_status>(field, item));
     }
+    svr->_pull_connection_count = running_count;
 }
 
 void caster_internal::Redis_SyncPushList_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -1532,6 +1936,7 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
     }
 
     svr->_push_status_map.clear();
+    size_t running_count = 0;
 
     for (int i = 0; i < reply->elements; i += 2)
     {
@@ -1545,8 +1950,13 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
             // 解析失败
             continue;
         }
+        if (item.running())
+        {
+            running_count++;
+        }
         svr->_push_status_map.insert(std::pair<std::string, push_status>(field, item));
     }
+    svr->_push_connection_count = running_count;
 }
 
 int caster_internal::clear_overdue_item()
@@ -1701,14 +2111,21 @@ int caster_internal::download_active_item()
 
     redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_server_connection_count, "HLEN " MPT_STATUS_LIST);
     redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_client_connection_count, "HLEN " USR_STATUS_LIST);
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_pull_connection_count, "HLEN " PULL_STREAM_STATUS);
-    redisAsyncCommand(_pub_context, Redis_Get_Hash_Lenth_Callback, &_push_connection_count, "HLEN " PUSH_STREAM_STATUS);
+    redisAsyncCommand(_pub_context, Redis_SyncPullStat_Callback, this, "HGETALL " PULL_STREAM_STATUS);
+    redisAsyncCommand(_pub_context, Redis_SyncPushStat_Callback, this, "HGETALL " PUSH_STREAM_STATUS);
     return 0;
 }
 
 int caster_internal::download_alias_rule()
 {
     redisAsyncCommand(_pub_context, Redis_Update_Alias_Rule_Callback, this, "HGETALL " ALIAS_RULE_LIST);
+
+    return 0;
+}
+
+int caster_internal::download_access_policy()
+{
+    redisAsyncCommand(_pub_context, Redis_Update_Access_Group_Callback, this, "HGETALL " ACCESS_GROUP);
 
     return 0;
 }
@@ -1825,6 +2242,8 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
 
     // 获取别名规则列表
     svr->download_alias_rule();
+    // 4.下载访问控制策略
+    svr->download_access_policy();
 }
 
 void caster_internal::TestDelayCallback(evutil_socket_t fd, short events, void *arg)
@@ -1841,8 +2260,18 @@ int caster_internal::relay_register_callback(RelayCallback cb, void *arg)
     return 0;
 }
 
-int caster_internal::register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
+int caster_internal::register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
+    std::string deny_reason;
+    if (!check_mount_access(normalize_access_group_uid(group_uid), channel, &deny_reason))
+    {
+        caster_reply Reply;
+        Reply.type = CasterReply::ERR;
+        Reply.str = deny_reason.c_str();
+        cb(NULL, arg, &Reply);
+        return 1;
+    }
+
     // 查询要注册的频道
     auto find = _base_register_map.find(channel);
     if (find == _base_register_map.end())
@@ -1901,6 +2330,7 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         cb_item.connect_key = connect_key;
         cb_item.channel = channel;
         cb_item.user_name = user_name;
+        cb_item.group_uid = normalize_access_group_uid(group_uid);
         cb_item.cb = cb;
         cb_item.arg = arg;
 
@@ -1938,8 +2368,21 @@ int caster_internal::register_base_channel(const char *channel, const char *user
     return 0;
 }
 
-int caster_internal::register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type)
+int caster_internal::register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
+    std::string deny_reason;
+    bool allowed = type == CasterRegisterType::NEAREST
+                       ? check_nearest_mount_login(normalize_access_group_uid(group_uid), channel, &deny_reason)
+                       : check_mount_access(normalize_access_group_uid(group_uid), channel, &deny_reason);
+    if (!allowed)
+    {
+        caster_reply Reply;
+        Reply.type = CasterReply::ERR;
+        Reply.str = deny_reason.c_str();
+        cb(NULL, arg, &Reply);
+        return 1;
+    }
+
     // 查询要注册的频道
     auto find = _rover_register_map.find(user_name);
     if (find == _rover_register_map.end())
@@ -2000,6 +2443,7 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
         cb_item.connect_key = connect_key;
         cb_item.channel = channel;
         cb_item.user_name = user_name;
+        cb_item.group_uid = normalize_access_group_uid(group_uid);
         cb_item.cb = cb;
         cb_item.arg = arg;
 
@@ -2292,7 +2736,8 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
 
                     // 调用sub_near_channel更新最近基站订阅
                     sub_near_channel(near->second.channel.c_str(), near->second.user_name.c_str(),
-                                     lat, lon, connect_key, near->second.cb, near->second.arg);
+                                     lat, lon, connect_key, near->second.cb, near->second.arg,
+                                     near->second.group_uid.c_str());
                 }
             }
         }
@@ -2435,6 +2880,9 @@ int caster_internal::init_pub_context()
 {
     // redisAsyncCommand(_pub_context, NULL, NULL, "DEL " MPT_STATUS_LIST);
     // redisAsyncCommand(_pub_context, NULL, NULL, "DEL " USR_STATUS_LIST);
+    download_active_item();
+    download_alias_rule();
+    download_access_policy();
     return 0;
 }
 
@@ -2906,6 +3354,10 @@ void caster_internal::Redis_ConfChange_Callback(redisAsyncContext *c, void *r, v
     {
         svr->download_alias_rule();
     }
+    else if (topic == "ACCESS")
+    {
+        svr->download_access_policy();
+    }
 }
 
 int caster_internal::broadcast_response(std::string req_str)
@@ -3205,6 +3657,96 @@ void caster_internal::Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, voi
     // svr->check_alias_rule_conflict();
 }
 
+void caster_internal::Redis_Update_Access_Group_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto svr = static_cast<caster_internal *>(privdata);
+
+    if (!reply)
+    {
+        return;
+    }
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("HGETALL ACCESS:GROUP reply->type == REDIS_REPLY_NIL");
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("HGETALL ACCESS:GROUP reply->type != REDIS_REPLY_ARRAY: {}", reply->type);
+        return;
+    }
+
+    std::unordered_map<std::string, access_group> access_group_map;
+    std::list<std::string> group_uids;
+
+    for (size_t i = 0; i + 1 < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        access_group group(field);
+        if (group.fromString(value) != 0)
+        {
+            spdlog::warn("[{}:{}]: skip invalid access group [{}]", __class__, __func__, field);
+            continue;
+        }
+        group_uids.push_back(group.uid());
+        access_group_map.insert(std::pair<std::string, access_group>(group.uid(), group));
+    }
+
+    svr->_access_group_map = std::move(access_group_map);
+    svr->_access_item_map.clear();
+
+    for (const auto &group_uid : group_uids)
+    {
+        auto ctx = new std::pair<caster_internal *, std::string>(svr, group_uid);
+        redisAsyncCommand(svr->_pub_context, Redis_Update_Access_Item_Callback, ctx,
+                          "HGETALL " ACCESS_ITEM ":%s", group_uid.c_str());
+    }
+}
+
+void caster_internal::Redis_Update_Access_Item_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    std::unique_ptr<std::pair<caster_internal *, std::string>> ctx(static_cast<std::pair<caster_internal *, std::string> *>(privdata));
+    auto reply = static_cast<redisReply *>(r);
+
+    if (!ctx || !reply)
+    {
+        return;
+    }
+
+    auto svr = ctx->first;
+    const auto group_uid = ctx->second;
+
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        spdlog::warn("HGETALL ACCESS:ITEM:{} reply->type == REDIS_REPLY_NIL", group_uid);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_ARRAY)
+    {
+        spdlog::error("HGETALL ACCESS:ITEM:{} reply->type != REDIS_REPLY_ARRAY: {}", group_uid, reply->type);
+        return;
+    }
+
+    std::unordered_map<std::string, access_item> access_items;
+    for (size_t i = 0; i + 1 < reply->elements; i += 2)
+    {
+        auto field = reply->element[i]->str;
+        std::string value = reply->element[i + 1]->str;
+        access_item item(field);
+        if (item.fromString(value) != 0)
+        {
+            spdlog::warn("[{}:{}]: skip invalid access item [{}] for group [{}]", __class__, __func__, field, group_uid);
+            continue;
+        }
+        access_items.insert(std::pair<std::string, access_item>(item.mount_point_name(), item));
+    }
+
+    svr->_access_item_map[group_uid] = std::move(access_items);
+}
+
 void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     auto reply = static_cast<redisReply *>(r);
@@ -3256,7 +3798,6 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
         }
         else // 如果在线,订阅这个挂载点
         {
-
             // 判断这个挂载点和当前订阅的挂载点是同一个，那么就跳过
             if (cb_item->channel == field)
             {
@@ -3287,7 +3828,7 @@ void caster_internal::Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, v
 
             // 添加到新的订阅上去
             cb_item->channel = field;
-            svr->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg);
+            svr->sub_base_channel(field, cb_item->user_name.c_str(), cb_item->connect_key.c_str(), cb_item->cb, cb_item->arg, cb_item->group_uid.c_str(), true);
 
             return;
         }

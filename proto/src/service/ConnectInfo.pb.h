@@ -338,6 +338,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
     kNtripGgaFieldNumber = 14,
     kNtripAuthFieldNumber = 15,
     kAddrFieldNumber = 16,
+    kGroupUidFieldNumber = 20,
     kTypeFieldNumber = 2,
     kOperateFieldNumber = 3,
     kNtripLatFieldNumber = 18,
@@ -554,6 +555,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
   ::std::string* PROTOBUF_NONNULL _internal_mutable_addr();
 
   public:
+  // string group_uid = 20;
+  void clear_group_uid() ;
+  [[nodiscard]] const ::std::string& group_uid() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_group_uid(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_group_uid();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_group_uid();
+  void set_allocated_group_uid(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_group_uid() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_group_uid(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_group_uid();
+
+  public:
   // .caster.service.ConnectType type = 2;
   void clear_type() ;
   [[nodiscard]] ::caster::service::ConnectType type() const;
@@ -608,8 +624,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<5, 19,
-                                   0, 188,
+  static const ::google::protobuf::internal::TcParseTable<5, 20,
+                                   0, 197,
                                    2>
       _table_;
 
@@ -646,6 +662,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED ConnectInfo final : public ::google
     ::google::protobuf::internal::ArenaStringPtr ntrip_gga_;
     ::google::protobuf::internal::ArenaStringPtr ntrip_auth_;
     ::google::protobuf::internal::ArenaStringPtr addr_;
+    ::google::protobuf::internal::ArenaStringPtr group_uid_;
     int type_;
     int operate_;
     double ntrip_lat_;
@@ -745,7 +762,7 @@ inline void ConnectInfo::clear_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.type_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00004000U);
+                  0x00008000U);
 }
 inline ::caster::service::ConnectType ConnectInfo::type() const {
   // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.type)
@@ -753,7 +770,7 @@ inline ::caster::service::ConnectType ConnectInfo::type() const {
 }
 inline void ConnectInfo::set_type(::caster::service::ConnectType value) {
   _internal_set_type(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
   // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.type)
 }
 inline ::caster::service::ConnectType ConnectInfo::_internal_type() const {
@@ -770,7 +787,7 @@ inline void ConnectInfo::clear_operate() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.operate_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00008000U);
+                  0x00010000U);
 }
 inline ::caster::service::OperateType ConnectInfo::operate() const {
   // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.operate)
@@ -778,7 +795,7 @@ inline ::caster::service::OperateType ConnectInfo::operate() const {
 }
 inline void ConnectInfo::set_operate(::caster::service::OperateType value) {
   _internal_set_operate(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
   // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.operate)
 }
 inline ::caster::service::OperateType ConnectInfo::_internal_operate() const {
@@ -1640,7 +1657,7 @@ inline void ConnectInfo::clear_port() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.port_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00040000U);
+                  0x00080000U);
 }
 inline ::int32_t ConnectInfo::port() const {
   // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.port)
@@ -1648,7 +1665,7 @@ inline ::int32_t ConnectInfo::port() const {
 }
 inline void ConnectInfo::set_port(::int32_t value) {
   _internal_set_port(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00080000U);
   // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.port)
 }
 inline ::int32_t ConnectInfo::_internal_port() const {
@@ -1665,7 +1682,7 @@ inline void ConnectInfo::clear_ntrip_lat() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ntrip_lat_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00010000U);
+                  0x00020000U);
 }
 inline double ConnectInfo::ntrip_lat() const {
   // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.ntrip_lat)
@@ -1673,7 +1690,7 @@ inline double ConnectInfo::ntrip_lat() const {
 }
 inline void ConnectInfo::set_ntrip_lat(double value) {
   _internal_set_ntrip_lat(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00010000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
   // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.ntrip_lat)
 }
 inline double ConnectInfo::_internal_ntrip_lat() const {
@@ -1690,7 +1707,7 @@ inline void ConnectInfo::clear_ntrip_lon() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ntrip_lon_ = 0;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00020000U);
+                  0x00040000U);
 }
 inline double ConnectInfo::ntrip_lon() const {
   // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.ntrip_lon)
@@ -1698,7 +1715,7 @@ inline double ConnectInfo::ntrip_lon() const {
 }
 inline void ConnectInfo::set_ntrip_lon(double value) {
   _internal_set_ntrip_lon(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00020000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00040000U);
   // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.ntrip_lon)
 }
 inline double ConnectInfo::_internal_ntrip_lon() const {
@@ -1708,6 +1725,71 @@ inline double ConnectInfo::_internal_ntrip_lon() const {
 inline void ConnectInfo::_internal_set_ntrip_lon(double value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ntrip_lon_ = value;
+}
+
+// string group_uid = 20;
+inline void ConnectInfo::clear_group_uid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.group_uid_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00004000U);
+}
+inline const ::std::string& ConnectInfo::group_uid() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:caster.service.ConnectInfo.group_uid)
+  return _internal_group_uid();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void ConnectInfo::set_group_uid(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  _impl_.group_uid_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:caster.service.ConnectInfo.group_uid)
+}
+inline ::std::string* PROTOBUF_NONNULL ConnectInfo::mutable_group_uid()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  ::std::string* _s = _internal_mutable_group_uid();
+  // @@protoc_insertion_point(field_mutable:caster.service.ConnectInfo.group_uid)
+  return _s;
+}
+inline const ::std::string& ConnectInfo::_internal_group_uid() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.group_uid_.Get();
+}
+inline void ConnectInfo::_internal_set_group_uid(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.group_uid_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL ConnectInfo::_internal_mutable_group_uid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.group_uid_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE ConnectInfo::release_group_uid() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:caster.service.ConnectInfo.group_uid)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00004000U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
+  auto* released = _impl_.group_uid_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.group_uid_.Set("", GetArena());
+  }
+  return released;
+}
+inline void ConnectInfo::set_allocated_group_uid(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
+  }
+  _impl_.group_uid_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.group_uid_.IsDefault()) {
+    _impl_.group_uid_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:caster.service.ConnectInfo.group_uid)
 }
 
 #ifdef __GNUC__

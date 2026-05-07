@@ -36,6 +36,8 @@ message NodeInfo {
   uint32 connect_count = 40;
   uint32 server_count  = 41;
   uint32 client_count  = 42;
+  uint32 pull          = 43;
+  uint32 push          = 44;
 
   // 状态
   uint64 online_time = 50; // 节点上线时刻

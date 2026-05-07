@@ -101,6 +101,8 @@ export interface NodeHistorySnapshot {
   mem: number;
   mpt: number;
   usr: number;
+  pull?: number;
+  push?: number;
   conn: number;
   send_speed: number;
   recv_speed: number;
@@ -255,6 +257,7 @@ export interface ClusterMonitorInfo {
   nodes: {
     uid: string; node_name: string; is_master: boolean; online: boolean;
     cpu: number; mem: number; mpt: number; usr: number;
+    pull: number; push: number;
     conn: number;
     send_speed: number; recv_speed: number;
     send_total: number; recv_total: number;
@@ -311,7 +314,7 @@ export async function getRingLog(n = 500, level = 'info'): Promise<PagedResult<R
   return data as PagedResult<RingLogEntry>;
 }
 
-export async function getRedisHistory(range: '1h' | '6h' | '24h' = '1h'): Promise<PagedResult<RedisStatPoint>> {
+export async function getRedisHistory(range: '1h' | '6h' | '24h' | '7d' = '1h'): Promise<PagedResult<RedisStatPoint>> {
   const { data } = await api.get('/api/monitor/redis/history', { params: { range } });
   return data as PagedResult<RedisStatPoint>;
 }

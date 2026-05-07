@@ -3,6 +3,14 @@
 #include <spdlog/spdlog.h>
 #include "knt.h"
 
+namespace
+{
+std::string normalize_group_uid(const std::string &group_uid)
+{
+    return group_uid.empty() ? "default" : group_uid;
+}
+}
+
 verify_internal::verify_internal(/* args */)
 {
 }
@@ -588,6 +596,7 @@ void verify_internal::Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, voi
 
     auth_reply Reply;
     Reply.type = AuthReply::OK;
+    Reply.group_uid = "default";
     ctx->cb(nullptr, ctx->arg, &Reply);
 
     delete ctx;
@@ -647,6 +656,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     // 如果不存在，那么就不允许登录
     auth_reply Reply;
     Reply.type = AuthReply::OK; // AUTH_REPLY_ERR;
+    Reply.group_uid = normalize_group_uid(active_info._group);
     ctx->cb(nullptr, ctx->arg, &Reply);
 
     delete ctx;
@@ -731,6 +741,7 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
         auth_reply Reply;
         Reply.type = AuthReply::OK;
         Reply.str = "";
+        Reply.group_uid = normalize_group_uid(limit_item->second._group);
         ctx->cb(NULL, ctx->arg, &Reply);
     }
     catch (const std::exception &e)
@@ -774,6 +785,7 @@ void verify_internal::Redis_Add_Unname_Callback(redisAsyncContext *c, void *r, v
         auth_reply Reply;
         Reply.type = AuthReply::OK;
         Reply.str = "";
+        Reply.group_uid = "default";
         ctx->cb(NULL, ctx->arg, &Reply);
     }
     catch (const std::exception &e)
@@ -847,16 +859,27 @@ int auth_limit::fromString(const std::string &str)
     json info = json::parse(str);
     try
     {
-        _account = info["account"].get<std::string>();
-        _password = info["password"].get<std::string>();
-        _active = info["active"].get<bool>();
-        _type = info["type"].get<int>();
-        _date_limit = info["date_limit"].get<int>();
-        _time_limit = info["time_limit"].get<int>();
-        _access = info["access"].get<int>();
-        _connect_limit = info["connect_limit"].get<int>();
-        _group = info["group"].get<std::string>();
-        _expire = info["expire"].get<int>();
+        _account = info.value("account", std::string());
+        _password = info.value("password", std::string());
+        if (info.contains("active") && info["active"].is_boolean())
+        {
+            _active = info["active"].get<bool>();
+        }
+        else
+        {
+            _active = info.value("active", 0) == 1;
+        }
+        _type = info.value("type", 0);
+        _date_limit = info.value("date_limit", static_cast<int64_t>(info.value("expire_time", 0.0)));
+        _time_limit = info.value("time_limit", static_cast<int64_t>(info.value("available_seconds", 0)));
+        _access = info.value("access", 0);
+        _connect_limit = info.value("connect_limit", info.value("connection_limit", 0));
+        if (_connect_limit <= 0)
+        {
+            _connect_limit = 9999;
+        }
+        _group = normalize_group_uid(info.value("group_uid", info.value("group", std::string())));
+        _expire = info.value("expire", static_cast<int64_t>(info.value("expire_time", 0.0)));
     }
     catch (const std::exception &e)
     {

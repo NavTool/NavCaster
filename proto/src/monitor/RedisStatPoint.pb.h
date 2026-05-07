@@ -225,7 +225,16 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RedisStatPoint final : public ::goo
     kOpsPerSecFieldNumber = 4,
     kHitsFieldNumber = 5,
     kMissesFieldNumber = 6,
+    kUsedMemoryRssFieldNumber = 8,
+    kUsedMemoryPeakFieldNumber = 9,
+    kMemFragmentationRatioFieldNumber = 10,
     kConnectedClientsFieldNumber = 7,
+    kBlockedClientsFieldNumber = 14,
+    kTotalCommandsProcessedFieldNumber = 11,
+    kTotalConnectionsReceivedFieldNumber = 12,
+    kHitRateFieldNumber = 13,
+    kInputKbpsFieldNumber = 15,
+    kOutputKbpsFieldNumber = 16,
   };
   // uint64 t = 1;
   void clear_t() ;
@@ -287,6 +296,36 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RedisStatPoint final : public ::goo
   void _internal_set_misses(::uint64_t value);
 
   public:
+  // uint64 used_memory_rss = 8;
+  void clear_used_memory_rss() ;
+  [[nodiscard]] ::uint64_t used_memory_rss() const;
+  void set_used_memory_rss(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_used_memory_rss() const;
+  void _internal_set_used_memory_rss(::uint64_t value);
+
+  public:
+  // uint64 used_memory_peak = 9;
+  void clear_used_memory_peak() ;
+  [[nodiscard]] ::uint64_t used_memory_peak() const;
+  void set_used_memory_peak(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_used_memory_peak() const;
+  void _internal_set_used_memory_peak(::uint64_t value);
+
+  public:
+  // double mem_fragmentation_ratio = 10;
+  void clear_mem_fragmentation_ratio() ;
+  [[nodiscard]] double mem_fragmentation_ratio() const;
+  void set_mem_fragmentation_ratio(double value);
+
+  private:
+  double _internal_mem_fragmentation_ratio() const;
+  void _internal_set_mem_fragmentation_ratio(double value);
+
+  public:
   // uint32 connected_clients = 7;
   void clear_connected_clients() ;
   [[nodiscard]] ::uint32_t connected_clients() const;
@@ -297,11 +336,71 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RedisStatPoint final : public ::goo
   void _internal_set_connected_clients(::uint32_t value);
 
   public:
+  // uint32 blocked_clients = 14;
+  void clear_blocked_clients() ;
+  [[nodiscard]] ::uint32_t blocked_clients() const;
+  void set_blocked_clients(::uint32_t value);
+
+  private:
+  ::uint32_t _internal_blocked_clients() const;
+  void _internal_set_blocked_clients(::uint32_t value);
+
+  public:
+  // uint64 total_commands_processed = 11;
+  void clear_total_commands_processed() ;
+  [[nodiscard]] ::uint64_t total_commands_processed() const;
+  void set_total_commands_processed(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_total_commands_processed() const;
+  void _internal_set_total_commands_processed(::uint64_t value);
+
+  public:
+  // uint64 total_connections_received = 12;
+  void clear_total_connections_received() ;
+  [[nodiscard]] ::uint64_t total_connections_received() const;
+  void set_total_connections_received(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_total_connections_received() const;
+  void _internal_set_total_connections_received(::uint64_t value);
+
+  public:
+  // double hit_rate = 13;
+  void clear_hit_rate() ;
+  [[nodiscard]] double hit_rate() const;
+  void set_hit_rate(double value);
+
+  private:
+  double _internal_hit_rate() const;
+  void _internal_set_hit_rate(double value);
+
+  public:
+  // double input_kbps = 15;
+  void clear_input_kbps() ;
+  [[nodiscard]] double input_kbps() const;
+  void set_input_kbps(double value);
+
+  private:
+  double _internal_input_kbps() const;
+  void _internal_set_input_kbps(double value);
+
+  public:
+  // double output_kbps = 16;
+  void clear_output_kbps() ;
+  [[nodiscard]] double output_kbps() const;
+  void set_output_kbps(double value);
+
+  private:
+  double _internal_output_kbps() const;
+  void _internal_set_output_kbps(double value);
+
+  public:
   // @@protoc_insertion_point(class_scope:caster.monitor.RedisStatPoint)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<3, 7,
+  static const ::google::protobuf::internal::TcParseTable<4, 16,
                                    0, 0,
                                    2>
       _table_;
@@ -331,7 +430,16 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED RedisStatPoint final : public ::goo
     double ops_per_sec_;
     ::uint64_t hits_;
     ::uint64_t misses_;
+    ::uint64_t used_memory_rss_;
+    ::uint64_t used_memory_peak_;
+    double mem_fragmentation_ratio_;
     ::uint32_t connected_clients_;
+    ::uint32_t blocked_clients_;
+    ::uint64_t total_commands_processed_;
+    ::uint64_t total_connections_received_;
+    double hit_rate_;
+    double input_kbps_;
+    double output_kbps_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -511,7 +619,7 @@ inline void RedisStatPoint::clear_connected_clients() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.connected_clients_ = 0u;
   ClearHasBit(_impl_._has_bits_[0],
-                  0x00000040U);
+                  0x00000200U);
 }
 inline ::uint32_t RedisStatPoint::connected_clients() const {
   // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.connected_clients)
@@ -519,7 +627,7 @@ inline ::uint32_t RedisStatPoint::connected_clients() const {
 }
 inline void RedisStatPoint::set_connected_clients(::uint32_t value) {
   _internal_set_connected_clients(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.connected_clients)
 }
 inline ::uint32_t RedisStatPoint::_internal_connected_clients() const {
@@ -529,6 +637,231 @@ inline ::uint32_t RedisStatPoint::_internal_connected_clients() const {
 inline void RedisStatPoint::_internal_set_connected_clients(::uint32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.connected_clients_ = value;
+}
+
+// uint64 used_memory_rss = 8;
+inline void RedisStatPoint::clear_used_memory_rss() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.used_memory_rss_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000040U);
+}
+inline ::uint64_t RedisStatPoint::used_memory_rss() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.used_memory_rss)
+  return _internal_used_memory_rss();
+}
+inline void RedisStatPoint::set_used_memory_rss(::uint64_t value) {
+  _internal_set_used_memory_rss(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.used_memory_rss)
+}
+inline ::uint64_t RedisStatPoint::_internal_used_memory_rss() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.used_memory_rss_;
+}
+inline void RedisStatPoint::_internal_set_used_memory_rss(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.used_memory_rss_ = value;
+}
+
+// uint64 used_memory_peak = 9;
+inline void RedisStatPoint::clear_used_memory_peak() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.used_memory_peak_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000080U);
+}
+inline ::uint64_t RedisStatPoint::used_memory_peak() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.used_memory_peak)
+  return _internal_used_memory_peak();
+}
+inline void RedisStatPoint::set_used_memory_peak(::uint64_t value) {
+  _internal_set_used_memory_peak(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.used_memory_peak)
+}
+inline ::uint64_t RedisStatPoint::_internal_used_memory_peak() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.used_memory_peak_;
+}
+inline void RedisStatPoint::_internal_set_used_memory_peak(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.used_memory_peak_ = value;
+}
+
+// double mem_fragmentation_ratio = 10;
+inline void RedisStatPoint::clear_mem_fragmentation_ratio() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mem_fragmentation_ratio_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000100U);
+}
+inline double RedisStatPoint::mem_fragmentation_ratio() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.mem_fragmentation_ratio)
+  return _internal_mem_fragmentation_ratio();
+}
+inline void RedisStatPoint::set_mem_fragmentation_ratio(double value) {
+  _internal_set_mem_fragmentation_ratio(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.mem_fragmentation_ratio)
+}
+inline double RedisStatPoint::_internal_mem_fragmentation_ratio() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.mem_fragmentation_ratio_;
+}
+inline void RedisStatPoint::_internal_set_mem_fragmentation_ratio(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mem_fragmentation_ratio_ = value;
+}
+
+// uint64 total_commands_processed = 11;
+inline void RedisStatPoint::clear_total_commands_processed() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.total_commands_processed_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000800U);
+}
+inline ::uint64_t RedisStatPoint::total_commands_processed() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.total_commands_processed)
+  return _internal_total_commands_processed();
+}
+inline void RedisStatPoint::set_total_commands_processed(::uint64_t value) {
+  _internal_set_total_commands_processed(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.total_commands_processed)
+}
+inline ::uint64_t RedisStatPoint::_internal_total_commands_processed() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.total_commands_processed_;
+}
+inline void RedisStatPoint::_internal_set_total_commands_processed(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.total_commands_processed_ = value;
+}
+
+// uint64 total_connections_received = 12;
+inline void RedisStatPoint::clear_total_connections_received() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.total_connections_received_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00001000U);
+}
+inline ::uint64_t RedisStatPoint::total_connections_received() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.total_connections_received)
+  return _internal_total_connections_received();
+}
+inline void RedisStatPoint::set_total_connections_received(::uint64_t value) {
+  _internal_set_total_connections_received(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.total_connections_received)
+}
+inline ::uint64_t RedisStatPoint::_internal_total_connections_received() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.total_connections_received_;
+}
+inline void RedisStatPoint::_internal_set_total_connections_received(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.total_connections_received_ = value;
+}
+
+// double hit_rate = 13;
+inline void RedisStatPoint::clear_hit_rate() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hit_rate_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00002000U);
+}
+inline double RedisStatPoint::hit_rate() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.hit_rate)
+  return _internal_hit_rate();
+}
+inline void RedisStatPoint::set_hit_rate(double value) {
+  _internal_set_hit_rate(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.hit_rate)
+}
+inline double RedisStatPoint::_internal_hit_rate() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.hit_rate_;
+}
+inline void RedisStatPoint::_internal_set_hit_rate(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.hit_rate_ = value;
+}
+
+// uint32 blocked_clients = 14;
+inline void RedisStatPoint::clear_blocked_clients() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.blocked_clients_ = 0u;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000400U);
+}
+inline ::uint32_t RedisStatPoint::blocked_clients() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.blocked_clients)
+  return _internal_blocked_clients();
+}
+inline void RedisStatPoint::set_blocked_clients(::uint32_t value) {
+  _internal_set_blocked_clients(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.blocked_clients)
+}
+inline ::uint32_t RedisStatPoint::_internal_blocked_clients() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.blocked_clients_;
+}
+inline void RedisStatPoint::_internal_set_blocked_clients(::uint32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.blocked_clients_ = value;
+}
+
+// double input_kbps = 15;
+inline void RedisStatPoint::clear_input_kbps() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.input_kbps_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00004000U);
+}
+inline double RedisStatPoint::input_kbps() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.input_kbps)
+  return _internal_input_kbps();
+}
+inline void RedisStatPoint::set_input_kbps(double value) {
+  _internal_set_input_kbps(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.input_kbps)
+}
+inline double RedisStatPoint::_internal_input_kbps() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.input_kbps_;
+}
+inline void RedisStatPoint::_internal_set_input_kbps(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.input_kbps_ = value;
+}
+
+// double output_kbps = 16;
+inline void RedisStatPoint::clear_output_kbps() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.output_kbps_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00008000U);
+}
+inline double RedisStatPoint::output_kbps() const {
+  // @@protoc_insertion_point(field_get:caster.monitor.RedisStatPoint.output_kbps)
+  return _internal_output_kbps();
+}
+inline void RedisStatPoint::set_output_kbps(double value) {
+  _internal_set_output_kbps(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
+  // @@protoc_insertion_point(field_set:caster.monitor.RedisStatPoint.output_kbps)
+}
+inline double RedisStatPoint::_internal_output_kbps() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.output_kbps_;
+}
+inline void RedisStatPoint::_internal_set_output_kbps(double value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.output_kbps_ = value;
 }
 
 #ifdef __GNUC__

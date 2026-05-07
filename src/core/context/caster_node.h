@@ -29,6 +29,8 @@ private:
     size_t _connect_count = 0;
     size_t _server_count = 0;
     size_t _client_count = 0;
+    size_t _pull_count = 0;
+    size_t _push_count = 0;
 
     // 扩展信息
     std::string _hostname;
@@ -79,6 +81,13 @@ public:
         return 0;
     }
 
+    int set_relay_count(size_t pull_count, size_t push_count)
+    {
+        _pull_count = pull_count;
+        _push_count = push_count;
+        return 0;
+    }
+
     int set_extra_info(const std::string &hostname, uint32_t listen_port, uint32_t http_port,
                         uint64_t process_id, bool http_enabled)
     {
@@ -111,6 +120,8 @@ public:
         _connect_count = proto.connect_count();
         _server_count = proto.server_count();
         _client_count = proto.client_count();
+        _pull_count = proto.pull_count();
+        _push_count = proto.push_count();
         _online_time = proto.online_time();
         _update_time = proto.update_time();
         _hostname = proto.hostname();
@@ -150,6 +161,8 @@ public:
         proto.set_connect_count(_connect_count);
         proto.set_server_count(_server_count);
         proto.set_client_count(_client_count);
+        proto.set_pull_count(_pull_count);
+        proto.set_push_count(_push_count);
 
         proto.set_online_time(_online_time);
         proto.set_update_time(_update_time);

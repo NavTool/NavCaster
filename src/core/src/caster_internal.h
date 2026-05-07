@@ -227,8 +227,8 @@ using json = nlohmann::json;
 #define NODE_HISTORY_5M_SUFFIX ":5M"       // 5min 聚合后缀
 
 #define NODE_HISTORY_RAW_MAX   120960      // 5s × 7天
-#define NODE_HISTORY_1M_MAX    33120       // 60s × 23天 (7d~30d)
-#define NODE_HISTORY_5M_MAX    96480       // 5min × 335天 (30d~365d)
+#define NODE_HISTORY_1M_MAX    43200       // 60s × 30天
+#define NODE_HISTORY_5M_MAX    8640        // 5min × 30天
 #define NODE_HISTORY_INTERVAL  5           // 每 5 次 TimeoutCallback 记录一次 (=5s)
 
 class caster_cb_item
@@ -237,6 +237,7 @@ public:
     std::string connect_key;
     std::string channel;
     std::string user_name;
+    std::string group_uid;
     CasterCallback cb;
     void *arg;
 };
@@ -327,6 +328,8 @@ private:
     // 云端维护的状态信息 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, source_record> _source_decode_map;  // 解析的挂载点信息
     std::unordered_map<std::string, source_record> _source_record_map;  // 手动设置的挂载点信息
+    std::unordered_map<std::string, access_group> _access_group_map;     // 访问组策略
+    std::unordered_map<std::string, std::unordered_map<std::string, access_item>> _access_item_map; // 分组挂载点策略
 
     // 集群数据 这些数据需要定期从云端拉取，以减少云端同步的请求压力
     std::unordered_map<std::string, std::string> _active_mount_map;  // 在线挂载点  基站源列表信息 包含转发挂载点        MPT:LIST:COMMON
@@ -380,30 +383,30 @@ public:
     void cleanup_stale_history();
 
     // 记录节点历史状态快照到 Redis List
-    void record_node_history();
+    void record_node_history(const json &node_json);
 
     // 返回Caster的状态信息
     std::string get_status_str();
 
     // 判断是否是最近挂载点
-    bool is_nearest_mpt(std::string mount_point);
+    bool is_nearest_mpt(std::string mount_point) const;
     // 判断是否是别名挂载点
     bool is_alias_mpt(std::string mount_point);
 
     // 注册基站频道 MPT:XXXXXX
-    int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
+    int register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid);
     // 注销频道
     int withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
     int pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
-    int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid, bool skip_access_check = false);
     // 订阅最近频道
-    int sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg);
+    int sub_near_channel(const char *channel, const char *user_name, double lat, double lon, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid);
     // 取消最近频道订阅
     int unsub_near_channel(const char *connect_key);
     // 订阅别名频道
-    int sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int sub_alias_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid);
     // 取消订阅频道
     int unsub_base_channel(const char *channel, const char *connect_key);
     // 设置基站坐标信息
@@ -416,13 +419,13 @@ public:
     int set_base_source_info(const char *mount_point, const char *connect_key, const std::string &format_details, const std::string &nav_system);
 
     // 注册移动站频道 USR:XXXXXX
-    int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type);
+    int register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid);
     // 注销频道
     int withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key);
     // 向频道发布数据
     int pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length);
     // 订阅指定频道
-    int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg);
+    int sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid);
     // 取消订阅频道
     int unsub_rover_channel(const char *channel, const char *connect_key);
     // 设置用户坐标信息
@@ -432,7 +435,7 @@ public:
     int set_connect_delay_info(const char *connect_key, uint64_t delay);
 
     // 获取挂载点列表正文
-    std::string get_source_list_text();
+    std::string get_source_list_text(const std::string &group_uid = "default");
 
 private:
     // 向注册的基站频道发送状态消息
@@ -467,6 +470,8 @@ private:
     static void Redis_Update_Record_Source_Callback(redisAsyncContext *c, void *r, void *privdata); // 拉取MPT:RECORD
 
     static void Redis_Update_Alias_Rule_Callback(redisAsyncContext *c, void *r, void *privdata); // MPT:ALIAS
+    static void Redis_Update_Access_Group_Callback(redisAsyncContext *c, void *r, void *privdata); // ACCESS:GROUP
+    static void Redis_Update_Access_Item_Callback(redisAsyncContext *c, void *r, void *privdata); // ACCESS:ITEM:<group_uid>
 
     // GRO查询回调
     static void Redis_Geo_Radius_Callback(redisAsyncContext *c, void *r, void *privdata);
@@ -523,6 +528,14 @@ private:
     int upload_record_item();   // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
     int download_active_item(); // 将云端记录的在线挂载点更新到本地
     int download_alias_rule();  // 下载别名映射规则
+    int download_access_policy(); // 下载访问组和访问项策略
+
+    bool check_mount_access(const std::string &group_uid, const std::string &mount_point, std::string *reason = nullptr) const;
+    bool check_mount_nearby(const std::string &group_uid, const std::string &mount_point, std::string *reason = nullptr) const;
+    bool check_mount_visible(const std::string &group_uid, const std::string &mount_point, std::string *reason = nullptr) const;
+    bool check_nearest_mount_login(const std::string &group_uid, const std::string &mount_point, std::string *reason = nullptr) const;
+    bool is_mount_inside_group(const std::string &group_uid, const std::string &mount_point) const;
+    std::string resolve_mount_group(const std::string &mount_point) const;
 
     int check_active_base_channel();  // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)
     int check_active_rover_channel(); // 检测活跃基站频道(如果已经不存在, 那么就踢出本地连接)

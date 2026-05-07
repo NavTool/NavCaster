@@ -13,6 +13,7 @@ source_ntrip::source_ntrip(ConnectInfo info)
     _info = std::move(info);
     _connect_key = _info.connect_key();
     _user_name = _info.user_name();
+    _group_uid = _info.group_uid().empty() ? "default" : _info.group_uid();
     _ntrip_version2 = _info.ntrip_version() == "Ntrip/2.0";
 
     _bev = connect_bev::getInstance()->get_bev(_connect_key);
@@ -33,7 +34,7 @@ int source_ntrip::start()
     _stopped = false;
     connect_bev::getInstance()->set_bev(_connect_key, nullptr, WriteCallback, EventCallback, this);
 
-    _source_list = CASTER::Get_Source_Table_Text();
+    _source_list = CASTER::Get_Source_Table_Text(_group_uid.c_str());
     return build_source_table();
 }
 

@@ -78,6 +78,17 @@ export function formatUsage(percent: number): string {
   return '接近饱和';
 }
 
+/** CPU 百分比保持进程单核口径，可能超过 100%。 */
+export function normalizeCpuPercent(percent: number): number {
+  if (!Number.isFinite(percent)) return 0;
+  if (percent < 0) return 0;
+  return percent;
+}
+
+export function formatCpuPercent(percent: number): string {
+  return `${normalizeCpuPercent(percent).toFixed(1)}%`;
+}
+
 /** UTC 秒 → 本地时间字符串 "YYYY-MM-DD HH:MM:SS" */
 export function getLocalTime(utcSeconds: number): string {
   if (!utcSeconds) return '-';

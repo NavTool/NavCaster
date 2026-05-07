@@ -28,6 +28,7 @@ private:
     std::string _mount_point;
     std::string _alias_mpt;   // 实际订阅的挂载点名（切换后的真实名）
     std::string _user_name;
+    std::string _group_uid = "default";
     bool _ntrip_version2 = false;
     bool _transfer_with_chunked = false;
     bool _stopped = false;

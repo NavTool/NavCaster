@@ -134,7 +134,7 @@ int relay_pull::handle_handshake()
     _ntrip_version2 = version2;
     _transfer_with_chunked = chunked;
     _state = State::Registering;
-    CASTER::Register_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), CasterRegisterCallback, this, _register_type);
+    CASTER::Register_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), CasterRegisterCallback, this, _register_type, "SYSTEM");
     return 0;
 }
 

@@ -16,6 +16,7 @@ server_ntrip::server_ntrip(ConnectInfo info)
     _connect_key = _info.connect_key();
     _mount_point = _info.mount_point();
     _user_name = _info.user_name();
+    _group_uid = _info.group_uid().empty() ? "default" : _info.group_uid();
     _ntrip_version2 = _info.ntrip_version() == "Ntrip/2.0";
     _transfer_with_chunked = _info.http_chunked() == "chunked";
 
@@ -215,7 +216,8 @@ void server_ntrip::AuthLoginCallback(const char *request, void *arg, auth_reply 
     auto *session = static_cast<server_ntrip *>(arg);
     if (reply->type == AuthReply::OK)
     {
-        CASTER::Register_Record(session->_connect_key.c_str(), session->_mount_point.c_str(), session->_user_name.c_str(), CasterRegisterCallback, session, session->_register_type);
+        session->_group_uid = reply->group_uid.empty() ? session->_group_uid : reply->group_uid;
+        CASTER::Register_Record(session->_connect_key.c_str(), session->_mount_point.c_str(), session->_user_name.c_str(), CasterRegisterCallback, session, session->_register_type, session->_group_uid.c_str());
         return;
     }
 

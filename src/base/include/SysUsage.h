@@ -25,11 +25,7 @@ public:
 #if defined(_WIN32)
         lastCPU = lastSysCPU = lastUserCPU = {0};
 
-        SYSTEM_INFO sysInfo;
         FILETIME ftime, fsys, fuser;
-
-        GetSystemInfo(&sysInfo);
-        numProcessors = sysInfo.dwNumberOfProcessors;
 
         GetSystemTimeAsFileTime(&ftime);
         memcpy(&lastCPU, &ftime, sizeof(FILETIME));
@@ -39,7 +35,6 @@ public:
         memcpy(&lastSysCPU, &fsys, sizeof(FILETIME));
         memcpy(&lastUserCPU, &fuser, sizeof(FILETIME));
 #else
-        numProcessors = sysconf(_SC_NPROCESSORS_ONLN);
         lastTime = std::chrono::steady_clock::now();
         readProcStat(lastUTime, lastSTime);
 #endif
@@ -71,10 +66,11 @@ public:
         lastUserCPU = user;
         lastSysCPU = sys;
 
-        // -----------------------------
-        // 单核占用：不除核心数
-        // -----------------------------
+        if (totalDiff <= 0)
+            return 0;
         double cpu = (sysDiff + userDiff) * 100.0 / totalDiff;
+        if (cpu < 0)
+            return 0;
         return cpu;
 #else
         unsigned long long u, s;
@@ -90,13 +86,15 @@ public:
         lastSTime = s;
         lastTime = now;
 
-        // -----------------------------
-        // 单核占用：不除核心数
-        // -----------------------------
+        if (dt <= 0)
+            return 0;
         double cpu = (du + ds) / (double)sysconf(_SC_CLK_TCK) * 100.0 / dt;
+        if (cpu < 0)
+            return 0;
         return cpu;
 #endif
     }
+
     // ---------------------------
     // 获取当前进程的内存占用（bytes）
     // ---------------------------
@@ -127,9 +125,6 @@ private:
         f >> u >> s;  // utime, stime
     }
 #endif
-
-private:
-    int numProcessors;
 
 #if defined(_WIN32)
     ULARGE_INTEGER lastCPU, lastSysCPU, lastUserCPU;

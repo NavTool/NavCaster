@@ -27,6 +27,7 @@ private:
     std::string _connect_key;
     std::string _mount_point;
     std::string _user_name;
+    std::string _group_uid = "default";
     bool _ntrip_version2 = false;
     bool _transfer_with_chunked = false;
     size_t _chunked_size = 0;

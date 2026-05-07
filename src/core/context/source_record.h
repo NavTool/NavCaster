@@ -6,6 +6,7 @@ class source_record
 {
 private:
     std::string _uid;
+    std::string _source_group_uid = "default";
 
     std::string _mountpoint;      // 挂载点名称
     std::string _latitude;        // 纬度
@@ -23,6 +24,8 @@ public:
     }
 
     void set_mountpoint(const std::string &mpt) { _mountpoint = mpt; }
+    const std::string &mountpoint() const { return _mountpoint; }
+    const std::string &source_group_uid() const { return _source_group_uid; }
 
     bool get_ecef_coord(double &ecef_x, double &ecef_y, double &ecef_z) const
     {
@@ -44,6 +47,7 @@ public:
             return 1;
         }
         _uid = proto.uid();
+        _source_group_uid = proto.source_group_uid().empty() ? "default" : proto.source_group_uid();
         _mountpoint = proto.mountpoint();
         if (!proto.latitude().empty())
             _latitude = proto.latitude();
@@ -62,6 +66,7 @@ public:
     {
         caster::core::SourceRecord proto;
         proto.set_uid(_uid);
+        proto.set_source_group_uid(_source_group_uid);
         proto.set_mountpoint(_mountpoint);
         if (!_latitude.empty())
             proto.set_latitude(_latitude);

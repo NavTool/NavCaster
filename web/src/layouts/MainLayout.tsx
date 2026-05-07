@@ -33,8 +33,8 @@ const menuItems = [
     label: '监控',
     children: [
       { key: '/dashboard', icon: <ClusterOutlined />, label: '集群总览' },
-      { key: '/statistics', icon: <BarChartOutlined />, label: '数据统计' },
       { key: '/monitor', icon: <DashboardOutlined />, label: '系统监控' },
+      { key: '/statistics', icon: <BarChartOutlined />, label: '数据统计' },
     ],
   },
   {

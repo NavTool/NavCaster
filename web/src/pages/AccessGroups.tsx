@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Table, Button, Modal, Form, Input, Switch, Typography, Space, Row, Col, message, Popconfirm } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { useNavigate } from 'react-router-dom';
 import { usePolling } from '../hooks/usePolling';
 import { accessGroupsApi } from '../api';
 import type { AccessGroup } from '../api/types';
@@ -9,6 +10,7 @@ import type { AccessGroup } from '../api/types';
 const { Title } = Typography;
 
 const AccessGroups: React.FC = () => {
+  const navigate = useNavigate();
   const { data, loading, refresh } = usePolling(() => accessGroupsApi.getAll(), 3000);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AccessGroup | null>(null);
@@ -78,9 +80,10 @@ const AccessGroups: React.FC = () => {
     { title: '组外可见', key: 'v_out', render: (_, r) => boolRender(r.allow_visible_outside_group), width: 80 },
     { title: '组外访问', key: 'a_out', render: (_, r) => boolRender(r.allow_access_outside_group), width: 80 },
     {
-      title: '操作', key: 'action', width: 140,
+      title: '操作', key: 'action', width: 190,
       render: (_, record) => (
-        <Space>
+        <Space onClick={(event) => event.stopPropagation()}>
+          <Button type="link" size="small" icon={<SettingOutlined />} onClick={() => navigate(`/access/${encodeURIComponent(record.uid)}`)}>配置</Button>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
           <Popconfirm title="确定删除？" onConfirm={() => handleDelete(record.uid)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
@@ -97,6 +100,7 @@ const AccessGroups: React.FC = () => {
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>新增分组</Button>
       </div>
       <Table columns={columns} dataSource={dataSource} loading={loading} size="small"
+        onRow={(record) => ({ onClick: () => navigate(`/access/${encodeURIComponent(record.uid)}`), style: { cursor: 'pointer' } })}
         pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
         scroll={{ x: 900 }}
       />

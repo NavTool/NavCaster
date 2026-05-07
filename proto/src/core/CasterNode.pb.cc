@@ -84,6 +84,8 @@ inline constexpr CasterNode::Impl_::Impl_(
         http_enabled_{false},
         sse_clients_{0u},
         last_audit_seq_{::uint64_t{0u}},
+        pull_count_{::uint64_t{0u}},
+        push_count_{::uint64_t{0u}},
         process_threads_{0u} {}
 
 template <typename>
@@ -116,7 +118,7 @@ const ::uint32_t
         protodesc_cold) = {
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_._has_bits_),
-        33, // hasbit index offset
+        35, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.uid_),
         PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.node_name_),
         PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.set_version_),
@@ -147,6 +149,8 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.process_threads_),
         PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.last_audit_seq_),
         PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.log_level_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.pull_count_),
+        PROTOBUF_FIELD_OFFSET(::caster::core::CasterNode, _impl_.push_count_),
         0,
         1,
         2,
@@ -174,9 +178,11 @@ const ::uint32_t
         25,
         26,
         27,
-        29,
+        31,
         28,
         6,
+        29,
+        30,
 };
 
 static const ::_pbi::MigrationSchema
@@ -188,7 +194,7 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
 };
 const char descriptor_table_protodef_core_2fCasterNode_2eproto[] ABSL_ATTRIBUTE_SECTION_VARIABLE(
     protodesc_cold) = {
-    "\n\025core/CasterNode.proto\022\013caster.core\"\377\004\n"
+    "\n\025core/CasterNode.proto\022\013caster.core\"\247\005\n"
     "\nCasterNode\022\013\n\003uid\030\001 \001(\t\022\021\n\tnode_name\030\002 "
     "\001(\t\022\023\n\013set_version\030\003 \001(\t\022\023\n\013tag_version\030"
     "\004 \001(\t\022\024\n\014run_platform\030\005 \001(\t\022\021\n\tcpu_usage"
@@ -204,14 +210,15 @@ const char descriptor_table_protodef_core_2fCasterNode_2eproto[] ABSL_ATTRIBUTE_
     "rt\030\027 \001(\r\022\021\n\thttp_port\030\030 \001(\r\022\022\n\nprocess_i"
     "d\030\031 \001(\004\022\024\n\014http_enabled\030\032 \001(\010\022\023\n\013sse_cli"
     "ents\030\033 \001(\r\022\027\n\017process_threads\030\034 \001(\r\022\026\n\016l"
-    "ast_audit_seq\030\035 \001(\004\022\021\n\tlog_level\030\036 \001(\tb\006"
+    "ast_audit_seq\030\035 \001(\004\022\021\n\tlog_level\030\036 \001(\t\022\022"
+    "\n\npull_count\030\037 \001(\004\022\022\n\npush_count\030  \001(\004b\006"
     "proto3"
 };
 static ::absl::once_flag descriptor_table_core_2fCasterNode_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_core_2fCasterNode_2eproto = {
     false,
     false,
-    686,
+    726,
     descriptor_table_protodef_core_2fCasterNode_2eproto,
     "core/CasterNode.proto",
     &descriptor_table_core_2fCasterNode_2eproto_once,
@@ -385,16 +392,16 @@ CasterNode::GetClassData() const {
   return CasterNode_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<5, 30, 0, 118, 2>
+const ::_pbi::TcParseTable<5, 32, 0, 126, 2>
 CasterNode::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(CasterNode, _impl_._has_bits_),
     0, // no _extensions_
-    30, 248,  // max_field_number, fast_idx_mask
+    32, 248,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    3221225472,  // skipmap
+    0,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    30,  // num_field_entries
+    32,  // num_field_entries
     0,  // num_aux_entries
     offsetof(decltype(_table_), field_names),  // no aux_entries
     CasterNode_class_data_.base(),
@@ -515,7 +522,7 @@ CasterNode::_table_ = {
       PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.sse_clients_)}},
     // uint32 process_threads = 28;
     {::_pbi::TcParser::FastV32S2,
-     {480, 29, 0,
+     {480, 31, 0,
       PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.process_threads_)}},
     // uint64 last_audit_seq = 29;
     {::_pbi::TcParser::FastV64S2,
@@ -525,7 +532,10 @@ CasterNode::_table_ = {
     {::_pbi::TcParser::FastUS2,
      {498, 6, 0,
       PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.log_level_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // uint64 pull_count = 31;
+    {::_pbi::TcParser::FastV64S2,
+     {504, 29, 0,
+      PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.pull_count_)}},
   }}, {{
     65535, 65535
   }}, {{
@@ -584,15 +594,19 @@ CasterNode::_table_ = {
     // uint32 sse_clients = 27;
     {PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.sse_clients_), _Internal::kHasBitsOffset + 27, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
     // uint32 process_threads = 28;
-    {PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.process_threads_), _Internal::kHasBitsOffset + 29, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+    {PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.process_threads_), _Internal::kHasBitsOffset + 31, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
     // uint64 last_audit_seq = 29;
     {PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.last_audit_seq_), _Internal::kHasBitsOffset + 28, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     // string log_level = 30;
     {PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.log_level_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+    // uint64 pull_count = 31;
+    {PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.pull_count_), _Internal::kHasBitsOffset + 29, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+    // uint64 push_count = 32;
+    {PROTOBUF_FIELD_OFFSET(CasterNode, _impl_.push_count_), _Internal::kHasBitsOffset + 30, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
   }},
   // no aux_entries
   {{
-    "\26\3\11\13\13\14\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\10\0\0\0\0\0\0\0\11\0"
+    "\26\3\11\13\13\14\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\10\0\0\0\0\0\0\0\11\0\0\0\0\0\0\0\0\0"
     "caster.core.CasterNode"
     "uid"
     "node_name"
@@ -645,7 +659,7 @@ PROTOBUF_NOINLINE void CasterNode::Clear() {
         reinterpret_cast<char*>(&_impl_.listen_port_) -
         reinterpret_cast<char*>(&_impl_.recv_total_)) + sizeof(_impl_.listen_port_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x3f000000U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     ::memset(&_impl_.http_port_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.process_threads_) -
         reinterpret_cast<char*>(&_impl_.http_port_)) + sizeof(_impl_.process_threads_));
@@ -923,7 +937,7 @@ PROTOBUF_NOINLINE void CasterNode::Clear() {
   }
 
   // uint32 process_threads = 28;
-  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x80000000U)) {
     if (this_._internal_process_threads() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -947,6 +961,24 @@ PROTOBUF_NOINLINE void CasterNode::Clear() {
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
           _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "caster.core.CasterNode.log_level");
       target = stream->WriteStringMaybeAliased(30, _s, target);
+    }
+  }
+
+  // uint64 pull_count = 31;
+  if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+    if (this_._internal_pull_count() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          31, this_._internal_pull_count(), target);
+    }
+  }
+
+  // uint64 push_count = 32;
+  if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+    if (this_._internal_push_count() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          32, this_._internal_push_count(), target);
     }
   }
 
@@ -1145,7 +1177,7 @@ PROTOBUF_NOINLINE void CasterNode::Clear() {
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x3f000000U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     // uint32 http_port = 24;
     if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (this_._internal_http_port() != 0) {
@@ -1180,8 +1212,22 @@ PROTOBUF_NOINLINE void CasterNode::Clear() {
                                         this_._internal_last_audit_seq());
       }
     }
-    // uint32 process_threads = 28;
+    // uint64 pull_count = 31;
     if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+      if (this_._internal_pull_count() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_pull_count());
+      }
+    }
+    // uint64 push_count = 32;
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+      if (this_._internal_push_count() != 0) {
+        total_size += 2 + ::_pbi::WireFormatLite::UInt64Size(
+                                        this_._internal_push_count());
+      }
+    }
+    // uint32 process_threads = 28;
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
       if (this_._internal_process_threads() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_process_threads());
@@ -1360,7 +1406,7 @@ void CasterNode::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x3f000000U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0xff000000U)) {
     if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (from._internal_http_port() != 0) {
         _this->_impl_.http_port_ = from._impl_.http_port_;
@@ -1387,6 +1433,16 @@ void CasterNode::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x20000000U)) {
+      if (from._internal_pull_count() != 0) {
+        _this->_impl_.pull_count_ = from._impl_.pull_count_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x40000000U)) {
+      if (from._internal_push_count() != 0) {
+        _this->_impl_.push_count_ = from._impl_.push_count_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x80000000U)) {
       if (from._internal_process_threads() != 0) {
         _this->_impl_.process_threads_ = from._impl_.process_threads_;
       }
