@@ -1,39 +1,66 @@
-version: '3'
+# NavCaster all-in-one runtime stack (Ubuntu 24.04 based).
+#
+# Prerequisites:
+#   1) Build a Linux package locally, e.g. from the repo root:
+#        BUILD_TYPE=Release \
+#        PACKAGE_NAME=NavCaster-local \
+#        bash deploy/ci/build_in_linux.sh
+#      This produces ./release/NavCaster-local with CasterService,
+#      conf/, web/, env/redis/ etc.
+#
+#   2) From the repo root run:
+#        docker compose -f deploy/docker/docker-compose.yml up -d
+#
+# Override the package directory (relative to repo root) via env:
+#        NAVCASTER_PACKAGE=release/NavCaster-v1.2.3-ubuntu-24.04-amd64 \
+#          docker compose -f deploy/docker/docker-compose.yml up -d
 
 services:
   caster_service:
-    image: ubuntu:24.04 # 使用空的容器镜像
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile.runtime
+      args:
+        BASE_IMAGE: ubuntu:24.04
+        PACKAGE_DIR: ${NAVCASTER_PACKAGE:-release/NavCaster-local}
+    image: navcaster:latest
     container_name: caster_container
     ports:
-      - "4202:4202" # 你可以将这个端口号替换为你想要的外部端口号
-    volumes:
-      - ./app:/app  # 将当前目录下的 app 子目录挂载到容器的 /app      
+      - "4202:4202"   # Ntrip caster
+      - "8080:8080"   # HTTP / Web UI
     depends_on:
       - redis
-    command: ["/app/Caster_Service"]  # 这里替换为你的可执行程序名称
-    restart: always
-    privileged: true  # 添加特权模式
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - caster_logs:/app/logs
+      # 如需在容器外维护配置，取消注释并准备 ./runtime/conf/ 目录
+      # - ./runtime/conf:/app/conf
     networks:
       - caster_network
 
   redis:
-    image: redis:7.4.0 # 使用空的容器镜像
+    image: redis:8.6.3
     container_name: redis_container
+    # Redis 仅供 caster_service 内部访问。如需对外暴露，设置 REDIS_PORT
+    # 或自行调整下方端口映射。
+    expose:
+      - "6379"
     ports:
-      - "16379:6379"
-    privileged: true  
-    volumes:
-      - ./app/env:/app/env  # 将你的自定义配置文件挂载到容器中
-    command: ["redis-server"] #, "/app/env/redis/redis.config"]  # 使用自定义配置文件启动Redis
-    restart: always
+      - "${REDIS_PORT:-16379}:6379"
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
     sysctls:
       - net.core.somaxconn=1024
-   #   - vm.overcommit_memory=1  # 启用内存过度分配
-    cap_add:
-      - SYS_PTRACE
-      - SYS_RESOURCE  # 允许增加系统资源的使用
+    volumes:
+      - redis_data:/data
     networks:
       - caster_network
+
+volumes:
+  caster_logs:
+  redis_data:
 
 networks:
   caster_network:

@@ -1,0 +1,73 @@
+# Runtime image for NavCaster, based on Ubuntu 24.04.
+#
+# This Dockerfile expects a pre-built NavCaster package directory to be
+# available at the build context. By default it consumes the layout produced
+# by deploy/ci/build_in_linux.sh:
+#
+#   release/<package-name>/
+#       CasterService
+#       reg_check
+#       conf/
+#       web/
+#       scripts/
+#       env/redis/redis.config
+#
+# Usage:
+#   1) Run deploy/ci/build_in_linux.sh first to produce release/<package-name>.
+#   2) docker build -f deploy/docker/Dockerfile.runtime \
+#        --build-arg PACKAGE_DIR=release/<package-name> \
+#        -t navcaster:latest .
+#
+# Or simply use deploy/docker/docker-compose.yml which wires this up.
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        tzdata \
+        libssl3 \
+        libstdc++6 \
+        libgcc-s1 \
+        libatomic1 \
+        curl; \
+    ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime; \
+    rm -rf /var/lib/apt/lists/*
+
+# PACKAGE_DIR is the path on the host (relative to docker build context)
+# that contains the NavCaster package layout to ship inside the image.
+ARG PACKAGE_DIR=release/NavCaster-local
+
+# Default Redis connection used by /app/conf/*.yml inside the container.
+# Override via build arg if needed.
+ARG REDIS_HOST=redis
+ARG REDIS_INTERNAL_PORT=6379
+
+WORKDIR /app
+COPY ${PACKAGE_DIR}/ /app/
+
+# Make all binaries executable; some may have been copied from a Windows host.
+# Also adapt config defaults so the image works out-of-the-box with the
+# bundled docker-compose.yml (Redis service hostname is `redis`).
+RUN set -eux; \
+    chmod +x /app/CasterService /app/reg_check 2>/dev/null || true; \
+    for f in /app/ntrip_client_sim_* /app/ntrip_server_sim_* \
+             /app/strsvr_mult /app/rtklib_rnx2rtkp /app/rtklib_rtkconv \
+             /app/env/redis/redis-* ; do \
+        [ -f "$f" ] && chmod +x "$f" || true; \
+    done; \
+    mkdir -p /app/logs; \
+    for cfg in /app/conf/Caster_Core.yml /app/conf/Auth_Verify.yml; do \
+        [ -f "$cfg" ] || continue; \
+        sed -i -E "s/^([[:space:]]*IP:[[:space:]]*)[^[:space:]#]+/\\1${REDIS_HOST}/" "$cfg"; \
+        sed -i -E "s/^([[:space:]]*Port:[[:space:]]*)[0-9]+/\\1${REDIS_INTERNAL_PORT}/" "$cfg"; \
+    done
+
+EXPOSE 4202 8080
+VOLUME ["/app/logs", "/app/conf"]
+
+CMD ["/app/CasterService"]

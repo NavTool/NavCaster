@@ -10,7 +10,7 @@ on:
 
 env:
   BUILD_TYPE: Release
-  REDIS_VERSION: 7.4.0
+  REDIS_VERSION: 8.6.3
 
 jobs:
   # ---------------------------------------------------------------------------

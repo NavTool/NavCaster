@@ -1,14 +1,19 @@
-# 使用指定的基础镜像
-ARG BASE_IMAGE=centos
-
+# Build image for RHEL/openEuler/Rocky/Alma based distributions.
+ARG BASE_IMAGE=openeuler/openeuler:22.03
 FROM ${BASE_IMAGE}
 
-# 设置 tzdata 为非交互模式
-ENV DEBIAN_FRONTEND=noninteractive
-# 设置时区环境变量 (比如设为 Asia/Shanghai)
 ENV TZ=Asia/Shanghai
 
-# 安装必要的软件和工具
-RUN dnf update -y && dnf install gcc g++ make cmake git -y 
+RUN set -eux; \
+    (dnf install -y dnf-plugins-core || true); \
+    dnf install -y \
+        gcc gcc-c++ make cmake ninja-build \
+        git curl wget pkgconfig tar which \
+        ca-certificates tzdata \
+        openssl-devel zlib-devel; \
+    ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime || true; \
+    dnf clean all
+
+WORKDIR /workspace
 
 CMD ["tail", "-f", "/dev/null"]

@@ -1,15 +1,28 @@
-# 使用指定的基础镜像
-ARG BASE_IMAGE=ubuntu
-
+# Build image for Debian/Ubuntu based distributions.
+# Used by .github/workflows/docker-linux-platform.yml to compile NavCaster
+# inside a clean container that matches the target runtime.
+ARG BASE_IMAGE=ubuntu:24.04
 FROM ${BASE_IMAGE}
 
-
-# 设置 tzdata 为非交互模式
 ENV DEBIAN_FRONTEND=noninteractive
-# 设置时区环境变量 (比如设为 Asia/Shanghai)
 ENV TZ=Asia/Shanghai
 
-# 安装必要的软件和工具
-RUN apt-get update && apt-get install gcc g++ make cmake git -y 
+# Make APT non-interactive and resilient against transient mirror failures.
+RUN set -eux; \
+    echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        build-essential \
+        gcc g++ make cmake ninja-build \
+        git curl wget pkg-config \
+        tzdata \
+        libssl-dev \
+        zlib1g-dev; \
+    ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime; \
+    dpkg-reconfigure -f noninteractive tzdata || true; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
 
 CMD ["tail", "-f", "/dev/null"]

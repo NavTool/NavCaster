@@ -10,10 +10,22 @@ PACKAGE_ROOT="${ROOT_DIR}/release"
 PACKAGE_NAME="${PACKAGE_NAME:-NavCaster-${BUILD_TYPE}}"
 PACKAGE_DIR="${PACKAGE_ROOT}/${PACKAGE_NAME}"
 WEB_DIST_DIR="${WEB_DIST_DIR:-${ROOT_DIR}/web/dist}"
-REDIS_VERSION="${REDIS_VERSION:-7.4.0}"
+REDIS_VERSION="${REDIS_VERSION:-8.6.3}"
 REDIS_REPO_URL="${REDIS_REPO_URL:-https://github.com/redis/redis.git}"
 REDIS_SRC_DIR="${BUILD_DIR}/redis-src"
 REDIS_PACKAGE_DIR="${PACKAGE_DIR}/env/redis"
+
+# Portable parallel job count detection (nproc may be missing on some distros).
+detect_jobs() {
+	if command -v nproc >/dev/null 2>&1; then
+		nproc
+	elif command -v getconf >/dev/null 2>&1; then
+		getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2
+	else
+		echo 2
+	fi
+}
+JOBS="$(detect_jobs)"
 
 BINARIES=(
 	CasterService
@@ -51,7 +63,7 @@ build_and_package_redis() {
 	rm -rf "${REDIS_SRC_DIR}" "${REDIS_PACKAGE_DIR}"
 	clone_redis_source
 
-	make -C "${REDIS_SRC_DIR}" BUILD_TLS=no MALLOC=libc -j"$(nproc)"
+	make -C "${REDIS_SRC_DIR}" BUILD_TLS=no MALLOC=libc -j"${JOBS}"
 
 	if [[ ! -f "${REDIS_SRC_DIR}/src/redis-server" ]]; then
 		echo "[ci] missing redis build output: ${REDIS_SRC_DIR}/src/redis-server" >&2
@@ -88,7 +100,7 @@ echo "[ci] package dir: ${PACKAGE_DIR}"
 rm -rf "${BUILD_DIR}" "${PACKAGE_DIR}"
 
 cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
-cmake --build "${BUILD_DIR}" --parallel "$(nproc)"
+cmake --build "${BUILD_DIR}" --parallel "${JOBS}"
 
 if [[ ! -d "${RUNTIME_DIR}/conf" ]]; then
 	echo "[ci] missing runtime config directory: ${RUNTIME_DIR}/conf" >&2
