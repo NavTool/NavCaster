@@ -34,6 +34,7 @@ private:
         WaitingRetry
     };
 
+    std::string _task_key;
     std::string _connect_key;
     std::string _mount_point;
     std::string _user_name;

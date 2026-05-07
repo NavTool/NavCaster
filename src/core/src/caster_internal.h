@@ -584,8 +584,8 @@ private:
     // 监听指定频道，根据接收到的信息执行任务（关闭任务/修改任务）刷新任务
 
 public:
-    int update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
-    int update_push_rover_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+    int update_pull_base_info(const char *task_key, const char *alias_mpt, const char *connect_key, int state);
+    int update_push_rover_info(const char *task_key, const char *alias_mpt, const char *connect_key, int state);
 
 private:
     // 上报任务执行状态

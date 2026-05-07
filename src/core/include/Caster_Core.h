@@ -124,9 +124,9 @@ namespace CASTER
     // 设置基站坐标信息
     int Set_Base_Coord_Info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z);
     // 设置基站连接延迟信息
-    int Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+    int Set_Pull_Base_Info(const char *task_key, const char *alias_mpt, const char *connect_key, int state);
 
-    int Set_Push_Rover_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state);
+    int Set_Push_Rover_Info(const char *task_key, const char *alias_mpt, const char *connect_key, int state);
 
     // 更新基站源列表信息(上报源列表，如果Caster_Core允许半径筛选模式，则同步更新源列表坐标到GEO表中，GEO表中的坐标采用刷新模式？)
     int Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info);

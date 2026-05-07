@@ -488,14 +488,14 @@ int CASTER::Set_Base_Coord_Info(const char *mount_point, const char *connect_key
     return caster_internal::getInstance()->set_base_coord_info(mount_point, connect_key, ecef_x, ecef_y, ecef_z);
 }
 
-int CASTER::Set_Pull_Base_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
+int CASTER::Set_Pull_Base_Info(const char *task_key, const char *alias_mpt, const char *connect_key, int state)
 {
-    return caster_internal::getInstance()->update_pull_base_info(mount_point, alias_mpt, connect_key, state);
+    return caster_internal::getInstance()->update_pull_base_info(task_key, alias_mpt, connect_key, state);
 }
 
-int CASTER::Set_Push_Rover_Info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
+int CASTER::Set_Push_Rover_Info(const char *task_key, const char *alias_mpt, const char *connect_key, int state)
 {
-    return caster_internal::getInstance()->update_push_rover_info(mount_point, alias_mpt, connect_key, state);
+    return caster_internal::getInstance()->update_push_rover_info(task_key, alias_mpt, connect_key, state);
 }
 
 int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z,int Q, int sat, double diff)

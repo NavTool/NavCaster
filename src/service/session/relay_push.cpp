@@ -9,13 +9,12 @@
 relay_push::relay_push(ConnectInfo info)
 {
     _info = std::move(info);
-    _connect_key = _info.connect_key();
+    _task_key = _info.connect_key();
     _mount_point = _info.mount_point();
     _user_name = _info.user_name();
     _ntrip_version2 = _info.ntrip_version() == "Ntrip/2.0";
     _transfer_with_chunked = _info.http_chunked() == "chunked";
 
-    _bev = connect_bev::getInstance()->get_bev(_connect_key);
     _send_evbuf = evbuffer_new();
     _recv_evbuf = evbuffer_new();
     _timeout_ev = event_new(connect_bev::getInstance()->get_base(), -1, EV_PERSIST, TimeoutCallback, this);
@@ -24,7 +23,6 @@ relay_push::relay_push(ConnectInfo info)
 relay_push::~relay_push()
 {
     cleanup_connection();
-    connect_bev::getInstance()->del_bev(_info.connect_key());
 
     if (_send_evbuf)
     {
@@ -148,6 +146,7 @@ int relay_push::running()
     _state = State::Running;
     reset_backoff();
     connect_bev::getInstance()->set_bev(_connect_key, nullptr, nullptr, EventCallback, this);
+    CASTER::Set_Push_Rover_Info(_task_key.c_str(), _mount_point.c_str(), _connect_key.c_str(), 1);
 
     spdlog::info("[{}]: running, mount [{}], addr:[{}:{}]", __class__, _mount_point, _info.addr(), _info.port());
     return 0;
@@ -188,6 +187,7 @@ int relay_push::schedule_retry(const std::string &reason)
 
     spdlog::warn("[{}]: {}, retry in {}s, mount [{}], addr:[{}:{}]", __class__, reason, _retry_delay, _mount_point, _info.addr(), _info.port());
     cleanup_connection();
+    CASTER::Set_Push_Rover_Info(_task_key.c_str(), _mount_point.c_str(), "", 0);
     _state = State::WaitingRetry;
     _timeout_tv.tv_sec = _retry_delay;
     _timeout_tv.tv_usec = 0;

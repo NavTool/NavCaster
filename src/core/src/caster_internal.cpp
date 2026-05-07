@@ -801,7 +801,7 @@ int caster_internal::check_redis_connection()
     return 0;
 }
 
-int caster_internal::update_pull_base_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
+int caster_internal::update_pull_base_info(const char *task_key, const char *alias_mpt, const char *connect_key, int state)
 {
     auto stat_item = _server_status_map.find(connect_key);
     if (stat_item != _server_status_map.end())
@@ -809,15 +809,18 @@ int caster_internal::update_pull_base_info(const char *mount_point, const char *
         stat_item->second.set_alias_mpt(alias_mpt);
     }
 
-    auto pull_item = _pull_status_map.find(mount_point);
+    auto pull_item = _pull_status_map.find(task_key);
     if (pull_item != _pull_status_map.end())
     {
         pull_item->second.update_state(connect_key, state);
+        auto status_json = pull_item->second.toString();
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s",
+                          std::to_string(_key_expire_time).c_str(), task_key, status_json.c_str());
     }
     return 0;
 }
 
-int caster_internal::update_push_rover_info(const char *mount_point, const char *alias_mpt, const char *connect_key, int state)
+int caster_internal::update_push_rover_info(const char *task_key, const char *alias_mpt, const char *connect_key, int state)
 {
     auto stat_item = _client_status_map.find(connect_key);
     if (stat_item != _client_status_map.end())
@@ -825,10 +828,13 @@ int caster_internal::update_push_rover_info(const char *mount_point, const char 
         stat_item->second.set_alias_mpt(alias_mpt);
     }
 
-    auto push_item = _push_status_map.find(mount_point);
+    auto push_item = _push_status_map.find(task_key);
     if (push_item != _push_status_map.end())
     {
         push_item->second.update_state(connect_key, state);
+        auto status_json = push_item->second.toString();
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s",
+                          std::to_string(_key_expire_time).c_str(), task_key, status_json.c_str());
     }
     return 0;
 }
@@ -1151,7 +1157,7 @@ int caster_internal::relay_task_response(std::string req_str)
 
             pull_status stat(uid);
             stat.set_node_info(_node_ID, _node_name);
-            stat.update_state("", 1);
+            stat.update_state("", 0);
             _pull_status_map.insert({uid, stat});
             _relay_cb(_relay_cb_arg, req);
         }
@@ -1187,7 +1193,7 @@ int caster_internal::relay_task_response(std::string req_str)
 
             push_status stat(uid);
             stat.set_node_info(_node_ID, _node_name);
-            stat.update_state("", 1);
+            stat.update_state("", 0);
             _push_status_map.insert({uid, stat});
             _relay_cb(_relay_cb_arg, req);
         }
