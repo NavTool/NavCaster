@@ -50,7 +50,7 @@
 
 - [x] 新增 Redis key registry。
 - [x] 新增账号 schema helper。
-- [ ] 明确 `ACT:RECORD`、`ACT:ACTIVE`、`ACT:REC:*`、`ACT:UND:*`、`STR:ACTIVE` 的目标语义。
+- [x] 明确 `ACT:RECORD`、`ACT:ACTIVE`、`ACT:REC:*`、`ACT:UND:*`、`STR:ACTIVE` 的目标语义。
 - [x] 增加账号同步函数。
 - [x] HTTP 账号 CRUD 同步登录索引。
 - [x] Auth 鉴权兼容新旧账号字段。
@@ -112,6 +112,7 @@
 - 扩展 `schema_smoke`：覆盖启用账号写 active index、过期/冻结账号删除 active index、缺失账号拒绝、账号删除计划、legacy 字段兼容、hash 密码优先级、Redis key 语义防回退。
 - HTTP 账号创建/更新/删除接入同步计划：写入规范化 `ACT:RECORD`，按账号状态同步写入或清理 `ACT:ACTIVE` 登录索引，删除账号时同步清理登录索引；更新时拒绝 URL 与 body account 不一致并保留原 `create_time`。
 - Auth 登录读取接入 `account_schema`：`auth_limit` 兼容 `connection_limit/connect_limit`、`group_uid/group`、`expire_time/expire` 和布尔/数字 `active`；登录密码比较改用 `password_matches`，存在未知 `password_hash` 时 fail closed，legacy 明文仍兼容。
+- 定稿账号相关 Redis key 语义：`ACT:RECORD` 为主表，`ACT:ACTIVE` 为登录索引，`ACT:REC:*`/`ACT:UND:*` 为在线连接桶，`STR:ACTIVE` 标记为 legacy 在线展示表。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。

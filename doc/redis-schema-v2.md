@@ -77,6 +77,16 @@
 | `ACT:UNNAMED` | HASH | name | timestamp | 可选 TTL/清理 | 匿名账号痕迹 |
 | `ACT:SESSION:<account>` | HASH | connect_key | `AccountActive` proto JSON | 在线 TTL | V2 建议新增，用于替代或补充 `STR:ACTIVE` |
 
+本轮迭代定稿语义：
+
+- `ACT:RECORD` 是账号主表，HTTP 账号 CRUD 只把它作为持久主数据。
+- `ACT:ACTIVE` 是登录索引，只保存“当前允许登录”的账号派生视图；Auth 登录只读这个 key。
+- `ACT:ACTIVE` 不表示在线会话，禁用、冻结、过期或删除账号时必须清理对应 field。
+- `ACT:REC:<account>` 是实名账号在线连接桶，用于连接数限制和踢下线广播。
+- `ACT:UND:<name>` 是匿名登录在线连接桶。
+- `ACT:UNNAMED` 是匿名账号痕迹表，仅在匿名模式注册临时名称。
+- `STR:ACTIVE` 是旧版在线账号展示表，当前 `/api/accounts/active` 仍兼容读取它；后续由 `ACT:SESSION:<account>` 或统一 session API 替换。
+
 当前问题：
 
 - HTTP 账号管理写 `ACT:RECORD`。
