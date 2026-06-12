@@ -26,6 +26,7 @@
 #include "redis_monitor_service.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
+#include "relay_scheduler.h"
 #include "ring_log_service.h"
 #include "runtime_command_service.h"
 #include "runtime_state_controller.h"
@@ -476,6 +477,46 @@ std::unordered_map<std::string, std::vector<std::string>> source_table_by_mount(
         pos = end + 2;
     }
     return result;
+}
+
+pull_record make_pull_schedule_record(const std::string &uid, bool enabled, const std::string &revision = "")
+{
+    nlohmann::json body = {{"uid", uid}, {"enabled", enabled}};
+    if (!revision.empty())
+    {
+        body["revision"] = revision;
+    }
+    pull_record record(uid);
+    expect_eq_int(record.fromString(body.dump()), 0, "relay scheduler pull record parse " + uid);
+    return record;
+}
+
+push_record make_push_schedule_record(const std::string &uid, bool enabled, const std::string &revision = "")
+{
+    nlohmann::json body = {{"uid", uid}, {"enabled", enabled}};
+    if (!revision.empty())
+    {
+        body["revision"] = revision;
+    }
+    push_record record(uid);
+    expect_eq_int(record.fromString(body.dump()), 0, "relay scheduler push record parse " + uid);
+    return record;
+}
+
+pull_status make_pull_schedule_status(const std::string &uid)
+{
+    pull_status status(uid);
+    status.set_node_info("node-a", "Node A");
+    status.update_state("connect-" + uid, 1);
+    return status;
+}
+
+push_status make_push_schedule_status(const std::string &uid)
+{
+    push_status status(uid);
+    status.set_node_info("node-a", "Node A");
+    status.update_state("connect-" + uid, 1);
+    return status;
 }
 } // namespace
 
@@ -2192,6 +2233,79 @@ int main()
     expect_eq(table_by_mount["NEAREST"][4], "1074(1),1084(1),1094(1),1124(1)", "source table nearest default details");
     expect_true(source_table_by_mount(policy_table.build_text("missing")).empty(), "source table missing group hidden");
     expect_true(source_table_by_mount(policy_table.build_text("SYSTEM")).contains("HIDDEN"), "source table system sees hidden source");
+
+    navcaster::core::PullRecordMap pull_records;
+    navcaster::core::PullStatusMap pull_statuses;
+    navcaster::core::RelayDistributedMap pull_distributed;
+    pull_records.emplace("pull-new", make_pull_schedule_record("pull-new", true, "v1"));
+    pull_records.emplace("pull-disabled", make_pull_schedule_record("pull-disabled", false, "v1"));
+    auto pull_actions = navcaster::core::RelayScheduler::plan_pull_distribution(pull_records, pull_statuses, pull_distributed);
+    expect_eq_int(static_cast<int>(pull_actions.size()), 1, "relay scheduler pull active count");
+    expect_eq_int(static_cast<int>(pull_actions[0].message.type), static_cast<int>(caster::core::BOARDCAST_TYPE_PULL_OPERATE), "relay scheduler pull active type");
+    expect_eq_int(static_cast<int>(pull_actions[0].message.operate), static_cast<int>(caster::core::BOARDCAST_OPERATR_ACTIVE), "relay scheduler pull active operate");
+    expect_eq(pull_actions[0].message.target, "pull-new", "relay scheduler pull active target");
+    expect_eq(pull_actions[0].message.reason_str, "Pull Task Active", "relay scheduler pull active reason");
+    expect_true(!pull_distributed.contains("pull-new"), "relay scheduler plan does not mutate active distribution");
+    navcaster::core::RelayScheduler::apply_distributed_mutation(pull_actions[0], pull_distributed);
+    expect_true(pull_distributed.contains("pull-new"), "relay scheduler records active distribution");
+    expect_true(!pull_distributed.contains("pull-disabled"), "relay scheduler skips disabled inactive record");
+
+    pull_statuses.emplace("pull-new", make_pull_schedule_status("pull-new"));
+    pull_distributed["pull-new"] = pull_records.at("pull-new").toString();
+    pull_actions = navcaster::core::RelayScheduler::plan_pull_distribution(pull_records, pull_statuses, pull_distributed);
+    expect_eq_int(static_cast<int>(pull_actions.size()), 0, "relay scheduler pull unchanged no action");
+    pull_records.insert_or_assign("pull-new", make_pull_schedule_record("pull-new", true, "v2"));
+    pull_actions = navcaster::core::RelayScheduler::plan_pull_distribution(pull_records, pull_statuses, pull_distributed);
+    expect_eq_int(static_cast<int>(pull_actions.size()), 1, "relay scheduler pull changed count");
+    expect_eq_int(static_cast<int>(pull_actions[0].message.operate), static_cast<int>(caster::core::BOARDCAST_OPERATR_INACTIVE), "relay scheduler pull changed inactive");
+    expect_eq(pull_actions[0].message.reason_str, "Pull Task Config Changed", "relay scheduler pull changed reason");
+    expect_true(pull_distributed.contains("pull-new"), "relay scheduler plan does not erase changed distribution");
+    navcaster::core::RelayScheduler::apply_distributed_mutation(pull_actions[0], pull_distributed);
+    expect_true(!pull_distributed.contains("pull-new"), "relay scheduler pull changed clears distributed");
+
+    pull_statuses.emplace("pull-orphan", make_pull_schedule_status("pull-orphan"));
+    pull_distributed["pull-orphan"] = "old";
+    pull_actions = navcaster::core::RelayScheduler::plan_pull_distribution(pull_records, pull_statuses, pull_distributed);
+    bool found_pull_orphan = false;
+    for (const auto &action : pull_actions)
+    {
+        if (action.message.target == "pull-orphan")
+        {
+            found_pull_orphan = true;
+            expect_eq(action.message.reason_str, "Pull Task Inactive", "relay scheduler pull orphan reason");
+            expect_true(pull_distributed.contains("pull-orphan"), "relay scheduler plan does not erase orphan distribution");
+            navcaster::core::RelayScheduler::apply_distributed_mutation(action, pull_distributed);
+        }
+    }
+    expect_true(found_pull_orphan, "relay scheduler pull orphan inactive action");
+    expect_true(!pull_distributed.contains("pull-orphan"), "relay scheduler pull orphan clears distributed");
+
+    navcaster::core::PushRecordMap push_records;
+    navcaster::core::PushStatusMap push_statuses;
+    navcaster::core::RelayDistributedMap push_distributed;
+    push_records.emplace("push-new", make_push_schedule_record("push-new", true, "v1"));
+    auto push_actions = navcaster::core::RelayScheduler::plan_push_distribution(push_records, push_statuses, push_distributed);
+    expect_eq_int(static_cast<int>(push_actions.size()), 1, "relay scheduler push active count");
+    expect_eq_int(static_cast<int>(push_actions[0].message.type), static_cast<int>(caster::core::BOARDCAST_TYPE_RUSH_OPERATE), "relay scheduler push active type");
+    expect_eq_int(static_cast<int>(push_actions[0].message.operate), static_cast<int>(caster::core::BOARDCAST_OPERATR_ACTIVE), "relay scheduler push active operate");
+    expect_eq(push_actions[0].message.reason_str, "Push Task Active", "relay scheduler push active reason");
+    navcaster::core::RelayScheduler::apply_distributed_mutation(push_actions[0], push_distributed);
+    push_statuses.emplace("push-disabled", make_push_schedule_status("push-disabled"));
+    push_records.emplace("push-disabled", make_push_schedule_record("push-disabled", false, "v1"));
+    push_distributed["push-disabled"] = "old";
+    push_actions = navcaster::core::RelayScheduler::plan_push_distribution(push_records, push_statuses, push_distributed);
+    bool found_push_disabled = false;
+    for (const auto &action : push_actions)
+    {
+        if (action.message.target == "push-disabled")
+        {
+            found_push_disabled = true;
+            expect_eq_int(static_cast<int>(action.message.operate), static_cast<int>(caster::core::BOARDCAST_OPERATR_INACTIVE), "relay scheduler push disabled inactive");
+            expect_eq(action.message.reason_str, "Push Task Inactive", "relay scheduler push disabled reason");
+            navcaster::core::RelayScheduler::apply_distributed_mutation(action, push_distributed);
+        }
+    }
+    expect_true(found_push_disabled, "relay scheduler push disabled action");
 
     FakeRedisHashClient relay_controller_redis;
     navcaster::http_api::RelayController relay_controller(relay_controller_redis);

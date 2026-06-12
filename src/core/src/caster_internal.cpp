@@ -17,6 +17,7 @@
 #include "knt.h"
 #include "SysUsage.h"
 #include "access_policy_service.h"
+#include "relay_scheduler.h"
 #include "source_table_service.h"
 #include "version.h"
 
@@ -1093,63 +1094,14 @@ int caster_internal::sync_cluster_state()
 
 int caster_internal::relay_push_task_distribution()
 {
-    // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
-
-    // 查找所有的LIST任务
-    for (auto &list_iter : _push_record_map)
+    auto actions = navcaster::core::RelayScheduler::plan_push_distribution(_push_record_map,
+                                                                           _push_status_map,
+                                                                           _push_record_distributed);
+    for (const auto &action : actions)
     {
-        auto stat_iter = _push_status_map.find(list_iter.first);
-        std::string current_json = list_iter.second.toString();
-        if (stat_iter == _push_status_map.end() && list_iter.second.is_enabled())
-        {
-            // STAT中不包含这个任务且已启用，创建任务
-            broadcast_msg msg;
-            msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
-            msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
-            msg.target = list_iter.first;              // target填充UID
-            msg.msg_str = current_json;                 // msg_str为PushRecord的JSON
-            msg.reason_str = "Push Task Active";
-
-            // 向某个节点发送广播，当前默认选择主节点执行这个任务
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
-            _push_record_distributed[list_iter.first] = current_json;
-        }
-        else if (stat_iter != _push_status_map.end() && list_iter.second.is_enabled())
-        {
-            // 任务正在运行, 检测配置是否变更: 变更则先发INACTIVE, 下一轮会重新ACTIVE
-            auto dist_it = _push_record_distributed.find(list_iter.first);
-            if (dist_it == _push_record_distributed.end() || dist_it->second != current_json)
-            {
-                broadcast_msg msg;
-                msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
-                msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
-                msg.target = list_iter.first;
-                msg.msg_str = stat_iter->second.toString();
-                msg.reason_str = "Push Task Config Changed";
-                redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
-                _push_record_distributed.erase(list_iter.first);
-            }
-        }
-    }
-
-    // 查找STAT中是否有多余的任务（在LIST中不存在的，或已禁用的）
-    for (auto &stat_iter : _push_status_map)
-    {
-        auto list_iter = _push_record_map.find(stat_iter.first);
-        if (list_iter == _push_record_map.end() || !list_iter->second.is_enabled())
-        {
-            // LIST中不包含这个任务或已禁用，移除任务
-            broadcast_msg msg;
-            msg.type = caster::core::BOARDCAST_TYPE_RUSH_OPERATE;
-            msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
-            msg.target = stat_iter.first;              // target填充UID
-            msg.msg_str = stat_iter.second.toString();  // msg_str为PushStatus的JSON
-            msg.reason_str = "Push Task Inactive";
-
-            // 向指定节点发送广播
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
-            _push_record_distributed.erase(stat_iter.first);
-        }
+        const auto payload = action.message.toString();
+        redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), payload.c_str());
+        navcaster::core::RelayScheduler::apply_distributed_mutation(action, _push_record_distributed);
     }
 
     return 0;
@@ -1157,63 +1109,14 @@ int caster_internal::relay_push_task_distribution()
 
 int caster_internal::relay_pull_task_distribution()
 {
-    // 将需要创建的任务 和需要停止的任务，通过广播的形式播发到指定的节点上
-
-    // 查找所有的LIST任务
-    for (auto &list_iter : _pull_record_map)
+    auto actions = navcaster::core::RelayScheduler::plan_pull_distribution(_pull_record_map,
+                                                                           _pull_status_map,
+                                                                           _pull_record_distributed);
+    for (const auto &action : actions)
     {
-        auto stat_iter = _pull_status_map.find(list_iter.first);
-        std::string current_json = list_iter.second.toString();
-        if (stat_iter == _pull_status_map.end() && list_iter.second.is_enabled())
-        {
-            // STAT中不包含这个任务且已启用，创建任务
-            broadcast_msg msg;
-            msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
-            msg.operate = caster::core::BOARDCAST_OPERATR_ACTIVE;
-            msg.target = list_iter.first;              // target填充UID
-            msg.msg_str = current_json;                 // msg_str为PullRecord的JSON
-            msg.reason_str = "Pull Task Active";
-
-            // 向某个节点发送广播，当前默认选择主节点执行这个任务
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
-            _pull_record_distributed[list_iter.first] = current_json;
-        }
-        else if (stat_iter != _pull_status_map.end() && list_iter.second.is_enabled())
-        {
-            // 任务正在运行, 检测配置是否变更: 变更则先发INACTIVE, 下一轮会重新ACTIVE
-            auto dist_it = _pull_record_distributed.find(list_iter.first);
-            if (dist_it == _pull_record_distributed.end() || dist_it->second != current_json)
-            {
-                broadcast_msg msg;
-                msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
-                msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
-                msg.target = list_iter.first;
-                msg.msg_str = stat_iter->second.toString();
-                msg.reason_str = "Pull Task Config Changed";
-                redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
-                _pull_record_distributed.erase(list_iter.first);
-            }
-        }
-    }
-
-    // 查找STAT中是否有多余的任务（在LIST中不存在的，或已禁用的）
-    for (auto &stat_iter : _pull_status_map)
-    {
-        auto list_iter = _pull_record_map.find(stat_iter.first);
-        if (list_iter == _pull_record_map.end() || !list_iter->second.is_enabled())
-        {
-            // LIST中不包含这个任务或已禁用，移除任务
-            broadcast_msg msg;
-            msg.type = caster::core::BOARDCAST_TYPE_PULL_OPERATE;
-            msg.operate = caster::core::BOARDCAST_OPERATR_INACTIVE;
-            msg.target = stat_iter.first;              // target填充UID
-            msg.msg_str = stat_iter.second.toString();  // msg_str为PullStatus的JSON
-            msg.reason_str = "Pull Task Inactive";
-
-            // 向指定节点发送广播
-            redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), msg.toString().c_str());
-            _pull_record_distributed.erase(stat_iter.first);
-        }
+        const auto payload = action.message.toString();
+        redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), payload.c_str());
+        navcaster::core::RelayScheduler::apply_distributed_mutation(action, _pull_record_distributed);
     }
 
     return 0;

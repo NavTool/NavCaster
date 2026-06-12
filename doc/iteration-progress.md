@@ -83,7 +83,8 @@
 
 - [x] 抽 AccessPolicyService，保留 `caster_internal`/`CASTER::*` 现有入口。
 - [x] 抽 SourceTableService，保留 `caster_internal::get_source_list_text` 现有入口。
-- [ ] 抽 Cluster、RelayScheduler、History 等服务。
+- [x] 抽 RelayScheduler，保留 `caster_internal` 的 Redis publish/状态入口。
+- [ ] 抽 Cluster、History 等服务。
 - [ ] Phase 4 完成后复核 `CASTER::*` facade 边界。
 
 ### Phase 5：物理目录迁移
@@ -94,7 +95,7 @@
 
 继续 Phase 4/5：
 
-1. Phase 4 Core：继续拆 RelayScheduler、History、Cluster 等纯逻辑/状态服务，仍保留 `CASTER::*` facade。
+1. Phase 4 Core：继续拆 History、Cluster 等纯逻辑/状态服务，仍保留 `CASTER::*` facade。
 2. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
 
 ## 待确认问题
@@ -399,3 +400,12 @@
   - SourceTableService 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - SourceTableService 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - SourceTableService 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - 新增 `RelayScheduler`：将 pull/push relay record/status/distributed 快照上的 ACTIVE、配置变更 INACTIVE、缺失/禁用 INACTIVE 分发决策抽为 core context service；`caster_internal` 保留 Redis `PUBLISH NODE:<node_id>` 和 distributed map mutation 应用。
+  - `RelayScheduler` 保持原广播字段：pull 使用 `BOARDCAST_TYPE_PULL_OPERATE`，push 使用 `BOARDCAST_TYPE_RUSH_OPERATE`，reason 继续为 `Pull/Push Task Active`、`Config Changed`、`Inactive`；distributed map 的写入/erase 仍在每条 publish 后应用，贴齐旧时序。
+  - `schema_smoke` 新增 RelayScheduler 纯逻辑测试：覆盖 pull active、禁用 record 跳过、unchanged 无动作、配置变更 inactive、orphan status inactive、push active、push disabled inactive，并验证 planner 不提前改 distributed map。
+  - Lorentz 子代理只读复核 RelayScheduler 抽离，指出并确认已修复 distributed mutation 早于 publish 的时序风险；剩余低风险差异为 planner 阶段会先生成所有 action，从而提前调用命中 status 的 `toString()`。
+  - RelayScheduler 抽离后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - RelayScheduler 抽离后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - RelayScheduler 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - RelayScheduler 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - RelayScheduler 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
