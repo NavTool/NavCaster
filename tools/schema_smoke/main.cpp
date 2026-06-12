@@ -3,6 +3,7 @@
 #include "access_repository.h"
 #include "alias_repository.h"
 #include "config_repository.h"
+#include "config_controller.h"
 #include "json_record.h"
 #include "redis_keys.h"
 #include "relay_repository.h"
@@ -601,6 +602,32 @@ int main()
     config_result = config_repo.update_config(navcaster::storage::ConfigSection::Core, {{"worker", 2}});
     expect_true(config_result.status == navcaster::storage::RepositoryStatus::RedisError, "config repository reports set failure");
     fake_redis.set_ok = true;
+
+    FakeRedisHashClient config_controller_redis;
+    navcaster::storage::ConfigRepository config_controller_repo(config_controller_redis);
+    navcaster::http_api::ConfigController config_controller(config_controller_redis, {"admin", "admin-pass"});
+    auto config_response = config_controller.get_config("auth");
+    expect_eq_int(config_response.status_code, 200, "config controller auth defaults ok");
+    auto config_body = nlohmann::json::parse(config_response.body);
+    expect_eq(config_body.value("admin_user", std::string{}), "admin", "config controller auth default user");
+    expect_missing(config_body, "admin_password", "config controller hides auth password");
+    config_response = config_controller.get_config("missing");
+    expect_eq_int(config_response.status_code, 404, "config controller unknown get");
+    config_response = config_controller.update_config("service", R"({"port":9000})");
+    expect_eq_int(config_response.status_code, 200, "config controller updates service");
+    expect_eq_int(config_controller_repo.get_config(navcaster::storage::ConfigSection::Service).value("port", 0), 9000, "config controller wrote service");
+    config_response = config_controller.update_config("auth", R"({"admin_user":"ops"})");
+    expect_eq_int(config_response.status_code, 400, "config controller requires old password");
+    config_response = config_controller.update_config("auth", R"({"old_password":"wrong","admin_user":"ops"})");
+    expect_eq_int(config_response.status_code, 403, "config controller rejects wrong old password");
+    config_response = config_controller.update_config("auth", R"({"old_password":"admin-pass","admin_user":"ops","admin_password":"new-pass"})");
+    expect_eq_int(config_response.status_code, 200, "config controller updates auth");
+    auto saved_auth = config_controller_repo.get_config(navcaster::storage::ConfigSection::Auth);
+    expect_eq(saved_auth.value("admin_user", std::string{}), "ops", "config controller saved auth user");
+    expect_eq(saved_auth.value("admin_password", std::string{}), "new-pass", "config controller saved auth password");
+    expect_missing(saved_auth, "old_password", "config controller strips old password");
+    config_response = config_controller.update_config("service", "{");
+    expect_eq_int(config_response.status_code, 400, "config controller rejects invalid json");
 
     if (failures != 0)
     {

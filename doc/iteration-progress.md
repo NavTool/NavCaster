@@ -69,7 +69,7 @@
 
 ### Phase 3：拆 HTTP handler
 
-- [ ] 按业务域拆 controller。
+- [~] 按业务域拆 controller。
 - [ ] SSE 数据源改为 service/repository。
 
 ### Phase 4：拆 Caster Core
@@ -143,6 +143,9 @@
 - 账号/source/alias/access/config/relay repository 改为使用 `json_record` 的机械 JSON 边界 helper；`RelayRepository::set_enabled` 通过 `coerce_record` 兼容 Redis 中的 object 或 stringified object。
 - 清理 `http_handler.cpp` 中已无调用的 `IMPL_*` CRUD 宏和 header 中旧的 `DeferredResponse` 死代码；Phase 2 管理型 HTTP CRUD/配置写入口均已收敛到 repository，SSE/monitor/history/statistics/kick 等行为型直连留给 Phase 3/4。
 - 扩展 `schema_smoke`：覆盖 `json_record` timestamp、数字/布尔、字符串字段、dump/parse/coerce、非法 JSON 与非 object 拒绝行为。
+- 新增 Phase 3 controller 样板：`ConfigController` 与 `ControllerResponse`，将 `/api/config` list/get/update/save 业务逻辑从 `http_handler.cpp` 移出，`http_handler` 仅保留路由委托和响应转接。
+- `ConfigController` 保持 auth 配置语义：GET auth 只返回 `admin_user` 不暴露密码；PUT auth 需要 `old_password`，校验后保存时剥离 `old_password`。
+- 扩展 `schema_smoke`：直接编译并测试 `ConfigController`，覆盖默认 auth 用户、隐藏密码、未知 section、service 更新、auth old password 400/403/成功路径、非法 JSON。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -185,5 +188,9 @@
   - JSON record helper 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - JSON record helper 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - JSON record helper 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
+  - Config controller 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Config controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Config controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Config controller 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `config_controller.cpp` 已被 `casterhttp` 目标收编译。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
