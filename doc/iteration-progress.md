@@ -85,8 +85,8 @@
 - [x] 抽 SourceTableService，保留 `caster_internal::get_source_list_text` 现有入口。
 - [x] 抽 RelayScheduler，保留 `caster_internal` 的 Redis publish/状态入口。
 - [x] 抽 NodeHistoryRecorder，保留 `upload_node_status` 触发节奏和 Redis 写入口。
-- [ ] 抽 Cluster 等服务。
-- [ ] Phase 4 完成后复核 `CASTER::*` facade 边界。
+- [x] Phase 4 主要纯逻辑拆分完成，并复核 `CASTER::*` facade 边界。
+- [ ] Cluster 主节点租约/异步同步编排保留后续专项，不在本轮做半截抽离。
 
 ### Phase 5：物理目录迁移
 
@@ -96,8 +96,8 @@
 
 继续 Phase 4/5：
 
-1. Phase 4 Core：继续拆 Cluster 相关纯逻辑/状态服务，仍保留 `CASTER::*` facade。
-2. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
+1. Phase 5 准备：评估物理目录与 CMake 组织迁移，避免一次性移动过多文件。
+2. Cluster 后续专项：先定义 async Redis port、master lease 状态机、cluster snapshot/state owner，再覆盖 acquire/lost、partial sync、callback 顺序和 relay status map 复用契约。
 
 ## 待确认问题
 
@@ -419,3 +419,6 @@
   - NodeHistoryRecorder 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - NodeHistoryRecorder 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - NodeHistoryRecorder 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Pascal 子代理只读分析 Cluster core 边界，结论为不建议当前做“小切片”抽离：master lease、`sync_cluster_state` async Redis callback 顺序、relay status map 复用交织较深，半截抽离收益低且容易改变失败/时序行为。
+  - Phase 4 收口决策：AccessPolicy、SourceTable、RelayScheduler、NodeHistoryRecorder 等主要可测试纯逻辑已拆出并验证；Cluster 主节点租约/同步编排转为后续专项设计，不作为本轮 Phase 4 阻塞项。
+  - Phase 4 收口后重新执行 `cmake --build build --target schema_smoke --config Release --parallel && bin\Release\schema_smoke.exe && cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false && cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false && cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
