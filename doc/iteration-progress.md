@@ -212,6 +212,8 @@
 - 扩展 `schema_smoke`：覆盖 status JSON/string caster、CPU/内存 MB、Redis/SSE/node/log 字段、master_node 非 string 为 null、status/health HTTP 200 响应。
 - 新增 `NodeLogLevelService`：将 `/api/nodes/log-level/*` 的 node id/body/level 校验、自节点/`self`/`current` 判断、跨节点 501 和响应体构造从 `http_handler.cpp` 移出；handler 只负责实际调用 `spdlog::set_level`。
 - 扩展 `schema_smoke`：覆盖缺 node id、非法 JSON、缺 level、未知 level、跨节点 501，以及 `self/current/当前 node_id` 成功路径和 spdlog level 解析。
+- 新增 `AuthSessionService`：将 HTTP API session token 生成/校验/actor lookup/logout、login JSON 解析和默认 admin/Redis auth config 凭据匹配从 `http_handler.cpp` 移出；handler 仅注入默认 admin、读取 `CONF:AUTH` 和传递 Authorization header。
+- 扩展 `schema_smoke`：通过固定 token generator 覆盖默认 admin 登录、Redis admin 登录、非法 JSON、错误凭据、token validate/lookup、Bearer token 提取、logout 失效单个 token 和显式 invalidate。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -358,5 +360,10 @@
   - Node log level service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Node log level service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Node log level service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Auth session service 改动后并行触发 `schema_smoke` 与 `casterhttp` 时 CMake 重新配置同一 build tree，libevent/hiredis `configure_file` 发生临时竞态失败；随后串行执行 `cmake -S . -B build` 通过并恢复生成树。
+  - Auth session service 改动后串行重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Auth session service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Auth session service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Auth session service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

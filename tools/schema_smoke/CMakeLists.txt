@@ -38,6 +38,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/runtime_state_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/http/account_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/audit_log_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/auth_session_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/access_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/alias_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/cluster_monitor_service.cpp

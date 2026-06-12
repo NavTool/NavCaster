@@ -1,13 +1,11 @@
 #pragma once
 
+#include "auth_session_service.h"
 #include "http_server.h"
 #include "redis_adapter.h"
 #include "sse_manager.h"
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
-#include <mutex>
-#include <random>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -185,12 +183,6 @@ private:
     // Helper: extract path segment at position
     std::string get_path_segment(const HttpRequest &req, size_t index) const;
 
-    // Token management
-    std::string generate_token(const std::string &user);
-    bool validate_token(const std::string &token);
-    std::string lookup_user(const std::string &token);
-    void invalidate_token(const std::string &token);
-
     // Audit sink invoked by http_server after each non-raw request.
     void write_audit(const HttpRequest &req, const HttpResponse &resp,
                      const std::string &actor, const std::string &client_ip);
@@ -201,10 +193,7 @@ private:
     redis_adapter *_caster_redis = nullptr;
     redis_adapter *_auth_redis = nullptr;
     HttpApiConfig _config;
-
-    // Active tokens -> username (anonymous logins not supported)
-    std::unordered_map<std::string, std::string> _active_tokens;
-    std::mutex _token_mutex;
+    navcaster::http_api::AuthSessionService _auth_sessions;
 
     // Redis history sampling timer
     event *_redis_sample_timer = nullptr;

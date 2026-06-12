@@ -2,6 +2,7 @@
 #include "account_controller.h"
 #include "account_schema.h"
 #include "audit_log_service.h"
+#include "auth_session_service.h"
 #include "access_controller.h"
 #include "access_repository.h"
 #include "alias_controller.h"
@@ -390,6 +391,48 @@ int main()
     expect_eq(redis_keys::STR_ACTIVE_LEGACY, "STR:ACTIVE", "legacy active session key");
     expect_eq(redis_keys::LOG_MPT_PREFIX, "LOG:MPT:", "connection history mpt prefix");
     expect_eq(redis_keys::LOG_USR_PREFIX, "LOG:USR:", "connection history usr prefix");
+
+    int issued_token = 0;
+    navcaster::http_api::AuthSessionService auth_sessions([&]() {
+        return std::string("token-") + std::to_string(++issued_token);
+    });
+    auto auth_response = auth_sessions.login(
+        R"({"username":"admin","password":"adminpass"})",
+        {"admin", "adminpass"},
+        nlohmann::json{{"admin_user", "redis-admin"}, {"admin_password", "redis-pass"}});
+    expect_eq_int(auth_response.status_code, 200, "auth session default admin login status");
+    auto auth_body = nlohmann::json::parse(auth_response.body);
+    expect_eq(auth_body.value("token", std::string{}), "token-1", "auth session default admin token");
+    expect_eq(auth_body.value("username", std::string{}), "admin", "auth session default admin username");
+    expect_true(auth_sessions.validate_token("token-1"), "auth session validates default token");
+    expect_eq(auth_sessions.lookup_user("token-1"), "admin", "auth session lookup default token");
+    auth_response = auth_sessions.login(
+        R"({"username":"redis-admin","password":"redis-pass"})",
+        {"admin", "adminpass"},
+        nlohmann::json{{"admin_user", "redis-admin"}, {"admin_password", "redis-pass"}});
+    expect_eq_int(auth_response.status_code, 200, "auth session redis admin login status");
+    auth_body = nlohmann::json::parse(auth_response.body);
+    expect_eq(auth_body.value("token", std::string{}), "token-2", "auth session redis admin token");
+    expect_eq(auth_sessions.lookup_user("token-2"), "redis-admin", "auth session lookup redis token");
+    auth_response = auth_sessions.login("{", {"admin", "adminpass"}, nlohmann::json::object());
+    expect_eq_int(auth_response.status_code, 400, "auth session invalid json");
+    auth_response = auth_sessions.login(
+        R"({"username":"admin","password":"wrong"})",
+        {"admin", "adminpass"},
+        nlohmann::json{{"admin_user", "redis-admin"}, {"admin_password", "redis-pass"}});
+    expect_eq_int(auth_response.status_code, 401, "auth session invalid credentials");
+    expect_true(!auth_sessions.validate_token(""), "auth session rejects empty token");
+    expect_eq(auth_sessions.lookup_user("missing"), "", "auth session missing lookup");
+    expect_eq(navcaster::http_api::bearer_token_from_authorization("Bearer token-1"), "token-1", "auth session bearer token");
+    expect_eq(navcaster::http_api::bearer_token_from_authorization("Bad"), "", "auth session short authorization");
+    auto logout_response = auth_sessions.logout("Bearer token-1");
+    expect_eq_int(logout_response.status_code, 200, "auth session logout status");
+    auth_body = nlohmann::json::parse(logout_response.body);
+    expect_true(auth_body.value("ok", false), "auth session logout body");
+    expect_true(!auth_sessions.validate_token("token-1"), "auth session logout invalidates");
+    expect_true(auth_sessions.validate_token("token-2"), "auth session logout keeps other token");
+    auth_sessions.invalidate_token("token-2");
+    expect_true(!auth_sessions.validate_token("token-2"), "auth session explicit invalidate");
 
     FakeRedisHashClient subscriber_redis;
     subscriber_redis.hashes[redis_keys::MPT_LIST]["BASE01"] = "conn-a";

@@ -14,6 +14,7 @@ set(SOURCES
     node_log_level_service.h node_log_level_service.cpp
     node_history_service.h node_history_service.cpp
     audit_log_service.h audit_log_service.cpp
+    auth_session_service.h auth_session_service.cpp
     account_controller.h account_controller.cpp
     access_controller.h access_controller.cpp
     alias_controller.h alias_controller.cpp

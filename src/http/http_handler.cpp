@@ -689,9 +689,9 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _server.add_public_path("/api/auth/login");
     _server.add_public_path("/api/status/health");
     _server.set_auth_validator([this](const std::string &token) -> bool
-                               { return validate_token(token); });
+                               { return _auth_sessions.validate_token(token); });
     _server.set_actor_resolver([this](const std::string &token) -> std::string
-                               { return lookup_user(token); });
+                               { return _auth_sessions.lookup_user(token); });
     _server.set_audit_sink([this](const HttpRequest &req, const HttpResponse &resp,
                                   const std::string &actor, const std::string &client_ip)
                            { write_audit(req, resp, actor, client_ip); });
@@ -956,105 +956,25 @@ std::string http_handler::get_path_segment(const HttpRequest &req, size_t index)
     return {};
 }
 
-std::string http_handler::generate_token(const std::string &user)
-{
-    static const char charset[] = "0123456789abcdef";
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<> dist(0, sizeof(charset) - 2);
-
-    std::string token;
-    token.reserve(64);
-    for (int i = 0; i < 64; ++i)
-        token += charset[dist(gen)];
-
-    std::lock_guard<std::mutex> lock(_token_mutex);
-    _active_tokens[token] = user;
-    return token;
-}
-
-bool http_handler::validate_token(const std::string &token)
-{
-    if (token.empty())
-        return false;
-    std::lock_guard<std::mutex> lock(_token_mutex);
-    return _active_tokens.count(token) > 0;
-}
-
-std::string http_handler::lookup_user(const std::string &token)
-{
-    if (token.empty()) return {};
-    std::lock_guard<std::mutex> lock(_token_mutex);
-    auto it = _active_tokens.find(token);
-    return it == _active_tokens.end() ? std::string{} : it->second;
-}
-
-void http_handler::invalidate_token(const std::string &token)
-{
-    std::lock_guard<std::mutex> lock(_token_mutex);
-    _active_tokens.erase(token);
-}
-
 // ==================== Auth ====================
 
 void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try
-    {
-        body = json::parse(req.body);
-    }
-    catch (...)
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Invalid JSON body"})";
-        return;
-    }
-
-    std::string user = body.value("username", "");
-    std::string pass = body.value("password", "");
-
-    if (user == _config.admin_user && pass == _config.admin_password)
-    {
-        std::string token = generate_token(user);
-        json result = {{"token", token}, {"username", user}};
-        resp.status_code = 200;
-        resp.body = result.dump();
-        spdlog::info("[{}:{}]: Login success, user: {}", __class__, __func__, user);
-    }
-    else
-    {
-        // Also check Redis-stored auth config (allows password change at runtime)
-        navcaster::storage::ConfigRepository config_repo(sync_redis::instance());
-        json auth_conf = config_repo.get_config(navcaster::storage::ConfigSection::Auth);
-        std::string redis_user = auth_conf.is_object() ? auth_conf.value("admin_user", "") : "";
-        std::string redis_pass = auth_conf.is_object() ? auth_conf.value("admin_password", "") : "";
-        if (!redis_user.empty() && user == redis_user && pass == redis_pass)
-        {
-            std::string token = generate_token(user);
-            json result = {{"token", token}, {"username", user}};
-            resp.status_code = 200;
-            resp.body = result.dump();
-        }
-        else
-        {
-            resp.status_code = 401;
-            resp.body = R"({"error":"Invalid credentials"})";
-            spdlog::warn("[{}:{}]: Login failed, user: {}", __class__, __func__, user);
-        }
-    }
+    navcaster::storage::ConfigRepository config_repo(sync_redis::instance());
+    auto result = _auth_sessions.login(
+        req.body,
+        {_config.admin_user, _config.admin_password},
+        config_repo.get_config(navcaster::storage::ConfigSection::Auth));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
 {
     auto it = req.headers.find("Authorization");
-    if (it != req.headers.end() && it->second.size() > 7)
-    {
-        std::string token = it->second.substr(7);
-        invalidate_token(token);
-    }
-    resp.status_code = 200;
-    resp.body = R"({"ok":true})";
+    auto result = _auth_sessions.logout(it != req.headers.end() ? it->second : std::string());
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Accounts (ACT:RECORD) — uses auth redis ====================
@@ -1824,7 +1744,7 @@ void http_handler::handle_sse_stream(evhttp_request *raw_req, const HttpRequest 
 {
     // Auth via query parameter: ?token=xxx
     auto it = req.query_params.find("token");
-    if (it == req.query_params.end() || !validate_token(it->second))
+    if (it == req.query_params.end() || !_auth_sessions.validate_token(it->second))
     {
         // Also check Authorization header (already parsed in req.headers)
         auto auth_it = req.headers.find("Authorization");
@@ -1832,7 +1752,7 @@ void http_handler::handle_sse_stream(evhttp_request *raw_req, const HttpRequest 
         if (auth_it != req.headers.end() && auth_it->second.size() > 7)
         {
             std::string token = auth_it->second.substr(7);
-            if (validate_token(token))
+            if (_auth_sessions.validate_token(token))
                 authed = true;
         }
         if (!authed)
