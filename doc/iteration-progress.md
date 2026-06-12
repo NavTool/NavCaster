@@ -86,19 +86,19 @@
 - [x] 抽 RelayScheduler，保留 `caster_internal` 的 Redis publish/状态入口。
 - [x] 抽 NodeHistoryRecorder，保留 `upload_node_status` 触发节奏和 Redis 写入口。
 - [x] Phase 4 主要纯逻辑拆分完成，并复核 `CASTER::*` facade 边界。
-- [ ] Cluster 主节点租约/异步同步编排保留后续专项，不在本轮做半截抽离。
+- [x] 已评估 Cluster 主节点租约/异步同步编排风险，转为后续专项，不在本轮做半截抽离。
 
 ### Phase 5：物理目录迁移
 
 - [x] Phase 5.1：在 `src/core/context` 下建立 `services/` 与 `repositories/` 子目录，先迁移低风险 core service 与只读 repository。
-- [ ] 后续批次再评估 account/source/access/relay/config/runtime repository 与顶层目录迁移。
+- [x] 已评估后续批次：account/source/access/relay/config/runtime repository 与顶层目录迁移暂缓，避免高扇出搬迁。
 
 ## 下一步建议
 
-继续 Phase 4/5：
+当前迭代计划已收口：
 
-1. Phase 5 后续批次：评估是否继续迁移 account/source/access/relay/config/runtime repository，或先停止在 core 内部子目录层级。
-2. Cluster 后续专项：先定义 async Redis port、master lease 状态机、cluster snapshot/state owner，再覆盖 acquire/lost、partial sync、callback 顺序和 relay status map 复用契约。
+1. Phase 5 暂停在 core 内部子目录层级，后续迁移需单独评估高扇出影响。
+2. Cluster 后续专项需先定义 async Redis port、master lease 状态机、cluster snapshot/state owner，再覆盖 acquire/lost、partial sync、callback 顺序和 relay status map 复用契约。
 
 ## 待确认问题
 
