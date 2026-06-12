@@ -28,7 +28,6 @@
 #include "sse_snapshot_service.h"
 #include "system_event_service.h"
 #include <spdlog/spdlog.h>
-#include <algorithm>
 #include <ctime>
 #include <iomanip>
 #include <set>
@@ -1876,165 +1875,13 @@ void http_handler::handle_sse_stream(evhttp_request *raw_req, const HttpRequest 
 
 // ==================== Monitoring Handlers ====================
 
-// Parse Redis INFO text into structured JSON
-static json parse_redis_info(const std::string &info_text)
-{
-    json result = json::object();
-    std::string current_section;
-    std::istringstream stream(info_text);
-    std::string line;
-
-    while (std::getline(stream, line))
-    {
-        // Remove trailing \r
-        if (!line.empty() && line.back() == '\r')
-            line.pop_back();
-        if (line.empty())
-            continue;
-
-        // Section header: # Server
-        if (line.size() > 2 && line[0] == '#')
-        {
-            current_section = line.substr(2);
-            // lowercase section name
-            std::transform(current_section.begin(), current_section.end(), current_section.begin(), ::tolower);
-            result[current_section] = json::object();
-            continue;
-        }
-
-        // key:value pair
-        auto colon = line.find(':');
-        if (colon == std::string::npos)
-            continue;
-
-        std::string key = line.substr(0, colon);
-        std::string value = line.substr(colon + 1);
-
-        // Try to parse as number
-        json jval;
-        try
-        {
-            size_t pos = 0;
-            if (value.find('.') != std::string::npos)
-            {
-                double d = std::stod(value, &pos);
-                if (pos == value.size())
-                    jval = d;
-                else
-                    jval = value;
-            }
-            else
-            {
-                long long ll = std::stoll(value, &pos);
-                if (pos == value.size())
-                    jval = ll;
-                else
-                    jval = value;
-            }
-        }
-        catch (...)
-        {
-            jval = value;
-        }
-
-        if (!current_section.empty() && result.contains(current_section))
-            result[current_section][key] = jval;
-        else
-            result[key] = jval;
-    }
-    return result;
-}
-
 void http_handler::handle_get_monitor_redis(const HttpRequest &req, HttpResponse &resp)
 {
-    auto &redis = sync_redis::instance();
-    auto info_raw = redis.info();
-    if (info_raw.empty())
-    {
-        resp.status_code = 503;
-        resp.body = R"({"error":"Redis not available"})";
-        return;
-    }
-
-    auto info = parse_redis_info(info_raw);
-
-    // Build structured response with key metrics
-    json result = json::object();
-
-    // Server info
-    if (info.contains("server"))
-    {
-        auto &s = info["server"];
-        result["server"] = {
-            {"redis_version", s.value("redis_version", "")},
-            {"uptime_in_seconds", s.value("uptime_in_seconds", 0)},
-            {"tcp_port", s.value("tcp_port", 0)},
-            {"os", s.value("os", "")},
-            {"process_id", s.value("process_id", 0)}};
-    }
-
-    // Client info
-    if (info.contains("clients"))
-    {
-        auto &c = info["clients"];
-        result["clients"] = {
-            {"connected_clients", c.value("connected_clients", 0)},
-            {"blocked_clients", c.value("blocked_clients", 0)},
-            {"maxclients", c.value("maxclients", 0)}};
-    }
-
-    // Memory info
-    if (info.contains("memory"))
-    {
-        auto &m = info["memory"];
-        result["memory"] = {
-            {"used_memory", m.value("used_memory", 0)},
-            {"used_memory_human", m.value("used_memory_human", "")},
-            {"used_memory_rss", m.value("used_memory_rss", 0)},
-            {"used_memory_rss_human", m.value("used_memory_rss_human", "")},
-            {"used_memory_peak", m.value("used_memory_peak", 0)},
-            {"used_memory_peak_human", m.value("used_memory_peak_human", "")},
-            {"mem_fragmentation_ratio", m.value("mem_fragmentation_ratio", 0.0)}};
-    }
-
-    // Stats
-    if (info.contains("stats"))
-    {
-        auto &st = info["stats"];
-        long long hits = st.value("keyspace_hits", 0LL);
-        long long misses = st.value("keyspace_misses", 0LL);
-        double hit_rate = (hits + misses > 0) ? static_cast<double>(hits) / (hits + misses) : 0.0;
-        result["stats"] = {
-            {"total_connections_received", st.value("total_connections_received", 0)},
-            {"total_commands_processed", st.value("total_commands_processed", 0)},
-            {"instantaneous_ops_per_sec", st.value("instantaneous_ops_per_sec", 0)},
-            {"keyspace_hits", hits},
-            {"keyspace_misses", misses},
-            {"hit_rate", hit_rate},
-            {"instantaneous_input_kbps", st.value("instantaneous_input_kbps", 0.0)},
-            {"instantaneous_output_kbps", st.value("instantaneous_output_kbps", 0.0)}};
-    }
-
-    // Replication
-    if (info.contains("replication"))
-    {
-        auto &r = info["replication"];
-        result["replication"] = {
-            {"role", r.value("role", "")},
-            {"connected_slaves", r.value("connected_slaves", 0)}};
-    }
-
-    // Keyspace
-    if (info.contains("keyspace"))
-    {
-        result["keyspace"] = info["keyspace"];
-    }
-
-    // Total keys
-    result["total_keys"] = redis.dbsize();
-
-    resp.status_code = 200;
-    resp.body = result.dump();
+    (void)req;
+    navcaster::http_api::RedisMonitorService service(sync_redis::instance());
+    auto result = service.summary();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_monitor_redis_keys(const HttpRequest &req, HttpResponse &resp)
@@ -2297,7 +2144,7 @@ void http_handler::sample_redis_history()
     std::string info = redis.info("ALL");
     if (info.empty()) return;
 
-    auto parsed = parse_redis_info(info);
+    auto parsed = navcaster::http_api::parse_redis_info(info);
     if (!parsed.contains("memory") || !parsed.contains("stats") || !parsed.contains("clients"))
     {
         spdlog::warn("[{}:{}]: skip redis history sample, INFO missing required sections", __class__, __func__);

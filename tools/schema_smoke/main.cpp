@@ -654,6 +654,70 @@ int main()
     redis_monitor_body = nlohmann::json::parse(redis_monitor_response.body);
     expect_eq_int(redis_monitor_body.value("count", -1), 0, "redis monitor history service empty list count");
     expect_true(redis_monitor_body["items"].is_array() && redis_monitor_body["items"].empty(), "redis monitor history service empty list items");
+    const std::string redis_info_text =
+        "# Server\r\n"
+        "redis_version:7.2.1\r\n"
+        "uptime_in_seconds:123\r\n"
+        "tcp_port:6379\r\n"
+        "os:Windows 10\r\n"
+        "process_id:456\r\n"
+        "# Clients\r\n"
+        "connected_clients:7\r\n"
+        "blocked_clients:1\r\n"
+        "maxclients:10000\r\n"
+        "# Memory\r\n"
+        "used_memory:2048\r\n"
+        "used_memory_human:2.00K\r\n"
+        "used_memory_rss:4096\r\n"
+        "used_memory_rss_human:4.00K\r\n"
+        "used_memory_peak:8192\r\n"
+        "used_memory_peak_human:8.00K\r\n"
+        "mem_fragmentation_ratio:1.25\r\n"
+        "# Stats\r\n"
+        "total_connections_received:10\r\n"
+        "total_commands_processed:20\r\n"
+        "instantaneous_ops_per_sec:3\r\n"
+        "keyspace_hits:3\r\n"
+        "keyspace_misses:1\r\n"
+        "instantaneous_input_kbps:1.5\r\n"
+        "instantaneous_output_kbps:2.5\r\n"
+        "mixed_value:12abc\r\n"
+        "# Replication\r\n"
+        "role:master\r\n"
+        "connected_slaves:0\r\n"
+        "# Keyspace\r\n"
+        "db0:keys=5,expires=0,avg_ttl=0\r\n";
+    auto parsed_redis_info = navcaster::http_api::parse_redis_info(redis_info_text);
+    expect_eq(parsed_redis_info["server"].value("redis_version", std::string{}), "7.2.1", "redis monitor parses redis version");
+    expect_eq_int(parsed_redis_info["server"].value("uptime_in_seconds", 0), 123, "redis monitor parses integer");
+    expect_true(parsed_redis_info["memory"].value("mem_fragmentation_ratio", 0.0) == 1.25, "redis monitor parses float");
+    expect_eq(parsed_redis_info["stats"].value("mixed_value", std::string{}), "12abc", "redis monitor keeps mixed string");
+    expect_eq(parsed_redis_info["keyspace"].value("db0", std::string{}), "keys=5,expires=0,avg_ttl=0", "redis monitor keeps keyspace string");
+    auto redis_summary_body = navcaster::http_api::redis_monitor_summary_body(parsed_redis_info, 42);
+    expect_eq(redis_summary_body["server"].value("os", std::string{}), "Windows 10", "redis monitor summary server os");
+    expect_eq_int(redis_summary_body["clients"].value("connected_clients", 0), 7, "redis monitor summary clients");
+    expect_eq_int(redis_summary_body["memory"].value("used_memory", 0), 2048, "redis monitor summary memory");
+    expect_true(redis_summary_body["stats"].value("hit_rate", 0.0) == 0.75, "redis monitor summary hit rate");
+    expect_eq(redis_summary_body["replication"].value("role", std::string{}), "master", "redis monitor summary replication");
+    expect_eq_int(redis_summary_body.value("total_keys", 0), 42, "redis monitor summary total keys");
+    auto redis_summary_missing_stats = navcaster::http_api::redis_monitor_summary_body(nlohmann::json{{"server", nlohmann::json::object()}}, 0);
+    expect_true(!redis_summary_missing_stats.contains("stats"), "redis monitor summary tolerates missing stats");
+    FakeRedisHashClient redis_summary_redis;
+    redis_summary_redis.info_text = redis_info_text;
+    redis_summary_redis.hashes["HASH:SUMMARY"]["field"] = {{"value", 1}};
+    redis_summary_redis.lists["LIST:SUMMARY"] = {nlohmann::json{{"value", 1}}};
+    redis_summary_redis.strings["STRING:SUMMARY"] = "value";
+    navcaster::http_api::RedisMonitorService redis_summary_service(redis_summary_redis);
+    auto redis_summary_response = redis_summary_service.summary();
+    expect_eq_int(redis_summary_response.status_code, 200, "redis monitor summary service status");
+    auto redis_summary_service_body = nlohmann::json::parse(redis_summary_response.body);
+    expect_eq_int(redis_summary_service_body.value("total_keys", 0), 3, "redis monitor summary service dbsize");
+    FakeRedisHashClient redis_summary_empty_info;
+    navcaster::http_api::RedisMonitorService redis_summary_empty_service(redis_summary_empty_info);
+    redis_summary_response = redis_summary_empty_service.summary();
+    expect_eq_int(redis_summary_response.status_code, 503, "redis monitor summary empty info status");
+    redis_summary_service_body = nlohmann::json::parse(redis_summary_response.body);
+    expect_eq(redis_summary_service_body.value("error", std::string{}), "Redis not available", "redis monitor summary empty info error");
 
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[trace] detail"), 0, "ring log infers trace");
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[debug] detail"), 1, "ring log infers debug");

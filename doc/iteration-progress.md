@@ -198,6 +198,8 @@
 - 扩展 `schema_smoke`：覆盖 range 映射、repository limit、默认 60 条 raw 读取后的过滤/时间升序、`7d` 全量有效点、空 list 返回空数组和 count 0。
 - 扩展 `RedisHashClient` monitor 能力：增加默认 `info/dbsize/type/hlen/memory_usage` 接口，`sync_redis` 对已有实现补 `override`，为 Redis summary、keyspace 分类和 sampler 后续拆分提供统一抽象。
 - 扩展 `schema_smoke` fake Redis：支持 INFO 全量/section、DBSIZE、TYPE、HLEN、LLEN、MEMORY USAGE，并覆盖 hash/list/string/none 类型、key 去重计数、缺失 section 返回空字符串和可控 memory 值。
+- 扩展 `RedisMonitorService` summary 路径：将 `/api/monitor/redis` 的 INFO 解析、server/clients/memory/stats/replication/keyspace 字段筛选、hit rate 计算和 `DBSIZE` total_keys 构造从 `http_handler.cpp` 移出；sampler 暂时复用 service 的 `parse_redis_info` helper。
+- 扩展 `schema_smoke`：覆盖 Redis INFO CRLF 解析、整数/浮点/混合字符串/keyspace 字符串处理、summary 字段 shape、hit_rate 计算、缺可选 section、INFO 空时 503 `Redis not available`。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -320,5 +322,9 @@
   - Redis monitor client 扩展点改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Redis monitor client 扩展点改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Redis monitor client 扩展点改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Redis monitor summary service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Redis monitor summary service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Redis monitor summary service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Redis monitor summary service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
