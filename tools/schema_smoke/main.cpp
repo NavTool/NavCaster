@@ -1,13 +1,92 @@
+#include "account_repository.h"
 #include "account_schema.h"
 #include "redis_keys.h"
 
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 
 namespace
 {
 int failures = 0;
+
+class FakeRedisHashClient : public navcaster::storage::RedisHashClient
+{
+public:
+    nlohmann::json hgetall(const char *key) override
+    {
+        auto key_it = hashes.find(key);
+        if (key_it == hashes.end())
+        {
+            return nlohmann::json::object();
+        }
+
+        nlohmann::json result = nlohmann::json::object();
+        for (const auto &[field, value] : key_it->second)
+        {
+            result[field] = value;
+        }
+        return result;
+    }
+
+    nlohmann::json hget(const char *key, const char *field) override
+    {
+        auto key_it = hashes.find(key);
+        if (key_it == hashes.end())
+        {
+            return nullptr;
+        }
+        auto field_it = key_it->second.find(field);
+        if (field_it == key_it->second.end())
+        {
+            return nullptr;
+        }
+        return field_it->second;
+    }
+
+    bool hset(const char *key, const char *field, const std::string &value) override
+    {
+        hashes[key][field] = parse_value(value);
+        return true;
+    }
+
+    bool hsetnx(const char *key, const char *field, const std::string &value) override
+    {
+        auto &hash = hashes[key];
+        if (hash.find(field) != hash.end())
+        {
+            return false;
+        }
+        hash[field] = parse_value(value);
+        return true;
+    }
+
+    bool hdel(const char *key, const char *field) override
+    {
+        auto key_it = hashes.find(key);
+        if (key_it == hashes.end())
+        {
+            return false;
+        }
+        return key_it->second.erase(field) > 0;
+    }
+
+    std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> hashes;
+
+private:
+    static nlohmann::json parse_value(const std::string &value)
+    {
+        try
+        {
+            return nlohmann::json::parse(value);
+        }
+        catch (...)
+        {
+            return value;
+        }
+    }
+};
 
 void expect_true(bool value, const std::string &name)
 {
@@ -262,6 +341,45 @@ int main()
     expect_true(delete_plan.delete_record, "delete plan removes record");
     expect_true(delete_plan.delete_active_index, "delete plan removes active index");
     expect_true(!account_schema::build_account_delete_plan("", delete_plan, &reason), "empty delete plan rejected");
+
+    FakeRedisHashClient fake_redis;
+    navcaster::storage::AccountRepository account_repo(fake_redis);
+    nlohmann::json repo_create = {
+        {"account", "repo-user"},
+        {"password", "secret"},
+        {"state", 1},
+        {"active", 1},
+        {"connection_limit", 2}
+    };
+    auto repo_result = account_repo.create_account(repo_create, 1000);
+    expect_true(repo_result.status == navcaster::storage::RepositoryStatus::Ok, "repository account create ok");
+    expect_eq(repo_result.account, "repo-user", "repository account create account");
+    expect_true(fake_redis.hget(navcaster::redis_keys::ACT_RECORD, "repo-user").is_object(), "repository writes account record");
+    auto repo_active = fake_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "repo-user");
+    expect_true(repo_active.is_object(), "repository writes active index");
+    expect_true(!repo_active.contains("password"), "repository active index has no plaintext password");
+    expect_true(account_repo.create_account(repo_create, 1001).status == navcaster::storage::RepositoryStatus::Conflict, "repository duplicate create conflict");
+
+    nlohmann::json repo_update = {
+        {"account", "repo-user"},
+        {"password", ""},
+        {"state", 2},
+        {"active", 1}
+    };
+    repo_result = account_repo.update_account("repo-user", repo_update, 1002);
+    expect_true(repo_result.status == navcaster::storage::RepositoryStatus::Ok, "repository account update ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "repo-user").is_null(), "repository inactive update deletes active index");
+    expect_true(repo_result.record.contains("password_hash"), "repository update preserves password material");
+
+    nlohmann::json repo_mismatch = {{"account", "other"}, {"password", "secret"}};
+    expect_true(account_repo.update_account("repo-user", repo_mismatch, 1003).status == navcaster::storage::RepositoryStatus::Invalid, "repository account mismatch rejected");
+    expect_true(account_repo.update_account("missing-user", repo_create, 1003).status == navcaster::storage::RepositoryStatus::NotFound, "repository missing update rejected");
+
+    repo_result = account_repo.delete_account("repo-user");
+    expect_true(repo_result.status == navcaster::storage::RepositoryStatus::Ok, "repository delete ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::ACT_RECORD, "repo-user").is_null(), "repository delete removes record");
+    expect_true(fake_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "repo-user").is_null(), "repository delete removes active index");
+    expect_true(account_repo.delete_account("repo-user").status == navcaster::storage::RepositoryStatus::NotFound, "repository missing delete not found");
 
     if (failures != 0)
     {

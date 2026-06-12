@@ -1,7 +1,7 @@
 #include "http_handler.h"
 #include "SysUsage.h"
 #include "Caster_Core.h"
-#include "account_schema.h"
+#include "account_repository.h"
 #include "broadcast_msg.h"
 #include "base64.h"
 #include "redis_keys.h"
@@ -21,7 +21,6 @@
 
 // Redis key constants — matching CasterWeb and caster_internal
 static const char *KEY_ACCOUNT_RECORD = navcaster::redis_keys::ACT_RECORD;
-static const char *KEY_ACCOUNT_LOGIN_INDEX = navcaster::redis_keys::ACT_ACTIVE;
 static const char *KEY_ACCOUNT_ACTIVE = navcaster::redis_keys::STR_ACTIVE_LEGACY;
 static const char *KEY_SOURCE_RECORD = "MPT:RECORD";
 static const char *KEY_SERVER_STATE = "MPT:STAT";
@@ -50,7 +49,7 @@ static const char *KEY_LOG_USR = "LOG:USR";
 namespace
 {
     // Synchronous Redis helper using a blocking connection
-    class sync_redis
+    class sync_redis : public navcaster::storage::RedisHashClient
     {
     public:
         static sync_redis &instance()
@@ -96,7 +95,7 @@ namespace
         }
 
         // HGETALL → json object {field: parsed_value, ...}
-        json hgetall(const char *key)
+        json hgetall(const char *key) override
         {
             if (!ensure_connected())
                 return json::object();
@@ -131,7 +130,7 @@ namespace
         }
 
         // HGET → json value or null
-        json hget(const char *key, const char *field)
+        json hget(const char *key, const char *field) override
         {
             if (!ensure_connected())
                 return nullptr;
@@ -161,7 +160,7 @@ namespace
         }
 
         // HSET → bool success
-        bool hset(const char *key, const char *field, const std::string &value)
+        bool hset(const char *key, const char *field, const std::string &value) override
         {
             if (!ensure_connected())
                 return false;
@@ -177,7 +176,7 @@ namespace
         }
 
         // HSETNX → bool success (false if already exists)
-        bool hsetnx(const char *key, const char *field, const std::string &value)
+        bool hsetnx(const char *key, const char *field, const std::string &value) override
         {
             if (!ensure_connected())
                 return false;
@@ -193,7 +192,7 @@ namespace
         }
 
         // HDEL → bool success
-        bool hdel(const char *key, const char *field)
+        bool hdel(const char *key, const char *field) override
         {
             if (!ensure_connected())
                 return false;
@@ -610,17 +609,27 @@ namespace
         return static_cast<std::int64_t>(std::time(nullptr));
     }
 
-    bool sync_account_login_index(sync_redis &redis, const navcaster::account_schema::AccountSyncPlan &plan)
+    void write_account_repository_error(const navcaster::storage::AccountRepositoryResult &result, HttpResponse &resp)
     {
-        if (plan.write_active_index)
+        switch (result.status)
         {
-            return redis.hset(KEY_ACCOUNT_LOGIN_INDEX, plan.account.c_str(), plan.active_index.dump());
+        case navcaster::storage::RepositoryStatus::Invalid:
+            resp.status_code = 400;
+            break;
+        case navcaster::storage::RepositoryStatus::NotFound:
+            resp.status_code = 404;
+            break;
+        case navcaster::storage::RepositoryStatus::Conflict:
+            resp.status_code = 409;
+            break;
+        case navcaster::storage::RepositoryStatus::RedisError:
+            resp.status_code = 500;
+            break;
+        case navcaster::storage::RepositoryStatus::Ok:
+            resp.status_code = 200;
+            break;
         }
-        if (plan.delete_active_index)
-        {
-            redis.hdel(KEY_ACCOUNT_LOGIN_INDEX, plan.account.c_str());
-        }
-        return true;
+        resp.body = json{{"error", result.error.empty() ? "Repository error" : result.error}}.dump();
     }
 
 } // anonymous namespace
@@ -1136,7 +1145,8 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_accounts(const HttpRequest &req, HttpResponse &resp)
 {
-    json data = sync_redis_auth::instance().redis().hgetall(KEY_ACCOUNT_RECORD);
+    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
+    json data = repo.list_accounts();
     resp.status_code = 200;
     resp.body = data.dump();
 }
@@ -1149,7 +1159,8 @@ void http_handler::handle_get_account(const HttpRequest &req, HttpResponse &resp
         handle_get_account_actives(req, resp);
         return;
     }
-    json data = sync_redis_auth::instance().redis().hget(KEY_ACCOUNT_RECORD, id.c_str());
+    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
+    json data = repo.get_account(id);
     if (data.is_null())
     {
         resp.status_code = 404;
@@ -1173,39 +1184,15 @@ void http_handler::handle_create_account(const HttpRequest &req, HttpResponse &r
         resp.body = R"({"error":"Invalid JSON"})";
         return;
     }
-    navcaster::account_schema::AccountSyncPlan plan;
-    std::string error;
-    try
+    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
+    auto result = repo.create_account(std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
     {
-        if (!navcaster::account_schema::build_account_sync_plan(body, current_unix_seconds(), plan, &error))
-        {
-            resp.status_code = 400;
-            resp.body = json{{"error", error.empty() ? "Invalid account" : error}}.dump();
-            return;
-        }
-    }
-    catch (const std::exception &e)
-    {
-        resp.status_code = 400;
-        resp.body = json{{"error", e.what()}}.dump();
-        return;
-    }
-    auto &redis = sync_redis_auth::instance().redis();
-    bool ok = redis.hsetnx(KEY_ACCOUNT_RECORD, plan.account.c_str(), plan.record.dump());
-    if (!ok)
-    {
-        resp.status_code = 409;
-        resp.body = R"({"error":"Account already exists"})";
-        return;
-    }
-    if (!sync_account_login_index(redis, plan))
-    {
-        resp.status_code = 500;
-        resp.body = R"({"error":"Failed to sync account login index"})";
+        write_account_repository_error(result, resp);
         return;
     }
     resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"account", plan.account}}.dump();
+    resp.body = json{{"ok", true}, {"account", result.account}}.dump();
 }
 
 void http_handler::handle_update_account(const HttpRequest &req, HttpResponse &resp)
@@ -1228,57 +1215,11 @@ void http_handler::handle_update_account(const HttpRequest &req, HttpResponse &r
         resp.body = R"({"error":"Invalid JSON"})";
         return;
     }
-    auto &redis = sync_redis_auth::instance().redis();
-    json current = redis.hget(KEY_ACCOUNT_RECORD, id.c_str());
-    if (current.is_null())
+    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
+    auto result = repo.update_account(id, std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
     {
-        resp.status_code = 404;
-        resp.body = R"({"error":"Account not found"})";
-        return;
-    }
-    const std::string body_account = body.value("account", std::string{});
-    if (!body_account.empty() && body_account != id)
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Account field does not match URL"})";
-        return;
-    }
-    body["account"] = id;
-    if (!body.contains("create_time") && current.contains("create_time"))
-    {
-        body["create_time"] = current["create_time"];
-    }
-    navcaster::account_schema::preserve_existing_password_material(body, current);
-
-    navcaster::account_schema::AccountSyncPlan plan;
-    std::string error;
-    try
-    {
-        if (!navcaster::account_schema::build_account_sync_plan(body, current_unix_seconds(), plan, &error))
-        {
-            resp.status_code = 400;
-            resp.body = json{{"error", error.empty() ? "Invalid account" : error}}.dump();
-            return;
-        }
-    }
-    catch (const std::exception &e)
-    {
-        resp.status_code = 400;
-        resp.body = json{{"error", e.what()}}.dump();
-        return;
-    }
-
-    bool ok = redis.hset(KEY_ACCOUNT_RECORD, plan.account.c_str(), plan.record.dump());
-    if (!ok)
-    {
-        resp.status_code = 500;
-        resp.body = R"({"error":"Redis error"})";
-        return;
-    }
-    if (!sync_account_login_index(redis, plan))
-    {
-        resp.status_code = 500;
-        resp.body = R"({"error":"Failed to sync account login index"})";
+        write_account_repository_error(result, resp);
         return;
     }
     resp.status_code = 200;
@@ -1294,30 +1235,21 @@ void http_handler::handle_delete_account(const HttpRequest &req, HttpResponse &r
         resp.body = R"({"error":"Missing account name"})";
         return;
     }
-    auto &redis = sync_redis_auth::instance().redis();
-    navcaster::account_schema::AccountDeletePlan plan;
-    std::string error;
-    if (!navcaster::account_schema::build_account_delete_plan(id, plan, &error))
+    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
+    auto result = repo.delete_account(id);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
     {
-        resp.status_code = 400;
-        resp.body = json{{"error", error.empty() ? "Invalid account" : error}}.dump();
+        write_account_repository_error(result, resp);
         return;
     }
-    bool ok = redis.hdel(KEY_ACCOUNT_RECORD, plan.account.c_str());
-    if (!ok)
-    {
-        resp.status_code = 404;
-        resp.body = R"({"error":"Account not found"})";
-        return;
-    }
-    redis.hdel(KEY_ACCOUNT_LOGIN_INDEX, plan.account.c_str());
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
 
 void http_handler::handle_get_account_actives(const HttpRequest &req, HttpResponse &resp)
 {
-    json data = sync_redis_auth::instance().redis().hgetall(KEY_ACCOUNT_ACTIVE);
+    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
+    json data = repo.list_legacy_active_sessions();
     resp.status_code = 200;
     resp.body = data.dump();
 }

@@ -16,6 +16,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/redis_keys.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_schema.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/account_repository.cpp
 )
 
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})

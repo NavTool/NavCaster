@@ -59,7 +59,7 @@
 
 ### Phase 2：Repository 层
 
-- [ ] 抽账号 repository。
+- [x] 抽账号 repository。
 - [ ] 抽 source/access/relay/runtime repository。
 - [ ] 统一 proto JSON helper。
 - [ ] HTTP CRUD 改为调用 repository。
@@ -116,6 +116,9 @@
 - 引入 `pbkdf2-sha256` 密码哈希：HTTP 新建/更新账号时将 legacy `password` 迁移为 `password_hash/password_algo/password_salt/password_iterations`，`ACT:RECORD` 与 `ACT:ACTIVE` 不再新增明文密码；Auth 登录支持 PBKDF2 校验，legacy 明文仅作为旧数据兼容路径，未知 hash/缺少 salt/非法迭代次数 fail closed。
 - HTTP 更新账号时保留既有密码材料：普通资料更新或空 `password` 不会清掉旧 hash/legacy 密码；显式提交新密码时重新生成 hash。
 - 扩展 `schema_smoke`：覆盖 PBKDF2-SHA256 标准向量、新写账号移除明文、active index hash 字段完整性、hash 登录成功/失败、legacy 明文兼容、hash 优先防明文绕过、更新保留密码材料、新密码轮换、缺密码/无效 hash 拒绝。
+- 新增 `RedisHashClient` 和 `AccountRepository`：账号列表/详情/legacy active sessions/create/update/delete 收敛到 repository，HTTP 账号 CRUD 只做请求解析和 result -> HTTP status 映射。
+- HTTP 账号 CRUD 替换为调用 `AccountRepository`，保持 400/404/409/500 行为，并把 `ACT:RECORD -> ACT:ACTIVE` 同步与密码材料保留逻辑从 handler 中移出。
+- 扩展 `schema_smoke` fake Redis 测试：覆盖 repository create 双写主表与登录索引、重复创建冲突、禁用更新清理登录索引、更新保留密码材料、URL/body account 冲突、缺失更新、删除同步清理主表和登录索引。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -130,5 +133,9 @@
   - 密码哈希迁移改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
   - 密码哈希迁移改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - 密码哈希迁移改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - 账号 repository 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - 账号 repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - 账号 repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - 账号 repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`，未暴露新增 repository 编译错误。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
