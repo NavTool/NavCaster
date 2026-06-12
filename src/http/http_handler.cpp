@@ -2,6 +2,7 @@
 #include "SysUsage.h"
 #include "Caster_Core.h"
 #include "account_repository.h"
+#include "access_controller.h"
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
@@ -1366,167 +1367,76 @@ void http_handler::handle_delete_alias(const HttpRequest &req, HttpResponse &res
 
 void http_handler::handle_get_access_groups(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    json data = repo.list_groups();
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.list_groups();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    json data = repo.get_group(id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.get_group(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_create_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    auto result = repo.create_group(std::move(body), current_unix_seconds());
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"uid", result.uid}}.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.create_group(req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_update_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    auto result = repo.update_group(id, std::move(body), current_unix_seconds());
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.update_group(get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_delete_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    auto result = repo.delete_group(id);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        if (result.error == "Built-in group cannot be deleted")
-        {
-            resp.status_code = 403;
-            resp.body = json{{"error", result.error}}.dump();
-        }
-        else
-        {
-            write_repository_error(result.status, result.error, resp);
-        }
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.delete_group(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Access Items (ACCESS:ITEM:<group_uid>) ====================
 
 void http_handler::handle_get_access_items(const HttpRequest &req, HttpResponse &resp)
 {
-    // Path: /api/access/items/<group_uid>
-    std::string group_uid = get_resource_id(req);
-    if (group_uid.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing group_uid"})";
-        return;
-    }
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    json data = repo.list_items(group_uid);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.list_items(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_create_access_item(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string group_uid = get_resource_id(req);
-    if (group_uid.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing group_uid"})";
-        return;
-    }
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    auto result = repo.create_item(group_uid, std::move(body));
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 201;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.create_item(get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_update_access_item(const HttpRequest &req, HttpResponse &resp)
 {
-    // For update, expect body to contain "group_uid" and "mountpoint"
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-
-    std::string group_uid = body.value("group_uid", get_resource_id(req));
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    auto result = repo.update_item(group_uid, std::move(body));
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.update_item(get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_delete_access_item(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON, need group_uid and mountpoint"})"; return; }
-
-    std::string group_uid = body.value("group_uid", get_resource_id(req));
-    std::string mount = body.value("mount_point_name", "");
-    if (mount.empty()) mount = body.value("mountpoint", "");
-    if (mount.empty()) mount = body.value("mount", "");
-    if (mount.empty()) mount = body.value("uid", "");
-    if (group_uid.empty() || mount.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing group_uid or mountpoint"})";
-        return;
-    }
-
-    navcaster::storage::AccessRepository repo(sync_redis::instance());
-    auto result = repo.delete_item(group_uid, mount);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.delete_item(get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Pull Relays (PULL:RECORD / PULL:STAT) ====================

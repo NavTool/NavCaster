@@ -1,5 +1,6 @@
 #include "account_repository.h"
 #include "account_schema.h"
+#include "access_controller.h"
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
@@ -718,6 +719,76 @@ int main()
     expect_eq_int(alias_response.status_code, 200, "alias controller delete ok");
     alias_response = alias_controller.delete_alias("ALCTRL");
     expect_eq_int(alias_response.status_code, 404, "alias controller missing delete");
+
+    FakeRedisHashClient access_controller_redis;
+    navcaster::http_api::AccessController access_controller(access_controller_redis, 11000);
+    auto access_response = access_controller.list_groups();
+    expect_eq_int(access_response.status_code, 200, "access controller list groups ok");
+    access_response = access_controller.create_group(R"({"uid":"ops","group_name":"Ops"})");
+    expect_eq_int(access_response.status_code, 201, "access controller create group ok");
+    auto access_controller_body = nlohmann::json::parse(access_response.body);
+    expect_eq(access_controller_body.value("uid", std::string{}), "ops", "access controller create group response");
+    expect_eq_int(access_controller_redis.hget(navcaster::redis_keys::ACCESS_GROUP, "ops").value("create_time", 0), 11000, "access controller create group timestamp");
+    expect_eq(access_controller_redis.publishes.back().second, "ACCESS", "access controller create group publishes");
+    access_response = access_controller.get_group("ops");
+    expect_eq_int(access_response.status_code, 200, "access controller get group ok");
+    access_response = access_controller.create_group(R"({"uid":"ops"})");
+    expect_eq_int(access_response.status_code, 409, "access controller duplicate group");
+    access_response = access_controller.create_group("{");
+    expect_eq_int(access_response.status_code, 400, "access controller group invalid json");
+    access_response = access_controller.create_group(R"({})");
+    expect_eq_int(access_response.status_code, 400, "access controller group missing uid");
+    access_response = access_controller.get_group("");
+    expect_eq_int(access_response.status_code, 400, "access controller missing group id");
+    access_response = access_controller.get_group("missing");
+    expect_eq_int(access_response.status_code, 404, "access controller missing group");
+    access_response = access_controller.update_group("ops", R"({"allow_access_inside_group":false})");
+    expect_eq_int(access_response.status_code, 200, "access controller update group ok");
+    expect_true(!access_controller_redis.hget(navcaster::redis_keys::ACCESS_GROUP, "ops").value("allow_access_inside_group", true), "access controller update group value");
+    access_response = access_controller.update_group("", R"({"group_name":"bad"})");
+    expect_eq_int(access_response.status_code, 400, "access controller missing update group id");
+    access_response = access_controller.update_group("ops", "{");
+    expect_eq_int(access_response.status_code, 400, "access controller update group invalid json");
+    access_response = access_controller.delete_group("default");
+    expect_eq_int(access_response.status_code, 403, "access controller protects default group");
+    access_response = access_controller.delete_group("missing");
+    expect_eq_int(access_response.status_code, 404, "access controller missing group delete");
+
+    access_response = access_controller.list_items("");
+    expect_eq_int(access_response.status_code, 400, "access controller missing item group list");
+    access_response = access_controller.list_items("ops");
+    expect_eq_int(access_response.status_code, 200, "access controller list items ok");
+    access_response = access_controller.create_item("ops", R"({"mountpoint":"MPTCTRL"})");
+    expect_eq_int(access_response.status_code, 201, "access controller create item ok");
+    expect_eq(access_controller_redis.publishes.back().second, "ACCESS", "access controller create item publishes");
+    expect_true(access_controller_redis.hget(navcaster::redis_keys::access_item("ops").c_str(), "MPTCTRL").is_object(), "access controller writes item");
+    access_response = access_controller.create_item("ops", R"({"mountpoint":"MPTCTRL"})");
+    expect_eq_int(access_response.status_code, 409, "access controller duplicate item");
+    access_response = access_controller.create_item("", R"({"mountpoint":"MPTCTRL"})");
+    expect_eq_int(access_response.status_code, 400, "access controller missing item group create");
+    access_response = access_controller.create_item("ops", "{");
+    expect_eq_int(access_response.status_code, 400, "access controller create item invalid json");
+    access_response = access_controller.create_item("ops", R"({})");
+    expect_eq_int(access_response.status_code, 400, "access controller create item missing mount");
+    access_response = access_controller.update_item("ops", R"({"mount":"MPTCTRL","allow_access":1})");
+    expect_eq_int(access_response.status_code, 200, "access controller update item ok");
+    expect_eq_int(access_controller_redis.hget(navcaster::redis_keys::access_item("ops").c_str(), "MPTCTRL").value("allow_access", 0), 1, "access controller update item value");
+    access_response = access_controller.update_item("", R"({"group_uid":"ops","uid":"MPTCTRL","allow_visible":1})");
+    expect_eq_int(access_response.status_code, 200, "access controller update item body group");
+    access_response = access_controller.update_item("ops", "{");
+    expect_eq_int(access_response.status_code, 400, "access controller update item invalid json");
+    access_response = access_controller.update_item("", R"({"mount":"MPTCTRL"})");
+    expect_eq_int(access_response.status_code, 400, "access controller update item missing group");
+    access_response = access_controller.delete_item("ops", R"({"uid":"MPTCTRL"})");
+    expect_eq_int(access_response.status_code, 200, "access controller delete item ok");
+    access_response = access_controller.delete_item("ops", R"({"uid":"MPTCTRL"})");
+    expect_eq_int(access_response.status_code, 404, "access controller missing item delete");
+    access_response = access_controller.delete_item("", "{");
+    expect_eq_int(access_response.status_code, 400, "access controller delete item invalid json");
+    access_response = access_controller.delete_item("", R"({"uid":"MPTCTRL"})");
+    expect_eq_int(access_response.status_code, 400, "access controller delete item missing group");
+    access_response = access_controller.delete_group("ops");
+    expect_eq_int(access_response.status_code, 200, "access controller delete group ok");
 
     if (failures != 0)
     {
