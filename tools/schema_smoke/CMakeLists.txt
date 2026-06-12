@@ -23,6 +23,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/account_schema.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/audit_log_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/cluster_monitor_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/config_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/connection_history_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/node_history_repository.cpp
@@ -36,6 +37,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/audit_log_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/access_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/alias_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/cluster_monitor_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/config_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/connection_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/node_history_service.cpp

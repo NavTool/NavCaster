@@ -7,6 +7,8 @@
 #include "alias_controller.h"
 #include "alias_repository.h"
 #include "broadcast_msg.h"
+#include "cluster_monitor_repository.h"
+#include "cluster_monitor_service.h"
 #include "config_repository.h"
 #include "config_controller.h"
 #include "connection_history_repository.h"
@@ -406,6 +408,115 @@ int main()
     system_event_response = system_event_service.list(0);
     system_event_body = nlohmann::json::parse(system_event_response.body);
     expect_eq_int(system_event_body.value("count", 0), 3, "system event service bad limit defaults");
+
+    FakeRedisHashClient cluster_redis;
+    cluster_redis.strings[redis_keys::CASTER_MASTER] = "node-a";
+    cluster_redis.hashes[redis_keys::CASTER_NODE]["node-a"] = {
+        {"node_name", "alpha"},
+        {"server_count", 2},
+        {"client_count", 3},
+        {"connect_count", 5},
+        {"cpu_usage", 1.5},
+        {"mem_usage", 50.0},
+        {"send_speed", 4.0},
+        {"recv_speed", 5.0},
+        {"send_total", 40},
+        {"recv_total", 50},
+        {"set_version", "s1"},
+        {"tag_version", "t1"},
+        {"queue_delay", 2},
+        {"hostname", "host-a"},
+        {"listen_port", 2101},
+        {"http_port", 8080},
+        {"process_id", 12345},
+        {"http_enabled", true},
+        {"online_time", 900},
+        {"update_time", 990},
+        {"pub_ping_delay", 7},
+        {"sub_ping_delay", 8}
+    };
+    cluster_redis.hashes[redis_keys::CASTER_NODE]["node-b"] = {
+        {"node_name", "beta"},
+        {"server_count", 20},
+        {"client_count", 30},
+        {"connect_count", 50},
+        {"cpu_usage", 9.0},
+        {"mem_usage", 90.0},
+        {"send_speed", 40.0},
+        {"recv_speed", 50.0},
+        {"online_time", 800},
+        {"update_time", 900}
+    };
+    cluster_redis.hashes[redis_keys::CASTER_NODE]["node-zero"] = {
+        {"node_name", "zero"},
+        {"server_count", 4},
+        {"client_count", 6},
+        {"cpu_usage", 2.5},
+        {"mem_usage", 20.0},
+        {"send_speed", 7.0},
+        {"recv_speed", 8.0},
+        {"online_time", 950},
+        {"update_time", 0}
+    };
+    cluster_redis.hashes[redis_keys::CASTER_NODE]["bad-node"] = "not-an-object";
+    cluster_redis.hashes[redis_keys::PULL_STAT]["pull-a"] = {{"state", 1}, {"node_uid", "node-a"}};
+    cluster_redis.hashes[redis_keys::PULL_STAT]["pull-b"] = nlohmann::json{{"state", 1}, {"node_uid", "node-b"}}.dump();
+    cluster_redis.hashes[redis_keys::PULL_STAT]["pull-no-node"] = {{"state", 1}};
+    cluster_redis.hashes[redis_keys::PULL_STAT]["pull-stopped"] = {{"state", 0}, {"node_uid", "node-a"}};
+    cluster_redis.hashes[redis_keys::PULL_STAT]["pull-bad"] = "{";
+    cluster_redis.hashes[redis_keys::PUSH_STAT]["push-zero"] = {{"state", 1}, {"node_uid", "node-zero"}};
+    cluster_redis.hashes[redis_keys::PUSH_STAT]["push-stopped"] = {{"state", 0}, {"node_uid", "node-a"}};
+    navcaster::storage::ClusterMonitorRepository cluster_repo(cluster_redis);
+    expect_eq(cluster_repo.master_node(), "node-a", "cluster monitor repository master");
+    expect_true(cluster_repo.nodes().contains("node-a"), "cluster monitor repository nodes");
+    auto cluster_snapshot = navcaster::http_api::build_cluster_monitor_snapshot(
+        cluster_repo.master_node(),
+        cluster_repo.nodes(),
+        cluster_repo.pull_states(),
+        cluster_repo.push_states(),
+        1000,
+        12.5);
+    expect_eq(cluster_snapshot.value("master_node", std::string{}), "node-a", "cluster monitor snapshot master");
+    expect_eq_int(cluster_snapshot.value("total_nodes", 0), 4, "cluster monitor counts non-object node");
+    expect_eq_int(cluster_snapshot.value("online_nodes", 0), 2, "cluster monitor online nodes");
+    expect_eq_int(cluster_snapshot.value("total_servers", 0), 6, "cluster monitor totals online servers");
+    expect_eq_int(cluster_snapshot.value("total_clients", 0), 9, "cluster monitor totals online clients");
+    expect_eq_int(cluster_snapshot.value("total_pull", 0), 3, "cluster monitor counts running pulls");
+    expect_eq_int(cluster_snapshot.value("total_push", 0), 1, "cluster monitor counts running pushes");
+    expect_true(cluster_snapshot.value("total_cpu", 0.0) == 4.0, "cluster monitor totals cpu");
+    expect_true(cluster_snapshot.value("total_mem", 0.0) == 70.0, "cluster monitor totals memory");
+    expect_true(cluster_snapshot.value("total_send_speed", 0.0) == 11.0, "cluster monitor totals send speed");
+    expect_true(cluster_snapshot.value("total_recv_speed", 0.0) == 13.0, "cluster monitor totals recv speed");
+    expect_true(cluster_snapshot.value("redis_latency_ms", 0.0) == 12.5, "cluster monitor fixed latency");
+    expect_eq_int(static_cast<int>(cluster_snapshot["nodes"].size()), 3, "cluster monitor skips non-object node item");
+    auto find_cluster_node = [](const nlohmann::json &nodes, const std::string &uid) {
+        for (const auto &node : nodes)
+        {
+            if (node.value("uid", std::string{}) == uid)
+            {
+                return node;
+            }
+        }
+        return nlohmann::json::object();
+    };
+    auto node_a_snapshot = find_cluster_node(cluster_snapshot["nodes"], "node-a");
+    expect_true(node_a_snapshot.value("is_master", false), "cluster monitor marks master");
+    expect_true(node_a_snapshot.value("online", false), "cluster monitor marks recent node online");
+    expect_eq_int(node_a_snapshot.value("pull", 0), 1, "cluster monitor node pull count");
+    expect_eq_int(node_a_snapshot.value("push", 0), 0, "cluster monitor node push count");
+    expect_eq_int(node_a_snapshot.value("uptime_sec", 0), 100, "cluster monitor uptime");
+    expect_eq(node_a_snapshot.value("hostname", std::string{}), "host-a", "cluster monitor preserves hostname");
+    auto node_b_snapshot = find_cluster_node(cluster_snapshot["nodes"], "node-b");
+    expect_true(!node_b_snapshot.value("online", true), "cluster monitor marks stale node offline");
+    expect_eq_int(node_b_snapshot.value("pull", 0), 1, "cluster monitor counts string relay JSON");
+    auto node_zero_snapshot = find_cluster_node(cluster_snapshot["nodes"], "node-zero");
+    expect_true(node_zero_snapshot.value("online", false), "cluster monitor treats zero update as online");
+    expect_eq_int(node_zero_snapshot.value("push", 0), 1, "cluster monitor node push count");
+    navcaster::http_api::ClusterMonitorService cluster_service(cluster_redis);
+    auto cluster_response = cluster_service.snapshot(1000);
+    expect_eq_int(cluster_response.status_code, 200, "cluster monitor service status");
+    auto cluster_body = nlohmann::json::parse(cluster_response.body);
+    expect_eq(cluster_body.value("master_node", std::string{}), "node-a", "cluster monitor service body");
 
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[trace] detail"), 0, "ring log infers trace");
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[debug] detail"), 1, "ring log infers debug");

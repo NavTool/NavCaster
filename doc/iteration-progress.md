@@ -73,6 +73,7 @@
 - [~] 按业务域拆 controller。
 - [x] SSE 数据源改为 service/repository。
 - [x] Sourcetable 工具接口拆为 service，并补跨平台 TCP 封装。
+- [x] Cluster monitor 接口拆为 repository/service，并覆盖聚合契约。
 
 ### Phase 4：拆 Caster Core
 
@@ -87,9 +88,9 @@
 
 继续 Phase 3/4：
 
-1. 统计接口：先抽纯聚合函数和 service 测试，再接入 `/api/stats/*` handler。
-2. 历史接口：拆 `LOG:MPT:*`、`LOG:USR:*`、`NODE:HISTORY:*` 的 repository/service 边界。
-3. 运维接口：拆 audit、ring logs、monitor Redis/cluster、node log level。
+1. Redis monitor：拆 `/api/monitor/redis`、`/api/monitor/redis/keys`、`/api/monitor/redis/history` 和 Redis history sampler。
+2. 运行态辅助接口：拆 mountpoint subscribers、status、health。
+3. 运维收尾：拆 node log level、auth/session token 边界，并继续瘦身 `sync_redis` 内嵌实现。
 4. Caster Core：开始抽 SourceTable、AccessPolicy、RelayScheduler、History 等服务，保留 `CASTER::*` facade。
 
 ## 待确认问题
@@ -189,6 +190,9 @@
 - 新增 `AuditLogRepository` 与 `AuditLogService`：将 HTTP audit sink 写入、secret masking、target 推断、错误消息提取、`LOG:AUDIT` 分页查询和 actor/action/target 过滤从 `http_handler.cpp` 移出。
 - `RedisHashClient` 增加默认 `incr/lpush/ltrim/llen` 扩展点，`schema_smoke` fake Redis 支持 list 写入、trim、计数器和长度查询；audit service 保持旧策略：只记录 POST/PUT/DELETE/PATCH，跳过 login，payload 字段仍保存为字符串化 JSON。
 - 扩展 `schema_smoke`：覆盖 audit secret masking、target 推断、写入跳过规则、错误消息、payload 格式、list 过滤、cursor/has_more/total。
+- 新增 `ClusterMonitorRepository` 与 `ClusterMonitorService`：将 `/api/monitor/cluster` 从 `http_handler.cpp` 移出，集中读取 `CASTER:MASTER`、`CASTER:NODE`、`PULL:STAT`、`PUSH:STAT` 并生成集群监控快照。
+- Cluster monitor service 保持旧接口契约：master 缺失返回空字符串，relay 仅统计 `state==1`，stringified JSON relay 可解析，非 object node 计入 `total_nodes` 但不进入 `nodes[]`，`update_time==0` 仍视为在线，在线聚合只累计在线节点。
+- 扩展 `schema_smoke`：覆盖 cluster monitor repository 读 key、固定时间聚合、在线/离线判定、非 object node 计数、relay 按节点计数、无 node_uid relay 只计入总数、固定 Redis latency 和 service 200 响应。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -299,5 +303,9 @@
   - Audit log service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Audit log service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Audit log service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Cluster monitor service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Cluster monitor service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Cluster monitor service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Cluster monitor service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

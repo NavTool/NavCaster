@@ -7,6 +7,7 @@
 #include "alias_controller.h"
 #include "alias_repository.h"
 #include "audit_log_service.h"
+#include "cluster_monitor_service.h"
 #include "config_controller.h"
 #include "config_repository.h"
 #include "connection_history_service.h"
@@ -27,7 +28,6 @@
 #include "system_event_service.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
-#include <chrono>
 #include <ctime>
 #include <iomanip>
 #include <set>
@@ -44,7 +44,6 @@ static const char *KEY_PULL_RECORD = navcaster::redis_keys::PULL_RECORD;
 static const char *KEY_PULL_STATE = navcaster::redis_keys::PULL_STAT;
 static const char *KEY_PUSH_RECORD = navcaster::redis_keys::PUSH_RECORD;
 static const char *KEY_PUSH_STATE = navcaster::redis_keys::PUSH_STAT;
-static const char *KEY_CASTER_NODE = "CASTER:NODE";
 static const char *KEY_MPT_ONLINE = "MPT:LIST";
 static const char *KEY_MPT_SUB = "MPT:SUB";
 static const char *KEY_LOG_MPT = "LOG:MPT";
@@ -2183,155 +2182,11 @@ void http_handler::handle_get_monitor_redis_keys(const HttpRequest &req, HttpRes
 
 void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpResponse &resp)
 {
-    auto &redis = sync_redis::instance();
-
-    // Get master node
-    auto master_val = redis.get("CASTER:MASTER");
-    std::string master_node = master_val.is_string() ? master_val.get<std::string>() : "";
-
-    // 全局推/拉统计 (跨节点合计，仅统计 state==1 的有效连接)
-    int total_pull = 0;
-    int total_push = 0;
-    std::unordered_map<std::string, int> pull_by_node;
-    std::unordered_map<std::string, int> push_by_node;
-    auto collect_running_relays = [](const json &states, std::unordered_map<std::string, int> &by_node) {
-        int total = 0;
-        if (!states.is_object())
-        {
-            return total;
-        }
-        for (const auto &[uid, value] : states.items())
-        {
-            json item = value;
-            if (item.is_string())
-            {
-                try { item = json::parse(item.get<std::string>()); }
-                catch (...) { continue; }
-            }
-            if (!item.is_object() || item.value("state", 0) != 1)
-            {
-                continue;
-            }
-            total++;
-            std::string node_uid = item.value("node_uid", std::string());
-            if (!node_uid.empty())
-            {
-                by_node[node_uid]++;
-            }
-        }
-        return total;
-    };
-
-    total_pull = collect_running_relays(redis.hgetall("PULL:STAT"), pull_by_node);
-    total_push = collect_running_relays(redis.hgetall("PUSH:STAT"), push_by_node);
-
-    // Get all nodes
-    auto nodes_raw = redis.hgetall(KEY_CASTER_NODE);
-    int total_nodes = 0;
-    int online_nodes = 0;
-    int total_servers = 0;
-    int total_clients = 0;
-    double total_cpu = 0.0;
-    double total_mem = 0.0;
-    double total_send = 0.0;
-    double total_recv = 0.0;
-    long long now_ts = static_cast<long long>(std::time(nullptr));
-    json nodes_array = json::array();
-
-    for (auto &[uid, node_data] : nodes_raw.items())
-    {
-        total_nodes++;
-        json node_info;
-        if (node_data.is_object())
-            node_info = node_data;
-        else
-            continue;
-
-        bool is_master = (uid == master_node);
-        // proto JSON 使用 snake_case (preserve_proto_field_names=true)
-        int mpt = node_info.value("server_count", 0);
-        int usr = node_info.value("client_count", 0);
-        int pull = pull_by_node[uid];
-        int push = push_by_node[uid];
-        int conn = node_info.value("connect_count", 0);
-        double cpu = node_info.value("cpu_usage", 0.0);
-        double mem = node_info.value("mem_usage", 0.0);
-        double send_s = node_info.value("send_speed", 0.0);
-        double recv_s = node_info.value("recv_speed", 0.0);
-        long long send_t = node_info.value("send_total", 0LL);
-        long long recv_t = node_info.value("recv_total", 0LL);
-        long long online_time = node_info.value("online_time", 0LL);
-        long long update_time = node_info.value("update_time", 0LL);
-        long long uptime_sec = (online_time > 0) ? (now_ts - online_time) : 0;
-
-        // 节点心跳判定: update_time 超过 60s 视为掉线
-        bool online = (update_time == 0) || (now_ts - update_time < 60);
-        if (online)
-        {
-            online_nodes++;
-            total_servers += mpt;
-            total_clients += usr;
-            total_cpu += cpu;
-            total_mem += mem;
-            total_send += send_s;
-            total_recv += recv_s;
-        }
-
-        nodes_array.push_back({
-            {"uid", uid},
-            {"node_name", node_info.value("node_name", "")},
-            {"is_master", is_master},
-            {"online", online},
-            {"cpu", cpu},
-            {"mem", mem},
-            {"mpt", mpt},
-            {"usr", usr},
-            {"pull", pull},
-            {"push", push},
-            {"conn", conn},
-            {"send_speed", send_s},
-            {"recv_speed", recv_s},
-            {"send_total", send_t},
-            {"recv_total", recv_t},
-            {"set_version", node_info.value("set_version", "")},
-            {"tag_version", node_info.value("tag_version", "")},
-            {"queue_delay", node_info.value("queue_delay", 0)},
-            {"hostname", node_info.value("hostname", "")},
-            {"listen_port", node_info.value("listen_port", 0)},
-            {"http_port", node_info.value("http_port", 0)},
-            {"process_id", node_info.value("process_id", 0LL)},
-            {"http_enabled", node_info.value("http_enabled", false)},
-            {"online_time", online_time},
-            {"update_time", update_time},
-            {"uptime_sec", uptime_sec},
-            {"pub_ping_delay", node_info.value("pub_ping_delay", 0LL)},
-            {"sub_ping_delay", node_info.value("sub_ping_delay", 0LL)}
-        });
-    }
-
-    // Get Redis latency (simple PING round-trip)
-    auto t_start = std::chrono::steady_clock::now();
-    redis.get("CASTER:MASTER"); // simple round-trip
-    auto t_end = std::chrono::steady_clock::now();
-    double latency_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-
-    json result = {
-        {"master_node", master_node},
-        {"total_nodes", total_nodes},
-        {"online_nodes", online_nodes},
-        {"total_servers", total_servers},
-        {"total_clients", total_clients},
-        {"total_pull", total_pull},
-        {"total_push", total_push},
-        {"total_cpu", total_cpu},
-        {"total_mem", total_mem},
-        {"total_send_speed", total_send},
-        {"total_recv_speed", total_recv},
-        {"redis_latency_ms", latency_ms},
-        {"nodes", nodes_array}};
-
-    resp.status_code = 200;
-    resp.body = result.dump();
+    (void)req;
+    navcaster::http_api::ClusterMonitorService service(sync_redis::instance());
+    auto result = service.snapshot(static_cast<long long>(std::time(nullptr)));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== V3 \u5ba1\u8ba1 / \u73af\u5f62\u65e5\u5fd7 / Redis \u91c7\u6837 / \u8282\u70b9\u4e8b\u4ef6 / \u52a8\u6001\u65e5\u5fd7\u7ea7\u522b ====================

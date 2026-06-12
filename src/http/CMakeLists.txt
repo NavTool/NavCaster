@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SOURCES
     http_server.h      http_server.cpp
     http_handler.h     http_handler.cpp
+    cluster_monitor_service.h cluster_monitor_service.cpp
     connection_history_service.h connection_history_service.cpp
     controller_response.h
     controller_helpers.h
