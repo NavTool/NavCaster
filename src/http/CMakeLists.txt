@@ -20,6 +20,7 @@ set(SOURCES
     sourcetable_service.h sourcetable_service.cpp
     statistics_service.h statistics_service.cpp
     source_controller.h source_controller.cpp
+    system_event_service.h system_event_service.cpp
     redis_adapter.h    redis_adapter.cpp
     sse_manager.h      sse_manager.cpp
     sse_snapshot_service.h sse_snapshot_service.cpp

@@ -22,6 +22,7 @@
 #include "source_controller.h"
 #include "source_repository.h"
 #include "sse_snapshot_service.h"
+#include "system_event_service.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
@@ -2537,32 +2538,11 @@ void http_handler::handle_get_system_events(const HttpRequest &req, HttpResponse
     long long limit = 100;
     auto it_l = req.query_params.find("limit");
     if (it_l != req.query_params.end()) try { limit = std::stoll(it_l->second); } catch (...) {}
-    if (limit <= 0 || limit > 500) limit = 100;
 
-    auto &redis = sync_redis::instance();
-    auto keys = redis.scan_all_keys(500);
-    std::vector<std::string> node_keys;
-    for (auto &k : keys)
-        if (k.size() > 9 && k.compare(0, 9, "LOG:NODE:") == 0)
-            node_keys.push_back(k);
-
-    json items = json::array();
-    for (auto &k : node_keys)
-    {
-        json arr = redis.lrange(k.c_str(), 0, limit - 1);
-        for (auto &e : arr)
-            if (e.is_object()) items.push_back(e);
-    }
-    // \u6309 timestamp \u964d\u5e8f
-    std::sort(items.begin(), items.end(), [](const json &a, const json &b){
-        return a.value("timestamp", 0ULL) > b.value("timestamp", 0ULL);
-    });
-    if ((long long)items.size() > limit)
-        items.erase(items.begin() + limit, items.end());
-
-    json result = {{"items", items}, {"count", items.size()}};
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::SystemEventService service(sync_redis::instance());
+    auto result = service.list(limit);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_set_node_log_level(const HttpRequest &req, HttpResponse &resp)

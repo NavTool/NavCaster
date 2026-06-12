@@ -25,6 +25,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/config_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/connection_history_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/node_history_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/system_event_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/source_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/alias_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/access_repository.cpp
@@ -43,6 +44,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/statistics_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/source_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sse_snapshot_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/system_event_service.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE casterbase caster_proto libprotobuf)

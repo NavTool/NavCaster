@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -22,6 +23,7 @@ public:
     virtual bool publish(const char *channel, const std::string &message) { return false; }
     virtual nlohmann::json scan_hgetall_prefix(const char *prefix) { return nlohmann::json::object(); }
     virtual nlohmann::json lrange(const char *key, long long start, long long stop) { return nlohmann::json::array(); }
+    virtual std::vector<std::string> scan_all_keys(int batch = 1000) { return {}; }
 };
 
 } // namespace navcaster::storage

@@ -24,6 +24,7 @@
 #include "source_repository.h"
 #include "statistics_service.h"
 #include "sse_snapshot_service.h"
+#include "system_event_service.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -164,6 +165,28 @@ public:
             result.push_back(items[static_cast<std::size_t>(i)]);
         }
         return result;
+    }
+
+    std::vector<std::string> scan_all_keys(int batch = 1000) override
+    {
+        (void)batch;
+        std::vector<std::string> keys;
+        for (const auto &[key, value] : hashes)
+        {
+            (void)value;
+            keys.push_back(key);
+        }
+        for (const auto &[key, value] : lists)
+        {
+            (void)value;
+            keys.push_back(key);
+        }
+        for (const auto &[key, value] : strings)
+        {
+            (void)value;
+            keys.push_back(key);
+        }
+        return keys;
     }
 
     std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> hashes;
@@ -312,6 +335,26 @@ int main()
     node_history_body = nlohmann::json::parse(node_history_response.body);
     expect_eq(node_history_body[0].value("bucket", std::string{}), "5m-a", "node history service 5m range");
     expect_eq_int(node_history_service.list("", "raw", 1).status_code, 400, "node history service missing node");
+
+    FakeRedisHashClient system_event_redis;
+    system_event_redis.hashes[redis_keys::log_node("node-a")]["100_start"] = {{"event", "start"}, {"node_id", "node-a"}, {"timestamp", 100}};
+    system_event_redis.hashes[redis_keys::log_node("node-a")]["300_master"] = {{"event", "master_acquired"}, {"node_id", "node-a"}, {"timestamp", 300}};
+    system_event_redis.hashes[redis_keys::log_node("node-a")]["bad"] = "ignored";
+    system_event_redis.hashes[redis_keys::log_node("node-b")]["200_stop"] = {{"event", "stop"}, {"node_id", "node-b"}, {"timestamp", 200}};
+    system_event_redis.hashes[redis_keys::log_mpt("MOUNT_A")]["not-node"] = {{"event", "ignored"}, {"timestamp", 999}};
+    navcaster::storage::SystemEventRepository system_event_repo(system_event_redis);
+    auto raw_node_events = system_event_repo.list_node_events();
+    expect_eq_int(static_cast<int>(raw_node_events.size()), 3, "system event repository reads node hash events");
+    navcaster::http_api::SystemEventService system_event_service(system_event_redis);
+    auto system_event_response = system_event_service.list(2);
+    expect_eq_int(system_event_response.status_code, 200, "system event service status");
+    auto system_event_body = nlohmann::json::parse(system_event_response.body);
+    expect_eq_int(system_event_body.value("count", 0), 2, "system event service applies limit");
+    expect_eq(system_event_body["items"][0].value("event", std::string{}), "master_acquired", "system event service sorts newest first");
+    expect_eq(system_event_body["items"][1].value("event", std::string{}), "stop", "system event service second newest");
+    system_event_response = system_event_service.list(0);
+    system_event_body = nlohmann::json::parse(system_event_response.body);
+    expect_eq_int(system_event_body.value("count", 0), 3, "system event service bad limit defaults");
 
     nlohmann::json helper_record = {{"uid", "helper"}, {"create_time", 0}};
     json_record::touch_timestamps(helper_record, 1234);
