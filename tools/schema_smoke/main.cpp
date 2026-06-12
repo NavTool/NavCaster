@@ -11,6 +11,7 @@
 #include "redis_keys.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
+#include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
 #include "source_controller.h"
 #include "source_repository.h"
@@ -651,6 +652,38 @@ int main()
     expect_true(runtime_repo.list(navcaster::storage::RuntimeStateKind::Server).contains("S1"), "runtime repository lists servers");
     expect_eq(runtime_repo.get(navcaster::storage::RuntimeStateKind::Server, "S1").value("uid", std::string{}), "S1", "runtime repository gets server");
     expect_true(runtime_repo.get(navcaster::storage::RuntimeStateKind::Server, "").is_null(), "runtime repository rejects empty get");
+
+    FakeRedisHashClient runtime_controller_redis;
+    navcaster::http_api::RuntimeStateController runtime_controller(runtime_controller_redis);
+    runtime_controller_redis.hset(navcaster::redis_keys::MPT_STAT, "srv-ctrl", nlohmann::json{{"uid", "srv-ctrl"}}.dump());
+    runtime_controller_redis.hset(navcaster::redis_keys::USR_STAT, "cli-ctrl", nlohmann::json{{"uid", "cli-ctrl"}}.dump());
+    runtime_controller_redis.hset(navcaster::redis_keys::STR_STAT, "str-ctrl", nlohmann::json{{"uid", "str-ctrl"}}.dump());
+    runtime_controller_redis.hset(navcaster::redis_keys::CASTER_NODE, "node-ctrl", nlohmann::json{{"uid", "node-ctrl"}}.dump());
+    auto runtime_response = runtime_controller.list(navcaster::storage::RuntimeStateKind::Server);
+    expect_eq_int(runtime_response.status_code, 200, "runtime controller list servers ok");
+    auto runtime_controller_body = nlohmann::json::parse(runtime_response.body);
+    expect_true(runtime_controller_body.contains("srv-ctrl"), "runtime controller list servers contains record");
+    runtime_response = runtime_controller.get(navcaster::storage::RuntimeStateKind::Server, "srv-ctrl");
+    expect_eq_int(runtime_response.status_code, 200, "runtime controller get server ok");
+    runtime_response = runtime_controller.get(navcaster::storage::RuntimeStateKind::Server, "");
+    expect_eq_int(runtime_response.status_code, 400, "runtime controller missing id");
+    runtime_response = runtime_controller.get(navcaster::storage::RuntimeStateKind::Server, "missing");
+    expect_eq_int(runtime_response.status_code, 404, "runtime controller missing record");
+    runtime_response = runtime_controller.list(navcaster::storage::RuntimeStateKind::Client);
+    runtime_controller_body = nlohmann::json::parse(runtime_response.body);
+    expect_true(runtime_controller_body.contains("cli-ctrl"), "runtime controller list clients contains record");
+    runtime_response = runtime_controller.list(navcaster::storage::RuntimeStateKind::Stream);
+    runtime_controller_body = nlohmann::json::parse(runtime_response.body);
+    expect_true(runtime_controller_body.contains("str-ctrl"), "runtime controller list streams contains record");
+    runtime_response = runtime_controller.list(navcaster::storage::RuntimeStateKind::Node);
+    runtime_controller_body = nlohmann::json::parse(runtime_response.body);
+    expect_true(runtime_controller_body.contains("node-ctrl"), "runtime controller list nodes contains record");
+    runtime_response = runtime_controller.get(navcaster::storage::RuntimeStateKind::Client, "cli-ctrl");
+    expect_eq_int(runtime_response.status_code, 200, "runtime controller get client ok");
+    runtime_response = runtime_controller.get(navcaster::storage::RuntimeStateKind::Stream, "str-ctrl");
+    expect_eq_int(runtime_response.status_code, 200, "runtime controller get stream ok");
+    runtime_response = runtime_controller.get(navcaster::storage::RuntimeStateKind::Node, "node-ctrl");
+    expect_eq_int(runtime_response.status_code, 200, "runtime controller get node ok");
 
     navcaster::storage::ConfigSection config_section;
     expect_true(navcaster::storage::parse_config_section("service", config_section), "config parses service section");

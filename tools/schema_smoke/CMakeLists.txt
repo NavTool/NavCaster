@@ -29,6 +29,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/alias_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/config_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/runtime_state_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/source_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sse_snapshot_service.cpp
 )

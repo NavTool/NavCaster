@@ -13,6 +13,7 @@ set(SOURCES
     alias_controller.h alias_controller.cpp
     config_controller.h config_controller.cpp
     relay_controller.h relay_controller.cpp
+    runtime_state_controller.h runtime_state_controller.cpp
     source_controller.h source_controller.cpp
     redis_adapter.h    redis_adapter.cpp
     sse_manager.h      sse_manager.cpp

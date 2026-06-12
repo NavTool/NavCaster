@@ -14,6 +14,7 @@
 #include "ring_log_view.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
+#include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
 #include "source_controller.h"
 #include "source_repository.h"
@@ -1129,42 +1130,36 @@ void http_handler::handle_delete_source(const HttpRequest &req, HttpResponse &re
 
 void http_handler::handle_get_servers(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.list(navcaster::storage::RuntimeStateKind::Server);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.list(navcaster::storage::RuntimeStateKind::Server);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_server(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.get(navcaster::storage::RuntimeStateKind::Server, id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.get(navcaster::storage::RuntimeStateKind::Server, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Clients (USR:STAT) read-only ====================
 
 void http_handler::handle_get_clients(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.list(navcaster::storage::RuntimeStateKind::Client);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.list(navcaster::storage::RuntimeStateKind::Client);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_client(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.get(navcaster::storage::RuntimeStateKind::Client, id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.get(navcaster::storage::RuntimeStateKind::Client, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Force Offline (Kick) ====================
@@ -1217,21 +1212,18 @@ void http_handler::handle_kick_client(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_streams(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.list(navcaster::storage::RuntimeStateKind::Stream);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.list(navcaster::storage::RuntimeStateKind::Stream);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_stream(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.get(navcaster::storage::RuntimeStateKind::Stream, id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.get(navcaster::storage::RuntimeStateKind::Stream, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Aliases (ALIAS:RULE) ====================
@@ -1474,21 +1466,18 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp,
 
 void http_handler::handle_get_nodes(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.list(navcaster::storage::RuntimeStateKind::Node);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.list(navcaster::storage::RuntimeStateKind::Node);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_node(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
-    json data = repo.get(navcaster::storage::RuntimeStateKind::Node, id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    auto result = controller.get(navcaster::storage::RuntimeStateKind::Node, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Node History (NODE:HISTORY:*) read-only ====================
