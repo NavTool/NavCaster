@@ -8,6 +8,7 @@ set(SOURCES
     http_handler.h     http_handler.cpp
     controller_response.h
     controller_helpers.h
+    account_controller.h account_controller.cpp
     access_controller.h access_controller.cpp
     alias_controller.h alias_controller.cpp
     config_controller.h config_controller.cpp

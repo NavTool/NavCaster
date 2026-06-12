@@ -1,7 +1,7 @@
 #include "http_handler.h"
 #include "SysUsage.h"
 #include "Caster_Core.h"
-#include "account_repository.h"
+#include "account_controller.h"
 #include "access_controller.h"
 #include "access_repository.h"
 #include "alias_controller.h"
@@ -32,8 +32,6 @@
 #define __class__ "http_handler"
 
 // Redis key constants — matching CasterWeb and caster_internal
-static const char *KEY_ACCOUNT_RECORD = navcaster::redis_keys::ACT_RECORD;
-static const char *KEY_ACCOUNT_ACTIVE = navcaster::redis_keys::STR_ACTIVE_LEGACY;
 static const char *KEY_SOURCE_RECORD = navcaster::redis_keys::MPT_RECORD;
 static const char *KEY_SERVER_STATE = "MPT:STAT";
 static const char *KEY_CLIENT_STATE = "USR:STAT";
@@ -617,29 +615,6 @@ namespace
         return static_cast<std::int64_t>(std::time(nullptr));
     }
 
-    void write_account_repository_error(const navcaster::storage::AccountRepositoryResult &result, HttpResponse &resp)
-    {
-        switch (result.status)
-        {
-        case navcaster::storage::RepositoryStatus::Invalid:
-            resp.status_code = 400;
-            break;
-        case navcaster::storage::RepositoryStatus::NotFound:
-            resp.status_code = 404;
-            break;
-        case navcaster::storage::RepositoryStatus::Conflict:
-            resp.status_code = 409;
-            break;
-        case navcaster::storage::RepositoryStatus::RedisError:
-            resp.status_code = 500;
-            break;
-        case navcaster::storage::RepositoryStatus::Ok:
-            resp.status_code = 200;
-            break;
-        }
-        resp.body = json{{"error", result.error.empty() ? "Repository error" : result.error}}.dump();
-    }
-
     void write_repository_error(navcaster::storage::RepositoryStatus status, const std::string &error, HttpResponse &resp)
     {
         switch (status)
@@ -1062,113 +1037,50 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_accounts(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
-    json data = repo.list_accounts();
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    auto result = controller.list_accounts();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_account(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty() || id == "active")
-    {
-        handle_get_account_actives(req, resp);
-        return;
-    }
-    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
-    json data = repo.get_account(id);
-    if (data.is_null())
-    {
-        resp.status_code = 404;
-        resp.body = R"({"error":"Account not found"})";
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    auto result = controller.get_account(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_create_account(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try
-    {
-        body = json::parse(req.body);
-    }
-    catch (...)
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Invalid JSON"})";
-        return;
-    }
-    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
-    auto result = repo.create_account(std::move(body), current_unix_seconds());
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_account_repository_error(result, resp);
-        return;
-    }
-    resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"account", result.account}}.dump();
+    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    auto result = controller.create_account(req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_update_account(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing account name"})";
-        return;
-    }
-    json body;
-    try
-    {
-        body = json::parse(req.body);
-    }
-    catch (...)
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Invalid JSON"})";
-        return;
-    }
-    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
-    auto result = repo.update_account(id, std::move(body), current_unix_seconds());
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_account_repository_error(result, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    auto result = controller.update_account(get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_delete_account(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing account name"})";
-        return;
-    }
-    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
-    auto result = repo.delete_account(id);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_account_repository_error(result, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    auto result = controller.delete_account(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_account_actives(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::AccountRepository repo(sync_redis_auth::instance().redis());
-    json data = repo.list_legacy_active_sessions();
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    auto result = controller.list_active_sessions();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Sources (MPT:RECORD) ====================

@@ -1,4 +1,5 @@
 #include "account_repository.h"
+#include "account_controller.h"
 #include "account_schema.h"
 #include "access_controller.h"
 #include "access_repository.h"
@@ -439,6 +440,72 @@ int main()
     expect_true(fake_redis.hget(navcaster::redis_keys::ACT_RECORD, "repo-user").is_null(), "repository delete removes record");
     expect_true(fake_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "repo-user").is_null(), "repository delete removes active index");
     expect_true(account_repo.delete_account("repo-user").status == navcaster::storage::RepositoryStatus::NotFound, "repository missing delete not found");
+
+    FakeRedisHashClient account_controller_redis;
+    navcaster::http_api::AccountController account_controller(account_controller_redis, 12000);
+    auto account_response = account_controller.list_accounts();
+    expect_eq_int(account_response.status_code, 200, "account controller list ok");
+    account_response = account_controller.create_account(R"({"account":"ctrl-user","password":"secret","state":1,"active":1})");
+    expect_eq_int(account_response.status_code, 201, "account controller create ok");
+    auto account_controller_body = nlohmann::json::parse(account_response.body);
+    expect_eq(account_controller_body.value("account", std::string{}), "ctrl-user", "account controller create response");
+    auto controller_record = account_controller_redis.hget(navcaster::redis_keys::ACT_RECORD, "ctrl-user");
+    expect_true(controller_record.is_object(), "account controller writes account record");
+    expect_missing(controller_record, "password", "account controller create removes plaintext");
+    expect_has(controller_record, "password_hash", "account controller create hashes password");
+    expect_eq_int(controller_record.value("create_time", 0), 12000, "account controller create timestamp");
+    auto controller_active = account_controller_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "ctrl-user");
+    expect_true(controller_active.is_object(), "account controller writes active index");
+    expect_missing(controller_active, "password", "account controller active index removes plaintext");
+    account_response = account_controller.get_account("ctrl-user");
+    expect_eq_int(account_response.status_code, 200, "account controller get ok");
+    account_response = account_controller.list_accounts();
+    account_controller_body = nlohmann::json::parse(account_response.body);
+    expect_true(account_controller_body.contains("ctrl-user"), "account controller list contains account");
+    account_response = account_controller.create_account(R"({"account":"ctrl-user","password":"secret"})");
+    expect_eq_int(account_response.status_code, 409, "account controller duplicate create");
+    account_response = account_controller.create_account("{");
+    expect_eq_int(account_response.status_code, 400, "account controller create invalid json");
+    account_response = account_controller.create_account(R"({"account":"bad"})");
+    expect_eq_int(account_response.status_code, 400, "account controller create missing password");
+    account_response = account_controller.get_account("missing");
+    expect_eq_int(account_response.status_code, 404, "account controller missing get");
+    account_controller_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "session-user", nlohmann::json{{"account", "session-user"}}.dump());
+    account_response = account_controller.get_account("active");
+    expect_eq_int(account_response.status_code, 200, "account controller active special get ok");
+    account_controller_body = nlohmann::json::parse(account_response.body);
+    expect_true(account_controller_body.contains("session-user"), "account controller active special reads sessions");
+    account_response = account_controller.get_account("");
+    expect_eq_int(account_response.status_code, 200, "account controller empty get lists active sessions");
+    account_response = account_controller.list_active_sessions();
+    expect_eq_int(account_response.status_code, 200, "account controller list active sessions ok");
+    account_response = account_controller.update_account("ctrl-user", R"({"password":"","state":1,"active":1,"connection_limit":4})");
+    expect_eq_int(account_response.status_code, 200, "account controller update keeps password ok");
+    auto controller_record_after_keep = account_controller_redis.hget(navcaster::redis_keys::ACT_RECORD, "ctrl-user");
+    expect_eq(controller_record_after_keep.value("password_hash", std::string{}), controller_record.value("password_hash", std::string{}), "account controller empty password keeps hash");
+    expect_eq_int(controller_record_after_keep.value("connection_limit", 0), 4, "account controller update record field");
+    account_response = account_controller.update_account("ctrl-user", R"({"password":"rotated","state":1,"active":1})");
+    expect_eq_int(account_response.status_code, 200, "account controller update rotates password ok");
+    auto controller_record_after_rotate = account_controller_redis.hget(navcaster::redis_keys::ACT_RECORD, "ctrl-user");
+    expect_true(controller_record_after_rotate.value("password_hash", std::string{}) != controller_record_after_keep.value("password_hash", std::string{}), "account controller password rotation changes hash");
+    account_response = account_controller.update_account("ctrl-user", R"({"account":"other","password":"secret"})");
+    expect_eq_int(account_response.status_code, 400, "account controller rejects account mismatch");
+    account_response = account_controller.update_account("", R"({"password":"secret"})");
+    expect_eq_int(account_response.status_code, 400, "account controller update missing account");
+    account_response = account_controller.update_account("ctrl-user", "{");
+    expect_eq_int(account_response.status_code, 400, "account controller update invalid json");
+    account_response = account_controller.update_account("missing", R"({"password":"secret"})");
+    expect_eq_int(account_response.status_code, 404, "account controller update missing account");
+    account_response = account_controller.update_account("ctrl-user", R"({"password":"","state":2,"active":1})");
+    expect_eq_int(account_response.status_code, 200, "account controller disables account ok");
+    expect_true(account_controller_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "ctrl-user").is_null(), "account controller disabled account clears active index");
+    account_response = account_controller.delete_account("");
+    expect_eq_int(account_response.status_code, 400, "account controller delete missing account");
+    account_response = account_controller.delete_account("missing");
+    expect_eq_int(account_response.status_code, 404, "account controller delete missing account not found");
+    account_response = account_controller.delete_account("ctrl-user");
+    expect_eq_int(account_response.status_code, 200, "account controller delete ok");
+    expect_true(account_controller_redis.hget(navcaster::redis_keys::ACT_RECORD, "ctrl-user").is_null(), "account controller delete removes account");
 
     navcaster::storage::SourceRepositoryResult source_plan;
     nlohmann::json source_body = {{"mountpoint", "MOUNT1"}, {"format", "RTCM3"}};
