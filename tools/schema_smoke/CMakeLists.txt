@@ -20,6 +20,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/core/context/context_util.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/redis_keys.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_schema.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/audit_log_repository.cpp
@@ -34,6 +35,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/alias_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/access_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/access_policy_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/source_table_service.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/relay_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/redis_monitor_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/runtime_state_repository.cpp

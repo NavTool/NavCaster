@@ -82,7 +82,8 @@
 ### Phase 4：拆 Caster Core
 
 - [x] 抽 AccessPolicyService，保留 `caster_internal`/`CASTER::*` 现有入口。
-- [ ] 抽 SourceTable、Cluster、RelayScheduler、History 等服务。
+- [x] 抽 SourceTableService，保留 `caster_internal::get_source_list_text` 现有入口。
+- [ ] 抽 Cluster、RelayScheduler、History 等服务。
 - [ ] Phase 4 完成后复核 `CASTER::*` facade 边界。
 
 ### Phase 5：物理目录迁移
@@ -93,7 +94,7 @@
 
 继续 Phase 4/5：
 
-1. Phase 4 Core：按 Dewey 子代理给出的行为契约先抽 SourceTable 纯逻辑，注意不要用 `_active_mount_map` 过滤源表。
+1. Phase 4 Core：继续拆 RelayScheduler、History、Cluster 等纯逻辑/状态服务，仍保留 `CASTER::*` facade。
 2. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
 
 ## 待确认问题
@@ -390,3 +391,11 @@
   - AccessPolicyService 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - AccessPolicyService 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - AccessPolicyService 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - 新增 `SourceTableService`：将 `caster_internal::get_source_list_text` 的源表生成纯逻辑抽到 core context service，保留 decode/record 合并、可见性检查、alias 投影、nearest 默认行追加等原行为；`caster_internal` 仅负责委托。
+  - `schema_smoke` 新增 SourceTable 纯逻辑测试：覆盖手动 source 覆盖 decode、无策略全可见、inside/outside visible、item 强制显示/隐藏、alias 按 alias 名可见性过滤、alias 源缺失跳过、alias/原始 mount 去重、nearest 默认行追加、缺失 group 隐藏、`SYSTEM` 可见性 bypass。
+  - Singer 子代理只读复核 SourceTable 抽离，结论为未发现行为偏差；核对了合并顺序、visibility map key、去重 mountpoint、visible alias 和 nearest 追加契约。
+  - SourceTableService 抽离后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - SourceTableService 抽离后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - SourceTableService 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - SourceTableService 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - SourceTableService 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。

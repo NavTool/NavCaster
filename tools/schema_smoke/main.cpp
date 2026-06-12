@@ -38,9 +38,11 @@
 #include "sse_snapshot_service.h"
 #include "status_service.h"
 #include "system_event_service.h"
+#include "source_table_service.h"
 
 #include <cstdlib>
 #include <iostream>
+#include <sstream>
 #include <utility>
 #include <string>
 #include <unordered_map>
@@ -420,7 +422,9 @@ access_item make_access_policy_item(const std::string &mount_point,
     return item;
 }
 
-source_record make_access_policy_source(const std::string &mount_point, const std::string &group_uid)
+source_record make_access_policy_source(const std::string &mount_point,
+                                        const std::string &group_uid,
+                                        nlohmann::json overrides = nlohmann::json::object())
 {
     source_record source(mount_point);
     nlohmann::json body = {
@@ -428,8 +432,50 @@ source_record make_access_policy_source(const std::string &mount_point, const st
         {"mountpoint", mount_point},
         {"source_group_uid", group_uid},
     };
+    for (auto it = overrides.begin(); it != overrides.end(); ++it)
+    {
+        body[it.key()] = it.value();
+    }
     expect_eq_int(source.fromString(body.dump()), 0, "access policy source parse " + mount_point);
     return source;
+}
+
+std::vector<std::string> split_fields(const std::string &line)
+{
+    std::vector<std::string> fields;
+    std::stringstream stream(line);
+    std::string field;
+    while (std::getline(stream, field, ';'))
+    {
+        fields.push_back(field);
+    }
+    return fields;
+}
+
+std::unordered_map<std::string, std::vector<std::string>> source_table_by_mount(const std::string &text)
+{
+    std::unordered_map<std::string, std::vector<std::string>> result;
+    std::size_t pos = 0;
+    while (pos < text.size())
+    {
+        std::size_t end = text.find("\r\n", pos);
+        if (end == std::string::npos)
+        {
+            end = text.size();
+        }
+        const std::string line = text.substr(pos, end - pos);
+        if (!line.empty())
+        {
+            auto fields = split_fields(line);
+            expect_true(fields.size() >= 19, "source table field count");
+            if (fields.size() > 1)
+            {
+                result[fields[1]] = std::move(fields);
+            }
+        }
+        pos = end + 2;
+    }
+    return result;
 }
 } // namespace
 
@@ -2076,6 +2122,76 @@ int main()
     access_reason.clear();
     expect_true(!access_policy.check_nearest_mount_login("ops", "OTHER", &access_reason), "access policy nearest login wrong mount");
     expect_eq(access_reason, "Nearest mount point not configured for group", "access policy nearest wrong mount reason");
+
+    navcaster::core::SourceRecordMap table_records;
+    navcaster::core::SourceRecordMap table_decodes;
+    navcaster::core::AccessGroupMap table_groups;
+    navcaster::core::AccessItemMap table_items;
+    navcaster::core::AliasVisibleMap table_aliases;
+    table_decodes.emplace("SRC1", make_access_policy_source("SRC1", "ops", {
+                                         {"format_details", "DECODE"},
+                                         {"nav_system", "GPS"},
+                                         {"latitude", "31.00"},
+                                         {"longitude", "121.00"},
+                                     }));
+    table_records.emplace("SRC1", make_access_policy_source("SRC1", "ops", {
+                                         {"format_details", "MANUAL"},
+                                         {"nav_system", "BDS"},
+                                         {"latitude", "32.00"},
+                                         {"longitude", "122.00"},
+                                     }));
+    table_records.emplace("OUTSIDE", make_access_policy_source("OUTSIDE", "other", {
+                                           {"format_details", "OUT"},
+                                       }));
+    navcaster::core::SourceTableService open_table(table_records, table_decodes, table_groups, table_items, table_aliases);
+    auto table_by_mount = source_table_by_mount(open_table.build_text(""));
+    expect_true(table_by_mount.contains("SRC1"), "source table open includes source");
+    expect_eq(table_by_mount["SRC1"][4], "MANUAL", "source table record overrides decode details");
+    expect_eq(table_by_mount["SRC1"][6], "BDS", "source table record overrides decode nav");
+    expect_eq(table_by_mount["SRC1"][9], "32.00", "source table record overrides latitude");
+    expect_true(table_by_mount.contains("OUTSIDE"), "source table open includes all without policy");
+
+    table_groups.emplace("ops", make_access_policy_group("ops", {
+                                      {"nearest_mpt_enable", true},
+                                      {"nearest_mpt_source_name", "NEAREST"},
+                                      {"allow_visible_inside_group", true},
+                                      {"allow_visible_outside_group", false},
+                                  }));
+    table_items["ops"].emplace("OUTSIDE", make_access_policy_item("OUTSIDE",
+                                                                   caster::core::ACCESS_STATE_ENABLE,
+                                                                   caster::core::ACCESS_STATE_DEFALT,
+                                                                   caster::core::ACCESS_STATE_DEFALT));
+    table_items["ops"].emplace("HIDDEN", make_access_policy_item("HIDDEN",
+                                                                 caster::core::ACCESS_STATE_DISABLE,
+                                                                 caster::core::ACCESS_STATE_DEFALT,
+                                                                 caster::core::ACCESS_STATE_DEFALT));
+    table_items["ops"].emplace("ALIAS_SRC1", make_access_policy_item("ALIAS_SRC1",
+                                                                     caster::core::ACCESS_STATE_ENABLE,
+                                                                     caster::core::ACCESS_STATE_DEFALT,
+                                                                     caster::core::ACCESS_STATE_DEFALT));
+    table_items["ops"].emplace("ALIAS_MISSING", make_access_policy_item("ALIAS_MISSING",
+                                                                        caster::core::ACCESS_STATE_ENABLE,
+                                                                        caster::core::ACCESS_STATE_DEFALT,
+                                                                        caster::core::ACCESS_STATE_DEFALT));
+    table_records.emplace("HIDDEN", make_access_policy_source("HIDDEN", "ops"));
+    table_records.emplace("SRC_DUP_ALIAS", make_access_policy_source("ALIAS_DUP", "ops"));
+    table_aliases["ALIAS_SRC1"] = "SRC1";
+    table_aliases["ALIAS_MISSING"] = "MISSING";
+    table_aliases["ALIAS_DUP"] = "SRC1";
+    navcaster::core::SourceTableService policy_table(table_records, table_decodes, table_groups, table_items, table_aliases);
+    table_by_mount = source_table_by_mount(policy_table.build_text("ops"));
+    expect_true(table_by_mount.contains("SRC1"), "source table policy includes inside source");
+    expect_true(table_by_mount.contains("OUTSIDE"), "source table policy item visible override");
+    expect_true(!table_by_mount.contains("HIDDEN"), "source table policy item visible deny");
+    expect_true(table_by_mount.contains("ALIAS_SRC1"), "source table includes visible alias");
+    expect_eq(table_by_mount["ALIAS_SRC1"][4], "MANUAL", "source table alias keeps source fields");
+    expect_true(!table_by_mount.contains("ALIAS_MISSING"), "source table skips missing alias source");
+    expect_true(table_by_mount.contains("ALIAS_DUP"), "source table keeps original duplicate mount");
+    expect_eq_int(static_cast<int>(table_by_mount.count("ALIAS_DUP")), 1, "source table duplicate alias not repeated");
+    expect_true(table_by_mount.contains("NEAREST"), "source table appends nearest default");
+    expect_eq(table_by_mount["NEAREST"][4], "1074(1),1084(1),1094(1),1124(1)", "source table nearest default details");
+    expect_true(source_table_by_mount(policy_table.build_text("missing")).empty(), "source table missing group hidden");
+    expect_true(source_table_by_mount(policy_table.build_text("SYSTEM")).contains("HIDDEN"), "source table system sees hidden source");
 
     FakeRedisHashClient relay_controller_redis;
     navcaster::http_api::RelayController relay_controller(relay_controller_redis);

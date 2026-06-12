@@ -17,6 +17,7 @@
 #include "knt.h"
 #include "SysUsage.h"
 #include "access_policy_service.h"
+#include "source_table_service.h"
 #include "version.h"
 
 #define __class__ "caster_internal"
@@ -790,65 +791,12 @@ int caster_internal::set_connect_delay_info(const char *connect_key, uint64_t de
 
 std::string caster_internal::get_source_list_text(const std::string &group_uid)
 {
-    const auto group = normalize_access_group_uid(group_uid);
-    // 合并自动解析和手动设置的源列表，手动设置的优先级更高
-    std::unordered_map<std::string, source_record> merged_map = _source_decode_map;
-    for (const auto &item : _source_record_map)
-    {
-        merged_map.insert_or_assign(item.first, item.second); // 手动设置覆盖自动解析
-    }
-
-    std::string str;
-    std::set<std::string> emitted_mounts;
-    for (const auto &iter : merged_map)
-    {
-        if (!check_mount_visible(group, iter.first))
-        {
-            continue;
-        }
-        str += iter.second.toSourceItem();
-        emitted_mounts.insert(iter.second.mountpoint());
-    }
-
-    // 添加可见的别名挂载点到源表 (使用源挂载点的信息，但替换挂载点名为别名)
-    for (const auto &alias : _alias_visible_map)
-    {
-        const std::string &alias_name = alias.first;
-        const std::string &source_name = alias.second;
-
-        // 跳过已经存在同名的挂载点（避免重复）
-        if (emitted_mounts.find(alias_name) != emitted_mounts.end())
-            continue;
-        if (!check_mount_visible(group, alias_name))
-            continue;
-
-        // 从已合并的源中查找原始挂载点信息
-        auto src_it = merged_map.find(source_name);
-        if (src_it != merged_map.end())
-        {
-            // 复制源挂载点信息，替换挂载点名
-            source_record alias_record = src_it->second;
-            alias_record.set_mountpoint(alias_name);
-            str += alias_record.toSourceItem();
-            emitted_mounts.insert(alias_name);
-        }
-    }
-
-    auto group_policy = _access_group_map.find(group);
-    if (group_policy != _access_group_map.end() && group_policy->second.nearest_mpt_enable())
-    {
-        const auto &nearest_mount = group_policy->second.nearest_mpt_source_name();
-        if (nearest_mount.empty() || emitted_mounts.find(nearest_mount) != emitted_mounts.end())
-        {
-            return str;
-        }
-
-        auto nearest_info = build_default_mount_info(nearest_mount);
-        str += convert_mount_info_to_string(nearest_info);
-        emitted_mounts.insert(nearest_mount);
-    }
-
-    return str;
+    navcaster::core::SourceTableService source_table(_source_record_map,
+                                                     _source_decode_map,
+                                                     _access_group_map,
+                                                     _access_item_map,
+                                                     _alias_visible_map);
+    return source_table.build_text(group_uid);
 }
 
 int caster_internal::set_base_coord_info(const char *mount_point, const char *connect_key, double ecef_x, double ecef_y, double ecef_z)
