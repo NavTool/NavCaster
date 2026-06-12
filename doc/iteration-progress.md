@@ -90,13 +90,14 @@
 
 ### Phase 5：物理目录迁移
 
-- [ ] 等边界稳定后再移动目录和 CMake。
+- [x] Phase 5.1：在 `src/core/context` 下建立 `services/` 与 `repositories/` 子目录，先迁移低风险 core service 与只读 repository。
+- [ ] 后续批次再评估 account/source/access/relay/config/runtime repository 与顶层目录迁移。
 
 ## 下一步建议
 
 继续 Phase 4/5：
 
-1. Phase 5 准备：评估物理目录与 CMake 组织迁移，避免一次性移动过多文件。
+1. Phase 5 后续批次：评估是否继续迁移 account/source/access/relay/config/runtime repository，或先停止在 core 内部子目录层级。
 2. Cluster 后续专项：先定义 async Redis port、master lease 状态机、cluster snapshot/state owner，再覆盖 acquire/lost、partial sync、callback 顺序和 relay status map 复用契约。
 
 ## 待确认问题
@@ -422,3 +423,13 @@
   - Pascal 子代理只读分析 Cluster core 边界，结论为不建议当前做“小切片”抽离：master lease、`sync_cluster_state` async Redis callback 顺序、relay status map 复用交织较深，半截抽离收益低且容易改变失败/时序行为。
   - Phase 4 收口决策：AccessPolicy、SourceTable、RelayScheduler、NodeHistoryRecorder 等主要可测试纯逻辑已拆出并验证；Cluster 主节点租约/同步编排转为后续专项设计，不作为本轮 Phase 4 阻塞项。
   - Phase 4 收口后重新执行 `cmake --build build --target schema_smoke --config Release --parallel && bin\Release\schema_smoke.exe && cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false && cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false && cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Phase 5.1 目录迁移：在 `src/core/context/services/` 下迁移 `AccessPolicyService`、`SourceTableService`、`RelayScheduler`、`NodeHistoryRecorder`；在 `src/core/context/repositories/` 下迁移 audit/cluster monitor/connection history/mountpoint subscriber/node history/redis monitor/system event repository。
+  - Phase 5.1 暂不迁移高扇出 helper 与 repository：`redis_keys`、`redis_hash_client`、`repository_status`、`json_record`、`context_util`、account/source/access/relay/config/runtime repository 与 DTO/status 类型保持原位。
+  - Phase 5.1 CMake 调整：`castercore` 增加 `context/services` 与 `context/repositories` include dir，继续依赖 `GLOB_RECURSE` 纳入子目录；`schema_smoke` 增加对应 include dir 并更新显式 source 路径。
+  - Anscombe 子代理只读复核 Phase 5.1 方案，建议保持裸 include 兼容、先在 core context 内部子目录迁移，不先搬到顶层 `src/services`/`src/storage`。
+  - Phase 5.1 迁移后执行 `cmake -S . -B build` 通过。
+  - Phase 5.1 迁移后执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Phase 5.1 迁移后执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Phase 5.1 迁移后执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Phase 5.1 迁移后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Phase 5.1 迁移后执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。

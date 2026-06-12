@@ -13,6 +13,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/base/include
     ${CMAKE_SOURCE_DIR}/src/core/include
     ${CMAKE_SOURCE_DIR}/src/core/context
+    ${CMAKE_SOURCE_DIR}/src/core/context/services
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories
     ${CMAKE_SOURCE_DIR}/src/http
     ${SPDLOG_INCLUDE_PATH}
     ${CMAKE_SOURCE_DIR}/third_party/libevent/include
@@ -23,23 +25,23 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/context_util.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/redis_keys.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_schema.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/audit_log_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories/audit_log_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_repository.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/cluster_monitor_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories/cluster_monitor_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/config_repository.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/connection_history_repository.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/mountpoint_subscriber_repository.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/node_history_repository.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/system_event_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories/connection_history_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories/mountpoint_subscriber_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories/node_history_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories/system_event_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/source_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/alias_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/access_repository.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/access_policy_service.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/source_table_service.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/relay_scheduler.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/node_history_recorder.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/services/access_policy_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/services/source_table_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/services/relay_scheduler.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/services/node_history_recorder.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/relay_repository.cpp
-    ${CMAKE_SOURCE_DIR}/src/core/context/redis_monitor_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/repositories/redis_monitor_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/runtime_state_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/http/account_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/audit_log_service.cpp

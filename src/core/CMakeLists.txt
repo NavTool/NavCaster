@@ -56,6 +56,8 @@ add_library(${PROJECT_NAME} STATIC ${CPP_SOURCE_FILES})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/context)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/context/services)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/context/repositories)
 target_include_directories(${PROJECT_NAME}  PRIVATE ${CMAKE_BINARY_DIR})
 target_link_libraries(${PROJECT_NAME} casterbase)
 target_link_libraries(${PROJECT_NAME} caster_proto)
@@ -77,7 +79,6 @@ include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})
 #spdlog
 add_definitions(-DUSE_SPD_LOG)
 include_directories(${PROJECT_NAME} ${SPDLOG_INCLUDE_PATH})
-
 
 
 
