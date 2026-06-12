@@ -7,6 +7,8 @@ set(SOURCES
     http_server.h      http_server.cpp
     http_handler.h     http_handler.cpp
     controller_response.h
+    controller_helpers.h
+    alias_controller.h alias_controller.cpp
     config_controller.h config_controller.cpp
     source_controller.h source_controller.cpp
     redis_adapter.h    redis_adapter.cpp

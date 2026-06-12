@@ -1,6 +1,7 @@
 #include "config_controller.h"
 
 #include "config_repository.h"
+#include "controller_helpers.h"
 
 #include <nlohmann/json.hpp>
 
@@ -11,19 +12,6 @@ namespace navcaster::http_api
 namespace
 {
 using json = nlohmann::json;
-
-ControllerResponse json_response(int status_code, const json &body)
-{
-    ControllerResponse response;
-    response.status_code = status_code;
-    response.body = body.dump();
-    return response;
-}
-
-ControllerResponse error_response(int status_code, const char *message)
-{
-    return json_response(status_code, json{{"error", message}});
-}
 } // namespace
 
 ConfigController::ConfigController(storage::RedisHashClient &redis, ConfigControllerDefaults defaults)

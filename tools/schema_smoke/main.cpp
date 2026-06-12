@@ -1,6 +1,7 @@
 #include "account_repository.h"
 #include "account_schema.h"
 #include "access_repository.h"
+#include "alias_controller.h"
 #include "alias_repository.h"
 #include "config_repository.h"
 #include "config_controller.h"
@@ -689,6 +690,34 @@ int main()
     expect_true(sse_snapshots.accounts().contains("acct-1"), "sse snapshot accounts uses auth redis");
     expect_true(!sse_snapshots.accounts().contains("wrong-redis"), "sse snapshot accounts ignores caster redis");
     expect_true(sse_snapshots.account_actives().contains("acct-1"), "sse snapshot account actives uses auth redis");
+
+    FakeRedisHashClient alias_controller_redis;
+    navcaster::http_api::AliasController alias_controller(alias_controller_redis, 10020);
+    auto alias_response = alias_controller.list_aliases();
+    expect_eq_int(alias_response.status_code, 200, "alias controller list ok");
+    alias_response = alias_controller.create_alias(R"({"uid":"ALCTRL","source_name":"SRC1"})");
+    expect_eq_int(alias_response.status_code, 201, "alias controller create ok");
+    auto alias_controller_body = nlohmann::json::parse(alias_response.body);
+    expect_eq(alias_controller_body.value("alias", std::string{}), "ALCTRL", "alias controller create response");
+    expect_eq(alias_controller_redis.publishes.back().second, "ALIAS", "alias controller create publishes");
+    alias_response = alias_controller.get_alias("ALCTRL");
+    expect_eq_int(alias_response.status_code, 200, "alias controller get ok");
+    alias_response = alias_controller.create_alias(R"({"uid":"ALCTRL","source_name":"SRC1"})");
+    expect_eq_int(alias_response.status_code, 409, "alias controller duplicate create");
+    alias_response = alias_controller.create_alias("{");
+    expect_eq_int(alias_response.status_code, 400, "alias controller invalid json");
+    alias_response = alias_controller.create_alias(R"({"uid":"BAD"})");
+    expect_eq_int(alias_response.status_code, 400, "alias controller missing source");
+    alias_response = alias_controller.get_alias("");
+    expect_eq_int(alias_response.status_code, 400, "alias controller missing get id");
+    alias_response = alias_controller.get_alias("missing");
+    expect_eq_int(alias_response.status_code, 404, "alias controller missing get");
+    alias_response = alias_controller.update_alias("ALCTRL", R"({"source_name":"SRC2"})");
+    expect_eq_int(alias_response.status_code, 200, "alias controller update ok");
+    alias_response = alias_controller.delete_alias("ALCTRL");
+    expect_eq_int(alias_response.status_code, 200, "alias controller delete ok");
+    alias_response = alias_controller.delete_alias("ALCTRL");
+    expect_eq_int(alias_response.status_code, 404, "alias controller missing delete");
 
     if (failures != 0)
     {

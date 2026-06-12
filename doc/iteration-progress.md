@@ -151,6 +151,9 @@
 - 新增 `SseSnapshotService`：SSE channel 快照统一改为通过 RuntimeState/Account/Source/Alias/Access/Relay repository 获取，`sse_manager` 继续只负责连接、轮询和广播。
 - 修正 SSE `accounts` 与 `account_actives` 数据源：从 caster Redis 直连切换为 auth Redis repository，和 REST 账号 API 的 Redis 实例保持一致；其余 caster 运行态/配置/relay channel 通过 caster Redis repository。
 - 扩展 `schema_smoke`：覆盖所有 SSE snapshot channel 的 repository 映射，并断言 `accounts` 忽略 caster Redis 中的 `ACT:RECORD`、读取 auth Redis 中的账号数据。
+- 新增 `ControllerResponse`/`controller_helpers` 公共 HTTP controller helper，复用 JSON 响应、错误响应、JSON body parse 与 `RepositoryStatus -> HTTP status` 映射。
+- 新增 `AliasController`：将 `/api/aliases` list/get/create/update/delete 业务逻辑从 `http_handler.cpp` 移出，保留 `AliasRepository` 的 `CASTER:CONF ALIAS` publish 副作用。
+- 扩展 `schema_smoke`：直接编译并测试 `AliasController`，覆盖 alias list/create/get/update/delete、publish、重复创建 409、非法 JSON 400、缺 source_name 400、缺 ID 400、缺失资源 404。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -205,5 +208,9 @@
   - SSE snapshot service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - SSE snapshot service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - SSE snapshot service 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `sse_snapshot_service.cpp` 已被 `casterhttp` 目标收编译。
+  - Alias controller 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Alias controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Alias controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Alias controller 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `alias_controller.cpp` 已被 `casterhttp` 目标收编译。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

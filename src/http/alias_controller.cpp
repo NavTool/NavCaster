@@ -1,7 +1,7 @@
-#include "source_controller.h"
+#include "alias_controller.h"
 
+#include "alias_repository.h"
 #include "controller_helpers.h"
-#include "source_repository.h"
 
 #include <nlohmann/json.hpp>
 
@@ -14,25 +14,25 @@ namespace
 using json = nlohmann::json;
 } // namespace
 
-SourceController::SourceController(storage::RedisHashClient &redis, std::int64_t now)
+AliasController::AliasController(storage::RedisHashClient &redis, std::int64_t now)
     : _redis(redis), _now(now)
 {
 }
 
-ControllerResponse SourceController::list_sources()
+ControllerResponse AliasController::list_aliases()
 {
-    storage::SourceRepository repo(_redis);
-    return json_response(200, repo.list_sources());
+    storage::AliasRepository repo(_redis);
+    return json_response(200, repo.list_aliases());
 }
 
-ControllerResponse SourceController::get_source(const std::string &mountpoint)
+ControllerResponse AliasController::get_alias(const std::string &uid)
 {
-    if (mountpoint.empty())
+    if (uid.empty())
     {
         return error_response(400, "Missing ID");
     }
-    storage::SourceRepository repo(_redis);
-    json data = repo.get_source(mountpoint);
+    storage::AliasRepository repo(_redis);
+    json data = repo.get_alias(uid);
     if (data.is_null())
     {
         return error_response(404, "Not found");
@@ -40,25 +40,25 @@ ControllerResponse SourceController::get_source(const std::string &mountpoint)
     return json_response(200, data);
 }
 
-ControllerResponse SourceController::create_source(const std::string &body_text)
+ControllerResponse AliasController::create_alias(const std::string &body_text)
 {
     json body;
     if (!parse_json_body(body_text, body))
     {
         return error_response(400, "Invalid JSON");
     }
-    storage::SourceRepository repo(_redis);
-    auto result = repo.create_source(std::move(body), _now);
+    storage::AliasRepository repo(_redis);
+    auto result = repo.create_alias(std::move(body), _now);
     if (result.status != storage::RepositoryStatus::Ok)
     {
         return repository_error(result.status, result.error);
     }
-    return json_response(201, json{{"ok", true}, {"mountpoint", result.mountpoint}});
+    return json_response(201, json{{"ok", true}, {"alias", result.uid}});
 }
 
-ControllerResponse SourceController::update_source(const std::string &mountpoint, const std::string &body_text)
+ControllerResponse AliasController::update_alias(const std::string &uid, const std::string &body_text)
 {
-    if (mountpoint.empty())
+    if (uid.empty())
     {
         return error_response(400, "Missing ID");
     }
@@ -67,8 +67,8 @@ ControllerResponse SourceController::update_source(const std::string &mountpoint
     {
         return error_response(400, "Invalid JSON");
     }
-    storage::SourceRepository repo(_redis);
-    auto result = repo.update_source(mountpoint, std::move(body), _now);
+    storage::AliasRepository repo(_redis);
+    auto result = repo.update_alias(uid, std::move(body), _now);
     if (result.status != storage::RepositoryStatus::Ok)
     {
         return repository_error(result.status, result.error);
@@ -76,14 +76,14 @@ ControllerResponse SourceController::update_source(const std::string &mountpoint
     return json_response(200, json{{"ok", true}});
 }
 
-ControllerResponse SourceController::delete_source(const std::string &mountpoint)
+ControllerResponse AliasController::delete_alias(const std::string &uid)
 {
-    if (mountpoint.empty())
+    if (uid.empty())
     {
         return error_response(400, "Missing ID");
     }
-    storage::SourceRepository repo(_redis);
-    auto result = repo.delete_source(mountpoint);
+    storage::AliasRepository repo(_redis);
+    auto result = repo.delete_alias(uid);
     if (result.status != storage::RepositoryStatus::Ok)
     {
         return repository_error(result.status, result.error);
