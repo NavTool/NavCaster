@@ -9,6 +9,7 @@
 #include "redis_keys.h"
 #include "ring_log_view.h"
 #include "relay_repository.h"
+#include "runtime_state_repository.h"
 #include "source_repository.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -1321,13 +1322,45 @@ void http_handler::handle_delete_source(const HttpRequest &req, HttpResponse &re
 
 // ==================== Servers (MPT:STAT) read-only ====================
 
-IMPL_GET_ALL(handle_get_servers, KEY_SERVER_STATE)
-IMPL_GET_ONE(handle_get_server, KEY_SERVER_STATE)
+void http_handler::handle_get_servers(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.list(navcaster::storage::RuntimeStateKind::Server);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_server(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.get(navcaster::storage::RuntimeStateKind::Server, id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 // ==================== Clients (USR:STAT) read-only ====================
 
-IMPL_GET_ALL(handle_get_clients, KEY_CLIENT_STATE)
-IMPL_GET_ONE(handle_get_client, KEY_CLIENT_STATE)
+void http_handler::handle_get_clients(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.list(navcaster::storage::RuntimeStateKind::Client);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_client(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.get(navcaster::storage::RuntimeStateKind::Client, id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 // ==================== Force Offline (Kick) ====================
 
@@ -1377,8 +1410,24 @@ void http_handler::handle_kick_client(const HttpRequest &req, HttpResponse &resp
 
 // ==================== Streams (STR:STAT) read-only ====================
 
-IMPL_GET_ALL(handle_get_streams, KEY_STREAM_STATE)
-IMPL_GET_ONE(handle_get_stream, KEY_STREAM_STATE)
+void http_handler::handle_get_streams(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.list(navcaster::storage::RuntimeStateKind::Stream);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_stream(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.get(navcaster::storage::RuntimeStateKind::Stream, id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 // ==================== Aliases (ALIAS:RULE) ====================
 
@@ -1819,8 +1868,24 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
 
 // ==================== Nodes (CASTER:NODE) read-only ====================
 
-IMPL_GET_ALL(handle_get_nodes, KEY_CASTER_NODE)
-IMPL_GET_ONE(handle_get_node, KEY_CASTER_NODE)
+void http_handler::handle_get_nodes(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.list(navcaster::storage::RuntimeStateKind::Node);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_node(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::RuntimeStateRepository repo(sync_redis::instance());
+    json data = repo.get(navcaster::storage::RuntimeStateKind::Node, id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 // ==================== Node History (NODE:HISTORY:*) read-only ====================
 

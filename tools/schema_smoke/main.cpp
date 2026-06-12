@@ -4,6 +4,7 @@
 #include "alias_repository.h"
 #include "redis_keys.h"
 #include "relay_repository.h"
+#include "runtime_state_repository.h"
 #include "source_repository.h"
 
 #include <cstdlib>
@@ -529,6 +530,16 @@ int main()
     fake_redis.hset(navcaster::redis_keys::PUSH_STAT, "push-1", nlohmann::json{{"state", 1}}.dump());
     expect_true(relay_repo.update_record(navcaster::storage::RelayKind::Push, "push-1", {{"target_ip", "127.0.0.1"}}).status == navcaster::storage::RepositoryStatus::Ok, "relay repository update push ok");
     expect_true(fake_redis.hget(navcaster::redis_keys::PUSH_STAT, "push-1").is_null(), "relay repository update clears push state");
+
+    expect_eq(navcaster::storage::runtime_state_key(navcaster::storage::RuntimeStateKind::Server), navcaster::redis_keys::MPT_STAT, "runtime server key");
+    expect_eq(navcaster::storage::runtime_state_key(navcaster::storage::RuntimeStateKind::Client), navcaster::redis_keys::USR_STAT, "runtime client key");
+    expect_eq(navcaster::storage::runtime_state_key(navcaster::storage::RuntimeStateKind::Stream), navcaster::redis_keys::STR_STAT, "runtime stream key");
+    expect_eq(navcaster::storage::runtime_state_key(navcaster::storage::RuntimeStateKind::Node), navcaster::redis_keys::CASTER_NODE, "runtime node key");
+    navcaster::storage::RuntimeStateRepository runtime_repo(fake_redis);
+    fake_redis.hset(navcaster::redis_keys::MPT_STAT, "S1", nlohmann::json{{"uid", "S1"}}.dump());
+    expect_true(runtime_repo.list(navcaster::storage::RuntimeStateKind::Server).contains("S1"), "runtime repository lists servers");
+    expect_eq(runtime_repo.get(navcaster::storage::RuntimeStateKind::Server, "S1").value("uid", std::string{}), "S1", "runtime repository gets server");
+    expect_true(runtime_repo.get(navcaster::storage::RuntimeStateKind::Server, "").is_null(), "runtime repository rejects empty get");
 
     if (failures != 0)
     {

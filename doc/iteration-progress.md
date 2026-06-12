@@ -63,7 +63,7 @@
 - [x] 抽 source/alias repository。
 - [x] 抽 access repository。
 - [x] 抽 relay repository。
-- [ ] 抽 runtime state repository 边界。
+- [x] 抽 runtime state repository 边界。
 - [ ] 统一 proto JSON helper。
 - [ ] HTTP CRUD 全部改为调用 repository。
 
@@ -133,6 +133,9 @@
 - 新增 `RelayRepository`：pull/push record、state 读取、create/update/delete/start/stop 收敛到 repository，HTTP pull/push relay handler 改为调用 repository。
 - Relay 写入计划保持 `uid` 必填和 `enabled=true` 默认；update/delete 会清理对应 `PULL:STAT`/`PUSH:STAT` 以触发调度刷新，start/stop 只更新 `enabled` 且不删除 state，保留原来的 INACTIVE 广播保护语义。
 - 扩展 `schema_smoke`：覆盖 pull/push key 选择、create 默认 enabled、重复创建冲突、update/delete 清 state、start/stop 不清 state、push 显式 enabled=false 保留。
+- 新增 `RuntimeStateRepository`：server/client/stream/node 只读运行态 hash 的 list/get 边界收敛到 repository。
+- HTTP server/client/stream/node 列表与详情 handler 改为调用 `RuntimeStateRepository`；kick、monitor、SSE、history、statistics 等行为型路径保持现状，留到 Phase 3/4 按 service 边界继续拆分。
+- 扩展 `schema_smoke`：覆盖 runtime state key 映射、server 状态 list/get、空 ID 详情查询返回空。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -163,5 +166,9 @@
   - Relay repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Relay repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Relay repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
+  - Runtime state repository 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Runtime state repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Runtime state repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Runtime state repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
