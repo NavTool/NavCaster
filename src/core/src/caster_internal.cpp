@@ -7,34 +7,31 @@
 // #include <format>
 #include <spdlog/spdlog.h>
 #include <sstream>
+
+#ifdef _WIN32
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
+
 #include "knt.h"
 #include "SysUsage.h"
+#include "access_policy_service.h"
 #include "version.h"
 
 #define __class__ "caster_internal"
 
 namespace
 {
-constexpr const char *SYSTEM_ACCESS_GROUP = "SYSTEM";
+using navcaster::core::normalize_access_group_uid;
 
-std::string normalize_access_group_uid(const char *group_uid)
+long long current_process_id()
 {
-    if (group_uid == nullptr || group_uid[0] == '\0')
-    {
-        return "default";
-    }
-    return group_uid;
-}
-
-std::string normalize_access_group_uid(const std::string &group_uid)
-{
-    return group_uid.empty() ? "default" : group_uid;
-}
-
-bool is_privileged_access_group(const std::string &group_uid)
-{
-    return group_uid == SYSTEM_ACCESS_GROUP;
+#ifdef _WIN32
+    return static_cast<long long>(_getpid());
+#else
+    return static_cast<long long>(getpid());
+#endif
 }
 
 template <typename StatusMap>
@@ -129,7 +126,7 @@ void caster_internal::set_node_identity(const std::string &hostname, int listen_
     _hostname = hostname;
     _listen_port = listen_port;
     _http_port = http_port;
-    _process_id = static_cast<long long>(getpid());
+    _process_id = current_process_id();
 
     // 由 hostname + listen_port + http_port 生成稳定 5 位 hex 标识
     // 同一实例只要监听端口不变, 重启后 ID 一致; 同实例多节点(不同端口) 也会得到不同 ID
@@ -378,17 +375,8 @@ std::string caster_internal::get_status_str()
 
 bool caster_internal::is_nearest_mpt(std::string mount_point) const
 {
-    for (const auto &group_policy : _access_group_map)
-    {
-        if (group_policy.second.nearest_mpt_enable() &&
-            !group_policy.second.nearest_mpt_source_name().empty() &&
-            group_policy.second.nearest_mpt_source_name() == mount_point)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    navcaster::core::AccessPolicyService policy(_source_record_map, _source_decode_map, _access_group_map, _access_item_map);
+    return policy.is_nearest_mount(mount_point);
 }
 
 bool caster_internal::is_alias_mpt(std::string mount_point)
@@ -399,288 +387,38 @@ bool caster_internal::is_alias_mpt(std::string mount_point)
 
 std::string caster_internal::resolve_mount_group(const std::string &mount_point) const
 {
-    auto record = _source_record_map.find(mount_point);
-    if (record != _source_record_map.end() && record->second.source_group_uid() != "default")
-    {
-        return record->second.source_group_uid();
-    }
-
-    auto decode = _source_decode_map.find(mount_point);
-    if (decode != _source_decode_map.end() && decode->second.source_group_uid() != "default")
-    {
-        return decode->second.source_group_uid();
-    }
-
-    for (const auto &group_items : _access_item_map)
-    {
-        if (group_items.second.find(mount_point) != group_items.second.end())
-        {
-            return group_items.first;
-        }
-    }
-
-    for (const auto &group_policy : _access_group_map)
-    {
-        if (group_policy.second.nearest_mpt_enable() &&
-            !group_policy.second.nearest_mpt_source_name().empty() &&
-            group_policy.second.nearest_mpt_source_name() == mount_point)
-        {
-            return group_policy.first;
-        }
-    }
-
-    return "default";
+    navcaster::core::AccessPolicyService policy(_source_record_map, _source_decode_map, _access_group_map, _access_item_map);
+    return policy.resolve_mount_group(mount_point);
 }
 
 bool caster_internal::is_mount_inside_group(const std::string &group_uid, const std::string &mount_point) const
 {
-    const auto group = normalize_access_group_uid(group_uid);
-
-    auto record = _source_record_map.find(mount_point);
-    if (record != _source_record_map.end() && record->second.source_group_uid() == group)
-    {
-        return true;
-    }
-
-    auto decode = _source_decode_map.find(mount_point);
-    if (decode != _source_decode_map.end() && decode->second.source_group_uid() == group)
-    {
-        return true;
-    }
-
-    auto group_items = _access_item_map.find(group);
-    if (group_items != _access_item_map.end() && group_items->second.find(mount_point) != group_items->second.end())
-    {
-        return true;
-    }
-
-    auto group_policy = _access_group_map.find(group);
-    if (group_policy != _access_group_map.end() &&
-        group_policy->second.nearest_mpt_enable() &&
-        group_policy->second.nearest_mpt_source_name() == mount_point)
-    {
-        return true;
-    }
-
-    return resolve_mount_group(mount_point) == group;
+    navcaster::core::AccessPolicyService policy(_source_record_map, _source_decode_map, _access_group_map, _access_item_map);
+    return policy.is_mount_inside_group(group_uid, mount_point);
 }
 
 bool caster_internal::check_nearest_mount_login(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
 {
-    if (_access_group_map.empty())
-    {
-        if (reason)
-        {
-            *reason = "Access group policy not loaded";
-        }
-        return false;
-    }
-
-    const auto group = normalize_access_group_uid(group_uid);
-    if (is_privileged_access_group(group))
-    {
-        return is_nearest_mpt(mount_point);
-    }
-
-    auto group_policy = _access_group_map.find(group);
-    if (group_policy == _access_group_map.end())
-    {
-        if (reason)
-        {
-            *reason = "Access group not found";
-        }
-        return false;
-    }
-    if (!group_policy->second.nearest_mpt_enable())
-    {
-        if (reason)
-        {
-            *reason = "Nearest mount point disabled by group policy";
-        }
-        return false;
-    }
-    if (group_policy->second.nearest_mpt_source_name() != mount_point)
-    {
-        if (reason)
-        {
-            *reason = "Nearest mount point not configured for group";
-        }
-        return false;
-    }
-
-    return true;
+    navcaster::core::AccessPolicyService policy(_source_record_map, _source_decode_map, _access_group_map, _access_item_map);
+    return policy.check_nearest_mount_login(group_uid, mount_point, reason);
 }
 
 bool caster_internal::check_mount_visible(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
 {
-    if (_access_group_map.empty() && _access_item_map.empty())
-    {
-        return true;
-    }
-
-    const auto group = normalize_access_group_uid(group_uid);
-    if (is_privileged_access_group(group))
-    {
-        return true;
-    }
-
-    auto group_policy = _access_group_map.find(group);
-    if (group_policy == _access_group_map.end())
-    {
-        if (reason)
-        {
-            *reason = "Access group not found";
-        }
-        return false;
-    }
-
-    auto group_items = _access_item_map.find(group);
-    if (group_items != _access_item_map.end())
-    {
-        auto item = group_items->second.find(mount_point);
-        if (item != group_items->second.end())
-        {
-            if (item->second.allow_visible() == caster::core::ACCESS_STATE_ENABLE)
-            {
-                return true;
-            }
-            if (item->second.allow_visible() == caster::core::ACCESS_STATE_DISABLE)
-            {
-                if (reason)
-                {
-                    *reason = "Mount point visible disabled by item policy";
-                }
-                return false;
-            }
-        }
-    }
-
-    const bool inside_group = is_mount_inside_group(group, mount_point);
-    const bool allowed = inside_group ? group_policy->second.allow_visible_inside_group()
-                                      : group_policy->second.allow_visible_outside_group();
-    if (!allowed && reason)
-    {
-        *reason = inside_group ? "Mount point visible disabled inside group"
-                               : "Mount point visible disabled outside group";
-    }
-    return allowed;
+    navcaster::core::AccessPolicyService policy(_source_record_map, _source_decode_map, _access_group_map, _access_item_map);
+    return policy.check_mount_visible(group_uid, mount_point, reason);
 }
 
 bool caster_internal::check_mount_access(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
 {
-    if (_access_group_map.empty() && _access_item_map.empty())
-    {
-        return true;
-    }
-
-    const auto group = normalize_access_group_uid(group_uid);
-    if (is_privileged_access_group(group))
-    {
-        return true;
-    }
-
-    auto group_policy = _access_group_map.find(group);
-    if (group_policy == _access_group_map.end())
-    {
-        if (reason)
-        {
-            *reason = "Access group not found";
-        }
-        return false;
-    }
-    auto group_items = _access_item_map.find(group);
-    if (group_items != _access_item_map.end())
-    {
-        auto item = group_items->second.find(mount_point);
-        if (item != group_items->second.end())
-        {
-            if (item->second.allow_access() == caster::core::ACCESS_STATE_ENABLE)
-            {
-                return true;
-            }
-            if (item->second.allow_access() == caster::core::ACCESS_STATE_DISABLE)
-            {
-                if (reason)
-                {
-                    *reason = "Mount point access disabled by item policy";
-                }
-                return false;
-            }
-        }
-    }
-
-    const bool inside_group = is_mount_inside_group(group, mount_point);
-    const bool allowed = inside_group ? group_policy->second.allow_access_inside_group()
-                                      : group_policy->second.allow_access_outside_group();
-    if (!allowed && reason)
-    {
-        *reason = inside_group ? "Mount point access disabled inside group"
-                               : "Mount point access disabled outside group";
-    }
-    return allowed;
+    navcaster::core::AccessPolicyService policy(_source_record_map, _source_decode_map, _access_group_map, _access_item_map);
+    return policy.check_mount_access(group_uid, mount_point, reason);
 }
 
 bool caster_internal::check_mount_nearby(const std::string &group_uid, const std::string &mount_point, std::string *reason) const
 {
-    if (_access_group_map.empty() && _access_item_map.empty())
-    {
-        return true;
-    }
-
-    const auto group = normalize_access_group_uid(group_uid);
-    if (is_privileged_access_group(group))
-    {
-        return true;
-    }
-
-    auto group_policy = _access_group_map.find(group);
-    if (group_policy == _access_group_map.end())
-    {
-        if (reason)
-        {
-            *reason = "Access group not found";
-        }
-        return false;
-    }
-    if (!group_policy->second.nearest_mpt_enable())
-    {
-        if (reason)
-        {
-            *reason = "Nearest mount point disabled by group policy";
-        }
-        return false;
-    }
-
-    auto group_items = _access_item_map.find(group);
-    if (group_items != _access_item_map.end())
-    {
-        auto item = group_items->second.find(mount_point);
-        if (item != group_items->second.end())
-        {
-            if (item->second.allow_nearby() == caster::core::ACCESS_STATE_ENABLE)
-            {
-                return true;
-            }
-            if (item->second.allow_nearby() == caster::core::ACCESS_STATE_DISABLE)
-            {
-                if (reason)
-                {
-                    *reason = "Mount point nearby disabled by item policy";
-                }
-                return false;
-            }
-        }
-    }
-
-    const bool inside_group = is_mount_inside_group(group, mount_point);
-    const bool allowed = inside_group ? group_policy->second.allow_nearby_inside_group()
-                                      : group_policy->second.allow_nearby_outside_group();
-    if (!allowed && reason)
-    {
-        *reason = inside_group ? "Mount point nearby disabled inside group"
-                               : "Mount point nearby disabled outside group";
-    }
-    return allowed;
+    navcaster::core::AccessPolicyService policy(_source_record_map, _source_decode_map, _access_group_map, _access_item_map);
+    return policy.check_mount_nearby(group_uid, mount_point, reason);
 }
 
 int caster_internal::sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid, bool skip_access_check)
@@ -2698,8 +2436,8 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
                                  dec->second._quality, dec->second._sat_num, dec->second._diff);
 
             // 对于near模式的订阅者，额外触发最近基站切换
-            auto near = _base_near_sub_map.find(connect_key);
-            if (near != _base_near_sub_map.end())
+            auto near_sub = _base_near_sub_map.find(connect_key);
+            if (near_sub != _base_near_sub_map.end())
             {
                 // 距离阈值判断：仅当首次或位置变化超过 _near_switch_distance(米) 时才触发最近基站检索，
                 // 避免在静止/微小漂移下频繁切换基站
@@ -2735,9 +2473,9 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
                     cache.ecef_z = dec->second._ecef_z;
 
                     // 调用sub_near_channel更新最近基站订阅
-                    sub_near_channel(near->second.channel.c_str(), near->second.user_name.c_str(),
-                                     lat, lon, connect_key, near->second.cb, near->second.arg,
-                                     near->second.group_uid.c_str());
+                    sub_near_channel(near_sub->second.channel.c_str(), near_sub->second.user_name.c_str(),
+                                     lat, lon, connect_key, near_sub->second.cb, near_sub->second.arg,
+                                     near_sub->second.group_uid.c_str());
                 }
             }
         }

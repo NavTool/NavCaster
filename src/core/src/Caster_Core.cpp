@@ -1,7 +1,15 @@
 #include "Caster_Core.h"
 #include <spdlog/spdlog.h>
-#include <unistd.h>
 #include <cstring>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 // #include "caster_core_internal.h"
 #include "caster_internal.h"
@@ -223,10 +231,18 @@ int CASTER::Free()
 void CASTER::Set_Node_Runtime_Info(uint32_t listen_port, uint32_t http_port, uint32_t process_id)
 {
     char host[256] = {0};
+#ifdef _WIN32
+    DWORD host_size = sizeof(host);
+    if (GetComputerNameA(host, &host_size) == 0)
+    {
+        std::strncpy(host, "unknown", sizeof(host) - 1);
+    }
+#else
     if (gethostname(host, sizeof(host) - 1) != 0)
     {
         std::strncpy(host, "unknown", sizeof(host) - 1);
     }
+#endif
     caster_internal::getInstance()->set_node_identity(host, static_cast<int>(listen_port), static_cast<int>(http_port));
     (void)process_id; // pid 通过 set_node_identity 内部 getpid() 获取
 }

@@ -81,8 +81,9 @@
 
 ### Phase 4：拆 Caster Core
 
-- [ ] 抽 AccessPolicy、SourceTable、Cluster、RelayScheduler、History 等服务。
-- [ ] 保留 `CASTER::*` facade。
+- [x] 抽 AccessPolicyService，保留 `caster_internal`/`CASTER::*` 现有入口。
+- [ ] 抽 SourceTable、Cluster、RelayScheduler、History 等服务。
+- [ ] Phase 4 完成后复核 `CASTER::*` facade 边界。
 
 ### Phase 5：物理目录迁移
 
@@ -92,7 +93,7 @@
 
 继续 Phase 4/5：
 
-1. Phase 4 Core：开始抽 SourceTable、AccessPolicy、RelayScheduler、History 等服务，保留 `CASTER::*` facade。
+1. Phase 4 Core：按 Dewey 子代理给出的行为契约先抽 SourceTable 纯逻辑，注意不要用 `_active_mount_map` 过滤源表。
 2. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
 
 ## 待确认问题
@@ -380,5 +381,12 @@
   - Blocking Redis client 抽离后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
   - Blocking Redis client 抽离后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Blocking Redis client 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
-  - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
-  - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
+  - 新增 `AccessPolicyService`：将 `caster_internal` 中的 access group 归一化、`SYSTEM` 特权组判断、mount group 解析、visible/access/nearby/nearest login 检查抽为纯 core service；`caster_internal` 保留原方法并委托 service，外部 `CASTER::*` facade 不变。
+  - `schema_smoke` 新增 AccessPolicy 纯逻辑测试：覆盖空策略默认允许、nearest 空策略拒绝、缺失组、source/decode/item/nearest 分组解析、source 覆盖 decode 优先级、`default` fallback、item enable/disable override、inside/outside deny reason、nearby 先检查 nearest 开关、`SYSTEM` bypass 与 nearest login。
+  - 顺手解除 `castercore` 在 Windows/MSVC 下的 core 编译阻塞：`Caster_Core.cpp` 和 `caster_internal.cpp` 改为 Windows 使用 `GetComputerNameA`/`_getpid`，POSIX 保持 `gethostname`/`getpid`；同时避开 Windows 旧宏干扰，把局部变量 `near` 改名为 `near_sub`。
+  - Maxwell 子代理只读复核 AccessPolicy 抽离，结论为权限行为未发现变化；提示的非阻断测试缺口已补充 `SYSTEM` bypass、`default` fallback 和 source/decode 冲突优先级断言。
+  - AccessPolicyService 抽离后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - AccessPolicyService 抽离后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - AccessPolicyService 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - AccessPolicyService 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - AccessPolicyService 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。

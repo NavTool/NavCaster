@@ -4,6 +4,7 @@
 #include "audit_log_service.h"
 #include "auth_session_service.h"
 #include "access_controller.h"
+#include "access_policy_service.h"
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
@@ -387,6 +388,48 @@ void expect_has(const nlohmann::json &value, const char *field, const std::strin
 void expect_missing(const nlohmann::json &value, const char *field, const std::string &name)
 {
     expect_true(!value.contains(field), name);
+}
+
+access_group make_access_policy_group(const std::string &uid, nlohmann::json overrides = nlohmann::json::object())
+{
+    nlohmann::json body = {{"uid", uid}, {"group_name", uid}};
+    for (auto it = overrides.begin(); it != overrides.end(); ++it)
+    {
+        body[it.key()] = it.value();
+    }
+
+    access_group group(uid);
+    expect_eq_int(group.fromString(body.dump()), 0, "access policy group parse " + uid);
+    return group;
+}
+
+access_item make_access_policy_item(const std::string &mount_point,
+                                    caster::core::AccessState visible = caster::core::ACCESS_STATE_DEFALT,
+                                    caster::core::AccessState access = caster::core::ACCESS_STATE_DEFALT,
+                                    caster::core::AccessState nearby = caster::core::ACCESS_STATE_DEFALT)
+{
+    access_item item(mount_point);
+    nlohmann::json body = {
+        {"uid", mount_point},
+        {"mountpoint", mount_point},
+        {"allow_visible", static_cast<int>(visible)},
+        {"allow_access", static_cast<int>(access)},
+        {"allow_nearby", static_cast<int>(nearby)},
+    };
+    expect_eq_int(item.fromString(body.dump()), 0, "access policy item parse " + mount_point);
+    return item;
+}
+
+source_record make_access_policy_source(const std::string &mount_point, const std::string &group_uid)
+{
+    source_record source(mount_point);
+    nlohmann::json body = {
+        {"uid", mount_point},
+        {"mountpoint", mount_point},
+        {"source_group_uid", group_uid},
+    };
+    expect_eq_int(source.fromString(body.dump()), 0, "access policy source parse " + mount_point);
+    return source;
 }
 } // namespace
 
@@ -1951,6 +1994,88 @@ int main()
     expect_eq_int(access_response.status_code, 400, "access controller delete item missing group");
     access_response = access_controller.delete_group("ops");
     expect_eq_int(access_response.status_code, 200, "access controller delete group ok");
+
+    navcaster::core::SourceRecordMap access_sources;
+    navcaster::core::SourceRecordMap access_decodes;
+    navcaster::core::AccessGroupMap access_groups;
+    navcaster::core::AccessItemMap access_items;
+    navcaster::core::AccessPolicyService empty_access_policy(access_sources, access_decodes, access_groups, access_items);
+    std::string access_reason;
+    expect_eq(navcaster::core::normalize_access_group_uid(static_cast<const char *>(nullptr)), "default", "access policy null group normalize");
+    expect_eq(navcaster::core::normalize_access_group_uid(std::string()), "default", "access policy empty group normalize");
+    expect_true(navcaster::core::is_privileged_access_group("SYSTEM"), "access policy system privileged");
+    expect_true(!navcaster::core::is_privileged_access_group("default"), "access policy default not privileged");
+    expect_true(empty_access_policy.check_mount_visible("", "BASE01"), "access policy empty maps visible");
+    expect_true(empty_access_policy.check_mount_access("default", "BASE01"), "access policy empty maps access");
+    expect_true(empty_access_policy.check_mount_nearby("default", "BASE01"), "access policy empty maps nearby");
+    expect_true(!empty_access_policy.check_nearest_mount_login("SYSTEM", "BASE01", &access_reason), "access policy empty nearest login");
+    expect_eq(access_reason, "Access group policy not loaded", "access policy empty nearest reason");
+
+    access_groups.emplace("ops", make_access_policy_group("ops", {
+                                           {"nearest_mpt_enable", true},
+                                           {"nearest_mpt_source_name", "NEAR1"},
+                                           {"allow_visible_inside_group", false},
+                                           {"allow_access_outside_group", false},
+                                           {"allow_nearby_inside_group", false},
+                                       }));
+    access_groups.emplace("near-disabled", make_access_policy_group("near-disabled", {
+                                                     {"nearest_mpt_enable", false},
+                                                 }));
+    access_sources.emplace("BASE_IN", make_access_policy_source("BASE_IN", "ops"));
+    access_sources.emplace("CONFLICT", make_access_policy_source("CONFLICT", "ops"));
+    access_decodes.emplace("DECODE_IN", make_access_policy_source("DECODE_IN", "ops"));
+    access_decodes.emplace("CONFLICT", make_access_policy_source("CONFLICT", "decoded"));
+    access_items["ops"].emplace("BASE_OVERRIDE", make_access_policy_item("BASE_OVERRIDE",
+                                                                           caster::core::ACCESS_STATE_DEFALT,
+                                                                           caster::core::ACCESS_STATE_ENABLE,
+                                                                           caster::core::ACCESS_STATE_DEFALT));
+    access_items["ops"].emplace("BASE_DENY", make_access_policy_item("BASE_DENY",
+                                                                     caster::core::ACCESS_STATE_DISABLE,
+                                                                     caster::core::ACCESS_STATE_DISABLE,
+                                                                     caster::core::ACCESS_STATE_DISABLE));
+    access_items["near-disabled"].emplace("BASE_NEAR", make_access_policy_item("BASE_NEAR",
+                                                                               caster::core::ACCESS_STATE_DEFALT,
+                                                                               caster::core::ACCESS_STATE_DEFALT,
+                                                                               caster::core::ACCESS_STATE_ENABLE));
+    navcaster::core::AccessPolicyService access_policy(access_sources, access_decodes, access_groups, access_items);
+    expect_eq(access_policy.resolve_mount_group("BASE_IN"), "ops", "access policy source group resolve");
+    expect_eq(access_policy.resolve_mount_group("DECODE_IN"), "ops", "access policy decode group resolve");
+    expect_eq(access_policy.resolve_mount_group("CONFLICT"), "ops", "access policy source overrides decode group");
+    expect_eq(access_policy.resolve_mount_group("NEAR1"), "ops", "access policy nearest group resolve");
+    expect_eq(access_policy.resolve_mount_group("UNKNOWN"), "default", "access policy unknown group fallback");
+    expect_true(access_policy.is_mount_inside_group("ops", "BASE_IN"), "access policy source inside group");
+    expect_true(access_policy.is_mount_inside_group("ops", "BASE_OVERRIDE"), "access policy item inside group");
+    access_reason.clear();
+    expect_true(!access_policy.check_mount_visible("missing", "BASE_IN", &access_reason), "access policy missing group visible");
+    expect_eq(access_reason, "Access group not found", "access policy missing group reason");
+    access_reason.clear();
+    expect_true(!access_policy.check_mount_visible("ops", "BASE_IN", &access_reason), "access policy inside visible deny");
+    expect_eq(access_reason, "Mount point visible disabled inside group", "access policy inside visible reason");
+    access_reason.clear();
+    expect_true(!access_policy.check_mount_access("ops", "OUTSIDE", &access_reason), "access policy outside access deny");
+    expect_eq(access_reason, "Mount point access disabled outside group", "access policy outside access reason");
+    expect_true(access_policy.check_mount_access("ops", "BASE_OVERRIDE"), "access policy item access enable override");
+    access_reason.clear();
+    expect_true(!access_policy.check_mount_access("ops", "BASE_DENY", &access_reason), "access policy item access deny");
+    expect_eq(access_reason, "Mount point access disabled by item policy", "access policy item access deny reason");
+    access_reason.clear();
+    expect_true(!access_policy.check_mount_visible("ops", "BASE_DENY", &access_reason), "access policy item visible deny");
+    expect_eq(access_reason, "Mount point visible disabled by item policy", "access policy item visible deny reason");
+    access_reason.clear();
+    expect_true(!access_policy.check_mount_nearby("ops", "BASE_IN", &access_reason), "access policy nearby inside deny");
+    expect_eq(access_reason, "Mount point nearby disabled inside group", "access policy nearby inside reason");
+    access_reason.clear();
+    expect_true(!access_policy.check_mount_nearby("near-disabled", "BASE_NEAR", &access_reason), "access policy nearby disabled before item");
+    expect_eq(access_reason, "Nearest mount point disabled by group policy", "access policy nearby disabled reason");
+    expect_true(access_policy.check_mount_visible("SYSTEM", "BASE_DENY"), "access policy system visible bypass");
+    expect_true(access_policy.check_mount_access("SYSTEM", "BASE_DENY"), "access policy system access bypass");
+    expect_true(access_policy.check_mount_nearby("SYSTEM", "BASE_NEAR"), "access policy system nearby bypass");
+    expect_true(access_policy.check_nearest_mount_login("ops", "NEAR1"), "access policy nearest login configured");
+    expect_true(access_policy.is_nearest_mount("NEAR1"), "access policy nearest mount lookup");
+    expect_true(access_policy.check_nearest_mount_login("SYSTEM", "NEAR1"), "access policy system nearest login");
+    access_reason.clear();
+    expect_true(!access_policy.check_nearest_mount_login("ops", "OTHER", &access_reason), "access policy nearest login wrong mount");
+    expect_eq(access_reason, "Nearest mount point not configured for group", "access policy nearest wrong mount reason");
 
     FakeRedisHashClient relay_controller_redis;
     navcaster::http_api::RelayController relay_controller(relay_controller_redis);
