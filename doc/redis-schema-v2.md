@@ -106,10 +106,18 @@ V2 建议：
 
 | 字段 | 说明 |
 | --- | --- |
-| `password_hash` | 新密码哈希 |
-| `password_algo` | 例如 `pbkdf2-sha256`、`bcrypt`、`argon2id` |
-| `password_salt` | 如果算法需要 |
+| `password_hash` | 新密码哈希，当前实现为 PBKDF2-SHA256 的 hex digest |
+| `password_algo` | 当前支持 `pbkdf2-sha256`；未知算法登录 fail closed |
+| `password_salt` | PBKDF2 salt |
+| `password_iterations` | PBKDF2 迭代次数，默认 `100000` |
 | `password` | legacy 明文字段，仅迁移期读取，不再写入 |
+
+迁移规则：
+
+- HTTP 新建或修改账号时，如果收到 legacy `password`，写入前自动转换为 `password_hash/password_algo/password_salt/password_iterations`，并从 `ACT:RECORD` 与 `ACT:ACTIVE` 派生视图中移除明文 `password`。
+- HTTP 修改账号时，如果请求未携带新密码或仅携带空 `password`，沿用当前 Redis 记录中的密码材料，避免普通资料更新清空密码。
+- Auth 登录优先校验 `password_hash`；仅当没有 hash 且存在 legacy `password` 时才走明文兼容。
+- 同时存在 hash 和明文时 hash 优先，hash 算法未知、salt 缺失或迭代次数非法时拒绝登录。
 
 ### 历史和监控
 

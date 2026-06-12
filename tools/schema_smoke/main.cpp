@@ -35,6 +35,16 @@ void expect_eq_int(int actual, int expected, const std::string &name)
         std::cerr << "[FAIL] " << name << ": expected [" << expected << "], got [" << actual << "]\n";
     }
 }
+
+void expect_has(const nlohmann::json &value, const char *field, const std::string &name)
+{
+    expect_true(value.contains(field), name);
+}
+
+void expect_missing(const nlohmann::json &value, const char *field, const std::string &name)
+{
+    expect_true(!value.contains(field), name);
+}
 } // namespace
 
 int main()
@@ -64,9 +74,22 @@ int main()
     expect_eq_int(normalized.value("schema_version", 0), account_schema::CURRENT_SCHEMA_VERSION, "schema version");
     expect_true(normalized.value("create_time", 0) == 1000, "create time filled");
     expect_true(normalized.value("update_time", 0) == 1000, "update time filled");
+    expect_missing(normalized, "password", "normalized account removes plaintext password");
+    expect_eq(normalized.value("password_algo", std::string{}), account_schema::PASSWORD_ALGO_PBKDF2_SHA256, "normalized account password algo");
+    expect_has(normalized, "password_hash", "normalized account password hash");
+    expect_has(normalized, "password_salt", "normalized account password salt");
+    expect_eq_int(normalized.value("password_iterations", 0), account_schema::DEFAULT_PASSWORD_ITERATIONS, "normalized account password iterations");
 
     std::string reason;
     expect_true(account_schema::is_login_enabled(normalized, 1000, &reason), "normalized account login enabled");
+    expect_eq(
+        account_schema::make_password_hash("password", "salt", 1),
+        "120fb6cffcf8b32c43e7225256c4f837a86548c92ccc35480805987cb70be17b",
+        "pbkdf2 sha256 vector iter 1");
+    expect_eq(
+        account_schema::make_password_hash("password", "salt", 2),
+        "ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43",
+        "pbkdf2 sha256 vector iter 2");
 
     account_schema::AccountSyncPlan sync_plan;
     expect_true(account_schema::build_account_sync_plan(account, 1000, sync_plan, &reason), "build account sync plan");
@@ -74,7 +97,13 @@ int main()
     expect_true(sync_plan.write_active_index, "enabled account writes active index");
     expect_true(!sync_plan.delete_active_index, "enabled account keeps active index");
     expect_eq(sync_plan.record.value("uid", std::string{}), "demo", "sync plan record uid");
+    expect_missing(sync_plan.record, "password", "sync plan record removes plaintext password");
+    expect_has(sync_plan.record, "password_hash", "sync plan record password hash");
     expect_eq(sync_plan.active_index.value("account", std::string{}), "demo", "sync plan active account");
+    expect_missing(sync_plan.active_index, "password", "sync plan active index removes plaintext password");
+    expect_has(sync_plan.active_index, "password_hash", "sync plan active index password hash");
+    expect_has(sync_plan.active_index, "password_salt", "sync plan active index password salt");
+    expect_has(sync_plan.active_index, "password_iterations", "sync plan active index password iterations");
 
     nlohmann::json uid_only = {
         {"uid", "legacy"},
@@ -100,15 +129,15 @@ int main()
     auto active_index = account_schema::build_active_index(normalized);
     expect_eq(active_index.value("account", std::string{}), "demo", "active index account");
     expect_eq(active_index.value("group_uid", std::string{}), "default", "active index group");
-    expect_true(active_index.value("legacy_plain_password", false), "legacy password marker");
+    expect_true(!active_index.value("legacy_plain_password", false), "active index is not legacy");
 
     account_schema::AccountAuthView view;
     expect_true(account_schema::parse_auth_view(active_index.dump(), view, &reason), "parse auth view");
     expect_eq(view.account, "demo", "auth view account");
     expect_eq_int(view.connection_limit, account_schema::UNLIMITED_CONNECTIONS, "unlimited connection normalized");
-    expect_true(view.legacy_plain_password, "auth view legacy password");
-    expect_true(account_schema::password_matches(view, "secret"), "legacy password match");
-    expect_true(!account_schema::password_matches(view, "wrong"), "legacy password mismatch");
+    expect_true(!view.legacy_plain_password, "auth view hashed password");
+    expect_true(account_schema::password_matches(view, "secret"), "hashed password match");
+    expect_true(!account_schema::password_matches(view, "wrong"), "hashed password mismatch");
 
     nlohmann::json legacy_auth = {
         {"account", "legacy"},
@@ -124,6 +153,9 @@ int main()
     expect_eq_int(view.connection_limit, 3, "legacy auth connect limit");
     expect_eq_int(view.active, 1, "legacy auth boolean active");
     expect_true(view.expire_time == 2000, "legacy auth expire");
+    expect_true(view.legacy_plain_password, "legacy auth view marks plaintext password");
+    expect_true(account_schema::password_matches(view, "secret"), "legacy password match");
+    expect_true(!account_schema::password_matches(view, "wrong"), "legacy password mismatch");
     expect_true(!account_schema::parse_auth_view("{broken-json", view, &reason), "invalid auth json rejected");
 
     auto expired = normalized;
@@ -140,7 +172,6 @@ int main()
     expect_true(sync_plan.delete_active_index, "frozen account deletes active index");
 
     auto hashed = normalized;
-    hashed.erase("password");
     hashed["password_hash"] = "sha256:placeholder";
     hashed["password_algo"] = "sha256";
     auto hashed_index = account_schema::build_active_index(hashed);
@@ -154,8 +185,76 @@ int main()
     expect_true(!view.legacy_plain_password, "hash takes priority over legacy password");
     expect_true(!account_schema::password_matches(view, "secret"), "hash priority avoids plaintext fallback");
 
+    nlohmann::json deterministic_hash = {
+        {"account", "hash-user"},
+        {"password_hash", account_schema::make_password_hash("secret", "abcd", 2)},
+        {"password_algo", account_schema::PASSWORD_ALGO_PBKDF2_SHA256},
+        {"password_salt", "abcd"},
+        {"password_iterations", 2},
+        {"state", 1},
+        {"active", 1}
+    };
+    expect_true(account_schema::build_account_sync_plan(deterministic_hash, 1000, sync_plan, &reason), "provided hash sync plan");
+    expect_true(account_schema::parse_auth_view(sync_plan.active_index.dump(), view, &reason), "parse provided hash auth view");
+    expect_true(account_schema::password_matches(view, "secret"), "provided hash password match");
+    expect_true(!account_schema::password_matches(view, "wrong"), "provided hash password mismatch");
+
+    nlohmann::json invalid_hash = {
+        {"account", "invalid-hash"},
+        {"password_hash", "not-enough"},
+        {"password_algo", "sha256"},
+        {"state", 1},
+        {"active", 1}
+    };
+    expect_true(!account_schema::build_account_sync_plan(invalid_hash, 1000, sync_plan, &reason), "unsupported hash sync rejected");
+
+    nlohmann::json current_hash = sync_plan.record;
+    current_hash = {
+        {"account", "demo"},
+        {"password_hash", account_schema::make_password_hash("secret", "existing-salt", 2)},
+        {"password_algo", account_schema::PASSWORD_ALGO_PBKDF2_SHA256},
+        {"password_salt", "existing-salt"},
+        {"password_iterations", 2}
+    };
+    nlohmann::json update_without_password = {
+        {"account", "demo"},
+        {"group_uid", "updated"},
+        {"password", ""}
+    };
+    account_schema::preserve_existing_password_material(update_without_password, current_hash);
+    expect_eq(update_without_password.value("password_hash", std::string{}), current_hash.value("password_hash", std::string{}), "update preserves existing hash");
+    expect_missing(update_without_password, "password", "update removes empty password");
+
+    nlohmann::json update_with_password = {
+        {"account", "demo"},
+        {"password", "new-secret"},
+        {"password_hash", current_hash["password_hash"]},
+        {"password_algo", current_hash["password_algo"]},
+        {"password_salt", current_hash["password_salt"]},
+        {"password_iterations", current_hash["password_iterations"]}
+    };
+    account_schema::preserve_existing_password_material(update_with_password, current_hash);
+    expect_true(account_schema::build_account_sync_plan(update_with_password, 1000, sync_plan, &reason), "update new password sync plan");
+    expect_missing(sync_plan.record, "password", "update new password removes plaintext");
+    expect_true(sync_plan.record.value("password_hash", std::string{}) != current_hash.value("password_hash", std::string{}), "update new password rotates hash");
+    expect_true(account_schema::parse_auth_view(sync_plan.active_index.dump(), view, &reason), "parse updated password auth view");
+    expect_true(account_schema::password_matches(view, "new-secret"), "updated password matches");
+
+    nlohmann::json current_legacy = {
+        {"account", "legacy"},
+        {"password", "old-secret"}
+    };
+    nlohmann::json legacy_update = {{"account", "legacy"}, {"remark", "kept"}};
+    account_schema::preserve_existing_password_material(legacy_update, current_legacy);
+    expect_eq(legacy_update.value("password", std::string{}), "old-secret", "update preserves legacy plaintext");
+    expect_true(account_schema::build_account_sync_plan(legacy_update, 1000, sync_plan, &reason), "legacy update migrates to hash");
+    expect_missing(sync_plan.record, "password", "legacy update removes plaintext after normalize");
+    expect_has(sync_plan.record, "password_hash", "legacy update writes hash");
+
     nlohmann::json missing_account = {{"password", "secret"}};
     expect_true(!account_schema::build_account_sync_plan(missing_account, 1000, sync_plan, &reason), "missing account sync rejected");
+    nlohmann::json missing_password = {{"account", "no-pass"}};
+    expect_true(!account_schema::build_account_sync_plan(missing_password, 1000, sync_plan, &reason), "missing password sync rejected");
 
     account_schema::AccountDeletePlan delete_plan;
     expect_true(account_schema::build_account_delete_plan("demo", delete_plan, &reason), "build account delete plan");

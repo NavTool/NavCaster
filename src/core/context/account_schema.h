@@ -11,6 +11,8 @@ namespace navcaster::account_schema
 inline constexpr int CURRENT_SCHEMA_VERSION = 1;
 inline constexpr const char *DEFAULT_GROUP_UID = "default";
 inline constexpr int UNLIMITED_CONNECTIONS = 9999;
+inline constexpr const char *PASSWORD_ALGO_PBKDF2_SHA256 = "pbkdf2-sha256";
+inline constexpr int DEFAULT_PASSWORD_ITERATIONS = 100000;
 
 struct AccountAuthView
 {
@@ -18,7 +20,9 @@ struct AccountAuthView
     std::string password;
     std::string password_hash;
     std::string password_algo;
+    std::string password_salt;
     std::string group_uid = DEFAULT_GROUP_UID;
+    int password_iterations = 0;
     int connection_limit = UNLIMITED_CONNECTIONS;
     int state = 0;
     int active = 0;
@@ -47,6 +51,10 @@ struct AccountDeletePlan
 std::string normalize_group_uid(const std::string &group_uid);
 int normalize_connection_limit(int connection_limit);
 
+std::string make_password_hash(const std::string &password, const std::string &salt, int iterations);
+bool is_supported_password_algo(const std::string &algo);
+bool has_password_material(const nlohmann::json &record);
+void preserve_existing_password_material(nlohmann::json &record, const nlohmann::json &existing);
 nlohmann::json normalize_account_record(nlohmann::json record, std::int64_t now);
 nlohmann::json build_active_index(const nlohmann::json &record);
 bool build_account_sync_plan(nlohmann::json record, std::int64_t now, AccountSyncPlan &plan, std::string *error = nullptr);

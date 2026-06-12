@@ -1248,6 +1248,7 @@ void http_handler::handle_update_account(const HttpRequest &req, HttpResponse &r
     {
         body["create_time"] = current["create_time"];
     }
+    navcaster::account_schema::preserve_existing_password_material(body, current);
 
     navcaster::account_schema::AccountSyncPlan plan;
     std::string error;
