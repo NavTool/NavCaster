@@ -12,6 +12,11 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+namespace navcaster::storage
+{
+enum class RelayKind;
+}
+
 struct HttpApiConfig
 {
     int port = 8080;
@@ -121,8 +126,8 @@ private:
     void handle_get_push_states(const HttpRequest &req, HttpResponse &resp);
 
     // Relay start/stop
-    void handle_relay_start(const HttpRequest &req, HttpResponse &resp);
-    void handle_relay_stop(const HttpRequest &req, HttpResponse &resp);
+    void handle_relay_start(const HttpRequest &req, HttpResponse &resp, navcaster::storage::RelayKind kind);
+    void handle_relay_stop(const HttpRequest &req, HttpResponse &resp, navcaster::storage::RelayKind kind);
 
     // Cluster Nodes (CASTER:NODE) — read-only
     void handle_get_nodes(const HttpRequest &req, HttpResponse &resp);

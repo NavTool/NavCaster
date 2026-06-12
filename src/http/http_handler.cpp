@@ -12,6 +12,7 @@
 #include "config_repository.h"
 #include "redis_keys.h"
 #include "ring_log_view.h"
+#include "relay_controller.h"
 #include "relay_repository.h"
 #include "runtime_state_repository.h"
 #include "source_controller.h"
@@ -816,13 +817,13 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
 
     // ==================== Relay Start/Stop ====================
     _server.route(EVHTTP_REQ_POST, "/api/relays/pull/start/*", [this](auto &req, auto &resp)
-                  { handle_relay_start(req, resp); });
+                  { handle_relay_start(req, resp, navcaster::storage::RelayKind::Pull); });
     _server.route(EVHTTP_REQ_POST, "/api/relays/pull/stop/*", [this](auto &req, auto &resp)
-                  { handle_relay_stop(req, resp); });
+                  { handle_relay_stop(req, resp, navcaster::storage::RelayKind::Pull); });
     _server.route(EVHTTP_REQ_POST, "/api/relays/push/start/*", [this](auto &req, auto &resp)
-                  { handle_relay_start(req, resp); });
+                  { handle_relay_start(req, resp, navcaster::storage::RelayKind::Push); });
     _server.route(EVHTTP_REQ_POST, "/api/relays/push/stop/*", [this](auto &req, auto &resp)
-                  { handle_relay_stop(req, resp); });
+                  { handle_relay_stop(req, resp, navcaster::storage::RelayKind::Push); });
 
     // ==================== Nodes (read-only) ====================
     _server.route(EVHTTP_REQ_GET, "/api/nodes", [this](auto &req, auto &resp)
@@ -1443,200 +1444,118 @@ void http_handler::handle_delete_access_item(const HttpRequest &req, HttpRespons
 
 void http_handler::handle_get_pulls(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    json data = repo.list_records(navcaster::storage::RelayKind::Pull);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.list_records(navcaster::storage::RelayKind::Pull);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    json data = repo.get_record(navcaster::storage::RelayKind::Pull, id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.get_record(navcaster::storage::RelayKind::Pull, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.create_record(navcaster::storage::RelayKind::Pull, std::move(body));
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"uid", result.uid}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.create_record(navcaster::storage::RelayKind::Pull, req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_update_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.update_record(navcaster::storage::RelayKind::Pull, id, std::move(body));
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.update_record(navcaster::storage::RelayKind::Pull, get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_delete_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.delete_record(navcaster::storage::RelayKind::Pull, id);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.delete_record(navcaster::storage::RelayKind::Pull, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_pull_states(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    json data = repo.list_states(navcaster::storage::RelayKind::Pull);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.list_states(navcaster::storage::RelayKind::Pull);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Push Relays (PUSH:RECORD / PUSH:STAT) ====================
 
 void http_handler::handle_get_pushs(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    json data = repo.list_records(navcaster::storage::RelayKind::Push);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.list_records(navcaster::storage::RelayKind::Push);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_push(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    json data = repo.get_record(navcaster::storage::RelayKind::Push, id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.get_record(navcaster::storage::RelayKind::Push, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.create_record(navcaster::storage::RelayKind::Push, std::move(body));
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"uid", result.uid}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.create_record(navcaster::storage::RelayKind::Push, req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_update_push(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.update_record(navcaster::storage::RelayKind::Push, id, std::move(body));
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.update_record(navcaster::storage::RelayKind::Push, get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_delete_push(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.delete_record(navcaster::storage::RelayKind::Push, id);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.delete_record(navcaster::storage::RelayKind::Push, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_push_states(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    json data = repo.list_states(navcaster::storage::RelayKind::Push);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.list_states(navcaster::storage::RelayKind::Push);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Relay Start/Stop ====================
 
-void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp)
+void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp, navcaster::storage::RelayKind kind)
 {
-    // URL: /api/relays/{pull|push}/start/{uid}
-    std::string path = req.path;
-    std::string uid = get_resource_id(req);
-    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-
-    const auto kind = path.find("/pull/") != std::string::npos
-                          ? navcaster::storage::RelayKind::Pull
-                          : navcaster::storage::RelayKind::Push;
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.set_enabled(kind, uid, true);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.set_enabled(kind, get_resource_id(req), true);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
-void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
+void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp, navcaster::storage::RelayKind kind)
 {
-    // URL: /api/relays/{pull|push}/stop/{uid}
-    std::string path = req.path;
-    std::string uid = get_resource_id(req);
-    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-
-    const auto kind = path.find("/pull/") != std::string::npos
-                          ? navcaster::storage::RelayKind::Pull
-                          : navcaster::storage::RelayKind::Push;
-    navcaster::storage::RelayRepository repo(sync_redis::instance());
-    auto result = repo.set_enabled(kind, uid, false);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    navcaster::http_api::RelayController controller(sync_redis::instance());
+    auto result = controller.set_enabled(kind, get_resource_id(req), false);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Nodes (CASTER:NODE) read-only ====================

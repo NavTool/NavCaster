@@ -8,6 +8,7 @@
 #include "config_controller.h"
 #include "json_record.h"
 #include "redis_keys.h"
+#include "relay_controller.h"
 #include "relay_repository.h"
 #include "runtime_state_repository.h"
 #include "source_controller.h"
@@ -789,6 +790,74 @@ int main()
     expect_eq_int(access_response.status_code, 400, "access controller delete item missing group");
     access_response = access_controller.delete_group("ops");
     expect_eq_int(access_response.status_code, 200, "access controller delete group ok");
+
+    FakeRedisHashClient relay_controller_redis;
+    navcaster::http_api::RelayController relay_controller(relay_controller_redis);
+    auto relay_response = relay_controller.list_records(navcaster::storage::RelayKind::Pull);
+    expect_eq_int(relay_response.status_code, 200, "relay controller list pull ok");
+    relay_response = relay_controller.create_record(navcaster::storage::RelayKind::Pull, R"({"uid":"pull-ctrl","login_mpt":"LOCAL"})");
+    expect_eq_int(relay_response.status_code, 201, "relay controller create pull ok");
+    auto relay_controller_body = nlohmann::json::parse(relay_response.body);
+    expect_eq(relay_controller_body.value("uid", std::string{}), "pull-ctrl", "relay controller create response");
+    expect_true(relay_controller_redis.hget(navcaster::redis_keys::PULL_RECORD, "pull-ctrl").value("enabled", false), "relay controller pull enabled default");
+    relay_response = relay_controller.get_record(navcaster::storage::RelayKind::Pull, "pull-ctrl");
+    expect_eq_int(relay_response.status_code, 200, "relay controller get pull ok");
+    relay_response = relay_controller.create_record(navcaster::storage::RelayKind::Pull, R"({"uid":"pull-ctrl"})");
+    expect_eq_int(relay_response.status_code, 409, "relay controller duplicate pull");
+    relay_response = relay_controller.create_record(navcaster::storage::RelayKind::Pull, "{");
+    expect_eq_int(relay_response.status_code, 400, "relay controller create invalid json");
+    relay_response = relay_controller.create_record(navcaster::storage::RelayKind::Pull, R"({})");
+    expect_eq_int(relay_response.status_code, 400, "relay controller create missing uid");
+    relay_response = relay_controller.get_record(navcaster::storage::RelayKind::Pull, "");
+    expect_eq_int(relay_response.status_code, 400, "relay controller missing get id");
+    relay_response = relay_controller.get_record(navcaster::storage::RelayKind::Pull, "missing");
+    expect_eq_int(relay_response.status_code, 404, "relay controller missing get");
+    relay_controller_redis.hset(navcaster::redis_keys::PULL_STAT, "pull-ctrl", nlohmann::json{{"state", 1}}.dump());
+    relay_response = relay_controller.update_record(navcaster::storage::RelayKind::Pull, "pull-ctrl", R"({"target_ip":"127.0.0.1"})");
+    expect_eq_int(relay_response.status_code, 200, "relay controller update pull ok");
+    expect_true(relay_controller_redis.hget(navcaster::redis_keys::PULL_STAT, "pull-ctrl").is_null(), "relay controller update clears state");
+    relay_response = relay_controller.update_record(navcaster::storage::RelayKind::Pull, "", R"({"target_ip":"127.0.0.1"})");
+    expect_eq_int(relay_response.status_code, 400, "relay controller update missing id");
+    relay_response = relay_controller.update_record(navcaster::storage::RelayKind::Pull, "pull-ctrl", "{");
+    expect_eq_int(relay_response.status_code, 400, "relay controller update invalid json");
+    relay_controller_redis.hset(navcaster::redis_keys::PULL_STAT, "pull-ctrl", nlohmann::json{{"state", 1}}.dump());
+    relay_response = relay_controller.set_enabled(navcaster::storage::RelayKind::Pull, "pull-ctrl", false);
+    expect_eq_int(relay_response.status_code, 200, "relay controller stop pull ok");
+    expect_true(!relay_controller_redis.hget(navcaster::redis_keys::PULL_RECORD, "pull-ctrl").value("enabled", true), "relay controller stop disables");
+    expect_true(!relay_controller_redis.hget(navcaster::redis_keys::PULL_STAT, "pull-ctrl").is_null(), "relay controller stop keeps state");
+    relay_response = relay_controller.set_enabled(navcaster::storage::RelayKind::Pull, "pull-ctrl", true);
+    expect_eq_int(relay_response.status_code, 200, "relay controller start pull ok");
+    relay_controller_body = nlohmann::json::parse(relay_response.body);
+    expect_eq(relay_controller_body.value("uid", std::string{}), "pull-ctrl", "relay controller start response uid");
+    expect_true(relay_controller_redis.hget(navcaster::redis_keys::PULL_RECORD, "pull-ctrl").value("enabled", false), "relay controller start enables");
+    relay_response = relay_controller.set_enabled(navcaster::storage::RelayKind::Pull, "", true);
+    expect_eq_int(relay_response.status_code, 400, "relay controller start missing id");
+    relay_response = relay_controller.set_enabled(navcaster::storage::RelayKind::Pull, "missing", true);
+    expect_eq_int(relay_response.status_code, 404, "relay controller start missing record");
+    relay_response = relay_controller.list_states(navcaster::storage::RelayKind::Pull);
+    expect_eq_int(relay_response.status_code, 200, "relay controller list pull states ok");
+    relay_controller_body = nlohmann::json::parse(relay_response.body);
+    expect_true(relay_controller_body.contains("pull-ctrl"), "relay controller state list contains pull");
+    relay_response = relay_controller.delete_record(navcaster::storage::RelayKind::Pull, "pull-ctrl");
+    expect_eq_int(relay_response.status_code, 200, "relay controller delete pull ok");
+    expect_true(relay_controller_redis.hget(navcaster::redis_keys::PULL_RECORD, "pull-ctrl").is_null(), "relay controller delete removes record");
+    expect_true(relay_controller_redis.hget(navcaster::redis_keys::PULL_STAT, "pull-ctrl").is_null(), "relay controller delete clears state");
+    relay_response = relay_controller.delete_record(navcaster::storage::RelayKind::Pull, "pull-ctrl");
+    expect_eq_int(relay_response.status_code, 404, "relay controller missing delete");
+
+    relay_response = relay_controller.create_record(navcaster::storage::RelayKind::Push, R"({"uid":"push-ctrl","enabled":false})");
+    expect_eq_int(relay_response.status_code, 201, "relay controller create push ok");
+    expect_true(!relay_controller_redis.hget(navcaster::redis_keys::PUSH_RECORD, "push-ctrl").value("enabled", true), "relay controller preserves push enabled");
+    relay_response = relay_controller.get_record(navcaster::storage::RelayKind::Push, "push-ctrl");
+    expect_eq_int(relay_response.status_code, 200, "relay controller get push ok");
+    relay_controller_redis.hset(navcaster::redis_keys::PUSH_STAT, "push-ctrl", nlohmann::json{{"state", 1}}.dump());
+    relay_response = relay_controller.update_record(navcaster::storage::RelayKind::Push, "push-ctrl", R"({"target_ip":"127.0.0.1"})");
+    expect_eq_int(relay_response.status_code, 200, "relay controller update push ok");
+    expect_true(relay_controller_redis.hget(navcaster::redis_keys::PUSH_STAT, "push-ctrl").is_null(), "relay controller update clears push state");
+    relay_response = relay_controller.list_records(navcaster::storage::RelayKind::Push);
+    expect_eq_int(relay_response.status_code, 200, "relay controller list push ok");
+    relay_controller_body = nlohmann::json::parse(relay_response.body);
+    expect_true(relay_controller_body.contains("push-ctrl"), "relay controller list push contains record");
 
     if (failures != 0)
     {

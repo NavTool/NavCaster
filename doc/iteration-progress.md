@@ -156,6 +156,8 @@
 - 扩展 `schema_smoke`：直接编译并测试 `AliasController`，覆盖 alias list/create/get/update/delete、publish、重复创建 409、非法 JSON 400、缺 source_name 400、缺 ID 400、缺失资源 404。
 - 新增 `AccessController`：将 `/api/access/groups` 与 `/api/access/items/<group_uid>` 的 list/get/create/update/delete 业务逻辑从 `http_handler.cpp` 移出，保持 access group 内置组删除 403、item `mount_point_name/mountpoint/mount/uid` 兼容和 `CASTER:CONF ACCESS` publish 副作用。
 - 扩展 `schema_smoke`：直接编译并测试 `AccessController`，覆盖 group CRUD、内置组保护、重复创建 409、非法 JSON 400、缺 ID/缺 group_uid、item mount 字段兼容、body/path group_uid fallback、item CRUD 和 publish 行为。
+- 新增 `RelayController`：将 `/api/relays/pull`、`/api/relays/push`、relay state list 以及 start/stop 业务逻辑从 `http_handler.cpp` 移出；路由处显式传入 `RelayKind`，避免 start/stop 继续依赖 path 字符串推断 pull/push。
+- 扩展 `schema_smoke`：直接编译并测试 `RelayController`，覆盖 pull/push list/get/create/update/delete/status、重复创建 409、非法 JSON 400、缺 ID 400、缺失记录 404、start/stop 只更新 `enabled` 且不清理 state、update/delete 清理 state。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -218,5 +220,9 @@
   - Access controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Access controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Access controller 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `access_controller.cpp` 已被 `casterhttp` 目标收编译。
+  - Relay controller 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Relay controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Relay controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Relay controller 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `relay_controller.cpp` 已被 `casterhttp` 目标收编译。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
