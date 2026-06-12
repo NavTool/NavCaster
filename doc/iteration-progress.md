@@ -61,7 +61,7 @@
 
 - [x] 抽账号 repository。
 - [x] 抽 source/alias repository。
-- [ ] 抽 access repository。
+- [x] 抽 access repository。
 - [ ] 抽 relay repository。
 - [ ] 抽 runtime state repository 边界。
 - [ ] 统一 proto JSON helper。
@@ -126,6 +126,10 @@
 - Source 写入计划补齐 `uid=mountpoint`、`source_group_uid=default`、`record_type/decode_type/display_type`、`create_time/update_time`，并拒绝 update URL 与 body `mountpoint` 不一致。
 - Alias 写入计划兼容 `uid/alias_name/alias_mpt/name`，补齐 `uid/alias_name/source_name/enable/visible/create_time/update_time`；create/update/delete 成功后继续发布 `CASTER:CONF` 的 `ALIAS` 变更通知。
 - 扩展 `schema_smoke`：覆盖 source 计划默认值、缺 mountpoint 拒绝、update mountpoint 冲突、source repository CRUD；覆盖 alias key fallback、缺 source_name 拒绝、update 使用 URL uid、alias repository CRUD 和 publish 行为。
+- 新增 `AccessRepository`：内置 `default`/`SYSTEM` 组初始化、access group CRUD、`ACCESS:ITEM:<group_uid>` CRUD 收敛到 repository；HTTP access group/item handler 改为调用 repository。
+- Access group 写入计划兼容 `uid/group_uid`，补齐 `group_name/create_time/update_time` 和六个访问控制默认开关；内置组删除仍在 HTTP 层保持 403 行为。
+- Access item 写入计划兼容 `mount_point_name/mountpoint/mount/uid`，统一使用 `redis_keys::access_item(group_uid)` 分桶；group/item 写成功后继续发布 `CASTER:CONF` 的 `ACCESS` 变更通知，启动内置组初始化不发布。
+- 扩展 `schema_smoke`：覆盖内置组初始化、group 默认值/重复创建/更新/内置组保护、item mountpoint alias 兼容、item CRUD、`ACCESS` publish 行为。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -148,5 +152,9 @@
   - Source/Alias repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Source/Alias repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Source/Alias repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
+  - Access repository 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Access repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Access repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Access repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

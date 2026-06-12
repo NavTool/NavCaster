@@ -2,6 +2,7 @@
 #include "SysUsage.h"
 #include "Caster_Core.h"
 #include "account_repository.h"
+#include "access_repository.h"
 #include "alias_repository.h"
 #include "broadcast_msg.h"
 #include "base64.h"
@@ -29,8 +30,7 @@ static const char *KEY_SERVER_STATE = "MPT:STAT";
 static const char *KEY_CLIENT_STATE = "USR:STAT";
 static const char *KEY_STREAM_STATE = "STR:STAT";
 static const char *KEY_ALIAS_RULE = navcaster::redis_keys::ALIAS_RULE;
-static const char *KEY_ACCESS_GROUP = "ACCESS:GROUP";
-static const char *KEY_ACCESS_ITEM = "ACCESS:ITEM"; // + ":group_uid"
+static const char *KEY_ACCESS_GROUP = navcaster::redis_keys::ACCESS_GROUP;
 static const char *KEY_PULL_RECORD = "PULL:RECORD";
 static const char *KEY_PULL_STATE = "PULL:STAT";
 static const char *KEY_PUSH_RECORD = "PUSH:RECORD";
@@ -674,39 +674,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
 
     // Ensure default access group exists
     {
-        auto now = std::chrono::system_clock::now();
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-        json default_group = {
-            {"uid", "default"},
-            {"group_name", "default"},
-            {"create_time", ms},
-            {"update_time", ms},
-            {"nearest_mpt_enable", false},
-            {"nearest_mpt_source_name", ""},
-            {"allow_visible_inside_group", true},
-            {"allow_access_inside_group", true},
-            {"allow_nearby_inside_group", true},
-            {"allow_visible_outside_group", true},
-            {"allow_access_outside_group", true},
-            {"allow_nearby_outside_group", true}
-        };
-        sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, "default", default_group.dump());
-
-        json system_group = {
-            {"uid", "SYSTEM"},
-            {"group_name", "SYSTEM"},
-            {"create_time", ms},
-            {"update_time", ms},
-            {"nearest_mpt_enable", true},
-            {"nearest_mpt_source_name", ""},
-            {"allow_visible_inside_group", true},
-            {"allow_access_inside_group", true},
-            {"allow_nearby_inside_group", true},
-            {"allow_visible_outside_group", true},
-            {"allow_access_outside_group", true},
-            {"allow_nearby_outside_group", true}
-        };
-        sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, "SYSTEM", system_group.dump());
+        navcaster::storage::AccessRepository repo(sync_redis::instance());
+        repo.ensure_builtin_groups(current_unix_seconds());
         spdlog::info("[{}:{}]: Ensured default access group exists", __class__, __func__);
     }
 
@@ -1482,23 +1451,39 @@ void http_handler::handle_delete_alias(const HttpRequest &req, HttpResponse &res
 
 // ==================== Access Groups (ACCESS:GROUP) ====================
 
-IMPL_GET_ALL(handle_get_access_groups, KEY_ACCESS_GROUP)
-IMPL_GET_ONE(handle_get_access_group, KEY_ACCESS_GROUP)
+void http_handler::handle_get_access_groups(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    json data = repo.list_groups();
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_access_group(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    json data = repo.get_group(id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 void http_handler::handle_create_access_group(const HttpRequest &req, HttpResponse &resp)
 {
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    std::string uid = body.value("uid", "");
-    if (uid.empty()) uid = body.value("group_uid", "");
-    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing group uid"})"; return; }
-    body["uid"] = uid;
-    bool ok = sync_redis::instance().hsetnx(KEY_ACCESS_GROUP, uid.c_str(), body.dump());
-    if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Group already exists"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    auto result = repo.create_group(std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    resp.body = json{{"ok", true}, {"uid", result.uid}}.dump();
 }
 
 void http_handler::handle_update_access_group(const HttpRequest &req, HttpResponse &resp)
@@ -1508,10 +1493,13 @@ void http_handler::handle_update_access_group(const HttpRequest &req, HttpRespon
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    body["uid"] = id;
-    bool ok = sync_redis::instance().hset(KEY_ACCESS_GROUP, id.c_str(), body.dump());
-    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    auto result = repo.update_group(id, std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1520,10 +1508,21 @@ void http_handler::handle_delete_access_group(const HttpRequest &req, HttpRespon
 {
     std::string id = get_resource_id(req);
     if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    if (id == "default" || id == "SYSTEM") { resp.status_code = 403; resp.body = R"({"error":"Built-in group cannot be deleted"})"; return; }
-    bool ok = sync_redis::instance().hdel(KEY_ACCESS_GROUP, id.c_str());
-    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    auto result = repo.delete_group(id);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        if (result.error == "Built-in group cannot be deleted")
+        {
+            resp.status_code = 403;
+            resp.body = json{{"error", result.error}}.dump();
+        }
+        else
+        {
+            write_repository_error(result.status, result.error, resp);
+        }
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1540,8 +1539,8 @@ void http_handler::handle_get_access_items(const HttpRequest &req, HttpResponse 
         resp.body = R"({"error":"Missing group_uid"})";
         return;
     }
-    std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
-    json data = sync_redis::instance().hgetall(key.c_str());
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    json data = repo.list_items(group_uid);
     resp.status_code = 200;
     resp.body = data.dump();
 }
@@ -1558,18 +1557,13 @@ void http_handler::handle_create_access_item(const HttpRequest &req, HttpRespons
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-
-    std::string mount = body.value("mount_point_name", "");
-    if (mount.empty()) mount = body.value("mountpoint", "");
-    if (mount.empty()) mount = body.value("mount", "");
-    if (mount.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint"})"; return; }
-    body["uid"] = body.value("uid", mount);
-    body["mount_point_name"] = mount;
-
-    std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
-    bool ok = sync_redis::instance().hsetnx(key.c_str(), mount.c_str(), body.dump());
-    if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Item already exists"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    auto result = repo.create_item(group_uid, std::move(body));
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 201;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1582,22 +1576,13 @@ void http_handler::handle_update_access_item(const HttpRequest &req, HttpRespons
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
 
     std::string group_uid = body.value("group_uid", get_resource_id(req));
-    std::string mount = body.value("mount_point_name", "");
-    if (mount.empty()) mount = body.value("mountpoint", "");
-    if (mount.empty()) mount = body.value("mount", "");
-    if (group_uid.empty() || mount.empty())
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    auto result = repo.update_item(group_uid, std::move(body));
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
     {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing group_uid or mountpoint"})";
+        write_repository_error(result.status, result.error, resp);
         return;
     }
-    body["uid"] = body.value("uid", mount);
-    body["mount_point_name"] = mount;
-
-    std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
-    bool ok = sync_redis::instance().hset(key.c_str(), mount.c_str(), body.dump());
-    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1620,10 +1605,13 @@ void http_handler::handle_delete_access_item(const HttpRequest &req, HttpRespons
         return;
     }
 
-    std::string key = std::string(KEY_ACCESS_ITEM) + ":" + group_uid;
-    bool ok = sync_redis::instance().hdel(key.c_str(), mount.c_str());
-    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Item not found"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ACCESS");
+    navcaster::storage::AccessRepository repo(sync_redis::instance());
+    auto result = repo.delete_item(group_uid, mount);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }

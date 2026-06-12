@@ -1,5 +1,6 @@
 #include "account_repository.h"
 #include "account_schema.h"
+#include "access_repository.h"
 #include "alias_repository.h"
 #include "redis_keys.h"
 #include "source_repository.h"
@@ -445,6 +446,50 @@ int main()
     expect_eq(fake_redis.hget(navcaster::redis_keys::ALIAS_RULE, "ALIAS1").value("source_name", std::string{}), "MOUNT4", "alias repository update source");
     expect_true(alias_repo.delete_alias("ALIAS1").status == navcaster::storage::RepositoryStatus::Ok, "alias repository delete ok");
     expect_true(alias_repo.delete_alias("ALIAS1").status == navcaster::storage::RepositoryStatus::NotFound, "alias repository missing delete");
+
+    navcaster::storage::AccessRepositoryResult access_plan;
+    nlohmann::json group_body = {{"group_uid", "survey"}, {"nearest_mpt_enable", true}};
+    expect_true(navcaster::storage::build_access_group_plan(group_body, 4000, access_plan, &reason), "access group plan");
+    expect_eq(access_plan.uid, "survey", "access group uid fallback");
+    expect_eq(access_plan.record.value("uid", std::string{}), "survey", "access group record uid");
+    expect_eq(access_plan.record.value("group_name", std::string{}), "survey", "access group default name");
+    expect_true(access_plan.record.value("allow_access_inside_group", false), "access group allow access default");
+    expect_true(access_plan.record.value("create_time", 0) == 4000, "access group create time");
+    expect_true(!navcaster::storage::build_access_group_plan(nlohmann::json::object(), 4000, access_plan, &reason), "access group missing uid rejected");
+
+    navcaster::storage::AccessRepository access_repo(fake_redis);
+    access_repo.ensure_builtin_groups(4000);
+    expect_true(fake_redis.hget(navcaster::redis_keys::ACCESS_GROUP, "default").is_object(), "access repository ensures default group");
+    expect_true(fake_redis.hget(navcaster::redis_keys::ACCESS_GROUP, "SYSTEM").is_object(), "access repository ensures system group");
+    auto access_result = access_repo.create_group(group_body, 4001);
+    expect_true(access_result.status == navcaster::storage::RepositoryStatus::Ok, "access repository create group ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::ACCESS_GROUP, "survey").is_object(), "access repository writes group");
+    expect_eq(fake_redis.publishes.back().second, "ACCESS", "access group create publishes");
+    expect_true(access_repo.create_group(group_body, 4002).status == navcaster::storage::RepositoryStatus::Conflict, "access repository duplicate group");
+    access_result = access_repo.update_group("survey", {{"group_name", "Surveyors"}}, 4003);
+    expect_true(access_result.status == navcaster::storage::RepositoryStatus::Ok, "access repository update group ok");
+    expect_eq(fake_redis.hget(navcaster::redis_keys::ACCESS_GROUP, "survey").value("group_name", std::string{}), "Surveyors", "access repository update group name");
+    expect_true(access_repo.delete_group("default").status == navcaster::storage::RepositoryStatus::Invalid, "access repository protects default group");
+
+    nlohmann::json item_body = {{"mountpoint", "MOUNT9"}, {"allow_visible", 1}};
+    expect_true(navcaster::storage::build_access_item_plan("survey", item_body, access_plan, &reason), "access item plan");
+    expect_eq(access_plan.group_uid, "survey", "access item group uid");
+    expect_eq(access_plan.mountpoint, "MOUNT9", "access item mountpoint alias");
+    expect_eq(access_plan.record.value("mount_point_name", std::string{}), "MOUNT9", "access item normalized mountpoint");
+    expect_eq_int(access_plan.record.value("allow_access", -1), 0, "access item default allow access");
+    expect_true(!navcaster::storage::build_access_item_plan("", item_body, access_plan, &reason), "access item missing group rejected");
+    expect_true(!navcaster::storage::build_access_item_plan("survey", nlohmann::json::object(), access_plan, &reason), "access item missing mount rejected");
+
+    access_result = access_repo.create_item("survey", item_body);
+    expect_true(access_result.status == navcaster::storage::RepositoryStatus::Ok, "access repository create item ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::access_item("survey").c_str(), "MOUNT9").is_object(), "access repository writes item bucket");
+    expect_eq(fake_redis.publishes.back().second, "ACCESS", "access item create publishes");
+    expect_true(access_repo.create_item("survey", item_body).status == navcaster::storage::RepositoryStatus::Conflict, "access repository duplicate item");
+    access_result = access_repo.update_item("survey", {{"mount", "MOUNT9"}, {"allow_access", 1}});
+    expect_true(access_result.status == navcaster::storage::RepositoryStatus::Ok, "access repository update item ok");
+    expect_eq_int(fake_redis.hget(navcaster::redis_keys::access_item("survey").c_str(), "MOUNT9").value("allow_access", 0), 1, "access repository update item value");
+    expect_true(access_repo.delete_item("survey", "MOUNT9").status == navcaster::storage::RepositoryStatus::Ok, "access repository delete item ok");
+    expect_true(access_repo.delete_item("survey", "MOUNT9").status == navcaster::storage::RepositoryStatus::NotFound, "access repository missing item delete");
 
     if (failures != 0)
     {
