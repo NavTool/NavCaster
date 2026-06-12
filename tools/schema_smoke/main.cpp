@@ -210,6 +210,8 @@ int main()
 
     FakeRedisHashClient history_redis;
     history_redis.hashes[redis_keys::log_mpt("MOUNT_A")]["session-a"] = {{"name", "MOUNT_A"}, {"connect_time", 1000}};
+    history_redis.hashes[redis_keys::log_mpt("MOUNT_A")]["session-c"] = {{"name", "MOUNT_A"}, {"connect_time", 3000}, {"disconnect_time", 3500}};
+    history_redis.hashes[redis_keys::log_mpt("MOUNT_A")]["ignored"] = "not-an-object";
     history_redis.hashes[redis_keys::log_mpt("MOUNT_B")]["session-b"] = {{"name", "MOUNT_B"}, {"connect_time", 2000}};
     history_redis.hashes[redis_keys::log_usr("user1")]["user-session"] = {{"name", "user1"}, {"connect_time", 3000}};
     history_redis.hashes[redis_keys::MPT_STAT]["online"] = {{"ignored", true}};
@@ -227,6 +229,21 @@ int main()
     expect_eq_int(history_response.status_code, 200, "connection history service status");
     auto history_body = nlohmann::json::parse(history_response.body);
     expect_true(history_body.contains("session-a"), "connection history service body");
+    auto history_detail_response = history_service.detail(navcaster::storage::ConnectionHistoryKind::Server, "MOUNT_A", 5000);
+    expect_eq_int(history_detail_response.status_code, 200, "connection history service detail status");
+    auto history_detail = nlohmann::json::parse(history_detail_response.body);
+    expect_eq_int(static_cast<int>(history_detail.size()), 2, "connection history service detail ignores non-object");
+    expect_eq_int(history_detail[0].value("connect_time", 0), 3000, "connection history service detail sorted newest first");
+    expect_true(!history_detail[0].value("online", true), "connection history service detail offline flag");
+    expect_eq_int(history_detail[0].value("duration", 0), 500, "connection history service detail offline duration");
+    expect_true(history_detail[1].value("online", false), "connection history service detail online flag");
+    expect_eq_int(history_detail[1].value("duration", 0), 4000, "connection history service detail online duration");
+    auto client_detail_response = history_service.detail(navcaster::storage::ConnectionHistoryKind::Client, "user1", 5000);
+    expect_eq_int(client_detail_response.status_code, 200, "connection history service client detail status");
+    auto client_detail = nlohmann::json::parse(client_detail_response.body);
+    expect_eq_int(client_detail[0].value("duration", 0), 2000, "connection history service client online duration");
+    expect_eq_int(history_service.detail(navcaster::storage::ConnectionHistoryKind::Server, "", 5000).status_code, 400, "connection history service missing mount");
+    expect_eq_int(history_service.detail(navcaster::storage::ConnectionHistoryKind::Client, "", 5000).status_code, 400, "connection history service missing user");
 
     nlohmann::json helper_record = {{"uid", "helper"}, {"create_time", 0}};
     json_record::touch_timestamps(helper_record, 1234);

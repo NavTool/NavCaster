@@ -4,6 +4,8 @@
 #include "controller_response.h"
 #include "redis_hash_client.h"
 
+#include <string>
+
 namespace navcaster::http_api
 {
 
@@ -13,6 +15,7 @@ public:
     explicit ConnectionHistoryService(storage::RedisHashClient &redis);
 
     ControllerResponse list(storage::ConnectionHistoryKind kind);
+    ControllerResponse detail(storage::ConnectionHistoryKind kind, const std::string &name, long long now_ts);
 
 private:
     storage::RedisHashClient &_redis;

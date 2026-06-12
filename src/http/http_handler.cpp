@@ -1713,62 +1713,26 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
 void http_handler::handle_get_stats_mpt_history(const HttpRequest &req, HttpResponse &resp)
 {
     std::string mount = get_resource_id(req);
-    if (mount.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint name"})"; return; }
-
-    std::string log_key = "LOG:MPT:" + mount;
-    json mpt_logs = sync_redis::instance().hgetall(log_key.c_str());
-    long long now_ts = static_cast<long long>(time(nullptr));
-
-    json result = json::array();
-    for (auto &[field, entry] : mpt_logs.items())
-    {
-        if (!entry.is_object()) continue;
-
-        json item = entry;
-        // Add computed duration
-        long long ct = entry.value("connect_time", 0LL);
-        long long dt = entry.value("disconnect_time", 0LL);
-        item["duration"] = (dt > 0 ? dt : now_ts) - ct;
-        item["online"] = (dt == 0);
-        result.push_back(item);
-    }
-
-    // Sort by connect_time descending (newest first)
-    std::sort(result.begin(), result.end(), [](const json &a, const json &b)
-    { return a.value("connect_time", 0LL) > b.value("connect_time", 0LL); });
-
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    auto result = service.detail(
+        navcaster::storage::ConnectionHistoryKind::Server,
+        mount,
+        static_cast<long long>(time(nullptr)));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // GET /api/stats/users/history/{user} — connection history for a specific user
 void http_handler::handle_get_stats_usr_history(const HttpRequest &req, HttpResponse &resp)
 {
     std::string user = get_resource_id(req);
-    if (user.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing user name"})"; return; }
-
-    std::string log_key = "LOG:USR:" + user;
-    json usr_logs = sync_redis::instance().hgetall(log_key.c_str());
-    long long now_ts = static_cast<long long>(time(nullptr));
-
-    json result = json::array();
-    for (auto &[field, entry] : usr_logs.items())
-    {
-        if (!entry.is_object()) continue;
-
-        json item = entry;
-        long long ct = entry.value("connect_time", 0LL);
-        long long dt = entry.value("disconnect_time", 0LL);
-        item["duration"] = (dt > 0 ? dt : now_ts) - ct;
-        item["online"] = (dt == 0);
-        result.push_back(item);
-    }
-
-    std::sort(result.begin(), result.end(), [](const json &a, const json &b)
-    { return a.value("connect_time", 0LL) > b.value("connect_time", 0LL); });
-
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    auto result = service.detail(
+        navcaster::storage::ConnectionHistoryKind::Client,
+        user,
+        static_cast<long long>(time(nullptr)));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Mountpoint Subscribers ====================
