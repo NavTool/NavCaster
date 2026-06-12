@@ -18,6 +18,7 @@ set(SOURCES
     account_controller.h account_controller.cpp
     access_controller.h access_controller.cpp
     alias_controller.h alias_controller.cpp
+    blocking_redis_client.h blocking_redis_client.cpp
     config_controller.h config_controller.cpp
     relay_controller.h relay_controller.cpp
     redis_monitor_service.h redis_monitor_service.cpp

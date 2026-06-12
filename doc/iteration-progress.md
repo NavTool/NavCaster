@@ -77,7 +77,7 @@
 - [x] Redis monitor summary/keyspace/history/sampler 拆为 repository/service。
 - [x] Statistics query、Redis 读取、daily cache 与 ranking glue 拆为 controller。
 - [x] Mountpoint subscribers、status/health、node log level、auth/session token 拆为 service。
-- [~] HTTP 基础设施瘦身：`sync_redis` 阻塞实现仍内嵌在 `http_handler.cpp`。
+- [x] HTTP blocking Redis client 从 `http_handler.cpp` 抽离为独立 adapter。
 
 ### Phase 4：拆 Caster Core
 
@@ -90,11 +90,10 @@
 
 ## 下一步建议
 
-继续 Phase 3/4：
+继续 Phase 4/5：
 
-1. Phase 3 收尾：把 `http_handler.cpp` 内嵌的 `sync_redis`/auth blocking helper 抽到独立 adapter/factory，handler 只保留初始化、路由注册和 facade glue。
-2. Phase 4 Core：开始抽 SourceTable、AccessPolicy、RelayScheduler、History 等服务，保留 `CASTER::*` facade。
-3. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
+1. Phase 4 Core：开始抽 SourceTable、AccessPolicy、RelayScheduler、History 等服务，保留 `CASTER::*` facade。
+2. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
 
 ## 待确认问题
 
@@ -220,6 +219,8 @@
 - 新增 `StatisticsController`：将 `/api/stats/overview`、`/api/stats/daily/*`、mountpoint/user ranking 的 query/date/default window、Redis prefix scan 和 daily cache 行为从 `http_handler.cpp` 移出；`StatisticsService` 继续只负责纯聚合。
 - `RedisHashClient` 增加默认 `setex` 扩展点，真实 `sync_redis` 标记 `override`，`redis_keys` 登记 `STAT:DAILY:` 与 `stat_daily(date)`，daily cache key 不再散落在 handler 字符串里。
 - 扩展 `schema_smoke`：Fake Redis 支持 `setex` 调用记录，覆盖 statistics controller 的 date override、daily cache 命中、past day 计算后 `SETEX 604800`、ranking limit 和 Redis 读取路径。
+- 新增 `BlockingRedisClient`：将 HTTP API 的 blocking hiredis `RedisHashClient` 实现从 `http_handler.cpp` 抽到 `src/http/blocking_redis_client.*`；handler 仅保留 caster/auth 两个稳定生命周期访问器，继续保持两套 Redis 连接分离。
+- `BlockingRedisClient` 保留原有阻塞 Redis 契约：`init/reconnect`、JSON parse fallback、prefix hash 扁平扫描、monitor 能力、list 写入和失败默认值；Windows 下补 `winsock2.h` 以在独立 `.cpp` 中定义 `timeval`。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -375,5 +376,9 @@
   - Statistics controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Statistics controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Statistics controller 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Blocking Redis client 抽离后首次执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 发现独立 `.cpp` 缺少 `timeval` 定义；补 Windows/POSIX 平台头后重跑通过。
+  - Blocking Redis client 抽离后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Blocking Redis client 抽离后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Blocking Redis client 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

@@ -7,6 +7,7 @@
 #include "alias_controller.h"
 #include "alias_repository.h"
 #include "audit_log_service.h"
+#include "blocking_redis_client.h"
 #include "cluster_monitor_service.h"
 #include "config_controller.h"
 #include "config_repository.h"
@@ -32,571 +33,22 @@
 #include "system_event_service.h"
 #include <spdlog/spdlog.h>
 #include <ctime>
-#include <set>
 
 #define __class__ "http_handler"
 
-// PRAGMATIC APPROACH: Since all Redis operations are hash operations on local
-// Redis with sub-millisecond latency, and the HTTP API is for management only,
-// we use synchronous hiredis calls on a dedicated blocking connection.
-
 namespace
 {
-    // Synchronous Redis helper using a blocking connection
-    class sync_redis : public navcaster::storage::RedisHashClient
+    navcaster::storage::BlockingRedisClient &caster_redis_client()
     {
-    public:
-        static sync_redis &instance()
-        {
-            static sync_redis inst;
-            return inst;
-        }
+        static navcaster::storage::BlockingRedisClient client;
+        return client;
+    }
 
-        int init(const std::string &host, int port, const std::string &password)
-        {
-            _host = host;
-            _port = port;
-            _password = password;
-            return reconnect();
-        }
-
-        int reconnect()
-        {
-            if (_ctx)
-            {
-                redisFree(_ctx);
-                _ctx = nullptr;
-            }
-            struct timeval tv = {2, 0};
-            _ctx = redisConnectWithTimeout(_host.c_str(), _port, tv);
-            if (!_ctx || _ctx->err)
-            {
-                spdlog::error("[sync_redis]: Connect failed: {}", _ctx ? _ctx->errstr : "null");
-                if (_ctx)
-                {
-                    redisFree(_ctx);
-                    _ctx = nullptr;
-                }
-                return -1;
-            }
-            if (!_password.empty())
-            {
-                auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "AUTH %s", _password.c_str()));
-                if (reply)
-                    freeReplyObject(reply);
-            }
-            return 0;
-        }
-
-        // HGETALL → json object {field: parsed_value, ...}
-        json hgetall(const char *key) override
-        {
-            if (!ensure_connected())
-                return json::object();
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "HGETALL %s", key));
-            if (!reply)
-            {
-                spdlog::warn("[sync_redis]: HGETALL {} failed, reply is null, reconnecting", key);
-                reconnect();
-                return json::object();
-            }
-
-            json result = json::object();
-            if (reply->type == REDIS_REPLY_ARRAY)
-            {
-                for (size_t i = 0; i + 1 < reply->elements; i += 2)
-                {
-                    std::string field = reply->element[i]->str ? reply->element[i]->str : "";
-                    std::string value = reply->element[i + 1]->str ? reply->element[i + 1]->str : "";
-                    try
-                    {
-                        result[field] = json::parse(value);
-                    }
-                    catch (...)
-                    {
-                        result[field] = value;
-                    }
-                }
-            }
-            freeReplyObject(reply);
-            return result;
-        }
-
-        // HGET → json value or null
-        json hget(const char *key, const char *field) override
-        {
-            if (!ensure_connected())
-                return nullptr;
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "HGET %s %s", key, field));
-            if (!reply)
-            {
-                spdlog::warn("[sync_redis]: HGET {} {} failed, reply is null, reconnecting", key, field);
-                reconnect();
-                return nullptr;
-            }
-
-            json result = nullptr;
-            if (reply->type == REDIS_REPLY_STRING && reply->str)
-            {
-                try
-                {
-                    result = json::parse(reply->str);
-                }
-                catch (...)
-                {
-                    result = std::string(reply->str);
-                }
-            }
-            freeReplyObject(reply);
-            return result;
-        }
-
-        // HSET → bool success
-        bool hset(const char *key, const char *field, const std::string &value) override
-        {
-            if (!ensure_connected())
-                return false;
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "HSET %s %s %s", key, field, value.c_str()));
-            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return ok;
-        }
-
-        // HSETNX → bool success (false if already exists)
-        bool hsetnx(const char *key, const char *field, const std::string &value) override
-        {
-            if (!ensure_connected())
-                return false;
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "HSETNX %s %s %s", key, field, value.c_str()));
-            bool ok = reply && reply->type == REDIS_REPLY_INTEGER && reply->integer == 1;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return ok;
-        }
-
-        // HDEL → bool success
-        bool hdel(const char *key, const char *field) override
-        {
-            if (!ensure_connected())
-                return false;
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "HDEL %s %s", key, field));
-            bool ok = reply && reply->type == REDIS_REPLY_INTEGER && reply->integer > 0;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return ok;
-        }
-
-        // HLEN → number of fields in hash
-        long long hlen(const char *key) override
-        {
-            if (!ensure_connected())
-                return 0;
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "HLEN %s", key));
-            long long count = 0;
-            if (reply && reply->type == REDIS_REPLY_INTEGER)
-                count = reply->integer;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return count;
-        }
-
-        // SET key value (plain string)
-        bool set(const char *key, const std::string &value) override
-        {
-            if (!ensure_connected())
-                return false;
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "SET %s %s", key, value.c_str()));
-            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return ok;
-        }
-
-        bool setex(const char *key, int seconds, const std::string &value) override
-        {
-            if (!ensure_connected())
-                return false;
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "SETEX %s %d %s", key, seconds, value.c_str()));
-            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return ok;
-        }
-
-        // GET key → json or null
-        json get(const char *key) override
-        {
-            if (!ensure_connected())
-                return nullptr;
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "GET %s", key));
-            if (!reply)
-            {
-                reconnect();
-                return nullptr;
-            }
-
-            json result = nullptr;
-            if (reply->type == REDIS_REPLY_STRING && reply->str)
-            {
-                try
-                {
-                    result = json::parse(reply->str);
-                }
-                catch (...)
-                {
-                    result = std::string(reply->str);
-                }
-            }
-            freeReplyObject(reply);
-            return result;
-        }
-
-        // PUBLISH channel message
-        bool publish(const char *channel, const std::string &message) override
-        {
-            if (!ensure_connected())
-                return false;
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "PUBLISH %s %s", channel, message.c_str()));
-            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return ok;
-        }
-
-        // LRANGE key start stop → json array of parsed values
-        json lrange(const char *key, long long start, long long stop) override
-        {
-            if (!ensure_connected())
-                return json::array();
-
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "LRANGE %s %lld %lld", key, start, stop));
-            if (!reply)
-            {
-                reconnect();
-                return json::array();
-            }
-
-            json result = json::array();
-            if (reply->type == REDIS_REPLY_ARRAY)
-            {
-                for (size_t i = 0; i < reply->elements; i++)
-                {
-                    std::string value = reply->element[i]->str ? reply->element[i]->str : "";
-                    try
-                    {
-                        result.push_back(json::parse(value));
-                    }
-                    catch (...)
-                    {
-                        result.push_back(value);
-                    }
-                }
-            }
-            freeReplyObject(reply);
-            return result;
-        }
-
-        // INFO [section] → raw info string
-        std::string info(const char *section = nullptr) override
-        {
-            if (!ensure_connected())
-                return "";
-
-            redisReply *reply;
-            if (section)
-                reply = static_cast<redisReply *>(redisCommand(_ctx, "INFO %s", section));
-            else
-                reply = static_cast<redisReply *>(redisCommand(_ctx, "INFO"));
-            if (!reply)
-            {
-                reconnect();
-                return "";
-            }
-            std::string result;
-            if (reply->type == REDIS_REPLY_STRING && reply->str)
-                result = reply->str;
-            freeReplyObject(reply);
-            return result;
-        }
-
-        // DBSIZE → number of keys
-        long long dbsize() override
-        {
-            if (!ensure_connected())
-                return 0;
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "DBSIZE"));
-            long long count = 0;
-            if (reply && reply->type == REDIS_REPLY_INTEGER)
-                count = reply->integer;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return count;
-        }
-
-        // SCAN all keys → vector of key names
-        std::vector<std::string> scan_all_keys(int batch = 1000) override
-        {
-            if (!ensure_connected())
-                return {};
-
-            std::vector<std::string> keys;
-            unsigned long long cursor = 0;
-            do
-            {
-                auto *reply = static_cast<redisReply *>(
-                    redisCommand(_ctx, "SCAN %llu COUNT %d", cursor, batch));
-                if (!reply)
-                {
-                    reconnect();
-                    break;
-                }
-                if (reply->type == REDIS_REPLY_ARRAY && reply->elements == 2)
-                {
-                    cursor = std::strtoull(reply->element[0]->str, nullptr, 10);
-                    auto *arr = reply->element[1];
-                    for (size_t i = 0; i < arr->elements; i++)
-                    {
-                        if (arr->element[i]->str)
-                            keys.emplace_back(arr->element[i]->str);
-                    }
-                }
-                else
-                {
-                    freeReplyObject(reply);
-                    break;
-                }
-                freeReplyObject(reply);
-            } while (cursor != 0);
-            return keys;
-        }
-
-        // SCAN prefix* (hash keys only) + HGETALL each → aggregated json object {field: parsed_value, ...}
-        json scan_hgetall_prefix(const char *prefix) override
-        {
-            if (!ensure_connected())
-                return json::object();
-
-            json result = json::object();
-            std::string pattern = std::string(prefix) + "*";
-            unsigned long long cursor = 0;
-            do
-            {
-                auto *sreply = static_cast<redisReply *>(
-                    redisCommand(_ctx, "SCAN %llu MATCH %s COUNT 200 TYPE hash", cursor, pattern.c_str()));
-                if (!sreply)
-                {
-                    reconnect();
-                    break;
-                }
-                if (sreply->type == REDIS_REPLY_ARRAY && sreply->elements == 2)
-                {
-                    cursor = std::strtoull(sreply->element[0]->str, nullptr, 10);
-                    auto *arr = sreply->element[1];
-                    for (size_t i = 0; i < arr->elements; i++)
-                    {
-                        if (!arr->element[i]->str)
-                            continue;
-                        const char *hkey = arr->element[i]->str;
-                        auto *hreply = static_cast<redisReply *>(redisCommand(_ctx, "HGETALL %s", hkey));
-                        if (hreply && hreply->type == REDIS_REPLY_ARRAY)
-                        {
-                            for (size_t j = 0; j + 1 < hreply->elements; j += 2)
-                            {
-                                std::string field = hreply->element[j]->str ? hreply->element[j]->str : "";
-                                std::string value = hreply->element[j + 1]->str ? hreply->element[j + 1]->str : "";
-                                try { result[field] = json::parse(value); }
-                                catch (...) { result[field] = value; }
-                            }
-                        }
-                        if (hreply)
-                            freeReplyObject(hreply);
-                    }
-                }
-                else
-                {
-                    freeReplyObject(sreply);
-                    break;
-                }
-                freeReplyObject(sreply);
-            } while (cursor != 0);
-            return result;
-        }
-
-        // TYPE key → string
-        std::string type(const char *key) override
-        {
-            if (!ensure_connected())
-                return "none";
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "TYPE %s", key));
-            std::string result = "none";
-            if (reply && reply->type == REDIS_REPLY_STATUS && reply->str)
-                result = reply->str;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return result;
-        }
-
-        // LLEN key → list length
-        long long llen(const char *key) override
-        {
-            if (!ensure_connected())
-                return 0;
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "LLEN %s", key));
-            long long count = 0;
-            if (reply && reply->type == REDIS_REPLY_INTEGER)
-                count = reply->integer;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return count;
-        }
-
-        // MEMORY USAGE key → bytes (Redis 4.0+)
-        long long memory_usage(const char *key) override
-        {
-            if (!ensure_connected())
-                return 0;
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "MEMORY USAGE %s", key));
-            long long bytes = 0;
-            if (reply && reply->type == REDIS_REPLY_INTEGER)
-                bytes = reply->integer;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return bytes;
-        }
-
-        // TTL key → seconds (-1 no expire, -2 key missing)
-        long long ttl(const char *key)
-        {
-            if (!ensure_connected())
-                return -2;
-
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "TTL %s", key));
-            long long t = -2;
-            if (reply && reply->type == REDIS_REPLY_INTEGER)
-                t = reply->integer;
-            if (reply)
-                freeReplyObject(reply);
-            else
-                reconnect();
-            return t;
-        }
-
-        // INCR key → new value
-        long long incr(const char *key) override
-        {
-            if (!ensure_connected())
-                return 0;
-            auto *reply = static_cast<redisReply *>(redisCommand(_ctx, "INCR %s", key));
-            long long v = 0;
-            if (reply && reply->type == REDIS_REPLY_INTEGER) v = reply->integer;
-            if (reply) freeReplyObject(reply); else reconnect();
-            return v;
-        }
-
-        // LPUSH key value → new length
-        long long lpush(const char *key, const std::string &value) override
-        {
-            if (!ensure_connected())
-                return 0;
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "LPUSH %s %s", key, value.c_str()));
-            long long len = 0;
-            if (reply && reply->type == REDIS_REPLY_INTEGER) len = reply->integer;
-            if (reply) freeReplyObject(reply); else reconnect();
-            return len;
-        }
-
-        // LTRIM key start stop
-        bool ltrim(const char *key, long long start, long long stop) override
-        {
-            if (!ensure_connected())
-                return false;
-            auto *reply = static_cast<redisReply *>(
-                redisCommand(_ctx, "LTRIM %s %lld %lld", key, start, stop));
-            bool ok = reply && reply->type != REDIS_REPLY_ERROR;
-            if (reply) freeReplyObject(reply); else reconnect();
-            return ok;
-        }
-
-    private:
-        bool ensure_connected()
-        {
-            if (_ctx && !_ctx->err)
-                return true;
-            return reconnect() == 0;
-        }
-
-        redisContext *_ctx = nullptr;
-        std::string _host;
-        int _port = 6379;
-        std::string _password;
-    };
-
-    // Second sync redis for auth operations
-    class sync_redis_auth
+    navcaster::storage::BlockingRedisClient &auth_redis_client()
     {
-    public:
-        static sync_redis_auth &instance()
-        {
-            static sync_redis_auth inst;
-            return inst;
-        }
-
-        int init(const std::string &host, int port, const std::string &password)
-        {
-            return _redis.init(host, port, password);
-        }
-
-        sync_redis &redis() { return _redis; }
-
-    private:
-        sync_redis _redis;
-    };
+        static navcaster::storage::BlockingRedisClient client;
+        return client;
+    }
 
     std::int64_t current_unix_seconds()
     {
@@ -615,12 +67,12 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _config = config;
 
     // Initialize synchronous Redis connections for blocking API operations
-    sync_redis::instance().init(config.redis_host, config.redis_port, config.redis_password);
-    sync_redis_auth::instance().init(config.auth_redis_host, config.auth_redis_port, config.auth_redis_password);
+    caster_redis_client().init(config.redis_host, config.redis_port, config.redis_password);
+    auth_redis_client().init(config.auth_redis_host, config.auth_redis_port, config.auth_redis_password);
 
     // Ensure default access group exists
     {
-        navcaster::storage::AccessRepository repo(sync_redis::instance());
+        navcaster::storage::AccessRepository repo(caster_redis_client());
         repo.ensure_builtin_groups(current_unix_seconds());
         spdlog::info("[{}:{}]: Ensured default access group exists", __class__, __func__);
     }
@@ -872,8 +324,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
 
     // Register SSE channels through repository-backed snapshot service.
     static navcaster::http_api::SseSnapshotService sse_snapshots(
-        sync_redis::instance(),
-        sync_redis_auth::instance().redis());
+        caster_redis_client(),
+        auth_redis_client());
     sse_snapshots.register_channels(_sse);
 
     spdlog::info("[{}:{}]: HTTP API handler initialized on port {}", __class__, __func__, config.port);
@@ -901,7 +353,7 @@ std::string http_handler::get_path_segment(const HttpRequest &req, size_t index)
 
 void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::ConfigRepository config_repo(sync_redis::instance());
+    navcaster::storage::ConfigRepository config_repo(caster_redis_client());
     auto result = _auth_sessions.login(
         req.body,
         {_config.admin_user, _config.admin_password},
@@ -922,7 +374,7 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_accounts(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    navcaster::http_api::AccountController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.list_accounts();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -930,7 +382,7 @@ void http_handler::handle_get_accounts(const HttpRequest &req, HttpResponse &res
 
 void http_handler::handle_get_account(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    navcaster::http_api::AccountController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.get_account(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -938,7 +390,7 @@ void http_handler::handle_get_account(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_create_account(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    navcaster::http_api::AccountController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.create_account(req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -946,7 +398,7 @@ void http_handler::handle_create_account(const HttpRequest &req, HttpResponse &r
 
 void http_handler::handle_update_account(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    navcaster::http_api::AccountController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.update_account(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -954,7 +406,7 @@ void http_handler::handle_update_account(const HttpRequest &req, HttpResponse &r
 
 void http_handler::handle_delete_account(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    navcaster::http_api::AccountController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.delete_account(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -962,7 +414,7 @@ void http_handler::handle_delete_account(const HttpRequest &req, HttpResponse &r
 
 void http_handler::handle_get_account_actives(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccountController controller(sync_redis_auth::instance().redis(), current_unix_seconds());
+    navcaster::http_api::AccountController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.list_active_sessions();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -972,7 +424,7 @@ void http_handler::handle_get_account_actives(const HttpRequest &req, HttpRespon
 
 void http_handler::handle_get_sources(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::SourceController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.list_sources();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -980,7 +432,7 @@ void http_handler::handle_get_sources(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_source(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::SourceController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.get_source(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -988,7 +440,7 @@ void http_handler::handle_get_source(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_create_source(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::SourceController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.create_source(req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -996,7 +448,7 @@ void http_handler::handle_create_source(const HttpRequest &req, HttpResponse &re
 
 void http_handler::handle_update_source(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::SourceController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.update_source(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1004,7 +456,7 @@ void http_handler::handle_update_source(const HttpRequest &req, HttpResponse &re
 
 void http_handler::handle_delete_source(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::SourceController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.delete_source(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1014,7 +466,7 @@ void http_handler::handle_delete_source(const HttpRequest &req, HttpResponse &re
 
 void http_handler::handle_get_servers(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.list(navcaster::storage::RuntimeStateKind::Server);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1022,7 +474,7 @@ void http_handler::handle_get_servers(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_server(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.get(navcaster::storage::RuntimeStateKind::Server, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1032,7 +484,7 @@ void http_handler::handle_get_server(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_clients(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.list(navcaster::storage::RuntimeStateKind::Client);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1040,7 +492,7 @@ void http_handler::handle_get_clients(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_client(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.get(navcaster::storage::RuntimeStateKind::Client, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1050,7 +502,7 @@ void http_handler::handle_get_client(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_kick_server(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeCommandService service(sync_redis::instance());
+    navcaster::http_api::RuntimeCommandService service(caster_redis_client());
     auto result = service.kick(navcaster::storage::RuntimeStateKind::Server, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1058,7 +510,7 @@ void http_handler::handle_kick_server(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_kick_client(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeCommandService service(sync_redis::instance());
+    navcaster::http_api::RuntimeCommandService service(caster_redis_client());
     auto result = service.kick(navcaster::storage::RuntimeStateKind::Client, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1068,7 +520,7 @@ void http_handler::handle_kick_client(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_streams(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.list(navcaster::storage::RuntimeStateKind::Stream);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1076,7 +528,7 @@ void http_handler::handle_get_streams(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_stream(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.get(navcaster::storage::RuntimeStateKind::Stream, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1086,7 +538,7 @@ void http_handler::handle_get_stream(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_aliases(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AliasController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AliasController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.list_aliases();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1094,7 +546,7 @@ void http_handler::handle_get_aliases(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_alias(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AliasController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AliasController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.get_alias(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1102,7 +554,7 @@ void http_handler::handle_get_alias(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_create_alias(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AliasController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AliasController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.create_alias(req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1110,7 +562,7 @@ void http_handler::handle_create_alias(const HttpRequest &req, HttpResponse &res
 
 void http_handler::handle_update_alias(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AliasController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AliasController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.update_alias(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1118,7 +570,7 @@ void http_handler::handle_update_alias(const HttpRequest &req, HttpResponse &res
 
 void http_handler::handle_delete_alias(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AliasController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AliasController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.delete_alias(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1128,7 +580,7 @@ void http_handler::handle_delete_alias(const HttpRequest &req, HttpResponse &res
 
 void http_handler::handle_get_access_groups(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.list_groups();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1136,7 +588,7 @@ void http_handler::handle_get_access_groups(const HttpRequest &req, HttpResponse
 
 void http_handler::handle_get_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.get_group(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1144,7 +596,7 @@ void http_handler::handle_get_access_group(const HttpRequest &req, HttpResponse 
 
 void http_handler::handle_create_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.create_group(req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1152,7 +604,7 @@ void http_handler::handle_create_access_group(const HttpRequest &req, HttpRespon
 
 void http_handler::handle_update_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.update_group(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1160,7 +612,7 @@ void http_handler::handle_update_access_group(const HttpRequest &req, HttpRespon
 
 void http_handler::handle_delete_access_group(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.delete_group(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1170,7 +622,7 @@ void http_handler::handle_delete_access_group(const HttpRequest &req, HttpRespon
 
 void http_handler::handle_get_access_items(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.list_items(get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1178,7 +630,7 @@ void http_handler::handle_get_access_items(const HttpRequest &req, HttpResponse 
 
 void http_handler::handle_create_access_item(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.create_item(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1186,7 +638,7 @@ void http_handler::handle_create_access_item(const HttpRequest &req, HttpRespons
 
 void http_handler::handle_update_access_item(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.update_item(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1194,7 +646,7 @@ void http_handler::handle_update_access_item(const HttpRequest &req, HttpRespons
 
 void http_handler::handle_delete_access_item(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::AccessController controller(sync_redis::instance(), current_unix_seconds());
+    navcaster::http_api::AccessController controller(caster_redis_client(), current_unix_seconds());
     auto result = controller.delete_item(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1204,7 +656,7 @@ void http_handler::handle_delete_access_item(const HttpRequest &req, HttpRespons
 
 void http_handler::handle_get_pulls(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.list_records(navcaster::storage::RelayKind::Pull);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1212,7 +664,7 @@ void http_handler::handle_get_pulls(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.get_record(navcaster::storage::RelayKind::Pull, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1220,7 +672,7 @@ void http_handler::handle_get_pull(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.create_record(navcaster::storage::RelayKind::Pull, req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1228,7 +680,7 @@ void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_update_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.update_record(navcaster::storage::RelayKind::Pull, get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1236,7 +688,7 @@ void http_handler::handle_update_pull(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_delete_pull(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.delete_record(navcaster::storage::RelayKind::Pull, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1244,7 +696,7 @@ void http_handler::handle_delete_pull(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_pull_states(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.list_states(navcaster::storage::RelayKind::Pull);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1254,7 +706,7 @@ void http_handler::handle_get_pull_states(const HttpRequest &req, HttpResponse &
 
 void http_handler::handle_get_pushs(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.list_records(navcaster::storage::RelayKind::Push);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1262,7 +714,7 @@ void http_handler::handle_get_pushs(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_push(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.get_record(navcaster::storage::RelayKind::Push, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1270,7 +722,7 @@ void http_handler::handle_get_push(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.create_record(navcaster::storage::RelayKind::Push, req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1278,7 +730,7 @@ void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_update_push(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.update_record(navcaster::storage::RelayKind::Push, get_resource_id(req), req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1286,7 +738,7 @@ void http_handler::handle_update_push(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_delete_push(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.delete_record(navcaster::storage::RelayKind::Push, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1294,7 +746,7 @@ void http_handler::handle_delete_push(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_get_push_states(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.list_states(navcaster::storage::RelayKind::Push);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1304,7 +756,7 @@ void http_handler::handle_get_push_states(const HttpRequest &req, HttpResponse &
 
 void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp, navcaster::storage::RelayKind kind)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.set_enabled(kind, get_resource_id(req), true);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1312,7 +764,7 @@ void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp
 
 void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp, navcaster::storage::RelayKind kind)
 {
-    navcaster::http_api::RelayController controller(sync_redis::instance());
+    navcaster::http_api::RelayController controller(caster_redis_client());
     auto result = controller.set_enabled(kind, get_resource_id(req), false);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1322,7 +774,7 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp,
 
 void http_handler::handle_get_nodes(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.list(navcaster::storage::RuntimeStateKind::Node);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1330,7 +782,7 @@ void http_handler::handle_get_nodes(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_get_node(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::http_api::RuntimeStateController controller(sync_redis::instance());
+    navcaster::http_api::RuntimeStateController controller(caster_redis_client());
     auto result = controller.get(navcaster::storage::RuntimeStateKind::Node, get_resource_id(req));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1359,7 +811,7 @@ void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse 
         if (limit <= 0) limit = 17280;
     }
 
-    navcaster::http_api::NodeHistoryService service(sync_redis::instance());
+    navcaster::http_api::NodeHistoryService service(caster_redis_client());
     auto result = service.list(node_id, range, limit);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1372,7 +824,7 @@ void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse 
 void http_handler::handle_get_server_logs(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    navcaster::http_api::ConnectionHistoryService service(caster_redis_client());
     auto result = service.list(navcaster::storage::ConnectionHistoryKind::Server);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1381,7 +833,7 @@ void http_handler::handle_get_server_logs(const HttpRequest &req, HttpResponse &
 void http_handler::handle_get_client_logs(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    navcaster::http_api::ConnectionHistoryService service(caster_redis_client());
     auto result = service.list(navcaster::storage::ConnectionHistoryKind::Client);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1390,7 +842,7 @@ void http_handler::handle_get_client_logs(const HttpRequest &req, HttpResponse &
 void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::StatisticsController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         static_cast<long long>(time(nullptr)));
     auto result = controller.overview(req.query_params);
     resp.status_code = result.status_code;
@@ -1400,7 +852,7 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
 void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::StatisticsController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         static_cast<long long>(time(nullptr)));
     auto result = controller.daily(get_resource_id(req));
     resp.status_code = result.status_code;
@@ -1410,7 +862,7 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
 void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::StatisticsController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         static_cast<long long>(time(nullptr)));
     auto result = controller.mountpoint_ranking(req.query_params);
     resp.status_code = result.status_code;
@@ -1420,7 +872,7 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
 void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::StatisticsController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         static_cast<long long>(time(nullptr)));
     auto result = controller.user_ranking(req.query_params);
     resp.status_code = result.status_code;
@@ -1431,7 +883,7 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
 void http_handler::handle_get_stats_mpt_history(const HttpRequest &req, HttpResponse &resp)
 {
     std::string mount = get_resource_id(req);
-    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    navcaster::http_api::ConnectionHistoryService service(caster_redis_client());
     auto result = service.detail(
         navcaster::storage::ConnectionHistoryKind::Server,
         mount,
@@ -1444,7 +896,7 @@ void http_handler::handle_get_stats_mpt_history(const HttpRequest &req, HttpResp
 void http_handler::handle_get_stats_usr_history(const HttpRequest &req, HttpResponse &resp)
 {
     std::string user = get_resource_id(req);
-    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    navcaster::http_api::ConnectionHistoryService service(caster_redis_client());
     auto result = service.detail(
         navcaster::storage::ConnectionHistoryKind::Client,
         user,
@@ -1458,7 +910,7 @@ void http_handler::handle_get_stats_usr_history(const HttpRequest &req, HttpResp
 void http_handler::handle_get_mountpoint_subscribers(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    navcaster::http_api::MountpointSubscriberService service(sync_redis::instance());
+    navcaster::http_api::MountpointSubscriberService service(caster_redis_client());
     auto result = service.list();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1469,7 +921,7 @@ void http_handler::handle_get_mountpoint_subscribers(const HttpRequest &req, Htt
 void http_handler::handle_get_status(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    auto &redis = sync_redis::instance();
+    auto &redis = caster_redis_client();
     navcaster::http_api::StatusSnapshot snapshot;
     snapshot.cpu_percent = SysUsage::getInstance()->getProcessCPU();
     snapshot.memory_bytes = SysUsage::getInstance()->getProcessMemory();
@@ -1523,7 +975,7 @@ void http_handler::handle_local_sourcetable(const HttpRequest &req, HttpResponse
 void http_handler::save_config(const std::string &section, const std::string &json_str)
 {
     navcaster::http_api::ConfigController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         {_config.admin_user, _config.admin_password});
     controller.save_config(section, json_str);
 }
@@ -1531,7 +983,7 @@ void http_handler::save_config(const std::string &section, const std::string &js
 void http_handler::handle_get_configs(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::ConfigController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         {_config.admin_user, _config.admin_password});
     auto result = controller.get_configs();
     resp.status_code = result.status_code;
@@ -1541,7 +993,7 @@ void http_handler::handle_get_configs(const HttpRequest &req, HttpResponse &resp
 void http_handler::handle_get_config(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::ConfigController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         {_config.admin_user, _config.admin_password});
     auto result = controller.get_config(get_resource_id(req));
     resp.status_code = result.status_code;
@@ -1551,7 +1003,7 @@ void http_handler::handle_get_config(const HttpRequest &req, HttpResponse &resp)
 void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::ConfigController controller(
-        sync_redis::instance(),
+        caster_redis_client(),
         {_config.admin_user, _config.admin_password});
     auto result = controller.update_config(get_resource_id(req), req.body);
     resp.status_code = result.status_code;
@@ -1594,7 +1046,7 @@ void http_handler::handle_sse_stream(evhttp_request *raw_req, const HttpRequest 
 void http_handler::handle_get_monitor_redis(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    navcaster::http_api::RedisMonitorService service(sync_redis::instance());
+    navcaster::http_api::RedisMonitorService service(caster_redis_client());
     auto result = service.summary();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1603,7 +1055,7 @@ void http_handler::handle_get_monitor_redis(const HttpRequest &req, HttpResponse
 void http_handler::handle_get_monitor_redis_keys(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    navcaster::http_api::RedisMonitorService service(sync_redis::instance());
+    navcaster::http_api::RedisMonitorService service(caster_redis_client());
     auto result = service.keys();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1612,7 +1064,7 @@ void http_handler::handle_get_monitor_redis_keys(const HttpRequest &req, HttpRes
 void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    navcaster::http_api::ClusterMonitorService service(sync_redis::instance());
+    navcaster::http_api::ClusterMonitorService service(caster_redis_client());
     auto result = service.snapshot(static_cast<long long>(std::time(nullptr)));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1623,7 +1075,7 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
 void http_handler::write_audit(const HttpRequest &req, const HttpResponse &resp,
                                const std::string &actor, const std::string &client_ip)
 {
-    navcaster::http_api::AuditLogService service(sync_redis::instance());
+    navcaster::http_api::AuditLogService service(caster_redis_client());
     service.write(req, resp, actor, client_ip, CASTER::Get_Node_ID(), std::time(nullptr));
 }
 
@@ -1640,7 +1092,7 @@ void http_handler::handle_get_audit(const HttpRequest &req, HttpResponse &resp)
     auto it_x = req.query_params.find("action"); if (it_x != req.query_params.end()) filter_action = it_x->second;
     auto it_t = req.query_params.find("target"); if (it_t != req.query_params.end()) filter_target = it_t->second;
 
-    navcaster::http_api::AuditLogService service(sync_redis::instance());
+    navcaster::http_api::AuditLogService service(caster_redis_client());
     auto result = service.list(limit, cursor, filter_actor, filter_action, filter_target);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1669,7 +1121,7 @@ void http_handler::handle_get_system_events(const HttpRequest &req, HttpResponse
     auto it_l = req.query_params.find("limit");
     if (it_l != req.query_params.end()) try { limit = std::stoll(it_l->second); } catch (...) {}
 
-    navcaster::http_api::SystemEventService service(sync_redis::instance());
+    navcaster::http_api::SystemEventService service(caster_redis_client());
     auto result = service.list(limit);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -1697,7 +1149,7 @@ void http_handler::on_redis_sample_timer(evutil_socket_t /*fd*/, short /*what*/,
 
 void http_handler::sample_redis_history()
 {
-    navcaster::http_api::RedisMonitorService service(sync_redis::instance());
+    navcaster::http_api::RedisMonitorService service(caster_redis_client());
     if (!service.sample_history(static_cast<long long>(std::time(nullptr))))
     {
         spdlog::warn("[{}:{}]: skip redis history sample, INFO missing required sections or used_memory is 0", __class__, __func__);
@@ -1713,7 +1165,7 @@ void http_handler::handle_get_monitor_redis_history(const HttpRequest &req, Http
         range = it->second;
     }
 
-    navcaster::http_api::RedisMonitorService service(sync_redis::instance());
+    navcaster::http_api::RedisMonitorService service(caster_redis_client());
     auto result = service.history(range);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
