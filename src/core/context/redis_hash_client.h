@@ -20,6 +20,7 @@ public:
     virtual bool hdel(const char *key, const char *field) = 0;
     virtual nlohmann::json get(const char *key) { return nullptr; }
     virtual bool set(const char *key, const std::string &value) { return false; }
+    virtual bool setex(const char *key, int seconds, const std::string &value) { return false; }
     virtual bool publish(const char *channel, const std::string &message) { return false; }
     virtual std::string info(const char *section = nullptr) { return ""; }
     virtual long long dbsize() { return 0; }

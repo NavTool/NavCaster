@@ -53,6 +53,7 @@ inline constexpr const char *LOG_AUDIT = "LOG:AUDIT";
 inline constexpr const char *LOG_AUDIT_SEQ = "LOG:AUDIT:SEQ";
 inline constexpr const char *NODE_HISTORY_PREFIX = "NODE:HISTORY:";
 inline constexpr const char *MONITOR_REDIS_HISTORY = "MONITOR:REDIS:HISTORY";
+inline constexpr const char *STAT_DAILY_PREFIX = "STAT:DAILY:";
 
 // Pub/Sub channels
 inline constexpr const char *CASTER_BROADCAST = "CASTER:BROADCAST";
@@ -73,6 +74,7 @@ std::string log_node(const std::string &node_id);
 std::string node_history(const std::string &node_id);
 std::string node_history_1m(const std::string &node_id);
 std::string node_history_5m(const std::string &node_id);
+std::string stat_daily(const std::string &date);
 std::string mpt_channel(const std::string &mount);
 std::string usr_channel(const std::string &user);
 std::string node_channel(const std::string &node_id);

@@ -24,6 +24,7 @@ std::string log_node(const std::string &node_id) { return append(LOG_NODE_PREFIX
 std::string node_history(const std::string &node_id) { return append(NODE_HISTORY_PREFIX, node_id); }
 std::string node_history_1m(const std::string &node_id) { return node_history(node_id) + ":1M"; }
 std::string node_history_5m(const std::string &node_id) { return node_history(node_id) + ":5M"; }
+std::string stat_daily(const std::string &date) { return append(STAT_DAILY_PREFIX, date); }
 std::string mpt_channel(const std::string &mount) { return std::string("MPT:") + mount; }
 std::string usr_channel(const std::string &user) { return std::string("USR:") + user; }
 std::string node_channel(const std::string &node_id) { return std::string("NODE:") + node_id; }

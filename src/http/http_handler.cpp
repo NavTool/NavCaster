@@ -24,7 +24,7 @@
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
 #include "sourcetable_service.h"
-#include "statistics_service.h"
+#include "statistics_controller.h"
 #include "status_service.h"
 #include "source_controller.h"
 #include "source_repository.h"
@@ -32,23 +32,9 @@
 #include "system_event_service.h"
 #include <spdlog/spdlog.h>
 #include <ctime>
-#include <iomanip>
 #include <set>
-#include <sstream>
 
 #define __class__ "http_handler"
-
-// Redis key constants — matching CasterWeb and caster_internal
-static const char *KEY_SOURCE_RECORD = navcaster::redis_keys::MPT_RECORD;
-static const char *KEY_STREAM_STATE = "STR:STAT";
-static const char *KEY_ALIAS_RULE = navcaster::redis_keys::ALIAS_RULE;
-static const char *KEY_ACCESS_GROUP = navcaster::redis_keys::ACCESS_GROUP;
-static const char *KEY_PULL_RECORD = navcaster::redis_keys::PULL_RECORD;
-static const char *KEY_PULL_STATE = navcaster::redis_keys::PULL_STAT;
-static const char *KEY_PUSH_RECORD = navcaster::redis_keys::PUSH_RECORD;
-static const char *KEY_PUSH_STATE = navcaster::redis_keys::PUSH_STAT;
-static const char *KEY_LOG_MPT = "LOG:MPT";
-static const char *KEY_LOG_USR = "LOG:USR";
 
 // PRAGMATIC APPROACH: Since all Redis operations are hash operations on local
 // Redis with sub-millisecond latency, and the HTTP API is for management only,
@@ -249,7 +235,7 @@ namespace
             return ok;
         }
 
-        bool setex(const char *key, int seconds, const std::string &value)
+        bool setex(const char *key, int seconds, const std::string &value) override
         {
             if (!ensure_connected())
                 return false;
@@ -615,51 +601,6 @@ namespace
     std::int64_t current_unix_seconds()
     {
         return static_cast<std::int64_t>(std::time(nullptr));
-    }
-
-    bool parse_yyyy_mm_dd(const std::string &value, std::tm &tm_value)
-    {
-        std::tm parsed{};
-        std::istringstream stream(value);
-        stream >> std::get_time(&parsed, "%Y-%m-%d");
-        if (stream.fail())
-            return false;
-        tm_value = parsed;
-        return true;
-    }
-
-    std::tm local_time_snapshot(std::time_t value)
-    {
-        std::tm result{};
-#ifdef _WIN32
-        localtime_s(&result, &value);
-#else
-        localtime_r(&value, &result);
-#endif
-        return result;
-    }
-
-    void write_repository_error(navcaster::storage::RepositoryStatus status, const std::string &error, HttpResponse &resp)
-    {
-        switch (status)
-        {
-        case navcaster::storage::RepositoryStatus::Invalid:
-            resp.status_code = 400;
-            break;
-        case navcaster::storage::RepositoryStatus::NotFound:
-            resp.status_code = 404;
-            break;
-        case navcaster::storage::RepositoryStatus::Conflict:
-            resp.status_code = 409;
-            break;
-        case navcaster::storage::RepositoryStatus::RedisError:
-            resp.status_code = 500;
-            break;
-        case navcaster::storage::RepositoryStatus::Ok:
-            resp.status_code = 200;
-            break;
-        }
-        resp.body = json{{"error", error.empty() ? "Repository error" : error}}.dump();
     }
 
 } // anonymous namespace
@@ -1446,165 +1387,44 @@ void http_handler::handle_get_client_logs(const HttpRequest &req, HttpResponse &
     resp.body = std::move(result.body);
 }
 
-// ==================== Statistics ====================
-
-// Helper: parse "YYYY-MM-DD" or unix timestamp from query param, return 0 if absent
-static long long parse_time_param(const std::unordered_map<std::string, std::string> &params, const char *name)
-{
-    auto it = params.find(name);
-    if (it == params.end() || it->second.empty()) return 0;
-    // Try unix timestamp first
-    try { return std::stoll(it->second); } catch (...) {}
-    // Try date string "YYYY-MM-DD"
-    struct tm tm_val{};
-    if (parse_yyyy_mm_dd(it->second, tm_val))
-        return mktime(&tm_val);
-    return 0;
-}
-
-// GET /api/stats/overview?start=&end=&date=
-// Returns aggregated stats from LOG:MPT + LOG:USR within time range
 void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpResponse &resp)
 {
-    // Determine time range
-    long long now_ts = static_cast<long long>(time(nullptr));
-    long long start_ts = parse_time_param(req.query_params, "start");
-    long long end_ts = parse_time_param(req.query_params, "end");
-
-    // If "date" param given (YYYY-MM-DD), use that day
-    auto date_it = req.query_params.find("date");
-    if (date_it != req.query_params.end() && !date_it->second.empty())
-    {
-        struct tm tm_val{};
-        if (parse_yyyy_mm_dd(date_it->second, tm_val))
-        {
-            start_ts = mktime(&tm_val);
-            tm_val.tm_mday += 1;
-            end_ts = mktime(&tm_val);
-        }
-    }
-
-    // Default: today
-    if (start_ts == 0)
-    {
-        time_t t = time(nullptr);
-        struct tm tm_today = local_time_snapshot(t);
-        tm_today.tm_hour = 0; tm_today.tm_min = 0; tm_today.tm_sec = 0;
-        start_ts = mktime(&tm_today);
-    }
-    if (end_ts == 0) end_ts = now_ts + 1;
-
-    auto &redis = sync_redis::instance();
-    json mpt_logs = redis.scan_hgetall_prefix("LOG:MPT:");
-    json usr_logs = redis.scan_hgetall_prefix("LOG:USR:");
-
-    navcaster::http_api::StatisticsService service;
-    json result = service.overview(mpt_logs, usr_logs, start_ts, end_ts, now_ts);
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::StatisticsController controller(
+        sync_redis::instance(),
+        static_cast<long long>(time(nullptr)));
+    auto result = controller.overview(req.query_params);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
-// GET /api/stats/daily/{YYYY-MM-DD}
-// Returns daily stats, cached in Redis STAT:DAILY:{date} for past dates
 void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string date_str = get_resource_id(req); // YYYY-MM-DD
-    if (date_str.size() != 10 || date_str[4] != '-' || date_str[7] != '-')
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Invalid date format, use YYYY-MM-DD"})";
-        return;
-    }
-
-    // Parse date to start_ts / end_ts
-    struct tm tm_val{};
-    if (!parse_yyyy_mm_dd(date_str, tm_val))
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Invalid date"})";
-        return;
-    }
-    long long start_ts = mktime(&tm_val);
-    tm_val.tm_mday += 1;
-    long long end_ts = mktime(&tm_val);
-    long long now_ts = static_cast<long long>(time(nullptr));
-
-    // Determine if this is a past day (can cache)
-    bool is_past = end_ts <= now_ts;
-
-    // Check cache for past dates
-    auto &redis = sync_redis::instance();
-    std::string cache_key = "STAT:DAILY:" + date_str;
-    if (is_past)
-    {
-        auto cached = redis.get(cache_key.c_str());
-        if (!cached.is_null())
-        {
-            resp.status_code = 200;
-            resp.body = cached.is_string() ? cached.get<std::string>() : cached.dump();
-            return;
-        }
-    }
-
-    // Compute from logs
-    json mpt_logs = redis.scan_hgetall_prefix("LOG:MPT:");
-    json usr_logs = redis.scan_hgetall_prefix("LOG:USR:");
-
-    navcaster::http_api::StatisticsService service;
-    json result = service.daily(date_str, mpt_logs, usr_logs, start_ts, end_ts, now_ts);
-
-    std::string body = result.dump();
-
-    // Cache past dates (TTL 7 days = 604800s)
-    if (is_past)
-        redis.setex(cache_key.c_str(), 604800, body);
-
-    resp.status_code = 200;
-    resp.body = std::move(body);
+    navcaster::http_api::StatisticsController controller(
+        sync_redis::instance(),
+        static_cast<long long>(time(nullptr)));
+    auto result = controller.daily(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
-// GET /api/stats/mountpoints/ranking?start=&end=&limit=20
 void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResponse &resp)
 {
-    long long now_ts = static_cast<long long>(time(nullptr));
-    long long start_ts = parse_time_param(req.query_params, "start");
-    long long end_ts = parse_time_param(req.query_params, "end");
-    if (start_ts == 0) { time_t tt = time(nullptr); struct tm t = local_time_snapshot(tt); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
-    if (end_ts == 0) end_ts = now_ts + 1;
-
-    int limit = 20;
-    auto lit = req.query_params.find("limit");
-    if (lit != req.query_params.end()) { try { limit = std::stoi(lit->second); } catch (...) {} }
-    if (limit <= 0) limit = 20;
-    if (limit > 100) limit = 100;
-
-    json mpt_logs = sync_redis::instance().scan_hgetall_prefix("LOG:MPT:");
-    navcaster::http_api::StatisticsService service;
-    json result = service.mountpoint_ranking(mpt_logs, start_ts, end_ts, now_ts, limit);
-
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::StatisticsController controller(
+        sync_redis::instance(),
+        static_cast<long long>(time(nullptr)));
+    auto result = controller.mountpoint_ranking(req.query_params);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
+
 void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResponse &resp)
 {
-    long long now_ts = static_cast<long long>(time(nullptr));
-    long long start_ts = parse_time_param(req.query_params, "start");
-    long long end_ts = parse_time_param(req.query_params, "end");
-    if (start_ts == 0) { time_t tt = time(nullptr); struct tm t = local_time_snapshot(tt); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
-    if (end_ts == 0) end_ts = now_ts + 1;
-
-    int limit = 20;
-    auto lit = req.query_params.find("limit");
-    if (lit != req.query_params.end()) { try { limit = std::stoi(lit->second); } catch (...) {} }
-    if (limit <= 0) limit = 20;
-    if (limit > 100) limit = 100;
-
-    json usr_logs = sync_redis::instance().scan_hgetall_prefix("LOG:USR:");
-    navcaster::http_api::StatisticsService service;
-    json result = service.user_ranking(usr_logs, start_ts, end_ts, now_ts, limit);
-
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::StatisticsController controller(
+        sync_redis::instance(),
+        static_cast<long long>(time(nullptr)));
+    auto result = controller.user_ranking(req.query_params);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // GET /api/stats/mountpoints/history/{mount} — connection history for a specific mountpoint

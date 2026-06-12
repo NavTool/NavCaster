@@ -30,6 +30,7 @@
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
 #include "sourcetable_service.h"
+#include "statistics_controller.h"
 #include "source_controller.h"
 #include "source_repository.h"
 #include "statistics_service.h"
@@ -122,6 +123,13 @@ public:
     bool set(const char *key, const std::string &value) override
     {
         strings[key] = parse_value(value);
+        return set_ok;
+    }
+
+    bool setex(const char *key, int seconds, const std::string &value) override
+    {
+        strings[key] = parse_value(value);
+        setex_calls.push_back({key, seconds, value});
         return set_ok;
     }
 
@@ -319,6 +327,13 @@ public:
     std::unordered_map<std::string, long long> memory;
     std::unordered_map<std::string, std::string> info_sections;
     std::vector<std::pair<std::string, std::string>> publishes;
+    struct SetexCall
+    {
+        std::string key;
+        int seconds = 0;
+        std::string value;
+    };
+    std::vector<SetexCall> setex_calls;
     std::string info_text;
     bool set_ok = true;
     bool publish_ok = true;
@@ -1689,6 +1704,47 @@ int main()
     expect_eq_int(usr_ranking[0].value("mount_count", 0), 1, "statistics user ranking mount count");
     expect_eq(usr_ranking[0]["types"][0].get<std::string>(), "PUSH", "statistics user ranking push type");
     expect_eq(usr_ranking[1]["types"][0].get<std::string>(), "NEAREST", "statistics user ranking nearest type");
+
+    FakeRedisHashClient statistics_controller_redis;
+    statistics_controller_redis.hashes[navcaster::redis_keys::log_mpt("MOUNT_A")]["srv1"] =
+        {{"type", 1}, {"name", "MOUNT_A"}, {"connect_time", 0}, {"disconnect_time", 3600}};
+    statistics_controller_redis.hashes[navcaster::redis_keys::log_usr("user1")]["usr1"] =
+        {{"type", 2}, {"name", "user1"}, {"mount", "MOUNT_A"}, {"connect_time", 0}, {"disconnect_time", 1800}};
+    statistics_controller_redis.hashes[navcaster::redis_keys::log_mpt("MOUNT_B")]["srv2"] =
+        {{"type", 1}, {"name", "MOUNT_B"}, {"connect_time", 100000}, {"disconnect_time", 101000}};
+    navcaster::http_api::StatisticsController statistics_controller(statistics_controller_redis, 200000);
+    expect_eq(navcaster::redis_keys::stat_daily("1970-01-01"), "STAT:DAILY:1970-01-01", "statistics daily cache key");
+    expect_eq_int(navcaster::http_api::statistics_limit_param({{"limit", "0"}}), 20, "statistics controller zero limit defaults");
+    expect_eq_int(navcaster::http_api::statistics_limit_param({{"limit", "999"}}), 100, "statistics controller caps limit");
+
+    auto statistics_controller_response = statistics_controller.overview({{"date", "1970-01-01"}, {"start", "100000"}});
+    expect_eq_int(statistics_controller_response.status_code, 200, "statistics controller overview status");
+    auto statistics_controller_body = nlohmann::json::parse(statistics_controller_response.body);
+    expect_true(statistics_controller_body.value("start", -1) != 100000, "statistics controller date overrides start query");
+    expect_eq_int(statistics_controller_body.value("mpt_connections", 0), 1, "statistics controller overview reads mpt logs");
+    expect_eq_int(statistics_controller_body.value("usr_connections", 0), 1, "statistics controller overview reads usr logs");
+
+    statistics_controller_response = statistics_controller.daily("bad-date");
+    expect_eq_int(statistics_controller_response.status_code, 400, "statistics controller invalid daily date");
+    statistics_controller_redis.strings[navcaster::redis_keys::stat_daily("1970-01-01")] = R"({"cached":true})";
+    statistics_controller_response = statistics_controller.daily("1970-01-01");
+    expect_eq_int(statistics_controller_response.status_code, 200, "statistics controller cached daily status");
+    statistics_controller_body = nlohmann::json::parse(statistics_controller_response.body);
+    expect_true(statistics_controller_body.value("cached", false), "statistics controller returns cached daily body");
+
+    statistics_controller_redis.strings.erase(navcaster::redis_keys::stat_daily("1970-01-01"));
+    statistics_controller_response = statistics_controller.daily("1970-01-01");
+    expect_eq_int(statistics_controller_response.status_code, 200, "statistics controller daily computes status");
+    expect_eq_int(static_cast<int>(statistics_controller_redis.setex_calls.size()), 1, "statistics controller caches past day");
+    expect_eq(statistics_controller_redis.setex_calls[0].key, navcaster::redis_keys::stat_daily("1970-01-01"), "statistics controller cache key");
+    expect_eq_int(statistics_controller_redis.setex_calls[0].seconds, 604800, "statistics controller cache ttl");
+
+    statistics_controller_response = statistics_controller.mountpoint_ranking({{"start", "1"}, {"end", "200000"}, {"limit", "1"}});
+    statistics_controller_body = nlohmann::json::parse(statistics_controller_response.body);
+    expect_eq_int(static_cast<int>(statistics_controller_body.size()), 1, "statistics controller mount ranking limit");
+    statistics_controller_response = statistics_controller.user_ranking({{"start", "1"}, {"end", "200000"}, {"limit", "999"}});
+    statistics_controller_body = nlohmann::json::parse(statistics_controller_response.body);
+    expect_eq_int(static_cast<int>(statistics_controller_body.size()), 1, "statistics controller user ranking reads logs");
 
     navcaster::storage::ConfigSection config_section;
     expect_true(navcaster::storage::parse_config_section("service", config_section), "config parses service section");

@@ -70,10 +70,14 @@
 
 ### Phase 3：拆 HTTP handler
 
-- [~] 按业务域拆 controller。
+- [x] 按业务域拆 controller/service。
 - [x] SSE 数据源改为 service/repository。
 - [x] Sourcetable 工具接口拆为 service，并补跨平台 TCP 封装。
 - [x] Cluster monitor 接口拆为 repository/service，并覆盖聚合契约。
+- [x] Redis monitor summary/keyspace/history/sampler 拆为 repository/service。
+- [x] Statistics query、Redis 读取、daily cache 与 ranking glue 拆为 controller。
+- [x] Mountpoint subscribers、status/health、node log level、auth/session token 拆为 service。
+- [~] HTTP 基础设施瘦身：`sync_redis` 阻塞实现仍内嵌在 `http_handler.cpp`。
 
 ### Phase 4：拆 Caster Core
 
@@ -88,10 +92,9 @@
 
 继续 Phase 3/4：
 
-1. Redis monitor：拆 `/api/monitor/redis`、`/api/monitor/redis/keys`、`/api/monitor/redis/history` 和 Redis history sampler。
-2. 运行态辅助接口：拆 mountpoint subscribers、status、health。
-3. 运维收尾：拆 node log level、auth/session token 边界，并继续瘦身 `sync_redis` 内嵌实现。
-4. Caster Core：开始抽 SourceTable、AccessPolicy、RelayScheduler、History 等服务，保留 `CASTER::*` facade。
+1. Phase 3 收尾：把 `http_handler.cpp` 内嵌的 `sync_redis`/auth blocking helper 抽到独立 adapter/factory，handler 只保留初始化、路由注册和 facade glue。
+2. Phase 4 Core：开始抽 SourceTable、AccessPolicy、RelayScheduler、History 等服务，保留 `CASTER::*` facade。
+3. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
 
 ## 待确认问题
 
@@ -214,6 +217,9 @@
 - 扩展 `schema_smoke`：覆盖缺 node id、非法 JSON、缺 level、未知 level、跨节点 501，以及 `self/current/当前 node_id` 成功路径和 spdlog level 解析。
 - 新增 `AuthSessionService`：将 HTTP API session token 生成/校验/actor lookup/logout、login JSON 解析和默认 admin/Redis auth config 凭据匹配从 `http_handler.cpp` 移出；handler 仅注入默认 admin、读取 `CONF:AUTH` 和传递 Authorization header。
 - 扩展 `schema_smoke`：通过固定 token generator 覆盖默认 admin 登录、Redis admin 登录、非法 JSON、错误凭据、token validate/lookup、Bearer token 提取、logout 失效单个 token 和显式 invalidate。
+- 新增 `StatisticsController`：将 `/api/stats/overview`、`/api/stats/daily/*`、mountpoint/user ranking 的 query/date/default window、Redis prefix scan 和 daily cache 行为从 `http_handler.cpp` 移出；`StatisticsService` 继续只负责纯聚合。
+- `RedisHashClient` 增加默认 `setex` 扩展点，真实 `sync_redis` 标记 `override`，`redis_keys` 登记 `STAT:DAILY:` 与 `stat_daily(date)`，daily cache key 不再散落在 handler 字符串里。
+- 扩展 `schema_smoke`：Fake Redis 支持 `setex` 调用记录，覆盖 statistics controller 的 date override、daily cache 命中、past day 计算后 `SETEX 604800`、ranking limit 和 Redis 读取路径。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -365,5 +371,9 @@
   - Auth session service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Auth session service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Auth session service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Statistics controller 改动后首次执行 `cmake --build build --target schema_smoke --config Release --parallel` 超过 120 秒；检查到 `cl/cmake` 仍在继续，等待其结束后重跑增量构建通过。
+  - Statistics controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Statistics controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Statistics controller 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
