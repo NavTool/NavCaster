@@ -11,6 +11,7 @@
 #include "connection_history_service.h"
 #include "node_history_service.h"
 #include "redis_keys.h"
+#include "ring_log_service.h"
 #include "ring_log_view.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
@@ -2496,41 +2497,16 @@ void http_handler::handle_get_logs_ring(const HttpRequest &req, HttpResponse &re
     size_t n = 500;
     auto it_n = req.query_params.find("n");
     if (it_n != req.query_params.end()) try { n = std::stoul(it_n->second); } catch (...) {}
-    if (n == 0 || n > 5000) n = 500;
 
     std::string level_str;
     auto it_l = req.query_params.find("level");
     if (it_l != req.query_params.end()) level_str = it_l->second;
-    int min_level = 0;
-    if (!level_str.empty())
-    {
-        spdlog::level::level_enum lvl = spdlog::level::from_str(level_str);
-        min_level = static_cast<int>(lvl);
-    }
 
-    auto raw = ring_log_view::last_n(n);
-    json items = json::array();
-    for (auto &line : raw)
-    {
-        // \u7b80\u6613\u63a8\u65ad\u7ea7\u522b\uff1a\u67e5\u627e [info]/[warn]/[err]/[critical] \u5173\u952e\u5b57
-        int lvl = 2; // info
-        if (line.find("[debug]")     != std::string::npos) lvl = 1;
-        else if (line.find("[trace]") != std::string::npos) lvl = 0;
-        else if (line.find("[warning]") != std::string::npos || line.find("[warn]") != std::string::npos) lvl = 3;
-        else if (line.find("[error]") != std::string::npos || line.find("[err]")  != std::string::npos) lvl = 4;
-        else if (line.find("[critical]") != std::string::npos) lvl = 5;
-        if (lvl < min_level) continue;
-        json e = {
-            {"timestamp", static_cast<long long>(std::time(nullptr)) * 1000LL},
-            {"level",     lvl},
-            {"category",  "log"},
-            {"message",   line}
-        };
-        items.push_back(e);
-    }
-    json result = {{"items", items}, {"count", items.size()}};
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::RingLogService service(
+        [](std::size_t count) { return ring_log_view::last_n(count); });
+    auto result = service.list(n, level_str, static_cast<long long>(std::time(nullptr)) * 1000LL);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_system_events(const HttpRequest &req, HttpResponse &resp)

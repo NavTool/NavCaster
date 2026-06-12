@@ -24,6 +24,7 @@ set(SOURCES
     redis_adapter.h    redis_adapter.cpp
     sse_manager.h      sse_manager.cpp
     sse_snapshot_service.h sse_snapshot_service.cpp
+    ring_log_service.h ring_log_service.cpp
     ring_log_view.h    ring_log_view.cpp
 )
 

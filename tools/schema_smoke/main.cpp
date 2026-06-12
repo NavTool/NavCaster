@@ -16,6 +16,7 @@
 #include "redis_keys.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
+#include "ring_log_service.h"
 #include "runtime_command_service.h"
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
@@ -355,6 +356,33 @@ int main()
     system_event_response = system_event_service.list(0);
     system_event_body = nlohmann::json::parse(system_event_response.body);
     expect_eq_int(system_event_body.value("count", 0), 3, "system event service bad limit defaults");
+
+    expect_eq_int(navcaster::http_api::infer_ring_log_level("[trace] detail"), 0, "ring log infers trace");
+    expect_eq_int(navcaster::http_api::infer_ring_log_level("[debug] detail"), 1, "ring log infers debug");
+    expect_eq_int(navcaster::http_api::infer_ring_log_level("[info] detail"), 2, "ring log infers info");
+    expect_eq_int(navcaster::http_api::infer_ring_log_level("[warn] detail"), 3, "ring log infers warn");
+    expect_eq_int(navcaster::http_api::infer_ring_log_level("[error] detail"), 4, "ring log infers error");
+    expect_eq_int(navcaster::http_api::infer_ring_log_level("[critical] detail"), 5, "ring log infers critical");
+    expect_eq_int(static_cast<int>(navcaster::http_api::normalize_ring_log_count(0)), 500, "ring log zero count defaults");
+    expect_eq_int(static_cast<int>(navcaster::http_api::normalize_ring_log_count(5001)), 500, "ring log large count defaults");
+    std::size_t requested_ring_count = 0;
+    navcaster::http_api::RingLogService ring_log_service(
+        [&](std::size_t count) {
+            requested_ring_count = count;
+            return std::vector<std::string>{
+                "[debug] hidden",
+                "[info] visible",
+                "[error] visible"
+            };
+        });
+    auto ring_response = ring_log_service.list(0, "info", 123456);
+    expect_eq_int(static_cast<int>(requested_ring_count), 500, "ring log service normalizes count before read");
+    expect_eq_int(ring_response.status_code, 200, "ring log service status");
+    auto ring_body = nlohmann::json::parse(ring_response.body);
+    expect_eq_int(ring_body.value("count", 0), 2, "ring log service filters level");
+    expect_eq_int(ring_body["items"][0].value("timestamp", 0), 123456, "ring log service timestamp");
+    expect_eq(ring_body["items"][0].value("message", std::string{}), "[info] visible", "ring log service first visible");
+    expect_eq_int(ring_body["items"][1].value("level", 0), 4, "ring log service error level");
 
     nlohmann::json helper_record = {{"uid", "helper"}, {"create_time", 0}};
     json_record::touch_timestamps(helper_record, 1234);

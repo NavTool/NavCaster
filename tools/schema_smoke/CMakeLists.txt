@@ -38,6 +38,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/connection_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/node_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/ring_log_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_command_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_state_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sourcetable_service.cpp
