@@ -1075,67 +1075,6 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
     resp.body = R"({"ok":true})";
 }
 
-// ==================== Generic CRUD pattern ====================
-
-// Macro for common CRUD pattern — reduces boilerplate
-#define IMPL_GET_ALL(handler_name, redis_key)                          \
-    void http_handler::handler_name(const HttpRequest &req, HttpResponse &resp) \
-    {                                                                  \
-        json data = sync_redis::instance().hgetall(redis_key);         \
-        resp.status_code = 200;                                        \
-        resp.body = data.dump();                                       \
-    }
-
-#define IMPL_GET_ONE(handler_name, redis_key)                          \
-    void http_handler::handler_name(const HttpRequest &req, HttpResponse &resp) \
-    {                                                                  \
-        std::string id = get_resource_id(req);                         \
-        if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; } \
-        json data = sync_redis::instance().hget(redis_key, id.c_str()); \
-        if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; } \
-        resp.status_code = 200;                                        \
-        resp.body = data.dump();                                       \
-    }
-
-#define IMPL_CREATE(handler_name, redis_key, field_name)               \
-    void http_handler::handler_name(const HttpRequest &req, HttpResponse &resp) \
-    {                                                                  \
-        json body;                                                     \
-        try { body = json::parse(req.body); }                          \
-        catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; } \
-        std::string field = body.value(field_name, "");                \
-        if (field.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing )" field_name R"("})"; return; } \
-        bool ok = sync_redis::instance().hsetnx(redis_key, field.c_str(), body.dump()); \
-        if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Already exists"})"; return; } \
-        resp.status_code = 201;                                        \
-        resp.body = json{{"ok", true}, {"field", field}}.dump();       \
-    }
-
-#define IMPL_UPDATE(handler_name, redis_key)                           \
-    void http_handler::handler_name(const HttpRequest &req, HttpResponse &resp) \
-    {                                                                  \
-        std::string id = get_resource_id(req);                         \
-        if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; } \
-        json body;                                                     \
-        try { body = json::parse(req.body); }                          \
-        catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; } \
-        bool ok = sync_redis::instance().hset(redis_key, id.c_str(), body.dump()); \
-        if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; } \
-        resp.status_code = 200;                                        \
-        resp.body = json{{"ok", true}}.dump();                         \
-    }
-
-#define IMPL_DELETE(handler_name, redis_key)                           \
-    void http_handler::handler_name(const HttpRequest &req, HttpResponse &resp) \
-    {                                                                  \
-        std::string id = get_resource_id(req);                         \
-        if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; } \
-        bool ok = sync_redis::instance().hdel(redis_key, id.c_str()); \
-        if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; } \
-        resp.status_code = 200;                                        \
-        resp.body = json{{"ok", true}}.dump();                         \
-    }
-
 // ==================== Accounts (ACT:RECORD) — uses auth redis ====================
 
 void http_handler::handle_get_accounts(const HttpRequest &req, HttpResponse &resp)
@@ -3364,13 +3303,6 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
     resp.status_code = 200;
     resp.body = result.dump();
 }
-
-// Cleanup macros
-#undef IMPL_GET_ALL
-#undef IMPL_GET_ONE
-#undef IMPL_CREATE
-#undef IMPL_UPDATE
-#undef IMPL_DELETE
 
 // ==================== V3 \u5ba1\u8ba1 / \u73af\u5f62\u65e5\u5fd7 / Redis \u91c7\u6837 / \u8282\u70b9\u4e8b\u4ef6 / \u52a8\u6001\u65e5\u5fd7\u7ea7\u522b ====================
 

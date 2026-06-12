@@ -1,5 +1,7 @@
 #include "account_schema.h"
 
+#include "json_record.h"
+
 #include <algorithm>
 #include <array>
 #include <iomanip>
@@ -242,67 +244,17 @@ bool constant_time_equal(const std::string &lhs, const std::string &rhs)
     return diff == 0;
 }
 
-std::int64_t number_to_i64(const nlohmann::json &value, std::int64_t fallback = 0)
-{
-    if (value.is_number_integer() || value.is_number_unsigned())
-    {
-        return value.get<std::int64_t>();
-    }
-    if (value.is_number_float())
-    {
-        return static_cast<std::int64_t>(value.get<double>());
-    }
-    return fallback;
-}
-
-int number_to_int(const nlohmann::json &value, int fallback = 0)
-{
-    if (value.is_number_integer() || value.is_number_unsigned())
-    {
-        return value.get<int>();
-    }
-    if (value.is_number_float())
-    {
-        return static_cast<int>(value.get<double>());
-    }
-    return fallback;
-}
-
-int bool_or_number_to_int(const nlohmann::json &value, int fallback = 0)
-{
-    if (value.is_boolean())
-    {
-        return value.get<bool>() ? 1 : 0;
-    }
-    return number_to_int(value, fallback);
-}
-
-std::string string_or_empty(const nlohmann::json &record, const char *field)
-{
-    auto it = record.find(field);
-    if (it == record.end() || !it->is_string())
-    {
-        return {};
-    }
-    return it->get<std::string>();
-}
-
-bool has_nonempty_string_field(const nlohmann::json &record, const char *field)
-{
-    return !string_or_empty(record, field).empty();
-}
-
 bool has_valid_hash_material(const nlohmann::json &record)
 {
-    if (!has_nonempty_string_field(record, "password_hash"))
+    if (!json_record::has_nonempty_string_field(record, "password_hash"))
     {
         return false;
     }
 
-    const std::string algo = string_or_empty(record, "password_algo");
-    const std::string salt = string_or_empty(record, "password_salt");
+    const std::string algo = json_record::string_field(record, "password_algo");
+    const std::string salt = json_record::string_field(record, "password_salt");
     const auto iterations_it = record.find("password_iterations");
-    const int iterations = iterations_it == record.end() ? 0 : number_to_int(*iterations_it);
+    const int iterations = iterations_it == record.end() ? 0 : json_record::as_int(*iterations_it);
     return is_supported_password_algo(algo) && !salt.empty() && iterations > 0;
 }
 
@@ -313,7 +265,7 @@ int password_iterations_or_default(const nlohmann::json &record)
     {
         return DEFAULT_PASSWORD_ITERATIONS;
     }
-    const int iterations = number_to_int(*it, DEFAULT_PASSWORD_ITERATIONS);
+    const int iterations = json_record::as_int(*it, DEFAULT_PASSWORD_ITERATIONS);
     return iterations <= 0 ? DEFAULT_PASSWORD_ITERATIONS : iterations;
 }
 } // namespace
@@ -340,13 +292,13 @@ bool is_supported_password_algo(const std::string &algo)
 
 bool has_password_material(const nlohmann::json &record)
 {
-    return has_nonempty_string_field(record, "password_hash") ||
-           has_nonempty_string_field(record, "password");
+    return json_record::has_nonempty_string_field(record, "password_hash") ||
+           json_record::has_nonempty_string_field(record, "password");
 }
 
 void preserve_existing_password_material(nlohmann::json &record, const nlohmann::json &existing)
 {
-    if (has_nonempty_string_field(record, "password"))
+    if (json_record::has_nonempty_string_field(record, "password"))
     {
         record.erase("password_hash");
         record.erase("password_algo");
@@ -355,7 +307,7 @@ void preserve_existing_password_material(nlohmann::json &record, const nlohmann:
         return;
     }
 
-    if (has_nonempty_string_field(record, "password_hash"))
+    if (json_record::has_nonempty_string_field(record, "password_hash"))
     {
         record.erase("password");
         return;
@@ -367,7 +319,7 @@ void preserve_existing_password_material(nlohmann::json &record, const nlohmann:
     record.erase("password_salt");
     record.erase("password_iterations");
 
-    if (has_nonempty_string_field(existing, "password_hash"))
+    if (json_record::has_nonempty_string_field(existing, "password_hash"))
     {
         record["password_hash"] = existing["password_hash"];
         if (existing.contains("password_algo"))
@@ -385,7 +337,7 @@ void preserve_existing_password_material(nlohmann::json &record, const nlohmann:
         return;
     }
 
-    if (has_nonempty_string_field(existing, "password"))
+    if (json_record::has_nonempty_string_field(existing, "password"))
     {
         record["password"] = existing["password"];
     }
@@ -407,16 +359,12 @@ nlohmann::json normalize_account_record(nlohmann::json record, std::int64_t now)
     record["group_uid"] = normalize_group_uid(record.value("group_uid", record.value("group", std::string{})));
     record["connection_limit"] = record.value("connection_limit", record.value("connect_limit", 0));
 
-    if (!record.contains("create_time") || number_to_i64(record["create_time"]) <= 0)
-    {
-        record["create_time"] = now;
-    }
-    record["update_time"] = now;
+    json_record::touch_timestamps(record, now);
 
-    if (has_nonempty_string_field(record, "password"))
+    if (json_record::has_nonempty_string_field(record, "password"))
     {
         const std::string password = record.value("password", std::string{});
-        const std::string salt = has_nonempty_string_field(record, "password_salt")
+        const std::string salt = json_record::has_nonempty_string_field(record, "password_salt")
                                      ? record.value("password_salt", std::string{})
                                      : generate_password_salt();
         const int iterations = password_iterations_or_default(record);
@@ -426,7 +374,7 @@ nlohmann::json normalize_account_record(nlohmann::json record, std::int64_t now)
         record["password_iterations"] = iterations;
         record.erase("password");
     }
-    else if (has_nonempty_string_field(record, "password_hash"))
+    else if (json_record::has_nonempty_string_field(record, "password_hash"))
     {
         record.erase("password");
     }
@@ -451,7 +399,7 @@ nlohmann::json build_active_index(const nlohmann::json &record)
     active["active"] = record.value("active", 0);
     active["expire_time"] = record.value("expire_time", record.value("expire", 0.0));
 
-    if (has_nonempty_string_field(record, "password_hash"))
+    if (json_record::has_nonempty_string_field(record, "password_hash"))
     {
         active["password_hash"] = record["password_hash"];
         active["password_algo"] = record.value("password_algo", std::string{});
@@ -464,7 +412,7 @@ nlohmann::json build_active_index(const nlohmann::json &record)
             active["password_iterations"] = record["password_iterations"];
         }
     }
-    else if (has_nonempty_string_field(record, "password"))
+    else if (json_record::has_nonempty_string_field(record, "password"))
     {
         active["password"] = record["password"];
         active["legacy_plain_password"] = true;
@@ -494,7 +442,7 @@ bool build_account_sync_plan(nlohmann::json record, std::int64_t now, AccountSyn
         }
         return false;
     }
-    if (has_nonempty_string_field(normalized, "password_hash") && !has_valid_hash_material(normalized))
+    if (json_record::has_nonempty_string_field(normalized, "password_hash") && !has_valid_hash_material(normalized))
     {
         if (error)
         {
@@ -566,7 +514,7 @@ bool is_login_enabled(const nlohmann::json &record, std::int64_t now, std::strin
     {
         expire_it = record.find("expire");
     }
-    const std::int64_t expire_time = expire_it == record.end() ? 0 : number_to_i64(*expire_it);
+    const std::int64_t expire_time = expire_it == record.end() ? 0 : json_record::as_i64(*expire_it);
     if (expire_time > 0 && now > expire_time)
     {
         if (reason)
@@ -596,26 +544,26 @@ bool parse_auth_view(const std::string &json_text, AccountAuthView &view, std::s
     }
 
     view.account = record.value("account", record.value("uid", std::string{}));
-    view.password = string_or_empty(record, "password");
-    view.password_hash = string_or_empty(record, "password_hash");
-    view.password_algo = string_or_empty(record, "password_algo");
-    view.password_salt = string_or_empty(record, "password_salt");
+    view.password = json_record::string_field(record, "password");
+    view.password_hash = json_record::string_field(record, "password_hash");
+    view.password_algo = json_record::string_field(record, "password_algo");
+    view.password_salt = json_record::string_field(record, "password_salt");
     auto iterations_it = record.find("password_iterations");
-    view.password_iterations = iterations_it == record.end() ? 0 : number_to_int(*iterations_it);
+    view.password_iterations = iterations_it == record.end() ? 0 : json_record::as_int(*iterations_it);
     view.group_uid = normalize_group_uid(record.value("group_uid", record.value("group", std::string{})));
     view.connection_limit = normalize_connection_limit(record.value("connection_limit", record.value("connect_limit", 0)));
     view.type = record.value("type", 0);
     auto state_it = record.find("state");
-    view.state = state_it == record.end() ? 0 : bool_or_number_to_int(*state_it);
+    view.state = state_it == record.end() ? 0 : json_record::bool_or_number_as_int(*state_it);
     auto active_it = record.find("active");
-    view.active = active_it == record.end() ? 0 : bool_or_number_to_int(*active_it);
+    view.active = active_it == record.end() ? 0 : json_record::bool_or_number_as_int(*active_it);
 
     auto expire_it = record.find("expire_time");
     if (expire_it == record.end())
     {
         expire_it = record.find("expire");
     }
-    view.expire_time = expire_it == record.end() ? 0 : number_to_i64(*expire_it);
+    view.expire_time = expire_it == record.end() ? 0 : json_record::as_i64(*expire_it);
     view.legacy_plain_password = view.password_hash.empty() && !view.password.empty();
     return true;
 }

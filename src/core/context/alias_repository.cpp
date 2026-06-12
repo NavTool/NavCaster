@@ -1,5 +1,6 @@
 #include "alias_repository.h"
 
+#include "json_record.h"
 #include "redis_keys.h"
 
 #include <utility>
@@ -8,19 +9,6 @@ namespace navcaster::storage
 {
 namespace
 {
-std::int64_t number_to_i64(const nlohmann::json &value, std::int64_t fallback = 0)
-{
-    if (value.is_number_integer() || value.is_number_unsigned())
-    {
-        return value.get<std::int64_t>();
-    }
-    if (value.is_number_float())
-    {
-        return static_cast<std::int64_t>(value.get<double>());
-    }
-    return fallback;
-}
-
 std::string alias_uid_from_rule(const nlohmann::json &rule)
 {
     std::string uid = rule.value("uid", std::string{});
@@ -84,11 +72,7 @@ bool normalize_alias_rule(nlohmann::json rule, const std::string &forced_uid, st
     rule["source_name"] = source_name;
     rule["enable"] = rule.value("enable", true);
     rule["visible"] = rule.value("visible", true);
-    if (!rule.contains("create_time") || number_to_i64(rule["create_time"]) <= 0)
-    {
-        rule["create_time"] = now;
-    }
-    rule["update_time"] = now;
+    json_record::touch_timestamps(rule, now);
 
     plan = {};
     plan.status = RepositoryStatus::Ok;
@@ -151,7 +135,7 @@ AliasRepositoryResult AliasRepository::create_alias(nlohmann::json rule, std::in
         return make_result(RepositoryStatus::Invalid, {}, e.what());
     }
 
-    if (!_redis.hsetnx(redis_keys::ALIAS_RULE, plan.uid.c_str(), plan.rule.dump()))
+    if (!_redis.hsetnx(redis_keys::ALIAS_RULE, plan.uid.c_str(), json_record::dump_record(plan.rule)))
     {
         return make_result(RepositoryStatus::Conflict, plan.uid, "Alias already exists");
     }
@@ -178,7 +162,7 @@ AliasRepositoryResult AliasRepository::update_alias(const std::string &uid, nloh
         return make_result(RepositoryStatus::Invalid, uid, e.what());
     }
 
-    if (!_redis.hset(redis_keys::ALIAS_RULE, plan.uid.c_str(), plan.rule.dump()))
+    if (!_redis.hset(redis_keys::ALIAS_RULE, plan.uid.c_str(), json_record::dump_record(plan.rule)))
     {
         return make_result(RepositoryStatus::RedisError, plan.uid, "Redis error");
     }

@@ -1,5 +1,6 @@
 #include "config_repository.h"
 
+#include "json_record.h"
 #include "redis_keys.h"
 
 namespace navcaster::storage
@@ -89,7 +90,7 @@ ConfigRepositoryResult ConfigRepository::update_config(ConfigSection section, co
     ConfigRepositoryResult result;
     result.section = section;
     result.value = value;
-    if (!_redis.set(config_section_key(section), value.dump()))
+    if (!_redis.set(config_section_key(section), json_record::dump_record(value)))
     {
         result.status = RepositoryStatus::RedisError;
         result.error = "Redis error";

@@ -64,8 +64,8 @@
 - [x] 抽 access repository。
 - [x] 抽 relay repository。
 - [x] 抽 runtime state repository 边界。
-- [ ] 统一 proto JSON helper。
-- [ ] HTTP CRUD 全部改为调用 repository。
+- [x] 统一 proto JSON helper。
+- [x] HTTP CRUD 全部改为调用 repository。
 
 ### Phase 3：拆 HTTP handler
 
@@ -139,6 +139,10 @@
 - 新增 `ConfigRepository`：`CONF:SERVICE`、`CONF:CORE`、`CONF:AUTH` 的 list/get/update/save 边界收敛到 repository，HTTP config handler 与运行时登录读取 auth config 改为调用 repository。
 - 扩展 `RedisHashClient` 的 `get/set` 字符串 key 接口，保持 hash repository 现有行为不变；`schema_smoke` fake Redis 同步支持配置读写测试。
 - 扩展 `schema_smoke`：覆盖 config section 解析、CONF key 映射、配置更新/读取/list、raw JSON save、Redis set 失败映射为 `RedisError`。
+- 新增 `json_record` helper：统一 record JSON 的 dump/parse/coerce、数字/布尔转换、字符串字段读取和 `create_time/update_time` 维护；保持现有 protobuf JSON 选项不变，避免改变 Redis/API 格式。
+- 账号/source/alias/access/config/relay repository 改为使用 `json_record` 的机械 JSON 边界 helper；`RelayRepository::set_enabled` 通过 `coerce_record` 兼容 Redis 中的 object 或 stringified object。
+- 清理 `http_handler.cpp` 中已无调用的 `IMPL_*` CRUD 宏和 header 中旧的 `DeferredResponse` 死代码；Phase 2 管理型 HTTP CRUD/配置写入口均已收敛到 repository，SSE/monitor/history/statistics/kick 等行为型直连留给 Phase 3/4。
+- 扩展 `schema_smoke`：覆盖 `json_record` timestamp、数字/布尔、字符串字段、dump/parse/coerce、非法 JSON 与非 object 拒绝行为。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -177,5 +181,9 @@
   - Config repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Config repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Config repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
+  - JSON record helper 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - JSON record helper 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - JSON record helper 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - JSON record helper 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

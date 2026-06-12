@@ -1,6 +1,7 @@
 #include "source_repository.h"
 
 #include "account_schema.h"
+#include "json_record.h"
 #include "redis_keys.h"
 
 #include <utility>
@@ -12,19 +13,6 @@ namespace
 constexpr int SOURCE_RECORD_TYPE_REAL = 1;
 constexpr int SOURCE_DECODE_TYPE_AUTO = 1;
 constexpr int SOURCE_DISP_TYPE_SHOW_WHEN_ONLINE = 3;
-
-std::int64_t number_to_i64(const nlohmann::json &value, std::int64_t fallback = 0)
-{
-    if (value.is_number_integer() || value.is_number_unsigned())
-    {
-        return value.get<std::int64_t>();
-    }
-    if (value.is_number_float())
-    {
-        return static_cast<std::int64_t>(value.get<double>());
-    }
-    return fallback;
-}
 
 SourceRepositoryResult make_result(RepositoryStatus status, const std::string &mountpoint, const std::string &error)
 {
@@ -67,11 +55,7 @@ bool normalize_source_record(nlohmann::json record, const std::string &forced_mo
     record["record_type"] = record.value("record_type", SOURCE_RECORD_TYPE_REAL);
     record["decode_type"] = record.value("decode_type", SOURCE_DECODE_TYPE_AUTO);
     record["display_type"] = record.value("display_type", SOURCE_DISP_TYPE_SHOW_WHEN_ONLINE);
-    if (!record.contains("create_time") || number_to_i64(record["create_time"]) <= 0)
-    {
-        record["create_time"] = now;
-    }
-    record["update_time"] = now;
+    json_record::touch_timestamps(record, now);
 
     plan = {};
     plan.status = RepositoryStatus::Ok;
@@ -134,7 +118,7 @@ SourceRepositoryResult SourceRepository::create_source(nlohmann::json record, st
         return make_result(RepositoryStatus::Invalid, {}, e.what());
     }
 
-    if (!_redis.hsetnx(redis_keys::MPT_RECORD, plan.mountpoint.c_str(), plan.record.dump()))
+    if (!_redis.hsetnx(redis_keys::MPT_RECORD, plan.mountpoint.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::Conflict, plan.mountpoint, "Source already exists");
     }
@@ -157,7 +141,7 @@ SourceRepositoryResult SourceRepository::update_source(const std::string &mountp
         return make_result(RepositoryStatus::Invalid, mountpoint, e.what());
     }
 
-    if (!_redis.hset(redis_keys::MPT_RECORD, plan.mountpoint.c_str(), plan.record.dump()))
+    if (!_redis.hset(redis_keys::MPT_RECORD, plan.mountpoint.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::RedisError, plan.mountpoint, "Redis error");
     }

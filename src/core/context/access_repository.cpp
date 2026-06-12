@@ -1,5 +1,6 @@
 #include "access_repository.h"
 
+#include "json_record.h"
 #include "redis_keys.h"
 
 #include <utility>
@@ -8,19 +9,6 @@ namespace navcaster::storage
 {
 namespace
 {
-std::int64_t number_to_i64(const nlohmann::json &value, std::int64_t fallback = 0)
-{
-    if (value.is_number_integer() || value.is_number_unsigned())
-    {
-        return value.get<std::int64_t>();
-    }
-    if (value.is_number_float())
-    {
-        return static_cast<std::int64_t>(value.get<double>());
-    }
-    return fallback;
-}
-
 AccessRepositoryResult make_result(RepositoryStatus status, const std::string &uid, const std::string &error)
 {
     AccessRepositoryResult result;
@@ -80,11 +68,7 @@ bool build_access_group_plan(nlohmann::json group, std::int64_t now, AccessRepos
 
     group["uid"] = uid;
     group["group_name"] = group.value("group_name", uid);
-    if (!group.contains("create_time") || number_to_i64(group["create_time"]) <= 0)
-    {
-        group["create_time"] = now;
-    }
-    group["update_time"] = now;
+    json_record::touch_timestamps(group, now);
     group["nearest_mpt_enable"] = group.value("nearest_mpt_enable", false);
     group["nearest_mpt_source_name"] = group.value("nearest_mpt_source_name", std::string{});
     group["allow_visible_inside_group"] = group.value("allow_visible_inside_group", true);
@@ -148,9 +132,9 @@ AccessRepository::AccessRepository(RedisHashClient &redis)
 void AccessRepository::ensure_builtin_groups(std::int64_t now)
 {
     const auto default_group = builtin_group("default", now, false);
-    _redis.hsetnx(redis_keys::ACCESS_GROUP, "default", default_group.dump());
+    _redis.hsetnx(redis_keys::ACCESS_GROUP, "default", json_record::dump_record(default_group));
     const auto system_group = builtin_group("SYSTEM", now, true);
-    _redis.hsetnx(redis_keys::ACCESS_GROUP, "SYSTEM", system_group.dump());
+    _redis.hsetnx(redis_keys::ACCESS_GROUP, "SYSTEM", json_record::dump_record(system_group));
 }
 
 nlohmann::json AccessRepository::list_groups()
@@ -183,7 +167,7 @@ AccessRepositoryResult AccessRepository::create_group(nlohmann::json group, std:
         return make_result(RepositoryStatus::Invalid, {}, e.what());
     }
 
-    if (!_redis.hsetnx(redis_keys::ACCESS_GROUP, plan.uid.c_str(), plan.record.dump()))
+    if (!_redis.hsetnx(redis_keys::ACCESS_GROUP, plan.uid.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::Conflict, plan.uid, "Group already exists");
     }
@@ -216,7 +200,7 @@ AccessRepositoryResult AccessRepository::update_group(const std::string &uid, nl
         return make_result(RepositoryStatus::Invalid, uid, e.what());
     }
 
-    if (!_redis.hset(redis_keys::ACCESS_GROUP, plan.uid.c_str(), plan.record.dump()))
+    if (!_redis.hset(redis_keys::ACCESS_GROUP, plan.uid.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::RedisError, plan.uid, "Redis error");
     }
@@ -279,7 +263,7 @@ AccessRepositoryResult AccessRepository::create_item(const std::string &group_ui
     }
 
     const std::string key = redis_keys::access_item(plan.group_uid);
-    if (!_redis.hsetnx(key.c_str(), plan.mountpoint.c_str(), plan.record.dump()))
+    if (!_redis.hsetnx(key.c_str(), plan.mountpoint.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::Conflict, plan.mountpoint, "Item already exists");
     }
@@ -307,7 +291,7 @@ AccessRepositoryResult AccessRepository::update_item(const std::string &group_ui
     }
 
     const std::string key = redis_keys::access_item(plan.group_uid);
-    if (!_redis.hset(key.c_str(), plan.mountpoint.c_str(), plan.record.dump()))
+    if (!_redis.hset(key.c_str(), plan.mountpoint.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::RedisError, plan.mountpoint, "Redis error");
     }

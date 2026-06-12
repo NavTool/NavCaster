@@ -1,5 +1,6 @@
 #include "relay_repository.h"
 
+#include "json_record.h"
 #include "redis_keys.h"
 
 #include <utility>
@@ -94,7 +95,7 @@ RelayRepositoryResult RelayRepository::create_record(RelayKind kind, nlohmann::j
         return make_result(RepositoryStatus::Invalid, kind, {}, e.what());
     }
 
-    if (!_redis.hsetnx(relay_record_key(kind), plan.uid.c_str(), plan.record.dump()))
+    if (!_redis.hsetnx(relay_record_key(kind), plan.uid.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::Conflict, kind, plan.uid, kind == RelayKind::Pull ? "Pull record already exists" : "Push record already exists");
     }
@@ -123,7 +124,7 @@ RelayRepositoryResult RelayRepository::update_record(RelayKind kind, const std::
         return make_result(RepositoryStatus::Invalid, kind, uid, e.what());
     }
 
-    if (!_redis.hset(relay_record_key(kind), plan.uid.c_str(), plan.record.dump()))
+    if (!_redis.hset(relay_record_key(kind), plan.uid.c_str(), json_record::dump_record(plan.record)))
     {
         return make_result(RepositoryStatus::RedisError, kind, plan.uid, "Redis error");
     }
@@ -162,25 +163,17 @@ RelayRepositoryResult RelayRepository::set_enabled(RelayKind kind, const std::st
     {
         return make_result(RepositoryStatus::NotFound, kind, uid, "Record not found");
     }
-    if (record.is_string())
+    nlohmann::json coerced_record;
+    std::string error;
+    if (!json_record::coerce_record(std::move(record), coerced_record, &error))
     {
-        try
-        {
-            record = nlohmann::json::parse(record.get<std::string>());
-        }
-        catch (const std::exception &e)
-        {
-            return make_result(RepositoryStatus::RedisError, kind, uid, e.what());
-        }
+        return make_result(RepositoryStatus::RedisError, kind, uid, error.empty() ? "Relay record is invalid" : error);
     }
-    if (!record.is_object())
-    {
-        return make_result(RepositoryStatus::RedisError, kind, uid, "Relay record is invalid");
-    }
+    record = std::move(coerced_record);
 
     record["uid"] = uid;
     record["enabled"] = enabled;
-    if (!_redis.hset(relay_record_key(kind), uid.c_str(), record.dump()))
+    if (!_redis.hset(relay_record_key(kind), uid.c_str(), json_record::dump_record(record)))
     {
         return make_result(RepositoryStatus::RedisError, kind, uid, "Failed to update record");
     }

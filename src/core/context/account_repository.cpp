@@ -1,6 +1,7 @@
 #include "account_repository.h"
 
 #include "account_schema.h"
+#include "json_record.h"
 #include "redis_keys.h"
 
 #include <utility>
@@ -67,7 +68,7 @@ AccountRepositoryResult AccountRepository::create_account(nlohmann::json record,
         return invalid_result(e.what());
     }
 
-    if (!_redis.hsetnx(redis_keys::ACT_RECORD, plan.account.c_str(), plan.record.dump()))
+    if (!_redis.hsetnx(redis_keys::ACT_RECORD, plan.account.c_str(), json_record::dump_record(plan.record)))
     {
         AccountRepositoryResult result;
         result.status = RepositoryStatus::Conflict;
@@ -131,7 +132,7 @@ AccountRepositoryResult AccountRepository::update_account(const std::string &acc
         return invalid_result(e.what());
     }
 
-    if (!_redis.hset(redis_keys::ACT_RECORD, plan.account.c_str(), plan.record.dump()))
+    if (!_redis.hset(redis_keys::ACT_RECORD, plan.account.c_str(), json_record::dump_record(plan.record)))
     {
         return redis_error_result(plan.account, "Redis error");
     }
@@ -178,7 +179,7 @@ bool AccountRepository::sync_login_index(const account_schema::AccountSyncPlan &
 {
     if (plan.write_active_index)
     {
-        return _redis.hset(redis_keys::ACT_ACTIVE, plan.account.c_str(), plan.active_index.dump());
+        return _redis.hset(redis_keys::ACT_ACTIVE, plan.account.c_str(), json_record::dump_record(plan.active_index));
     }
     if (plan.delete_active_index)
     {

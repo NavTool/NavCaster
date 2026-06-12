@@ -53,18 +53,6 @@ private:
     void handle_login(const HttpRequest &req, HttpResponse &resp);
     void handle_logout(const HttpRequest &req, HttpResponse &resp);
 
-    // Generic HASH CRUD helpers (used by all resource handlers)
-    // These respond asynchronously via evhttp deferred response mechanism.
-    // But since evhttp callbacks run on the same event loop as Redis callbacks,
-    // we can use a synchronous-looking pattern within the same thread.
-
-    // For the sync-in-event-loop pattern, we use a response holder
-    struct DeferredResponse
-    {
-        HttpResponse *resp;
-        bool done = false;
-    };
-
     // Account endpoints (ACT:RECORD) — uses auth_redis
     void handle_get_accounts(const HttpRequest &req, HttpResponse &resp);
     void handle_get_account(const HttpRequest &req, HttpResponse &resp);

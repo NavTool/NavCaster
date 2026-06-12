@@ -3,6 +3,7 @@
 #include "access_repository.h"
 #include "alias_repository.h"
 #include "config_repository.h"
+#include "json_record.h"
 #include "redis_keys.h"
 #include "relay_repository.h"
 #include "runtime_state_repository.h"
@@ -172,6 +173,24 @@ int main()
     expect_eq(redis_keys::ACT_RECORD, "ACT:RECORD", "account record key");
     expect_eq(redis_keys::ACT_ACTIVE, "ACT:ACTIVE", "account login index key");
     expect_eq(redis_keys::STR_ACTIVE_LEGACY, "STR:ACTIVE", "legacy active session key");
+
+    nlohmann::json helper_record = {{"uid", "helper"}, {"create_time", 0}};
+    json_record::touch_timestamps(helper_record, 1234);
+    expect_eq_int(helper_record.value("create_time", 0), 1234, "json helper fills create time");
+    expect_eq_int(helper_record.value("update_time", 0), 1234, "json helper fills update time");
+    json_record::touch_timestamps(helper_record, 2345);
+    expect_eq_int(helper_record.value("create_time", 0), 1234, "json helper preserves create time");
+    expect_eq_int(helper_record.value("update_time", 0), 2345, "json helper refreshes update time");
+    expect_eq_int(json_record::as_i64(12.9), 12, "json helper float to i64");
+    expect_eq_int(json_record::as_int("x", 7), 7, "json helper int fallback");
+    expect_eq_int(json_record::bool_or_number_as_int(true), 1, "json helper bool true");
+    expect_eq(json_record::string_field(helper_record, "uid"), "helper", "json helper string field");
+    nlohmann::json parsed_record;
+    expect_true(json_record::parse_record(json_record::dump_record(helper_record), parsed_record), "json helper parse dumped record");
+    expect_true(parsed_record.is_object(), "json helper parsed record is object");
+    expect_true(json_record::coerce_record(json_record::dump_record(helper_record), parsed_record), "json helper coerces stringified object");
+    expect_true(!json_record::coerce_record(nlohmann::json::array(), parsed_record), "json helper rejects array record");
+    expect_true(!json_record::parse_record("{", parsed_record), "json helper rejects broken json");
 
     nlohmann::json account = {
         {"account", "demo"},
