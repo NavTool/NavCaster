@@ -26,6 +26,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/runtime_state_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/http/config_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/source_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/sse_snapshot_service.cpp
 )
 
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})

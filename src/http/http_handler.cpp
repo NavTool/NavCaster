@@ -14,6 +14,7 @@
 #include "runtime_state_repository.h"
 #include "source_controller.h"
 #include "source_repository.h"
+#include "sse_snapshot_service.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
@@ -926,34 +927,11 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
         spdlog::info("[{}:{}]: Redis history sampling enabled (60s interval)", __class__, __func__);
     }
 
-    // Register SSE channels — each maps to a Redis HGETALL key
-    auto &redis = sync_redis::instance();
-    _sse.register_channel("servers", [&redis]() -> json
-                          { return redis.hgetall(KEY_SERVER_STATE); });
-    _sse.register_channel("clients", [&redis]() -> json
-                          { return redis.hgetall(KEY_CLIENT_STATE); });
-    _sse.register_channel("streams", [&redis]() -> json
-                          { return redis.hgetall(KEY_STREAM_STATE); });
-    _sse.register_channel("nodes", [&redis]() -> json
-                          { return redis.hgetall(KEY_CASTER_NODE); });
-    _sse.register_channel("accounts", [&redis]() -> json
-                          { return redis.hgetall(KEY_ACCOUNT_RECORD); });
-    _sse.register_channel("sources", [&redis]() -> json
-                          { return redis.hgetall(KEY_SOURCE_RECORD); });
-    _sse.register_channel("aliases", [&redis]() -> json
-                          { return redis.hgetall(KEY_ALIAS_RULE); });
-    _sse.register_channel("access_groups", [&redis]() -> json
-                          { return redis.hgetall(KEY_ACCESS_GROUP); });
-    _sse.register_channel("pull_records", [&redis]() -> json
-                          { return redis.hgetall(KEY_PULL_RECORD); });
-    _sse.register_channel("pull_states", [&redis]() -> json
-                          { return redis.hgetall(KEY_PULL_STATE); });
-    _sse.register_channel("push_records", [&redis]() -> json
-                          { return redis.hgetall(KEY_PUSH_RECORD); });
-    _sse.register_channel("push_states", [&redis]() -> json
-                          { return redis.hgetall(KEY_PUSH_STATE); });
-    _sse.register_channel("account_actives", [&redis]() -> json
-                          { return redis.hgetall(KEY_ACCOUNT_ACTIVE); });
+    // Register SSE channels through repository-backed snapshot service.
+    static navcaster::http_api::SseSnapshotService sse_snapshots(
+        sync_redis::instance(),
+        sync_redis_auth::instance().redis());
+    sse_snapshots.register_channels(_sse);
 
     spdlog::info("[{}:{}]: HTTP API handler initialized on port {}", __class__, __func__, config.port);
     return 0;

@@ -10,6 +10,7 @@
 #include "runtime_state_repository.h"
 #include "source_controller.h"
 #include "source_repository.h"
+#include "sse_snapshot_service.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -656,6 +657,38 @@ int main()
     expect_eq_int(source_response.status_code, 200, "source controller delete ok");
     source_response = source_controller.delete_source("CTRL1");
     expect_eq_int(source_response.status_code, 404, "source controller missing delete");
+
+    FakeRedisHashClient caster_sse_redis;
+    FakeRedisHashClient auth_sse_redis;
+    navcaster::http_api::SseSnapshotService sse_snapshots(caster_sse_redis, auth_sse_redis);
+    caster_sse_redis.hset(navcaster::redis_keys::MPT_STAT, "srv-1", nlohmann::json{{"uid", "srv-1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::USR_STAT, "cli-1", nlohmann::json{{"uid", "cli-1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::STR_STAT, "str-1", nlohmann::json{{"uid", "str-1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::CASTER_NODE, "node-1", nlohmann::json{{"uid", "node-1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::MPT_RECORD, "SRC1", nlohmann::json{{"mountpoint", "SRC1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::ALIAS_RULE, "AL1", nlohmann::json{{"uid", "AL1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::ACCESS_GROUP, "default", nlohmann::json{{"uid", "default"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::PULL_RECORD, "pull-1", nlohmann::json{{"uid", "pull-1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::PULL_STAT, "pull-1", nlohmann::json{{"state", 1}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::PUSH_RECORD, "push-1", nlohmann::json{{"uid", "push-1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::PUSH_STAT, "push-1", nlohmann::json{{"state", 1}}.dump());
+    auth_sse_redis.hset(navcaster::redis_keys::ACT_RECORD, "acct-1", nlohmann::json{{"account", "acct-1"}}.dump());
+    auth_sse_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "acct-1", nlohmann::json{{"account", "acct-1"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::ACT_RECORD, "wrong-redis", nlohmann::json{{"account", "wrong-redis"}}.dump());
+    expect_true(sse_snapshots.servers().contains("srv-1"), "sse snapshot servers via runtime repo");
+    expect_true(sse_snapshots.clients().contains("cli-1"), "sse snapshot clients via runtime repo");
+    expect_true(sse_snapshots.streams().contains("str-1"), "sse snapshot streams via runtime repo");
+    expect_true(sse_snapshots.nodes().contains("node-1"), "sse snapshot nodes via runtime repo");
+    expect_true(sse_snapshots.sources().contains("SRC1"), "sse snapshot sources via repository");
+    expect_true(sse_snapshots.aliases().contains("AL1"), "sse snapshot aliases via repository");
+    expect_true(sse_snapshots.access_groups().contains("default"), "sse snapshot access groups via repository");
+    expect_true(sse_snapshots.pull_records().contains("pull-1"), "sse snapshot pull records via repository");
+    expect_true(sse_snapshots.pull_states().contains("pull-1"), "sse snapshot pull states via repository");
+    expect_true(sse_snapshots.push_records().contains("push-1"), "sse snapshot push records via repository");
+    expect_true(sse_snapshots.push_states().contains("push-1"), "sse snapshot push states via repository");
+    expect_true(sse_snapshots.accounts().contains("acct-1"), "sse snapshot accounts uses auth redis");
+    expect_true(!sse_snapshots.accounts().contains("wrong-redis"), "sse snapshot accounts ignores caster redis");
+    expect_true(sse_snapshots.account_actives().contains("acct-1"), "sse snapshot account actives uses auth redis");
 
     if (failures != 0)
     {

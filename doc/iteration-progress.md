@@ -70,7 +70,7 @@
 ### Phase 3：拆 HTTP handler
 
 - [~] 按业务域拆 controller。
-- [ ] SSE 数据源改为 service/repository。
+- [x] SSE 数据源改为 service/repository。
 
 ### Phase 4：拆 Caster Core
 
@@ -148,6 +148,9 @@
 - 扩展 `schema_smoke`：直接编译并测试 `ConfigController`，覆盖默认 auth 用户、隐藏密码、未知 section、service 更新、auth old password 400/403/成功路径、非法 JSON。
 - 新增 `SourceController`：将 `/api/sources` list/get/create/update/delete 业务逻辑从 `http_handler.cpp` 移出，`http_handler` 保留轻量委托；controller 通过 `SourceRepository` 和注入时间戳保持原有 HTTP 状态码与响应体。
 - 扩展 `schema_smoke`：直接编译并测试 `SourceController`，覆盖 source list/create/get/update/delete、重复创建 409、非法 JSON 400、缺 ID 400、缺失资源 404。
+- 新增 `SseSnapshotService`：SSE channel 快照统一改为通过 RuntimeState/Account/Source/Alias/Access/Relay repository 获取，`sse_manager` 继续只负责连接、轮询和广播。
+- 修正 SSE `accounts` 与 `account_actives` 数据源：从 caster Redis 直连切换为 auth Redis repository，和 REST 账号 API 的 Redis 实例保持一致；其余 caster 运行态/配置/relay channel 通过 caster Redis repository。
+- 扩展 `schema_smoke`：覆盖所有 SSE snapshot channel 的 repository 映射，并断言 `accounts` 忽略 caster Redis 中的 `ACT:RECORD`、读取 auth Redis 中的账号数据。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -198,5 +201,9 @@
   - Source controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Source controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Source controller 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `source_controller.cpp` 已被 `casterhttp` 目标收编译。
+  - SSE snapshot service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - SSE snapshot service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - SSE snapshot service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - SSE snapshot service 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `sse_snapshot_service.cpp` 已被 `casterhttp` 目标收编译。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
