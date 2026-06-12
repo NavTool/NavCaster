@@ -18,6 +18,7 @@
 #include "sourcetable_service.h"
 #include "source_controller.h"
 #include "source_repository.h"
+#include "statistics_service.h"
 #include "sse_snapshot_service.h"
 
 #include <cstdlib>
@@ -774,6 +775,65 @@ int main()
     expect_eq(sourcetable_body.value("detail", std::string{}), "no such host", "sourcetable service fetch error detail");
     sourcetable_response = sourcetable_service.local_from_text(sourcetable_text);
     expect_eq_int(sourcetable_response.status_code, 200, "sourcetable service local ok");
+
+    navcaster::http_api::StatisticsService statistics_service;
+    const long long stats_start = 1000;
+    const long long stats_end = 8200;
+    const long long stats_now = 7000;
+    nlohmann::json mpt_logs = {
+        {"srv1", {{"type", 1}, {"name", "MOUNT_A"}, {"connect_time", 1000}, {"disconnect_time", 4600}}},
+        {"srv2", {{"type", 1}, {"name", "MOUNT_A"}, {"connect_time", 2800}, {"disconnect_time", 0}}},
+        {"pull1", {{"type", 5}, {"name", "PULL_A"}, {"connect_time", 1000}, {"disconnect_time", 2000}}},
+        {"outside", {{"type", 1}, {"name", "OUT"}, {"connect_time", 9000}, {"disconnect_time", 9200}}},
+        {"bad", "ignored"}
+    };
+    nlohmann::json usr_logs = {
+        {"usr1", {{"type", 2}, {"name", "user1"}, {"mount", "MOUNT_A"}, {"connect_time", 1000}, {"disconnect_time", 2800}}},
+        {"push1", {{"type", 6}, {"name", "push1"}, {"mount", "MOUNT_A"}, {"connect_time", 1000}, {"disconnect_time", 0}}},
+        {"usr2", {{"type", 3}, {"name", "user2"}, {"mount", "MOUNT_B"}, {"connect_time", 3000}, {"disconnect_time", 8200}}}
+    };
+
+    auto stats_overview = statistics_service.overview(mpt_logs, usr_logs, stats_start, stats_end, stats_now);
+    expect_eq_int(stats_overview.value("mpt_connections", 0), 2, "statistics overview mpt connections");
+    expect_eq_int(stats_overview.value("usr_connections", 0), 2, "statistics overview usr connections");
+    expect_eq_int(stats_overview.value("pull_connections", 0), 1, "statistics overview pull connections");
+    expect_eq_int(stats_overview.value("push_connections", 0), 1, "statistics overview push connections");
+    expect_eq_int(stats_overview.value("peak_concurrent_mpt", 0), 2, "statistics overview peak mpt");
+    expect_eq_int(stats_overview.value("peak_concurrent_usr", 0), 2, "statistics overview peak usr");
+    expect_eq_int(stats_overview.value("peak_concurrent_pull", 0), 1, "statistics overview peak pull");
+    expect_eq_int(stats_overview.value("peak_concurrent_push", 0), 1, "statistics overview peak push");
+    expect_eq_int(stats_overview.value("avg_duration_mpt", 0), 3900, "statistics overview avg mpt duration");
+    expect_eq_int(stats_overview.value("avg_duration_usr", 0), 3500, "statistics overview avg usr duration");
+    expect_eq_int(stats_overview.value("unique_mountpoints", 0), 1, "statistics overview unique mounts");
+    expect_eq_int(stats_overview.value("unique_users", 0), 2, "statistics overview unique users");
+    expect_eq_int(stats_overview.value("bucket_seconds", 0), 3600, "statistics overview bucket seconds");
+    expect_eq_int(static_cast<int>(stats_overview["hourly_trend"].size()), 2, "statistics overview trend buckets");
+    expect_eq_int(stats_overview["hourly_trend"][0].value("mpt", 0), 2, "statistics overview first mpt bucket");
+    expect_eq_int(stats_overview["hourly_trend"][0].value("usr", 0), 2, "statistics overview first usr bucket");
+    expect_eq_int(stats_overview["hourly_trend"][1].value("push", 0), 1, "statistics overview second push bucket");
+
+    auto stats_daily = statistics_service.daily("1970-01-01", mpt_logs, usr_logs, stats_start, stats_start + 86400, stats_now);
+    expect_eq(stats_daily.value("date", std::string{}), "1970-01-01", "statistics daily date");
+    expect_eq_int(static_cast<int>(stats_daily["hourly_trend"].size()), 24, "statistics daily trend buckets");
+    expect_true(!stats_daily.contains("bucket_seconds"), "statistics daily omits bucket seconds");
+    expect_eq_int(stats_daily.value("mpt_connections", 0), 3, "statistics daily mpt connections");
+
+    auto mpt_ranking = statistics_service.mountpoint_ranking(mpt_logs, stats_start, stats_end, stats_now, 20);
+    expect_eq_int(static_cast<int>(mpt_ranking.size()), 2, "statistics mount ranking size");
+    expect_eq(mpt_ranking[0].value("name", std::string{}), "MOUNT_A", "statistics mount ranking first");
+    expect_eq_int(mpt_ranking[0].value("total_duration", 0), 7800, "statistics mount ranking total duration");
+    expect_eq_int(mpt_ranking[0].value("connections", 0), 2, "statistics mount ranking connections");
+    expect_eq_int(mpt_ranking[0].value("last_seen", 0), 7000, "statistics mount ranking last seen");
+    expect_eq(mpt_ranking[0]["types"][0].get<std::string>(), "SERVER", "statistics mount ranking server type");
+    expect_eq(mpt_ranking[1]["types"][0].get<std::string>(), "PULL", "statistics mount ranking pull type");
+
+    auto usr_ranking = statistics_service.user_ranking(usr_logs, stats_start, stats_end, stats_now, 2);
+    expect_eq_int(static_cast<int>(usr_ranking.size()), 2, "statistics user ranking limit");
+    expect_eq(usr_ranking[0].value("name", std::string{}), "push1", "statistics user ranking first");
+    expect_eq_int(usr_ranking[0].value("total_duration", 0), 6000, "statistics user ranking push duration");
+    expect_eq_int(usr_ranking[0].value("mount_count", 0), 1, "statistics user ranking mount count");
+    expect_eq(usr_ranking[0]["types"][0].get<std::string>(), "PUSH", "statistics user ranking push type");
+    expect_eq(usr_ranking[1]["types"][0].get<std::string>(), "NEAREST", "statistics user ranking nearest type");
 
     navcaster::storage::ConfigSection config_section;
     expect_true(navcaster::storage::parse_config_section("service", config_section), "config parses service section");

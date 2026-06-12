@@ -36,6 +36,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/runtime_command_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_state_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sourcetable_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/statistics_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/source_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sse_snapshot_service.cpp
 )

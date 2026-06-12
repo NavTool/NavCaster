@@ -170,6 +170,9 @@
 - Sourcetable TCP 抓取补跨平台封装：Windows 使用 Winsock/`ws2_32`，POSIX 继续使用 socket API；`http_handler.cpp` 不再直接包含 `sys/socket.h`/`netdb.h`/`unistd.h`。
 - 顺手补齐 `http_handler.cpp` 统计路径的日期解析/本地时间跨平台 helper，用 `std::get_time` 与 `localtime_s/localtime_r` 包装替代 MSVC 不支持的 `strptime/localtime_r` 直调，解除窄构建 `casterhttp` 的 Windows 编译阻塞。
 - 扩展 `schema_smoke`：覆盖 sourcetable STR 解析、`ENDSOURCETABLE` 截止、NTRIP 1.0/2.0 请求头、Basic Auth、远端 mock fetch 成功/失败、非法 JSON、缺 host 和本地源表解析。
+- 新增 `StatisticsService`：将 `/api/stats/overview`、`/api/stats/daily/*`、mountpoint/user ranking 的纯聚合逻辑从 `http_handler.cpp` 移出；handler 仍保留 query 参数解析、Redis 读取和 daily cache 行为。
+- Statistics 聚合 service 保持原有语义：PULL/PUSH 单独计数，普通 mpt/usr 计算平均时长和唯一对象，趋势桶按会话覆盖区间累加，overview 继续自适应 1h/1d/1w 桶并最多 200 桶，daily 固定 24 个小时桶。
+- 扩展 `schema_smoke`：固定样本覆盖 overview/daily 计数、峰值并发、平均时长、唯一 mount/user、趋势桶、ranking 排序、limit、last_seen、mount_count 和类型标签。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -252,5 +255,9 @@
   - Sourcetable service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Sourcetable service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Sourcetable service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过，`http_handler.cpp` 的 `sys/socket.h` 和 `strptime/localtime_r` Windows/MSVC 阻塞已解除。
+  - Statistics service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Statistics service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Statistics service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Statistics service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

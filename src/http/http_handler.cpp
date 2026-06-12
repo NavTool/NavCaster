@@ -16,6 +16,7 @@
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
 #include "sourcetable_service.h"
+#include "statistics_service.h"
 #include "source_controller.h"
 #include "source_repository.h"
 #include "sse_snapshot_service.h"
@@ -1596,136 +1597,8 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     json mpt_logs = redis.scan_hgetall_prefix("LOG:MPT:");
     json usr_logs = redis.scan_hgetall_prefix("LOG:USR:");
 
-    // PULL=5, PUSH=6 (CasterRegisterType enum values)
-    static constexpr int TYPE_PULL = 5;
-    static constexpr int TYPE_PUSH = 6;
-
-    // Aggregate
-    long long mpt_connections = 0, usr_connections = 0;
-    long long pull_connections = 0, push_connections = 0;
-    long long total_duration_mpt = 0, total_duration_usr = 0;
-    int peak_concurrent_mpt = 0, peak_concurrent_usr = 0;
-    int peak_concurrent_pull = 0, peak_concurrent_push = 0;
-    std::set<std::string> unique_mounts, unique_users;
-
-    // Time-slot concurrency: adapt bucket size to range
-    //  - <= 48h : 1h buckets
-    //  - <= 31d : 1d buckets
-    //  - else   : weekly buckets, capped at 200 buckets
-    long long range_secs = std::max(1LL, end_ts - start_ts);
-    long long bucket_secs;
-    if (range_secs <= 48LL * 3600LL) bucket_secs = 3600LL;
-    else if (range_secs <= 31LL * 86400LL) bucket_secs = 86400LL;
-    else bucket_secs = 7LL * 86400LL;
-    int num_hours = static_cast<int>((range_secs + bucket_secs - 1) / bucket_secs);
-    if (num_hours <= 0) num_hours = 1;
-    if (num_hours > 200) num_hours = 200;
-    std::vector<int> mpt_hourly(num_hours, 0);
-    std::vector<int> usr_hourly(num_hours, 0);
-    std::vector<int> pull_hourly(num_hours, 0);
-    std::vector<int> push_hourly(num_hours, 0);
-
-    auto process_logs = [&](const json &logs, bool is_mpt)
-    {
-        for (auto &[field, entry] : logs.items())
-        {
-            if (!entry.is_object()) continue;
-            int type_val = entry.value("type", 0);
-            bool is_pull = is_mpt && (type_val == TYPE_PULL);
-            bool is_push = !is_mpt && (type_val == TYPE_PUSH);
-
-            long long ct = entry.value("connect_time", 0LL);
-            long long dt = entry.value("disconnect_time", 0LL);
-            if (dt == 0) dt = now_ts; // still online
-
-            // Skip if completely outside range
-            if (dt < start_ts || ct >= end_ts) continue;
-
-            long long overlap_start = std::max(ct, start_ts);
-            long long overlap_end = std::min(dt, end_ts);
-
-            if (is_pull)
-            {
-                pull_connections++;
-            }
-            else if (is_push)
-            {
-                push_connections++;
-            }
-            else if (is_mpt)
-            {
-                mpt_connections++;
-                std::string name = entry.value("name", "");
-                if (!name.empty()) unique_mounts.insert(name);
-                total_duration_mpt += (overlap_end - overlap_start);
-            }
-            else
-            {
-                usr_connections++;
-                std::string name = entry.value("name", "");
-                if (!name.empty()) unique_users.insert(name);
-                total_duration_usr += (overlap_end - overlap_start);
-            }
-
-            // Bucket concurrency: mark each bucket this session overlaps
-            long long h_start = std::max(ct, start_ts);
-            long long h_end = std::min(dt, end_ts);
-            int bucket_begin = static_cast<int>((h_start - start_ts) / bucket_secs);
-            int bucket_end = static_cast<int>((h_end - start_ts) / bucket_secs);
-            if (bucket_begin < 0) bucket_begin = 0;
-            if (bucket_end >= num_hours) bucket_end = num_hours - 1;
-            if (bucket_end < bucket_begin) continue;
-            std::vector<int> *hourly_ptr = is_pull ? &pull_hourly
-                                         : is_push ? &push_hourly
-                                         : is_mpt  ? &mpt_hourly
-                                                   : &usr_hourly;
-            for (int b = bucket_begin; b <= bucket_end; b++)
-                (*hourly_ptr)[b]++;
-        }
-    };
-
-    process_logs(mpt_logs, true);
-    process_logs(usr_logs, false);
-
-    for (int i = 0; i < num_hours; i++)
-    {
-        if (mpt_hourly[i] > peak_concurrent_mpt) peak_concurrent_mpt = mpt_hourly[i];
-        if (usr_hourly[i] > peak_concurrent_usr) peak_concurrent_usr = usr_hourly[i];
-        if (pull_hourly[i] > peak_concurrent_pull) peak_concurrent_pull = pull_hourly[i];
-        if (push_hourly[i] > peak_concurrent_push) peak_concurrent_push = push_hourly[i];
-    }
-
-    // Build trend
-    json hourly_trend = json::array();
-    for (int i = 0; i < num_hours; i++)
-    {
-        json h;
-        h["ts"] = start_ts + i * bucket_secs;
-        h["mpt"] = mpt_hourly[i];
-        h["usr"] = usr_hourly[i];
-        h["pull"] = pull_hourly[i];
-        h["push"] = push_hourly[i];
-        hourly_trend.push_back(h);
-    }
-
-    json result;
-    result["start"] = start_ts;
-    result["end"] = end_ts;
-    result["mpt_connections"] = mpt_connections;
-    result["usr_connections"] = usr_connections;
-    result["pull_connections"] = pull_connections;
-    result["push_connections"] = push_connections;
-    result["peak_concurrent_mpt"] = peak_concurrent_mpt;
-    result["peak_concurrent_usr"] = peak_concurrent_usr;
-    result["peak_concurrent_pull"] = peak_concurrent_pull;
-    result["peak_concurrent_push"] = peak_concurrent_push;
-    result["avg_duration_mpt"] = mpt_connections > 0 ? total_duration_mpt / mpt_connections : 0;
-    result["avg_duration_usr"] = usr_connections > 0 ? total_duration_usr / usr_connections : 0;
-    result["unique_mountpoints"] = static_cast<int>(unique_mounts.size());
-    result["unique_users"] = static_cast<int>(unique_users.size());
-    result["hourly_trend"] = hourly_trend;
-    result["bucket_seconds"] = bucket_secs;
-
+    navcaster::http_api::StatisticsService service;
+    json result = service.overview(mpt_logs, usr_logs, start_ts, end_ts, now_ts);
     resp.status_code = 200;
     resp.body = result.dump();
 }
@@ -1776,116 +1649,8 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
     json mpt_logs = redis.scan_hgetall_prefix("LOG:MPT:");
     json usr_logs = redis.scan_hgetall_prefix("LOG:USR:");
 
-    // PULL=5, PUSH=6 (CasterRegisterType enum values)
-    static constexpr int TYPE_PULL_D = 5;
-    static constexpr int TYPE_PUSH_D = 6;
-
-    long long mpt_connections = 0, usr_connections = 0;
-    long long pull_connections = 0, push_connections = 0;
-    long long total_duration_mpt = 0, total_duration_usr = 0;
-    int peak_concurrent_mpt = 0, peak_concurrent_usr = 0;
-    int peak_concurrent_pull = 0, peak_concurrent_push = 0;
-    std::set<std::string> unique_mounts, unique_users;
-
-    int num_hours = 24;
-    std::vector<int> mpt_hourly(num_hours, 0);
-    std::vector<int> usr_hourly(num_hours, 0);
-    std::vector<int> pull_hourly(num_hours, 0);
-    std::vector<int> push_hourly(num_hours, 0);
-
-    auto process_logs = [&](const json &logs, bool is_mpt)
-    {
-        for (auto &[field, entry] : logs.items())
-        {
-            if (!entry.is_object()) continue;
-            int type_val = entry.value("type", 0);
-            bool is_pull = is_mpt && (type_val == TYPE_PULL_D);
-            bool is_push = !is_mpt && (type_val == TYPE_PUSH_D);
-
-            long long ct = entry.value("connect_time", 0LL);
-            long long dt = entry.value("disconnect_time", 0LL);
-            if (dt == 0) dt = now_ts;
-            if (dt < start_ts || ct >= end_ts) continue;
-
-            long long overlap_start = std::max(ct, start_ts);
-            long long overlap_end = std::min(dt, end_ts);
-
-            if (is_pull)
-            {
-                pull_connections++;
-            }
-            else if (is_push)
-            {
-                push_connections++;
-            }
-            else if (is_mpt)
-            {
-                mpt_connections++;
-                std::string name = entry.value("name", "");
-                if (!name.empty()) unique_mounts.insert(name);
-                total_duration_mpt += (overlap_end - overlap_start);
-            }
-            else
-            {
-                usr_connections++;
-                std::string name = entry.value("name", "");
-                if (!name.empty()) unique_users.insert(name);
-                total_duration_usr += (overlap_end - overlap_start);
-            }
-
-            long long h_start = std::max(ct, start_ts);
-            long long h_end = std::min(dt, end_ts);
-            int bucket_begin = std::max(0, static_cast<int>((h_start - start_ts) / 3600));
-            int bucket_end = std::min(num_hours - 1, static_cast<int>((h_end - start_ts) / 3600));
-            std::vector<int> *hourly_ptr = is_pull ? &pull_hourly
-                                         : is_push ? &push_hourly
-                                         : is_mpt  ? &mpt_hourly
-                                                   : &usr_hourly;
-            for (int b = bucket_begin; b <= bucket_end; b++)
-                (*hourly_ptr)[b]++;
-        }
-    };
-
-    process_logs(mpt_logs, true);
-    process_logs(usr_logs, false);
-
-    for (int i = 0; i < num_hours; i++)
-    {
-        if (mpt_hourly[i] > peak_concurrent_mpt) peak_concurrent_mpt = mpt_hourly[i];
-        if (usr_hourly[i] > peak_concurrent_usr) peak_concurrent_usr = usr_hourly[i];
-        if (pull_hourly[i] > peak_concurrent_pull) peak_concurrent_pull = pull_hourly[i];
-        if (push_hourly[i] > peak_concurrent_push) peak_concurrent_push = push_hourly[i];
-    }
-
-    json hourly_trend = json::array();
-    for (int i = 0; i < num_hours; i++)
-    {
-        json h;
-        h["ts"] = start_ts + i * 3600;
-        h["mpt"] = mpt_hourly[i];
-        h["usr"] = usr_hourly[i];
-        h["pull"] = pull_hourly[i];
-        h["push"] = push_hourly[i];
-        hourly_trend.push_back(h);
-    }
-
-    json result;
-    result["date"] = date_str;
-    result["start"] = start_ts;
-    result["end"] = end_ts;
-    result["mpt_connections"] = mpt_connections;
-    result["usr_connections"] = usr_connections;
-    result["pull_connections"] = pull_connections;
-    result["push_connections"] = push_connections;
-    result["peak_concurrent_mpt"] = peak_concurrent_mpt;
-    result["peak_concurrent_usr"] = peak_concurrent_usr;
-    result["peak_concurrent_pull"] = peak_concurrent_pull;
-    result["peak_concurrent_push"] = peak_concurrent_push;
-    result["avg_duration_mpt"] = mpt_connections > 0 ? total_duration_mpt / mpt_connections : 0;
-    result["avg_duration_usr"] = usr_connections > 0 ? total_duration_usr / usr_connections : 0;
-    result["unique_mountpoints"] = static_cast<int>(unique_mounts.size());
-    result["unique_users"] = static_cast<int>(unique_users.size());
-    result["hourly_trend"] = hourly_trend;
+    navcaster::http_api::StatisticsService service;
+    json result = service.daily(date_str, mpt_logs, usr_logs, start_ts, end_ts, now_ts);
 
     std::string body = result.dump();
 
@@ -1913,54 +1678,8 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
     if (limit > 100) limit = 100;
 
     json mpt_logs = sync_redis::instance().scan_hgetall_prefix("LOG:MPT:");
-
-    // 按挂载点/资源名聚合：包含普通基站、PULL 中继、别名、最近点等
-    struct MptStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; int type_mask = 0; };
-    std::map<std::string, MptStat> stats;
-
-    for (auto &[field, entry] : mpt_logs.items())
-    {
-        if (!entry.is_object()) continue;
-        // 保留 PULL（type=5），同时记录类型位图
-        int t = entry.value("type", 0);
-        long long ct = entry.value("connect_time", 0LL);
-        long long dt = entry.value("disconnect_time", 0LL);
-        if (dt == 0) dt = now_ts;
-        if (dt < start_ts || ct >= end_ts) continue;
-
-        std::string name = entry.value("name", "");
-        if (name.empty()) continue;
-
-        long long overlap = std::min(dt, end_ts) - std::max(ct, start_ts);
-        auto &s = stats[name];
-        s.total_duration += overlap;
-        s.connections++;
-        if (dt > s.last_seen) s.last_seen = dt;
-        if (t > 0 && t < 31) s.type_mask |= (1 << t);
-    }
-
-    // Sort by total_duration desc
-    std::vector<std::pair<std::string, MptStat>> sorted(stats.begin(), stats.end());
-    std::sort(sorted.begin(), sorted.end(), [](auto &a, auto &b) { return a.second.total_duration > b.second.total_duration; });
-
-    json result = json::array();
-    int count = 0;
-    for (auto &[name, s] : sorted)
-    {
-        if (count >= limit) break;
-        json item;
-        item["name"] = name;
-        item["total_duration"] = s.total_duration;
-        item["connections"] = s.connections;
-        item["last_seen"] = s.last_seen;
-        // 类型标签数组：SERVER/PULL 等
-        json types = json::array();
-        if (s.type_mask & (1 << 1)) types.push_back("SERVER");
-        if (s.type_mask & (1 << 5)) types.push_back("PULL");
-        item["types"] = types;
-        result.push_back(item);
-        count++;
-    }
+    navcaster::http_api::StatisticsService service;
+    json result = service.mountpoint_ranking(mpt_logs, start_ts, end_ts, now_ts, limit);
 
     resp.status_code = 200;
     resp.body = result.dump();
@@ -1980,56 +1699,8 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
     if (limit > 100) limit = 100;
 
     json usr_logs = sync_redis::instance().scan_hgetall_prefix("LOG:USR:");
-
-    struct UsrStat { long long total_duration = 0; int connections = 0; long long last_seen = 0; std::set<std::string> mounts; int type_mask = 0; };
-    std::map<std::string, UsrStat> stats;
-
-    for (auto &[field, entry] : usr_logs.items())
-    {
-        if (!entry.is_object()) continue;
-        // 保留 PUSH（type=6），只记录类型位图
-        int t = entry.value("type", 0);
-        long long ct = entry.value("connect_time", 0LL);
-        long long dt = entry.value("disconnect_time", 0LL);
-        if (dt == 0) dt = now_ts;
-        if (dt < start_ts || ct >= end_ts) continue;
-
-        std::string name = entry.value("name", "");
-        if (name.empty()) continue;
-        std::string mount = entry.value("mount", "");
-
-        long long overlap = std::min(dt, end_ts) - std::max(ct, start_ts);
-        auto &s = stats[name];
-        s.total_duration += overlap;
-        s.connections++;
-        if (dt > s.last_seen) s.last_seen = dt;
-        if (!mount.empty()) s.mounts.insert(mount);
-        if (t > 0 && t < 31) s.type_mask |= (1 << t);
-    }
-
-    std::vector<std::pair<std::string, UsrStat>> sorted(stats.begin(), stats.end());
-    std::sort(sorted.begin(), sorted.end(), [](auto &a, auto &b) { return a.second.total_duration > b.second.total_duration; });
-
-    json result = json::array();
-    int count = 0;
-    for (auto &[name, s] : sorted)
-    {
-        if (count >= limit) break;
-        json item;
-        item["name"] = name;
-        item["total_duration"] = s.total_duration;
-        item["connections"] = s.connections;
-        item["last_seen"] = s.last_seen;
-        item["mount_count"] = static_cast<int>(s.mounts.size());
-        json types = json::array();
-        if (s.type_mask & (1 << 2)) types.push_back("CLIENT");
-        if (s.type_mask & (1 << 3)) types.push_back("NEAREST");
-        if (s.type_mask & (1 << 4)) types.push_back("ALIAS");
-        if (s.type_mask & (1 << 6)) types.push_back("PUSH");
-        item["types"] = types;
-        result.push_back(item);
-        count++;
-    }
+    navcaster::http_api::StatisticsService service;
+    json result = service.user_ranking(usr_logs, start_ts, end_ts, now_ts, limit);
 
     resp.status_code = 200;
     resp.body = result.dump();
