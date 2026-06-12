@@ -6,6 +6,7 @@
 #include "alias_repository.h"
 #include "broadcast_msg.h"
 #include "base64.h"
+#include "config_repository.h"
 #include "redis_keys.h"
 #include "ring_log_view.h"
 #include "relay_repository.h"
@@ -38,9 +39,6 @@ static const char *KEY_PULL_STATE = navcaster::redis_keys::PULL_STAT;
 static const char *KEY_PUSH_RECORD = navcaster::redis_keys::PUSH_RECORD;
 static const char *KEY_PUSH_STATE = navcaster::redis_keys::PUSH_STAT;
 static const char *KEY_CASTER_NODE = "CASTER:NODE";
-static const char *KEY_CONF_SERVICE = "CONF:SERVICE";
-static const char *KEY_CONF_CORE = "CONF:CORE";
-static const char *KEY_CONF_AUTH = "CONF:AUTH";
 static const char *KEY_MPT_ONLINE = "MPT:LIST";
 static const char *KEY_MPT_SUB = "MPT:SUB";
 static const char *KEY_LOG_MPT = "LOG:MPT";
@@ -230,7 +228,7 @@ namespace
         }
 
         // SET key value (plain string)
-        bool set(const char *key, const std::string &value)
+        bool set(const char *key, const std::string &value) override
         {
             if (!ensure_connected())
                 return false;
@@ -261,7 +259,7 @@ namespace
         }
 
         // GET key → json or null
-        json get(const char *key)
+        json get(const char *key) override
         {
             if (!ensure_connected())
                 return nullptr;
@@ -1045,7 +1043,8 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
     else
     {
         // Also check Redis-stored auth config (allows password change at runtime)
-        json auth_conf = sync_redis::instance().get(KEY_CONF_AUTH);
+        navcaster::storage::ConfigRepository config_repo(sync_redis::instance());
+        json auth_conf = config_repo.get_config(navcaster::storage::ConfigSection::Auth);
         std::string redis_user = auth_conf.is_object() ? auth_conf.value("admin_user", "") : "";
         std::string redis_pass = auth_conf.is_object() ? auth_conf.value("admin_password", "") : "";
         if (!redis_user.empty() && user == redis_user && pass == redis_pass)
@@ -2774,23 +2773,19 @@ void http_handler::handle_local_sourcetable(const HttpRequest &req, HttpResponse
 
 void http_handler::save_config(const std::string &section, const std::string &json_str)
 {
-    const char *key = nullptr;
-    if (section == "service") key = KEY_CONF_SERVICE;
-    else if (section == "core") key = KEY_CONF_CORE;
-    else if (section == "auth") key = KEY_CONF_AUTH;
-    else return;
-    sync_redis::instance().set(key, json_str);
+    navcaster::storage::ConfigSection parsed_section;
+    if (!navcaster::storage::parse_config_section(section, parsed_section))
+    {
+        return;
+    }
+    navcaster::storage::ConfigRepository repo(sync_redis::instance());
+    repo.save_config(parsed_section, json_str);
 }
 
 void http_handler::handle_get_configs(const HttpRequest &req, HttpResponse &resp)
 {
-    json result = json::object();
-    auto service = sync_redis::instance().get(KEY_CONF_SERVICE);
-    auto core = sync_redis::instance().get(KEY_CONF_CORE);
-    auto auth = sync_redis::instance().get(KEY_CONF_AUTH);
-    if (!service.is_null()) result["service"] = service;
-    if (!core.is_null()) result["core"] = core;
-    if (!auth.is_null()) result["auth"] = auth;
+    navcaster::storage::ConfigRepository repo(sync_redis::instance());
+    json result = repo.list_configs();
     resp.status_code = 200;
     resp.body = result.dump();
 }
@@ -2798,16 +2793,19 @@ void http_handler::handle_get_configs(const HttpRequest &req, HttpResponse &resp
 void http_handler::handle_get_config(const HttpRequest &req, HttpResponse &resp)
 {
     std::string id = get_resource_id(req);
-    const char *key = nullptr;
-    if (id == "service") key = KEY_CONF_SERVICE;
-    else if (id == "core") key = KEY_CONF_CORE;
-    else if (id == "auth") key = KEY_CONF_AUTH;
-    else { resp.status_code = 404; resp.body = R"({"error":"Unknown config section"})"; return; }
+    navcaster::storage::ConfigSection section;
+    if (!navcaster::storage::parse_config_section(id, section))
+    {
+        resp.status_code = 404;
+        resp.body = R"({"error":"Unknown config section"})";
+        return;
+    }
 
-    json data = sync_redis::instance().get(key);
+    navcaster::storage::ConfigRepository repo(sync_redis::instance());
+    json data = repo.get_config(section);
 
     // For auth config, return default username if Redis has no entry, and never expose password
-    if (id == "auth")
+    if (section == navcaster::storage::ConfigSection::Auth)
     {
         json result;
         if (data.is_object() && data.contains("admin_user"))
@@ -2827,18 +2825,21 @@ void http_handler::handle_get_config(const HttpRequest &req, HttpResponse &resp)
 void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &resp)
 {
     std::string id = get_resource_id(req);
-    const char *key = nullptr;
-    if (id == "service") key = KEY_CONF_SERVICE;
-    else if (id == "core") key = KEY_CONF_CORE;
-    else if (id == "auth") key = KEY_CONF_AUTH;
-    else { resp.status_code = 404; resp.body = R"({"error":"Unknown config section"})"; return; }
+    navcaster::storage::ConfigSection section;
+    if (!navcaster::storage::parse_config_section(id, section))
+    {
+        resp.status_code = 404;
+        resp.body = R"({"error":"Unknown config section"})";
+        return;
+    }
 
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
 
     // For auth config, require old password verification
-    if (id == "auth")
+    navcaster::storage::ConfigRepository repo(sync_redis::instance());
+    if (section == navcaster::storage::ConfigSection::Auth)
     {
         std::string old_password = body.value("old_password", "");
         if (old_password.empty())
@@ -2850,7 +2851,7 @@ void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &re
 
         // Get current password: check Redis first, then fall back to config defaults
         std::string current_password = _config.admin_password;
-        json auth_conf = sync_redis::instance().get(KEY_CONF_AUTH);
+        json auth_conf = repo.get_config(navcaster::storage::ConfigSection::Auth);
         if (auth_conf.is_object() && auth_conf.contains("admin_password"))
         {
             current_password = auth_conf.value("admin_password", _config.admin_password);
@@ -2867,8 +2868,8 @@ void http_handler::handle_update_config(const HttpRequest &req, HttpResponse &re
         body.erase("old_password");
     }
 
-    bool ok = sync_redis::instance().set(key, body.dump());
-    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
+    auto result = repo.update_config(section, body);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }

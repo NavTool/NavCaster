@@ -17,6 +17,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/redis_keys.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_schema.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/config_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/source_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/alias_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/access_repository.cpp

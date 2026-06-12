@@ -136,6 +136,9 @@
 - 新增 `RuntimeStateRepository`：server/client/stream/node 只读运行态 hash 的 list/get 边界收敛到 repository。
 - HTTP server/client/stream/node 列表与详情 handler 改为调用 `RuntimeStateRepository`；kick、monitor、SSE、history、statistics 等行为型路径保持现状，留到 Phase 3/4 按 service 边界继续拆分。
 - 扩展 `schema_smoke`：覆盖 runtime state key 映射、server 状态 list/get、空 ID 详情查询返回空。
+- 新增 `ConfigRepository`：`CONF:SERVICE`、`CONF:CORE`、`CONF:AUTH` 的 list/get/update/save 边界收敛到 repository，HTTP config handler 与运行时登录读取 auth config 改为调用 repository。
+- 扩展 `RedisHashClient` 的 `get/set` 字符串 key 接口，保持 hash repository 现有行为不变；`schema_smoke` fake Redis 同步支持配置读写测试。
+- 扩展 `schema_smoke`：覆盖 config section 解析、CONF key 映射、配置更新/读取/list、raw JSON save、Redis set 失败映射为 `RedisError`。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -170,5 +173,9 @@
   - Runtime state repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Runtime state repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Runtime state repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
+  - Config repository 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Config repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Config repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Config repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

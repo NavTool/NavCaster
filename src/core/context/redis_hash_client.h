@@ -17,6 +17,8 @@ public:
     virtual bool hset(const char *key, const char *field, const std::string &value) = 0;
     virtual bool hsetnx(const char *key, const char *field, const std::string &value) = 0;
     virtual bool hdel(const char *key, const char *field) = 0;
+    virtual nlohmann::json get(const char *key) { return nullptr; }
+    virtual bool set(const char *key, const std::string &value) { return false; }
     virtual bool publish(const char *channel, const std::string &message) { return false; }
 };
 

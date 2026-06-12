@@ -2,6 +2,7 @@
 #include "account_schema.h"
 #include "access_repository.h"
 #include "alias_repository.h"
+#include "config_repository.h"
 #include "redis_keys.h"
 #include "relay_repository.h"
 #include "runtime_state_repository.h"
@@ -79,6 +80,22 @@ public:
         return key_it->second.erase(field) > 0;
     }
 
+    nlohmann::json get(const char *key) override
+    {
+        auto it = strings.find(key);
+        if (it == strings.end())
+        {
+            return nullptr;
+        }
+        return it->second;
+    }
+
+    bool set(const char *key, const std::string &value) override
+    {
+        strings[key] = parse_value(value);
+        return set_ok;
+    }
+
     bool publish(const char *channel, const std::string &message) override
     {
         publishes.push_back({channel, message});
@@ -86,7 +103,9 @@ public:
     }
 
     std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> hashes;
+    std::unordered_map<std::string, nlohmann::json> strings;
     std::vector<std::pair<std::string, std::string>> publishes;
+    bool set_ok = true;
     bool publish_ok = true;
 
 private:
@@ -540,6 +559,29 @@ int main()
     expect_true(runtime_repo.list(navcaster::storage::RuntimeStateKind::Server).contains("S1"), "runtime repository lists servers");
     expect_eq(runtime_repo.get(navcaster::storage::RuntimeStateKind::Server, "S1").value("uid", std::string{}), "S1", "runtime repository gets server");
     expect_true(runtime_repo.get(navcaster::storage::RuntimeStateKind::Server, "").is_null(), "runtime repository rejects empty get");
+
+    navcaster::storage::ConfigSection config_section;
+    expect_true(navcaster::storage::parse_config_section("service", config_section), "config parses service section");
+    expect_true(config_section == navcaster::storage::ConfigSection::Service, "config service enum");
+    expect_true(navcaster::storage::parse_config_section("core", config_section), "config parses core section");
+    expect_true(config_section == navcaster::storage::ConfigSection::Core, "config core enum");
+    expect_true(navcaster::storage::parse_config_section("auth", config_section), "config parses auth section");
+    expect_true(config_section == navcaster::storage::ConfigSection::Auth, "config auth enum");
+    expect_true(!navcaster::storage::parse_config_section("missing", config_section), "config rejects unknown section");
+    expect_eq(navcaster::storage::config_section_key(navcaster::storage::ConfigSection::Service), navcaster::redis_keys::CONF_SERVICE, "config service key");
+    expect_eq(navcaster::storage::config_section_key(navcaster::storage::ConfigSection::Core), navcaster::redis_keys::CONF_CORE, "config core key");
+    expect_eq(navcaster::storage::config_section_key(navcaster::storage::ConfigSection::Auth), navcaster::redis_keys::CONF_AUTH, "config auth key");
+    navcaster::storage::ConfigRepository config_repo(fake_redis);
+    auto config_result = config_repo.update_config(navcaster::storage::ConfigSection::Service, {{"port", 8080}});
+    expect_true(config_result.status == navcaster::storage::RepositoryStatus::Ok, "config repository update ok");
+    expect_eq_int(config_repo.get_config(navcaster::storage::ConfigSection::Service).value("port", 0), 8080, "config repository get service");
+    expect_true(config_repo.list_configs().contains("service"), "config repository lists service config");
+    expect_true(config_repo.save_config(navcaster::storage::ConfigSection::Auth, R"({"admin_user":"root"})"), "config repository save raw json");
+    expect_eq(config_repo.get_config(navcaster::storage::ConfigSection::Auth).value("admin_user", std::string{}), "root", "config repository save raw value");
+    fake_redis.set_ok = false;
+    config_result = config_repo.update_config(navcaster::storage::ConfigSection::Core, {{"worker", 2}});
+    expect_true(config_result.status == navcaster::storage::RepositoryStatus::RedisError, "config repository reports set failure");
+    fake_redis.set_ok = true;
 
     if (failures != 0)
     {
