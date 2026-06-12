@@ -48,7 +48,8 @@
 
 ### Phase 1：Redis Schema 与账号模型
 
-- [ ] 新增 Redis key registry。
+- [x] 新增 Redis key registry。
+- [x] 新增账号 schema helper。
 - [ ] 明确 `ACT:RECORD`、`ACT:ACTIVE`、`ACT:REC:*`、`ACT:UND:*`、`STR:ACTIVE` 的目标语义。
 - [ ] 增加账号同步函数。
 - [ ] HTTP 账号 CRUD 同步登录索引。
@@ -103,3 +104,12 @@
 - 评估 Redis 数据结构、proto JSON、用户管理是否需要新数据库。
 - 决定短期保留 Redis，先统一 schema 和账号模型。
 - 生成架构与重构设计文档。
+- 提交文档基线：`docs: add architecture and iteration baseline`。
+- 新增 `src/core/context/redis_keys.*`，集中登记 Redis key 和动态 key 拼接。
+- 新增 `src/core/context/account_schema.*`，提供账号记录默认值、登录启用判断、活动索引构建、legacy 明文密码视图。
+- 新增 `tools/schema_smoke` 轻量测试例程，验证 Redis key helper 和账号 schema helper。
+- 验证结果：
+  - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
+  - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

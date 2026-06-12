@@ -35,7 +35,8 @@
 
 任务：
 
-- [ ] 增加 Redis key registry，例如 `src/*/redis_keys.*` 或 `src/storage/redis/redis_keys.*`
+- [x] 增加 Redis key registry，例如 `src/*/redis_keys.*` 或 `src/storage/redis/redis_keys.*`
+- [x] 增加账号 schema helper，为账号同步和密码迁移做准备。
 - [ ] 定义账号主表 `ACT:RECORD` 的写入规范。
 - [ ] 定义 `ACT:ACTIVE` 作为登录索引的生成规则。
 - [ ] 明确 `STR:ACTIVE` 的 legacy 状态，设计替代方案。
