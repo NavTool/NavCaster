@@ -5,12 +5,14 @@
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
+#include "broadcast_msg.h"
 #include "config_repository.h"
 #include "config_controller.h"
 #include "json_record.h"
 #include "redis_keys.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
+#include "runtime_command_service.h"
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
 #include "source_controller.h"
@@ -684,6 +686,35 @@ int main()
     expect_eq_int(runtime_response.status_code, 200, "runtime controller get stream ok");
     runtime_response = runtime_controller.get(navcaster::storage::RuntimeStateKind::Node, "node-ctrl");
     expect_eq_int(runtime_response.status_code, 200, "runtime controller get node ok");
+
+    FakeRedisHashClient runtime_command_redis;
+    navcaster::http_api::RuntimeCommandService runtime_commands(runtime_command_redis);
+    auto runtime_command_response = runtime_commands.kick(navcaster::storage::RuntimeStateKind::Server, "");
+    expect_eq_int(runtime_command_response.status_code, 400, "runtime command missing uid");
+    runtime_command_response = runtime_commands.kick(navcaster::storage::RuntimeStateKind::Stream, "str-ctrl");
+    expect_eq_int(runtime_command_response.status_code, 400, "runtime command rejects stream kick");
+    runtime_command_response = runtime_commands.kick(navcaster::storage::RuntimeStateKind::Server, "missing");
+    expect_eq_int(runtime_command_response.status_code, 404, "runtime command missing server");
+    runtime_command_redis.hset(navcaster::redis_keys::MPT_STAT, "srv-kick", nlohmann::json{{"uid", "srv-kick"}}.dump());
+    runtime_command_response = runtime_commands.kick(navcaster::storage::RuntimeStateKind::Server, "srv-kick");
+    expect_eq_int(runtime_command_response.status_code, 200, "runtime command kick server ok");
+    expect_eq(runtime_command_redis.publishes.back().first, navcaster::redis_keys::CASTER_BROADCAST, "runtime command publishes caster broadcast");
+    broadcast_msg server_kick;
+    expect_eq_int(server_kick.fromString(runtime_command_redis.publishes.back().second), 0, "runtime command server broadcast parses");
+    expect_true(server_kick.type == caster::core::BOARDCAST_TYPE_SERVER_OPERATE, "runtime command server broadcast type");
+    expect_true(server_kick.operate == caster::core::BOARDCAST_OPERATE_DELETE, "runtime command server broadcast operate");
+    expect_eq(server_kick.target, "srv-kick", "runtime command server broadcast target");
+    runtime_command_redis.hset(navcaster::redis_keys::USR_STAT, "cli-kick", nlohmann::json{{"uid", "cli-kick"}}.dump());
+    runtime_command_response = runtime_commands.kick(navcaster::storage::RuntimeStateKind::Client, "cli-kick");
+    expect_eq_int(runtime_command_response.status_code, 200, "runtime command kick client ok");
+    broadcast_msg client_kick;
+    expect_eq_int(client_kick.fromString(runtime_command_redis.publishes.back().second), 0, "runtime command client broadcast parses");
+    expect_true(client_kick.type == caster::core::BOARDCAST_TYPE_CLIENT_OPERATE, "runtime command client broadcast type");
+    expect_eq(client_kick.target, "cli-kick", "runtime command client broadcast target");
+    runtime_command_redis.publish_ok = false;
+    runtime_command_response = runtime_commands.kick(navcaster::storage::RuntimeStateKind::Client, "cli-kick");
+    expect_eq_int(runtime_command_response.status_code, 500, "runtime command publish failure");
+    runtime_command_redis.publish_ok = true;
 
     navcaster::storage::ConfigSection config_section;
     expect_true(navcaster::storage::parse_config_section("service", config_section), "config parses service section");

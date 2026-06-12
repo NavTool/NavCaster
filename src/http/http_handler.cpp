@@ -6,7 +6,6 @@
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
-#include "broadcast_msg.h"
 #include "base64.h"
 #include "config_controller.h"
 #include "config_repository.h"
@@ -14,6 +13,7 @@
 #include "ring_log_view.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
+#include "runtime_command_service.h"
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
 #include "source_controller.h"
@@ -34,8 +34,6 @@
 
 // Redis key constants — matching CasterWeb and caster_internal
 static const char *KEY_SOURCE_RECORD = navcaster::redis_keys::MPT_RECORD;
-static const char *KEY_SERVER_STATE = "MPT:STAT";
-static const char *KEY_CLIENT_STATE = "USR:STAT";
 static const char *KEY_STREAM_STATE = "STR:STAT";
 static const char *KEY_ALIAS_RULE = navcaster::redis_keys::ALIAS_RULE;
 static const char *KEY_ACCESS_GROUP = navcaster::redis_keys::ACCESS_GROUP;
@@ -1164,48 +1162,20 @@ void http_handler::handle_get_client(const HttpRequest &req, HttpResponse &resp)
 
 // ==================== Force Offline (Kick) ====================
 
-static int publish_kick_broadcast(const std::string &uid, bool is_server, const std::string &reason)
-{
-    broadcast_msg item;
-    item.type = is_server ? caster::core::BOARDCAST_TYPE_SERVER_OPERATE
-                          : caster::core::BOARDCAST_TYPE_CLIENT_OPERATE;
-    item.operate = caster::core::BOARDCAST_OPERATE_DELETE;
-    item.target = uid;
-    item.msg_str = "";
-    item.reason_str = reason;
-    return sync_redis::instance().publish("CASTER:BROADCAST", item.toString()) ? 0 : 1;
-}
-
 void http_handler::handle_kick_server(const HttpRequest &req, HttpResponse &resp)
 {
-    // URL: /api/servers/kick/{uid}
-    std::string uid = get_resource_id(req);
-    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing UID"})"; return; }
-
-    auto val = sync_redis::instance().hget(KEY_SERVER_STATE, uid.c_str());
-    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Server not found"})"; return; }
-
-    int rc = publish_kick_broadcast(uid, true, "Force offline by administrator");
-    if (rc != 0) { resp.status_code = 500; resp.body = R"({"error":"Failed to publish kick broadcast"})"; return; }
-
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    navcaster::http_api::RuntimeCommandService service(sync_redis::instance());
+    auto result = service.kick(navcaster::storage::RuntimeStateKind::Server, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_kick_client(const HttpRequest &req, HttpResponse &resp)
 {
-    // URL: /api/clients/kick/{uid}
-    std::string uid = get_resource_id(req);
-    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing UID"})"; return; }
-
-    auto val = sync_redis::instance().hget(KEY_CLIENT_STATE, uid.c_str());
-    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Client not found"})"; return; }
-
-    int rc = publish_kick_broadcast(uid, false, "Force offline by administrator");
-    if (rc != 0) { resp.status_code = 500; resp.body = R"({"error":"Failed to publish kick broadcast"})"; return; }
-
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    navcaster::http_api::RuntimeCommandService service(sync_redis::instance());
+    auto result = service.kick(navcaster::storage::RuntimeStateKind::Client, get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Streams (STR:STAT) read-only ====================

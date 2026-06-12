@@ -162,6 +162,8 @@
 - 扩展 `schema_smoke`：直接编译并测试 `AccountController`，覆盖账号 list/get/create/update/delete、active 特殊查询、重复创建 409、非法 JSON 400、缺账号名 400、缺失账号 404、URL/body account 冲突、禁用账号清理 `ACT:ACTIVE`、空密码更新保留 hash、新密码轮换。
 - 新增 `RuntimeStateController`：将 servers/clients/streams/nodes 四类运行态 list/get 只读逻辑从 `http_handler.cpp` 移出，kick、node history、statistics 等行为型路径暂留后续 service/controller 拆分。
 - 扩展 `schema_smoke`：直接编译并测试 `RuntimeStateController`，覆盖 Server/Client/Stream/Node 四类 key 的 list/get、空 ID 400、缺失记录 404。
+- 新增 `RuntimeCommandService`：将 server/client kick 的在线状态检查和 `CASTER:BROADCAST` delete 广播发布逻辑从 `http_handler.cpp` 移出，handler 仅负责按路由传入 Server/Client 类型和 uid。
+- 扩展 `schema_smoke`：直接编译并测试 `RuntimeCommandService`，覆盖缺 uid 400、非 server/client 目标 400、离线对象 404、publish 失败 500、server/client kick 成功，并解析真实 `broadcast_msg` JSON 校验广播类型、delete 操作和 target。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -236,5 +238,9 @@
   - Runtime state controller 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Runtime state controller 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Runtime state controller 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `runtime_state_controller.cpp` 已被 `casterhttp` 目标收编译。
+  - Runtime command service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Runtime command service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Runtime command service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Runtime command service 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `runtime_command_service.cpp` 已被 `casterhttp` 目标收编译。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

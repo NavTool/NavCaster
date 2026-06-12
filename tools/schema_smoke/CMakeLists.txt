@@ -10,8 +10,12 @@ add_executable(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/base/include
+    ${CMAKE_SOURCE_DIR}/src/core/include
     ${CMAKE_SOURCE_DIR}/src/core/context
     ${CMAKE_SOURCE_DIR}/src/http
+    ${CMAKE_SOURCE_DIR}/third_party/libevent/include
+    ${CMAKE_BINARY_DIR}/third_party/libevent/include
 )
 
 target_sources(${PROJECT_NAME} PRIVATE
@@ -29,9 +33,12 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/alias_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/config_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/runtime_command_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_state_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/source_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sse_snapshot_service.cpp
 )
+
+target_link_libraries(${PROJECT_NAME} PRIVATE caster_proto libprotobuf)
 
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})
