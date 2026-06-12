@@ -14,6 +14,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/include
     ${CMAKE_SOURCE_DIR}/src/core/context
     ${CMAKE_SOURCE_DIR}/src/http
+    ${SPDLOG_INCLUDE_PATH}
     ${CMAKE_SOURCE_DIR}/third_party/libevent/include
     ${CMAKE_BINARY_DIR}/third_party/libevent/include
 )
@@ -43,6 +44,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/config_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/connection_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/mountpoint_subscriber_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/node_log_level_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/node_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/redis_monitor_service.cpp

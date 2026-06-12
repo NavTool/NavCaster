@@ -12,6 +12,7 @@
 #include "config_repository.h"
 #include "connection_history_service.h"
 #include "mountpoint_subscriber_service.h"
+#include "node_log_level_service.h"
 #include "node_history_service.h"
 #include "redis_keys.h"
 #include "redis_monitor_service.h"
@@ -1937,34 +1938,16 @@ void http_handler::handle_get_system_events(const HttpRequest &req, HttpResponse
 void http_handler::handle_set_node_log_level(const HttpRequest &req, HttpResponse &resp)
 {
     std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing node id"})"; return; }
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    std::string level = body.value("level", "");
-    if (level.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing level"})"; return; }
-
     std::string my_id = CASTER::Get_Node_ID();
-    if (id != my_id && id != "self" && id != "current")
+    navcaster::http_api::NodeLogLevelService service;
+    auto result = service.set_level(id, my_id, req.body);
+    if (result.should_apply)
     {
-        // \u8de8\u8282\u70b9\u4e0b\u53d1\u9700\u8981 V4 \u63a7\u5236\u901a\u9053\u3002
-        resp.status_code = 501;
-        resp.body = R"({"error":"Cross-node log level change not implemented"})";
-        return;
+        spdlog::set_level(result.level);
+        spdlog::warn("[http]: log level changed to {} (by remote)", result.level_text);
     }
-
-    spdlog::level::level_enum lvl = spdlog::level::from_str(level);
-    if (lvl == spdlog::level::off && level != "off")
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Unknown level"})";
-        return;
-    }
-    spdlog::set_level(lvl);
-    json result = {{"node_id", my_id}, {"level", level}, {"ok", true}};
-    resp.status_code = 200;
-    resp.body = result.dump();
-    spdlog::warn("[http]: log level changed to {} (by remote)", level);
+    resp.status_code = result.response.status_code;
+    resp.body = std::move(result.response.body);
 }
 
 void http_handler::on_redis_sample_timer(evutil_socket_t /*fd*/, short /*what*/, void *arg)

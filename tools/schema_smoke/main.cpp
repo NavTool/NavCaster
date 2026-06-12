@@ -18,6 +18,7 @@
 #include "mountpoint_subscriber_service.h"
 #include "node_history_repository.h"
 #include "node_history_service.h"
+#include "node_log_level_service.h"
 #include "redis_keys.h"
 #include "redis_monitor_repository.h"
 #include "redis_monitor_service.h"
@@ -453,6 +454,33 @@ int main()
     expect_eq_int(health_response.status_code, 200, "status service health status");
     auto health_body = nlohmann::json::parse(health_response.body);
     expect_eq(health_body.value("status", std::string{}), "ok", "status service health body");
+
+    navcaster::http_api::NodeLogLevelService node_log_level_service;
+    auto log_level_result = node_log_level_service.set_level("", "node-a", R"({"level":"info"})");
+    expect_eq_int(log_level_result.response.status_code, 400, "node log level missing id");
+    expect_true(!log_level_result.should_apply, "node log level missing id no apply");
+    log_level_result = node_log_level_service.set_level("node-a", "node-a", "{");
+    expect_eq_int(log_level_result.response.status_code, 400, "node log level invalid json");
+    log_level_result = node_log_level_service.set_level("node-a", "node-a", R"({})");
+    expect_eq_int(log_level_result.response.status_code, 400, "node log level missing level");
+    log_level_result = node_log_level_service.set_level("node-b", "node-a", R"({"level":"info"})");
+    expect_eq_int(log_level_result.response.status_code, 501, "node log level cross node");
+    log_level_result = node_log_level_service.set_level("node-a", "node-a", R"({"level":"definitely-not-a-level"})");
+    expect_eq_int(log_level_result.response.status_code, 400, "node log level unknown level");
+    log_level_result = node_log_level_service.set_level("self", "node-a", R"({"level":"debug"})");
+    expect_eq_int(log_level_result.response.status_code, 200, "node log level self ok");
+    expect_true(log_level_result.should_apply, "node log level self apply");
+    expect_true(log_level_result.level == spdlog::level::debug, "node log level parsed debug");
+    auto log_level_body = nlohmann::json::parse(log_level_result.response.body);
+    expect_eq(log_level_body.value("node_id", std::string{}), "node-a", "node log level self node id");
+    expect_eq(log_level_body.value("level", std::string{}), "debug", "node log level self level");
+    expect_true(log_level_body.value("ok", false), "node log level self ok body");
+    log_level_result = node_log_level_service.set_level("current", "node-a", R"({"level":"off"})");
+    expect_eq_int(log_level_result.response.status_code, 200, "node log level off ok");
+    expect_true(log_level_result.level == spdlog::level::off, "node log level parsed off");
+    log_level_result = node_log_level_service.set_level("node-a", "node-a", R"({"level":"warn"})");
+    expect_eq_int(log_level_result.response.status_code, 200, "node log level current node ok");
+    expect_true(log_level_result.level == spdlog::level::warn, "node log level parsed warn");
 
     FakeRedisHashClient monitor_capability_redis;
     monitor_capability_redis.hashes["HASH:ONE"]["field-a"] = {{"value", 1}};
