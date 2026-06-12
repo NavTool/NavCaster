@@ -11,6 +11,8 @@
 #include "connection_history_repository.h"
 #include "connection_history_service.h"
 #include "json_record.h"
+#include "node_history_repository.h"
+#include "node_history_service.h"
 #include "redis_keys.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
@@ -135,8 +137,38 @@ public:
         return result;
     }
 
+    nlohmann::json lrange(const char *key, long long start, long long stop) override
+    {
+        auto key_it = lists.find(key);
+        if (key_it == lists.end())
+        {
+            return nlohmann::json::array();
+        }
+
+        nlohmann::json result = nlohmann::json::array();
+        const auto &items = key_it->second;
+        if (items.empty() || stop < start)
+        {
+            return result;
+        }
+        if (start < 0)
+        {
+            start = 0;
+        }
+        if (stop >= static_cast<long long>(items.size()))
+        {
+            stop = static_cast<long long>(items.size()) - 1;
+        }
+        for (long long i = start; i <= stop; ++i)
+        {
+            result.push_back(items[static_cast<std::size_t>(i)]);
+        }
+        return result;
+    }
+
     std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> hashes;
     std::unordered_map<std::string, nlohmann::json> strings;
+    std::unordered_map<std::string, std::vector<nlohmann::json>> lists;
     std::vector<std::pair<std::string, std::string>> publishes;
     bool set_ok = true;
     bool publish_ok = true;
@@ -200,7 +232,9 @@ int main()
     expect_eq(redis_keys::mpt_rec("BASE01"), "MPT:REC:BASE01", "mpt_rec key");
     expect_eq(redis_keys::access_item("default"), "ACCESS:ITEM:default", "access item key");
     expect_eq(redis_keys::act_session("rover"), "ACT:SESSION:rover", "account session key");
+    expect_eq(redis_keys::node_history("Node_abc"), "NODE:HISTORY:Node_abc", "node history raw key");
     expect_eq(redis_keys::node_history_1m("Node_abc"), "NODE:HISTORY:Node_abc:1M", "node history 1m key");
+    expect_eq(redis_keys::node_history_5m("Node_abc"), "NODE:HISTORY:Node_abc:5M", "node history 5m key");
     expect_eq(redis_keys::mpt_channel("BASE01"), "MPT:BASE01", "mpt channel");
     expect_eq(redis_keys::ACT_RECORD, "ACT:RECORD", "account record key");
     expect_eq(redis_keys::ACT_ACTIVE, "ACT:ACTIVE", "account login index key");
@@ -244,6 +278,40 @@ int main()
     expect_eq_int(client_detail[0].value("duration", 0), 2000, "connection history service client online duration");
     expect_eq_int(history_service.detail(navcaster::storage::ConnectionHistoryKind::Server, "", 5000).status_code, 400, "connection history service missing mount");
     expect_eq_int(history_service.detail(navcaster::storage::ConnectionHistoryKind::Client, "", 5000).status_code, 400, "connection history service missing user");
+
+    FakeRedisHashClient node_history_redis;
+    node_history_redis.lists[redis_keys::node_history("node-1")] = {
+        {{"ts", 3}},
+        {{"ts", 2}},
+        {{"ts", 1}}
+    };
+    node_history_redis.lists[redis_keys::node_history_1m("node-1")] = {
+        {{"bucket", "1m-a"}},
+        {{"bucket", "1m-b"}}
+    };
+    node_history_redis.lists[redis_keys::node_history_5m("node-1")] = {
+        {{"bucket", "5m-a"}}
+    };
+    expect_true(navcaster::storage::parse_node_history_range("raw") == navcaster::storage::NodeHistoryRange::Raw, "node history parses raw");
+    expect_true(navcaster::storage::parse_node_history_range("1m") == navcaster::storage::NodeHistoryRange::OneMinute, "node history parses 1m");
+    expect_true(navcaster::storage::parse_node_history_range("5m") == navcaster::storage::NodeHistoryRange::FiveMinutes, "node history parses 5m");
+    expect_true(navcaster::storage::parse_node_history_range("bad") == navcaster::storage::NodeHistoryRange::Raw, "node history bad range falls back raw");
+    expect_eq_int(static_cast<int>(navcaster::storage::normalize_node_history_limit(0, navcaster::storage::NodeHistoryRange::Raw)), 17280, "node history zero limit default");
+    expect_eq_int(static_cast<int>(navcaster::storage::normalize_node_history_limit(999999, navcaster::storage::NodeHistoryRange::FiveMinutes)), 8640, "node history 5m limit cap");
+    expect_eq(navcaster::storage::node_history_key("node-1", navcaster::storage::NodeHistoryRange::OneMinute), redis_keys::node_history_1m("node-1"), "node history repository 1m key");
+    navcaster::storage::NodeHistoryRepository node_history_repo(node_history_redis);
+    auto node_history_raw = node_history_repo.list("node-1", navcaster::storage::NodeHistoryRange::Raw, 2);
+    expect_eq_int(static_cast<int>(node_history_raw.size()), 2, "node history repository applies limit");
+    expect_eq_int(node_history_raw[0].value("ts", 0), 3, "node history repository keeps order");
+    navcaster::http_api::NodeHistoryService node_history_service(node_history_redis);
+    auto node_history_response = node_history_service.list("node-1", "1m", 5);
+    expect_eq_int(node_history_response.status_code, 200, "node history service status");
+    auto node_history_body = nlohmann::json::parse(node_history_response.body);
+    expect_eq(node_history_body[0].value("bucket", std::string{}), "1m-a", "node history service range");
+    node_history_response = node_history_service.list("node-1", "5m", 1);
+    node_history_body = nlohmann::json::parse(node_history_response.body);
+    expect_eq(node_history_body[0].value("bucket", std::string{}), "5m-a", "node history service 5m range");
+    expect_eq_int(node_history_service.list("", "raw", 1).status_code, 400, "node history service missing node");
 
     nlohmann::json helper_record = {{"uid", "helper"}, {"create_time", 0}};
     json_record::touch_timestamps(helper_record, 1234);

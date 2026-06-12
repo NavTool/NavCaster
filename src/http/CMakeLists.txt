@@ -9,6 +9,7 @@ set(SOURCES
     connection_history_service.h connection_history_service.cpp
     controller_response.h
     controller_helpers.h
+    node_history_service.h node_history_service.cpp
     account_controller.h account_controller.cpp
     access_controller.h access_controller.cpp
     alias_controller.h alias_controller.cpp

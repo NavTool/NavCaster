@@ -9,6 +9,7 @@
 #include "config_controller.h"
 #include "config_repository.h"
 #include "connection_history_service.h"
+#include "node_history_service.h"
 #include "redis_keys.h"
 #include "ring_log_view.h"
 #include "relay_controller.h"
@@ -1476,12 +1477,6 @@ void http_handler::handle_get_node(const HttpRequest &req, HttpResponse &resp)
 void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse &resp)
 {
     std::string node_id = get_resource_id(req);
-    if (node_id.empty())
-    {
-        resp.status_code = 400;
-        resp.body = R"({"error":"Missing node ID"})";
-        return;
-    }
 
     // range 参数决定读取哪个层级: raw(默认) / 1m / 5m
     std::string range = "raw";
@@ -1500,30 +1495,10 @@ void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse 
         if (limit <= 0) limit = 17280;
     }
 
-    // 根据 range 选择 Redis key 和最大限制
-    std::string key;
-    long long max_limit;
-    if (range == "5m")
-    {
-        key = "NODE:HISTORY:" + node_id + ":5M";
-        max_limit = 8640;
-    }
-    else if (range == "1m")
-    {
-        key = "NODE:HISTORY:" + node_id + ":1M";
-        max_limit = 43200;
-    }
-    else
-    {
-        key = "NODE:HISTORY:" + node_id;
-        max_limit = 120960;
-    }
-
-    if (limit > max_limit) limit = max_limit;
-
-    json data = sync_redis::instance().lrange(key.c_str(), 0, limit - 1);
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::NodeHistoryService service(sync_redis::instance());
+    auto result = service.list(node_id, range, limit);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Connection History (LOG:MPT / LOG:USR) read-only ====================
