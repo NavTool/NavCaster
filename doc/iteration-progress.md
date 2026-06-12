@@ -53,7 +53,7 @@
 - [ ] 明确 `ACT:RECORD`、`ACT:ACTIVE`、`ACT:REC:*`、`ACT:UND:*`、`STR:ACTIVE` 的目标语义。
 - [x] 增加账号同步函数。
 - [x] HTTP 账号 CRUD 同步登录索引。
-- [ ] Auth 鉴权兼容新旧账号字段。
+- [x] Auth 鉴权兼容新旧账号字段。
 - [ ] 引入密码哈希字段并兼容明文迁移。
 - [x] 添加最小验证脚本或 smoke test。
 
@@ -111,6 +111,7 @@
 - 扩展 `account_schema` 同步计划：生成 `ACT:RECORD -> ACT:ACTIVE` 的写入/删除决策，并定义账号删除时同步清理主表与登录索引。
 - 扩展 `schema_smoke`：覆盖启用账号写 active index、过期/冻结账号删除 active index、缺失账号拒绝、账号删除计划、legacy 字段兼容、hash 密码优先级、Redis key 语义防回退。
 - HTTP 账号创建/更新/删除接入同步计划：写入规范化 `ACT:RECORD`，按账号状态同步写入或清理 `ACT:ACTIVE` 登录索引，删除账号时同步清理登录索引；更新时拒绝 URL 与 body account 不一致并保留原 `create_time`。
+- Auth 登录读取接入 `account_schema`：`auth_limit` 兼容 `connection_limit/connect_limit`、`group_uid/group`、`expire_time/expire` 和布尔/数字 `active`；登录密码比较改用 `password_matches`，存在未知 `password_hash` 时 fail closed，legacy 明文仍兼容。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -119,5 +120,8 @@
   - 扩展同步计划后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - HTTP 双写改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
   - HTTP 双写改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Auth 兼容改动后执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Auth 兼容改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Auth 兼容改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

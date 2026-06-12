@@ -1,4 +1,5 @@
 #include "auth_verify_internal.h"
+#include "account_schema.h"
 #include <list>
 #include <spdlog/spdlog.h>
 #include "knt.h"
@@ -633,14 +634,47 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     // 本地添加登录限制记录（用户数量）
 
     auth_limit active_info;
-    active_info.fromString(reply->str);
+    if (active_info.fromString(reply->str) != 0)
+    {
+        auth_reply Reply;
+        Reply.type = AuthReply::ERR;
+        Reply.str = "User auth info invalid!";
+        ctx->cb(nullptr, ctx->arg, &Reply);
+        delete ctx;
+        return;
+    }
 
-    if (active_info._password != ctx->user_pwd)
+    navcaster::account_schema::AccountAuthView auth_view;
+    std::string auth_error;
+    json active_record;
+    try
+    {
+        active_record = json::parse(reply->str);
+    }
+    catch (const std::exception &e)
+    {
+        auth_error = e.what();
+    }
+    if (!auth_error.empty() ||
+        !navcaster::account_schema::parse_auth_view(reply->str, auth_view, &auth_error) ||
+        !navcaster::account_schema::is_login_enabled(active_record, util_get_time_stamp(), &auth_error))
+    {
+        const std::string reply_error = auth_error.empty() ? "User Not active or existed!" : auth_error;
+        auth_reply Reply;
+        Reply.type = AuthReply::ERR;
+        Reply.str = reply_error.c_str();
+        ctx->cb(nullptr, ctx->arg, &Reply);
+        delete ctx;
+        return;
+    }
+
+    if (!navcaster::account_schema::password_matches(auth_view, ctx->user_pwd))
     {
         auth_reply Reply;
         Reply.type = AuthReply::ERR; // AUTH_REPLY_ERR;
         Reply.str = "User Password Error!";
         ctx->cb(nullptr, ctx->arg, &Reply);
+        delete ctx;
         return;
     }
 
@@ -856,30 +890,27 @@ std::string auth_broadcast_item::toString()
 
 int auth_limit::fromString(const std::string &str)
 {
-    json info = json::parse(str);
+    navcaster::account_schema::AccountAuthView view;
+    std::string error;
+    if (!navcaster::account_schema::parse_auth_view(str, view, &error))
+    {
+        spdlog::warn("[auth_limit:{}]: decode field: {} ,what: {}", __func__, str, error);
+        return 1;
+    }
+
     try
     {
-        _account = info.value("account", std::string());
-        _password = info.value("password", std::string());
-        if (info.contains("active") && info["active"].is_boolean())
-        {
-            _active = info["active"].get<bool>();
-        }
-        else
-        {
-            _active = info.value("active", 0) == 1;
-        }
-        _type = info.value("type", 0);
+        json info = json::parse(str);
+        _account = view.account;
+        _password = view.password;
+        _active = view.active == 1;
+        _type = view.type;
         _date_limit = info.value("date_limit", static_cast<int64_t>(info.value("expire_time", 0.0)));
         _time_limit = info.value("time_limit", static_cast<int64_t>(info.value("available_seconds", 0)));
         _access = info.value("access", 0);
-        _connect_limit = info.value("connect_limit", info.value("connection_limit", 0));
-        if (_connect_limit <= 0)
-        {
-            _connect_limit = 9999;
-        }
-        _group = normalize_group_uid(info.value("group_uid", info.value("group", std::string())));
-        _expire = info.value("expire", static_cast<int64_t>(info.value("expire_time", 0.0)));
+        _connect_limit = view.connection_limit;
+        _group = view.group_uid;
+        _expire = view.expire_time;
     }
     catch (const std::exception &e)
     {

@@ -16,6 +16,7 @@ endif()
 
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)
+include_directories(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/src/core/context)
 
 set(SOURCES
     include/Auth_Verify.h
@@ -48,6 +49,4 @@ include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})
 add_definitions(-DUSE_SPD_LOG)
 # target_link_libraries(${PROJECT_NAME} spdlog)
 include_directories(${PROJECT_NAME} ${SPDLOG_INCLUDE_PATH})
-
-
 
