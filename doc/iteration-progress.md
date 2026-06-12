@@ -173,6 +173,9 @@
 - 新增 `StatisticsService`：将 `/api/stats/overview`、`/api/stats/daily/*`、mountpoint/user ranking 的纯聚合逻辑从 `http_handler.cpp` 移出；handler 仍保留 query 参数解析、Redis 读取和 daily cache 行为。
 - Statistics 聚合 service 保持原有语义：PULL/PUSH 单独计数，普通 mpt/usr 计算平均时长和唯一对象，趋势桶按会话覆盖区间累加，overview 继续自适应 1h/1d/1w 桶并最多 200 桶，daily 固定 24 个小时桶。
 - 扩展 `schema_smoke`：固定样本覆盖 overview/daily 计数、峰值并发、平均时长、唯一 mount/user、趋势桶、ranking 排序、limit、last_seen、mount_count 和类型标签。
+- 新增 `ConnectionHistoryRepository` 与 `ConnectionHistoryService`：将 `/api/logs/servers`、`/api/logs/clients` 的 `LOG:MPT:*`/`LOG:USR:*` prefix 聚合读取从 `http_handler.cpp` 移出，保持原有跨 hash field 聚合响应形状。
+- `RedisHashClient` 增加默认 `scan_hgetall_prefix` 扩展点，真实 `sync_redis` 继续使用既有实现，`schema_smoke` fake Redis 覆盖该接口以支持后续 history/monitor 拆分测试。
+- 扩展 `schema_smoke`：覆盖 connection history key prefix、server/client prefix scan 聚合隔离、repository list 和 service 200 响应。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -259,5 +262,9 @@
   - Statistics service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Statistics service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Statistics service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Connection history read 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Connection history read 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Connection history read 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Connection history read 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

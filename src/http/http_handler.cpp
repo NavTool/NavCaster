@@ -8,6 +8,7 @@
 #include "alias_repository.h"
 #include "config_controller.h"
 #include "config_repository.h"
+#include "connection_history_service.h"
 #include "redis_keys.h"
 #include "ring_log_view.h"
 #include "relay_controller.h"
@@ -1532,17 +1533,19 @@ void http_handler::handle_get_node_history(const HttpRequest &req, HttpResponse 
 void http_handler::handle_get_server_logs(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    json data = sync_redis::instance().scan_hgetall_prefix("LOG:MPT:");
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    auto result = service.list(navcaster::storage::ConnectionHistoryKind::Server);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_client_logs(const HttpRequest &req, HttpResponse &resp)
 {
     (void)req;
-    json data = sync_redis::instance().scan_hgetall_prefix("LOG:USR:");
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::ConnectionHistoryService service(sync_redis::instance());
+    auto result = service.list(navcaster::storage::ConnectionHistoryKind::Client);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Statistics ====================

@@ -8,6 +8,8 @@
 #include "broadcast_msg.h"
 #include "config_repository.h"
 #include "config_controller.h"
+#include "connection_history_repository.h"
+#include "connection_history_service.h"
 #include "json_record.h"
 #include "redis_keys.h"
 #include "relay_controller.h"
@@ -115,6 +117,24 @@ public:
         return publish_ok;
     }
 
+    nlohmann::json scan_hgetall_prefix(const char *prefix) override
+    {
+        nlohmann::json result = nlohmann::json::object();
+        const std::string prefix_text = prefix;
+        for (const auto &[key, hash] : hashes)
+        {
+            if (key.rfind(prefix_text, 0) != 0)
+            {
+                continue;
+            }
+            for (const auto &[field, value] : hash)
+            {
+                result[field] = value;
+            }
+        }
+        return result;
+    }
+
     std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> hashes;
     std::unordered_map<std::string, nlohmann::json> strings;
     std::vector<std::pair<std::string, std::string>> publishes;
@@ -185,6 +205,28 @@ int main()
     expect_eq(redis_keys::ACT_RECORD, "ACT:RECORD", "account record key");
     expect_eq(redis_keys::ACT_ACTIVE, "ACT:ACTIVE", "account login index key");
     expect_eq(redis_keys::STR_ACTIVE_LEGACY, "STR:ACTIVE", "legacy active session key");
+    expect_eq(redis_keys::LOG_MPT_PREFIX, "LOG:MPT:", "connection history mpt prefix");
+    expect_eq(redis_keys::LOG_USR_PREFIX, "LOG:USR:", "connection history usr prefix");
+
+    FakeRedisHashClient history_redis;
+    history_redis.hashes[redis_keys::log_mpt("MOUNT_A")]["session-a"] = {{"name", "MOUNT_A"}, {"connect_time", 1000}};
+    history_redis.hashes[redis_keys::log_mpt("MOUNT_B")]["session-b"] = {{"name", "MOUNT_B"}, {"connect_time", 2000}};
+    history_redis.hashes[redis_keys::log_usr("user1")]["user-session"] = {{"name", "user1"}, {"connect_time", 3000}};
+    history_redis.hashes[redis_keys::MPT_STAT]["online"] = {{"ignored", true}};
+    navcaster::storage::ConnectionHistoryRepository history_repo(history_redis);
+    auto server_history = history_repo.list(navcaster::storage::ConnectionHistoryKind::Server);
+    expect_true(server_history.contains("session-a"), "connection history repository lists server session");
+    expect_true(server_history.contains("session-b"), "connection history repository lists second server session");
+    expect_true(!server_history.contains("user-session"), "connection history repository excludes user session");
+    auto client_history = history_repo.list(navcaster::storage::ConnectionHistoryKind::Client);
+    expect_true(client_history.contains("user-session"), "connection history repository lists client session");
+    expect_eq(navcaster::storage::connection_history_prefix(navcaster::storage::ConnectionHistoryKind::Server), redis_keys::LOG_MPT_PREFIX, "connection history server prefix");
+    expect_eq(navcaster::storage::connection_history_prefix(navcaster::storage::ConnectionHistoryKind::Client), redis_keys::LOG_USR_PREFIX, "connection history client prefix");
+    navcaster::http_api::ConnectionHistoryService history_service(history_redis);
+    auto history_response = history_service.list(navcaster::storage::ConnectionHistoryKind::Server);
+    expect_eq_int(history_response.status_code, 200, "connection history service status");
+    auto history_body = nlohmann::json::parse(history_response.body);
+    expect_true(history_body.contains("session-a"), "connection history service body");
 
     nlohmann::json helper_record = {{"uid", "helper"}, {"create_time", 0}};
     json_record::touch_timestamps(helper_record, 1234);

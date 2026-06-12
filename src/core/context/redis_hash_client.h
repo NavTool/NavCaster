@@ -20,6 +20,7 @@ public:
     virtual nlohmann::json get(const char *key) { return nullptr; }
     virtual bool set(const char *key, const std::string &value) { return false; }
     virtual bool publish(const char *channel, const std::string &message) { return false; }
+    virtual nlohmann::json scan_hgetall_prefix(const char *prefix) { return nlohmann::json::object(); }
 };
 
 } // namespace navcaster::storage

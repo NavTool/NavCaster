@@ -23,6 +23,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/account_schema.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/account_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/config_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/connection_history_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/source_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/alias_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/access_repository.cpp
@@ -32,6 +33,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/access_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/alias_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/config_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/connection_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_command_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_state_controller.cpp
