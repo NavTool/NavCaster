@@ -1,6 +1,7 @@
 #include "account_repository.h"
 #include "account_controller.h"
 #include "account_schema.h"
+#include "audit_log_service.h"
 #include "access_controller.h"
 #include "access_repository.h"
 #include "alias_controller.h"
@@ -190,9 +191,58 @@ public:
         return keys;
     }
 
+    long long llen(const char *key) override
+    {
+        auto key_it = lists.find(key);
+        return key_it == lists.end() ? 0 : static_cast<long long>(key_it->second.size());
+    }
+
+    long long incr(const char *key) override
+    {
+        return ++counters[key];
+    }
+
+    long long lpush(const char *key, const std::string &value) override
+    {
+        auto &list = lists[key];
+        list.insert(list.begin(), parse_value(value));
+        return static_cast<long long>(list.size());
+    }
+
+    bool ltrim(const char *key, long long start, long long stop) override
+    {
+        auto key_it = lists.find(key);
+        if (key_it == lists.end())
+        {
+            return false;
+        }
+        auto &list = key_it->second;
+        if (start < 0)
+        {
+            start = 0;
+        }
+        if (stop >= static_cast<long long>(list.size()))
+        {
+            stop = static_cast<long long>(list.size()) - 1;
+        }
+        if (list.empty() || stop < start)
+        {
+            list.clear();
+            return true;
+        }
+        std::vector<nlohmann::json> trimmed;
+        for (long long i = start; i <= stop; ++i)
+        {
+            trimmed.push_back(list[static_cast<std::size_t>(i)]);
+        }
+        list = std::move(trimmed);
+        return true;
+    }
+
     std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> hashes;
     std::unordered_map<std::string, nlohmann::json> strings;
     std::unordered_map<std::string, std::vector<nlohmann::json>> lists;
+    std::unordered_map<std::string, long long> counters;
     std::vector<std::pair<std::string, std::string>> publishes;
     bool set_ok = true;
     bool publish_ok = true;
@@ -383,6 +433,51 @@ int main()
     expect_eq_int(ring_body["items"][0].value("timestamp", 0), 123456, "ring log service timestamp");
     expect_eq(ring_body["items"][0].value("message", std::string{}), "[info] visible", "ring log service first visible");
     expect_eq_int(ring_body["items"][1].value("level", 0), 4, "ring log service error level");
+
+    nlohmann::json audit_payload = {{"password", "secret"}, {"nested", {{"token", "abc"}, {"safe", "ok"}}}};
+    navcaster::http_api::mask_audit_secrets(audit_payload);
+    expect_eq(audit_payload.value("password", std::string{}), "***", "audit masks password");
+    expect_eq(audit_payload["nested"].value("token", std::string{}), "***", "audit masks nested token");
+    expect_eq(audit_payload["nested"].value("safe", std::string{}), "ok", "audit keeps safe field");
+    auto audit_target = navcaster::http_api::infer_audit_target("/api/accounts/demo");
+    expect_eq(audit_target.type, "accounts", "audit target type");
+    expect_eq(audit_target.id, "demo", "audit target id");
+    expect_true(!navcaster::http_api::should_write_audit(EVHTTP_REQ_GET, "/api/accounts"), "audit skips get");
+    expect_true(!navcaster::http_api::should_write_audit(EVHTTP_REQ_POST, "/api/auth/login"), "audit skips login");
+    expect_true(navcaster::http_api::should_write_audit(EVHTTP_REQ_PUT, "/api/accounts/demo"), "audit records put");
+
+    FakeRedisHashClient audit_redis;
+    navcaster::http_api::AuditLogService audit_service(audit_redis);
+    HttpRequest audit_req;
+    audit_req.method = EVHTTP_REQ_PUT;
+    audit_req.path = "/api/accounts/demo";
+    audit_req.body = R"({"password":"secret","nested":{"admin_password":"root","safe":"ok"}})";
+    HttpResponse audit_resp;
+    audit_resp.status_code = 400;
+    audit_resp.body = R"({"error":"bad input"})";
+    audit_service.write(audit_req, audit_resp, "alice", "127.0.0.1", "node-1", 12345);
+    expect_eq_int(static_cast<int>(audit_redis.lists[redis_keys::LOG_AUDIT].size()), 1, "audit service writes one record");
+    auto audit_record = audit_redis.lists[redis_keys::LOG_AUDIT][0];
+    expect_eq_int(audit_record.value("id", 0), 1, "audit service id");
+    expect_eq(audit_record.value("actor", std::string{}), "alice", "audit service actor");
+    expect_eq(audit_record.value("target_type", std::string{}), "accounts", "audit service target type");
+    expect_eq(audit_record.value("target_id", std::string{}), "demo", "audit service target id");
+    expect_eq(audit_record.value("error_message", std::string{}), "bad input", "audit service error message");
+    auto stored_payload = nlohmann::json::parse(audit_record.value("payload", std::string{}));
+    expect_eq(stored_payload.value("password", std::string{}), "***", "audit service stored masked password");
+    expect_eq(stored_payload["nested"].value("admin_password", std::string{}), "***", "audit service stored masked nested admin password");
+    audit_req.method = EVHTTP_REQ_POST;
+    audit_req.path = "/api/auth/login";
+    audit_service.write(audit_req, audit_resp, "alice", "127.0.0.1", "node-1", 12346);
+    expect_eq_int(static_cast<int>(audit_redis.lists[redis_keys::LOG_AUDIT].size()), 1, "audit service skips login write");
+    audit_redis.lists[redis_keys::LOG_AUDIT].push_back({{"actor", "bob"}, {"action", "DELETE /api/sources/SRC"}, {"target_type", "sources"}});
+    auto audit_list_response = audit_service.list(1, 0, "alice", "PUT", "accounts");
+    expect_eq_int(audit_list_response.status_code, 200, "audit service list status");
+    auto audit_list_body = nlohmann::json::parse(audit_list_response.body);
+    expect_eq_int(audit_list_body.value("total", 0), 2, "audit service list total");
+    expect_eq_int(audit_list_body.value("next_cursor", 0), 1, "audit service list next cursor");
+    expect_true(audit_list_body.value("has_more", false), "audit service list has more");
+    expect_eq(audit_list_body["items"][0].value("actor", std::string{}), "alice", "audit service list filter result");
 
     nlohmann::json helper_record = {{"uid", "helper"}, {"create_time", 0}};
     json_record::touch_timestamps(helper_record, 1234);

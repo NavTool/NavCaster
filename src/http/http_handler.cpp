@@ -6,6 +6,7 @@
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
+#include "audit_log_service.h"
 #include "config_controller.h"
 #include "config_repository.h"
 #include "connection_history_service.h"
@@ -2337,115 +2338,15 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
 
 namespace
 {
-    static const char *KEY_AUDIT_LOG = "LOG:AUDIT";
-    static const char *KEY_AUDIT_SEQ = "LOG:AUDIT:SEQ";
-    static const int   AUDIT_KEEP    = 50000;
     static const char *KEY_REDIS_HISTORY = "MONITOR:REDIS:HISTORY";
     static const int   REDIS_HISTORY_KEEP = 10080; // 7d * 24h * 60min
-
-    // Mask sensitive fields in a JSON body (in-place).
-    void mask_secrets(json &j)
-    {
-        if (!j.is_object()) return;
-        for (auto &[k, v] : j.items())
-        {
-            std::string lk = k;
-            std::transform(lk.begin(), lk.end(), lk.begin(), ::tolower);
-            if (lk == "password" || lk == "token" || lk == "secret" || lk == "admin_password")
-            {
-                if (v.is_string()) v = "***";
-            }
-            else if (v.is_object())
-            {
-                mask_secrets(v);
-            }
-        }
-    }
-
-    std::string method_str(evhttp_cmd_type m)
-    {
-        switch (m)
-        {
-        case EVHTTP_REQ_GET:    return "GET";
-        case EVHTTP_REQ_POST:   return "POST";
-        case EVHTTP_REQ_PUT:    return "PUT";
-        case EVHTTP_REQ_DELETE: return "DELETE";
-        case EVHTTP_REQ_PATCH:  return "PATCH";
-        default:                return "?";
-        }
-    }
-
-    // \u4ece\u8def\u5f84\u63a8\u65ad target_type / target_id\uff08\u4e0d\u80fd\u63a8\u65ad\u65f6\u8fd4\u56de\u7a7a\u4e32\uff09
-    void infer_target(const std::string &path, std::string &target_type, std::string &target_id)
-    {
-        target_type.clear(); target_id.clear();
-        if (path.size() < 6 || path.compare(0, 5, "/api/") != 0) return;
-        std::vector<std::string> seg;
-        size_t pos = 5;
-        while (pos < path.size())
-        {
-            size_t slash = path.find('/', pos);
-            std::string s = path.substr(pos, slash == std::string::npos ? std::string::npos : slash - pos);
-            if (!s.empty()) seg.push_back(s);
-            if (slash == std::string::npos) break;
-            pos = slash + 1;
-        }
-        if (seg.empty()) return;
-        target_type = seg.front();
-        if (seg.size() >= 2) target_id = seg.back();
-    }
 }
 
 void http_handler::write_audit(const HttpRequest &req, const HttpResponse &resp,
                                const std::string &actor, const std::string &client_ip)
 {
-    // Only log mutating requests
-    if (req.method != EVHTTP_REQ_POST &&
-        req.method != EVHTTP_REQ_PUT &&
-        req.method != EVHTTP_REQ_DELETE &&
-        req.method != EVHTTP_REQ_PATCH)
-        return;
-    // Skip noisy auth endpoints (login response leaks token), but record logout.
-    if (req.path == "/api/auth/login") return;
-
-    auto &redis = sync_redis::instance();
-    long long id = redis.incr(KEY_AUDIT_SEQ);
-
-    json payload = nullptr;
-    if (!req.body.empty())
-    {
-        try { payload = json::parse(req.body); mask_secrets(payload); }
-        catch (...) { payload = req.body; }
-    }
-
-    std::string target_type, target_id;
-    infer_target(req.path, target_type, target_id);
-
-    json entry = {
-        {"id",          id},
-        {"timestamp",   std::time(nullptr)},
-        {"actor",       actor.empty() ? std::string{"anonymous"} : actor},
-        {"source_ip",   client_ip},
-        {"node_id",     CASTER::Get_Node_ID()},
-        {"action",      method_str(req.method) + " " + req.path},
-        {"target_type", target_type},
-        {"target_id",   target_id},
-        {"payload",     payload.is_null() ? "" : payload.dump()},
-        {"result",      resp.status_code}
-    };
-    if (resp.status_code >= 400)
-    {
-        try
-        {
-            auto err = json::parse(resp.body);
-            if (err.is_object() && err.contains("error"))
-                entry["error_message"] = err["error"].get<std::string>();
-        }
-        catch (...) {}
-    }
-    std::string s = entry.dump();
-    redis.lpush(KEY_AUDIT_LOG, s);
-    redis.ltrim(KEY_AUDIT_LOG, 0, AUDIT_KEEP - 1);
+    navcaster::http_api::AuditLogService service(sync_redis::instance());
+    service.write(req, resp, actor, client_ip, CASTER::Get_Node_ID(), std::time(nullptr));
 }
 
 void http_handler::handle_get_audit(const HttpRequest &req, HttpResponse &resp)
@@ -2455,41 +2356,16 @@ void http_handler::handle_get_audit(const HttpRequest &req, HttpResponse &resp)
     std::string filter_actor, filter_action, filter_target;
     auto it_l = req.query_params.find("limit");
     if (it_l != req.query_params.end()) try { limit = std::stoll(it_l->second); } catch (...) {}
-    if (limit <= 0 || limit > 1000) limit = 100;
     auto it_c = req.query_params.find("cursor");
     if (it_c != req.query_params.end()) try { cursor = std::stoll(it_c->second); } catch (...) {}
     auto it_a = req.query_params.find("actor");  if (it_a != req.query_params.end()) filter_actor = it_a->second;
     auto it_x = req.query_params.find("action"); if (it_x != req.query_params.end()) filter_action = it_x->second;
     auto it_t = req.query_params.find("target"); if (it_t != req.query_params.end()) filter_target = it_t->second;
 
-    auto &redis = sync_redis::instance();
-    long long start = cursor;
-    long long stop = cursor + limit * 4 - 1; // \u591a\u62c9\u4e00\u4e9b\u4f9b\u8fc7\u6ee4
-    json arr = redis.lrange(KEY_AUDIT_LOG, start, stop);
-
-    json out = json::array();
-    long long scanned = 0;
-    for (auto &entry : arr)
-    {
-        scanned++;
-        if (!entry.is_object()) continue;
-        if (!filter_actor.empty() && entry.value("actor", "") != filter_actor) continue;
-        if (!filter_action.empty() && entry.value("action", "").find(filter_action) == std::string::npos) continue;
-        if (!filter_target.empty() && entry.value("target_type", "") != filter_target) continue;
-        out.push_back(entry);
-        if ((long long)out.size() >= limit) break;
-    }
-    long long next_cursor = start + scanned;
-    long long total = redis.llen(KEY_AUDIT_LOG);
-
-    json result = {
-        {"items",       out},
-        {"next_cursor", next_cursor},
-        {"has_more",    next_cursor < total},
-        {"total",       total}
-    };
-    resp.status_code = 200;
-    resp.body = result.dump();
+    navcaster::http_api::AuditLogService service(sync_redis::instance());
+    auto result = service.list(limit, cursor, filter_actor, filter_action, filter_target);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_logs_ring(const HttpRequest &req, HttpResponse &resp)

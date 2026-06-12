@@ -24,6 +24,10 @@ public:
     virtual nlohmann::json scan_hgetall_prefix(const char *prefix) { return nlohmann::json::object(); }
     virtual nlohmann::json lrange(const char *key, long long start, long long stop) { return nlohmann::json::array(); }
     virtual std::vector<std::string> scan_all_keys(int batch = 1000) { return {}; }
+    virtual long long llen(const char *key) { return 0; }
+    virtual long long incr(const char *key) { return 0; }
+    virtual long long lpush(const char *key, const std::string &value) { return 0; }
+    virtual bool ltrim(const char *key, long long start, long long stop) { return false; }
 };
 
 } // namespace navcaster::storage

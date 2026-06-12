@@ -186,6 +186,9 @@
 - 扩展 `schema_smoke`：覆盖 `LOG:NODE:<id>` hash 事件聚合、非 node key 忽略、非 object 忽略、timestamp 降序、limit 截断与非法 limit fallback。
 - 新增 `RingLogService`：将 `/api/logs/ring` 的条数归一化、level 字符串过滤、日志行等级推断和响应构造从 `http_handler.cpp` 移出；handler 只负责 query 解析和注入 `ring_log_view::last_n`。
 - 扩展 `schema_smoke`：覆盖 ring log trace/debug/info/warn/error/critical 等级推断、条数默认/上限、level 过滤、固定 timestamp 和响应 shape。
+- 新增 `AuditLogRepository` 与 `AuditLogService`：将 HTTP audit sink 写入、secret masking、target 推断、错误消息提取、`LOG:AUDIT` 分页查询和 actor/action/target 过滤从 `http_handler.cpp` 移出。
+- `RedisHashClient` 增加默认 `incr/lpush/ltrim/llen` 扩展点，`schema_smoke` fake Redis 支持 list 写入、trim、计数器和长度查询；audit service 保持旧策略：只记录 POST/PUT/DELETE/PATCH，跳过 login，payload 字段仍保存为字符串化 JSON。
+- 扩展 `schema_smoke`：覆盖 audit secret masking、target 推断、写入跳过规则、错误消息、payload 格式、list 过滤、cursor/has_more/total。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -292,5 +295,9 @@
   - Ring log service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Ring log service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Ring log service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Audit log service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Audit log service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Audit log service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Audit log service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。
