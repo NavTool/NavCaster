@@ -207,6 +207,9 @@
 - 扩展 `schema_smoke`：固定时间测试 sampler 写入字段、hit rate、DBSIZE、输入/输出速率、超长 list trim 到 10080，以及 INFO 空/缺 clients/used_memory=0 的跳过路径。
 - 新增 `MountpointSubscriberRepository` 与 `MountpointSubscriberService`：将 `/api/mountpoints/subscribers` 的 `MPT:LIST` 在线 mountpoint 遍历和 `MPT:SUB:<mount>` `HLEN` 订阅数统计从 `http_handler.cpp` 移出。
 - 扩展 `schema_smoke`：覆盖 mountpoint subscriber repository/service、在线 mountpoint 计数、未在线 mountpoint 忽略、空 `MPT:LIST` 返回空 object。
+- 新增 `StatusService`：将 `/api/status` 响应体构造和 `/api/health` 固定响应从 `http_handler.cpp` 移出；handler 仅采集 SysUsage、CASTER facade、Redis/SSE/log level 当前值并传入快照。
+- Status service 保持旧接口契约：`caster` 字段优先解析 JSON、解析失败保留字符串，`master_node` 仅 string 时返回节点 ID，否则为 `null`，health 固定返回 `{"status":"ok"}`。
+- 扩展 `schema_smoke`：覆盖 status JSON/string caster、CPU/内存 MB、Redis/SSE/node/log 字段、master_node 非 string 为 null、status/health HTTP 200 响应。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -345,5 +348,9 @@
   - Mountpoint subscriber service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Mountpoint subscriber service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Mountpoint subscriber service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Status service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Status service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Status service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Status service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

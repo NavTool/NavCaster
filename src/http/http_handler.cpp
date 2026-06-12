@@ -24,6 +24,7 @@
 #include "runtime_state_repository.h"
 #include "sourcetable_service.h"
 #include "statistics_service.h"
+#include "status_service.h"
 #include "source_controller.h"
 #include "source_repository.h"
 #include "sse_snapshot_service.h"
@@ -1726,53 +1727,34 @@ void http_handler::handle_get_mountpoint_subscribers(const HttpRequest &req, Htt
 
 void http_handler::handle_get_status(const HttpRequest &req, HttpResponse &resp)
 {
-    json status;
-
-    // System info
-    double cpu = SysUsage::getInstance()->getProcessCPU();
-    size_t mem = SysUsage::getInstance()->getProcessMemory();
-    status["cpu_percent"] = cpu;
-    status["memory_bytes"] = mem;
-    status["memory_mb"] = mem / 1024.0 / 1024.0;
-
-    // Caster core status
-    std::string caster_status = CASTER::Get_Status();
-    try
-    {
-        status["caster"] = json::parse(caster_status);
-    }
-    catch (...)
-    {
-        status["caster"] = caster_status;
-    }
-
-    // Redis connectivity
-    status["redis_caster_connected"] = _caster_redis ? _caster_redis->is_connected() : false;
-    status["redis_auth_connected"] = _auth_redis ? _auth_redis->is_connected() : false;
-    status["ntrip_port"] = _config.ntrip_port;
-
-    // Cluster master info
+    (void)req;
     auto &redis = sync_redis::instance();
-    json master_val = redis.get("CASTER:MASTER");
-    if (master_val.is_string())
-        status["master_node"] = master_val.get<std::string>();
-    else
-        status["master_node"] = nullptr;
+    navcaster::http_api::StatusSnapshot snapshot;
+    snapshot.cpu_percent = SysUsage::getInstance()->getProcessCPU();
+    snapshot.memory_bytes = SysUsage::getInstance()->getProcessMemory();
+    snapshot.caster_status = CASTER::Get_Status();
+    snapshot.redis_caster_connected = _caster_redis ? _caster_redis->is_connected() : false;
+    snapshot.redis_auth_connected = _auth_redis ? _auth_redis->is_connected() : false;
+    snapshot.ntrip_port = _config.ntrip_port;
+    snapshot.master_node = redis.get(navcaster::redis_keys::CASTER_MASTER);
+    snapshot.sse_clients = static_cast<unsigned long long>(_sse.client_count());
+    snapshot.sse_max_clients = static_cast<unsigned long long>(_sse.max_clients());
+    snapshot.node_id = CASTER::Get_Node_ID();
+    snapshot.log_level = spdlog::level::to_string_view(spdlog::get_level()).data();
 
-    // SSE / runtime
-    status["sse_clients"] = static_cast<unsigned long long>(_sse.client_count());
-    status["sse_max_clients"] = static_cast<unsigned long long>(_sse.max_clients());
-    status["node_id"] = CASTER::Get_Node_ID();
-    status["log_level"] = spdlog::level::to_string_view(spdlog::get_level()).data();
-
-    resp.status_code = 200;
-    resp.body = status.dump();
+    navcaster::http_api::StatusService service;
+    auto result = service.status(snapshot);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_health(const HttpRequest &req, HttpResponse &resp)
 {
-    resp.status_code = 200;
-    resp.body = R"({"status":"ok"})";
+    (void)req;
+    navcaster::http_api::StatusService service;
+    auto result = service.health();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Utility: Fetch Remote Sourcetable ====================

@@ -32,6 +32,7 @@
 #include "source_repository.h"
 #include "statistics_service.h"
 #include "sse_snapshot_service.h"
+#include "status_service.h"
 #include "system_event_service.h"
 
 #include <cstdlib>
@@ -411,6 +412,47 @@ int main()
     subscriber_response = empty_subscriber_service.list();
     subscriber_body = nlohmann::json::parse(subscriber_response.body);
     expect_true(subscriber_body.is_object() && subscriber_body.empty(), "mountpoint subscriber service empty body");
+
+    navcaster::http_api::StatusSnapshot status_snapshot;
+    status_snapshot.cpu_percent = 12.5;
+    status_snapshot.memory_bytes = 2 * 1024 * 1024;
+    status_snapshot.caster_status = R"({"state":"running","connections":3})";
+    status_snapshot.redis_caster_connected = true;
+    status_snapshot.redis_auth_connected = false;
+    status_snapshot.ntrip_port = 2101;
+    status_snapshot.master_node = "node-a";
+    status_snapshot.sse_clients = 4;
+    status_snapshot.sse_max_clients = 200;
+    status_snapshot.node_id = "node-a";
+    status_snapshot.log_level = "info";
+    auto status_body = navcaster::http_api::build_status_body(status_snapshot);
+    expect_true(status_body["caster"].is_object(), "status service parses caster json");
+    expect_eq(status_body["caster"].value("state", std::string{}), "running", "status service caster state");
+    expect_true(status_body.value("cpu_percent", 0.0) == 12.5, "status service cpu");
+    expect_eq_int(status_body.value("memory_bytes", 0), 2 * 1024 * 1024, "status service memory bytes");
+    expect_true(status_body.value("memory_mb", 0.0) == 2.0, "status service memory mb");
+    expect_true(status_body.value("redis_caster_connected", false), "status service caster redis");
+    expect_true(!status_body.value("redis_auth_connected", true), "status service auth redis");
+    expect_eq_int(status_body.value("ntrip_port", 0), 2101, "status service ntrip port");
+    expect_eq(status_body.value("master_node", std::string{}), "node-a", "status service master node");
+    expect_eq_int(status_body.value("sse_clients", 0), 4, "status service sse clients");
+    expect_eq_int(status_body.value("sse_max_clients", 0), 200, "status service sse max");
+    expect_eq(status_body.value("node_id", std::string{}), "node-a", "status service node id");
+    expect_eq(status_body.value("log_level", std::string{}), "info", "status service log level");
+    status_snapshot.caster_status = "plain-state";
+    status_snapshot.master_node = {{"not", "string"}};
+    status_body = navcaster::http_api::build_status_body(status_snapshot);
+    expect_eq(status_body.value("caster", std::string{}), "plain-state", "status service caster string fallback");
+    expect_true(status_body["master_node"].is_null(), "status service master node non-string null");
+    navcaster::http_api::StatusService status_service;
+    auto status_response = status_service.status(status_snapshot);
+    expect_eq_int(status_response.status_code, 200, "status service status response code");
+    status_body = nlohmann::json::parse(status_response.body);
+    expect_eq(status_body.value("caster", std::string{}), "plain-state", "status service status response body");
+    auto health_response = status_service.health();
+    expect_eq_int(health_response.status_code, 200, "status service health status");
+    auto health_body = nlohmann::json::parse(health_response.body);
+    expect_eq(health_body.value("status", std::string{}), "ok", "status service health body");
 
     FakeRedisHashClient monitor_capability_redis;
     monitor_capability_redis.hashes["HASH:ONE"]["field-a"] = {{"value", 1}};

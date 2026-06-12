@@ -23,6 +23,7 @@ set(SOURCES
     runtime_state_controller.h runtime_state_controller.cpp
     sourcetable_service.h sourcetable_service.cpp
     statistics_service.h statistics_service.cpp
+    status_service.h status_service.cpp
     source_controller.h source_controller.cpp
     system_event_service.h system_event_service.cpp
     redis_adapter.h    redis_adapter.cpp
