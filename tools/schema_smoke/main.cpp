@@ -126,6 +126,41 @@ public:
         return publish_ok;
     }
 
+    std::string info(const char *section = nullptr) override
+    {
+        if (section)
+        {
+            auto it = info_sections.find(section);
+            if (it != info_sections.end())
+            {
+                return it->second;
+            }
+            return "";
+        }
+        return info_text;
+    }
+
+    long long dbsize() override
+    {
+        std::unordered_map<std::string, bool> keys;
+        for (const auto &[key, value] : hashes)
+        {
+            (void)value;
+            keys[key] = true;
+        }
+        for (const auto &[key, value] : lists)
+        {
+            (void)value;
+            keys[key] = true;
+        }
+        for (const auto &[key, value] : strings)
+        {
+            (void)value;
+            keys[key] = true;
+        }
+        return static_cast<long long>(keys.size());
+    }
+
     nlohmann::json scan_hgetall_prefix(const char *prefix) override
     {
         nlohmann::json result = nlohmann::json::object();
@@ -195,10 +230,39 @@ public:
         return keys;
     }
 
+    std::string type(const char *key) override
+    {
+        if (hashes.find(key) != hashes.end())
+        {
+            return "hash";
+        }
+        if (lists.find(key) != lists.end())
+        {
+            return "list";
+        }
+        if (strings.find(key) != strings.end())
+        {
+            return "string";
+        }
+        return "none";
+    }
+
+    long long hlen(const char *key) override
+    {
+        auto key_it = hashes.find(key);
+        return key_it == hashes.end() ? 0 : static_cast<long long>(key_it->second.size());
+    }
+
     long long llen(const char *key) override
     {
         auto key_it = lists.find(key);
         return key_it == lists.end() ? 0 : static_cast<long long>(key_it->second.size());
+    }
+
+    long long memory_usage(const char *key) override
+    {
+        auto it = memory.find(key);
+        return it == memory.end() ? 0 : it->second;
     }
 
     long long incr(const char *key) override
@@ -247,7 +311,10 @@ public:
     std::unordered_map<std::string, nlohmann::json> strings;
     std::unordered_map<std::string, std::vector<nlohmann::json>> lists;
     std::unordered_map<std::string, long long> counters;
+    std::unordered_map<std::string, long long> memory;
+    std::unordered_map<std::string, std::string> info_sections;
     std::vector<std::pair<std::string, std::string>> publishes;
+    std::string info_text;
     bool set_ok = true;
     bool publish_ok = true;
 
@@ -319,6 +386,30 @@ int main()
     expect_eq(redis_keys::STR_ACTIVE_LEGACY, "STR:ACTIVE", "legacy active session key");
     expect_eq(redis_keys::LOG_MPT_PREFIX, "LOG:MPT:", "connection history mpt prefix");
     expect_eq(redis_keys::LOG_USR_PREFIX, "LOG:USR:", "connection history usr prefix");
+
+    FakeRedisHashClient monitor_capability_redis;
+    monitor_capability_redis.hashes["HASH:ONE"]["field-a"] = {{"value", 1}};
+    monitor_capability_redis.hashes["HASH:ONE"]["field-b"] = {{"value", 2}};
+    monitor_capability_redis.lists["LIST:ONE"] = {
+        {{"value", 1}},
+        {{"value", 2}},
+        {{"value", 3}}
+    };
+    monitor_capability_redis.strings["STRING:ONE"] = "value";
+    monitor_capability_redis.memory["HASH:ONE"] = 123;
+    monitor_capability_redis.info_text = "# Server\r\nredis_version:7.2.0\r\n";
+    monitor_capability_redis.info_sections["stats"] = "# Stats\r\ninstantaneous_ops_per_sec:9\r\n";
+    expect_eq_int(static_cast<int>(monitor_capability_redis.dbsize()), 3, "redis hash client fake dbsize");
+    expect_eq(monitor_capability_redis.type("HASH:ONE"), "hash", "redis hash client fake hash type");
+    expect_eq(monitor_capability_redis.type("LIST:ONE"), "list", "redis hash client fake list type");
+    expect_eq(monitor_capability_redis.type("STRING:ONE"), "string", "redis hash client fake string type");
+    expect_eq(monitor_capability_redis.type("MISSING"), "none", "redis hash client fake missing type");
+    expect_eq_int(static_cast<int>(monitor_capability_redis.hlen("HASH:ONE")), 2, "redis hash client fake hlen");
+    expect_eq_int(static_cast<int>(monitor_capability_redis.llen("LIST:ONE")), 3, "redis hash client fake llen");
+    expect_eq_int(static_cast<int>(monitor_capability_redis.memory_usage("HASH:ONE")), 123, "redis hash client fake memory usage");
+    expect_eq(monitor_capability_redis.info(), "# Server\r\nredis_version:7.2.0\r\n", "redis hash client fake info");
+    expect_eq(monitor_capability_redis.info("stats"), "# Stats\r\ninstantaneous_ops_per_sec:9\r\n", "redis hash client fake info section");
+    expect_eq(monitor_capability_redis.info("missing"), "", "redis hash client fake missing info section");
 
     FakeRedisHashClient history_redis;
     history_redis.hashes[redis_keys::log_mpt("MOUNT_A")]["session-a"] = {{"name", "MOUNT_A"}, {"connect_time", 1000}};

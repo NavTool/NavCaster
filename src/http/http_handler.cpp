@@ -216,7 +216,7 @@ namespace
         }
 
         // HLEN → number of fields in hash
-        long long hlen(const char *key)
+        long long hlen(const char *key) override
         {
             if (!ensure_connected())
                 return 0;
@@ -310,7 +310,7 @@ namespace
         }
 
         // LRANGE key start stop → json array of parsed values
-        json lrange(const char *key, long long start, long long stop)
+        json lrange(const char *key, long long start, long long stop) override
         {
             if (!ensure_connected())
                 return json::array();
@@ -344,7 +344,7 @@ namespace
         }
 
         // INFO [section] → raw info string
-        std::string info(const char *section = nullptr)
+        std::string info(const char *section = nullptr) override
         {
             if (!ensure_connected())
                 return "";
@@ -367,7 +367,7 @@ namespace
         }
 
         // DBSIZE → number of keys
-        long long dbsize()
+        long long dbsize() override
         {
             if (!ensure_connected())
                 return 0;
@@ -384,7 +384,7 @@ namespace
         }
 
         // SCAN all keys → vector of key names
-        std::vector<std::string> scan_all_keys(int batch = 1000)
+        std::vector<std::string> scan_all_keys(int batch = 1000) override
         {
             if (!ensure_connected())
                 return {};
@@ -421,7 +421,7 @@ namespace
         }
 
         // SCAN prefix* (hash keys only) + HGETALL each → aggregated json object {field: parsed_value, ...}
-        json scan_hgetall_prefix(const char *prefix)
+        json scan_hgetall_prefix(const char *prefix) override
         {
             if (!ensure_connected())
                 return json::object();
@@ -473,7 +473,7 @@ namespace
         }
 
         // TYPE key → string
-        std::string type(const char *key)
+        std::string type(const char *key) override
         {
             if (!ensure_connected())
                 return "none";
@@ -490,7 +490,7 @@ namespace
         }
 
         // LLEN key → list length
-        long long llen(const char *key)
+        long long llen(const char *key) override
         {
             if (!ensure_connected())
                 return 0;
@@ -507,7 +507,7 @@ namespace
         }
 
         // MEMORY USAGE key → bytes (Redis 4.0+)
-        long long memory_usage(const char *key)
+        long long memory_usage(const char *key) override
         {
             if (!ensure_connected())
                 return 0;
@@ -541,7 +541,7 @@ namespace
         }
 
         // INCR key → new value
-        long long incr(const char *key)
+        long long incr(const char *key) override
         {
             if (!ensure_connected())
                 return 0;
@@ -553,7 +553,7 @@ namespace
         }
 
         // LPUSH key value → new length
-        long long lpush(const char *key, const std::string &value)
+        long long lpush(const char *key, const std::string &value) override
         {
             if (!ensure_connected())
                 return 0;
@@ -566,7 +566,7 @@ namespace
         }
 
         // LTRIM key start stop
-        bool ltrim(const char *key, long long start, long long stop)
+        bool ltrim(const char *key, long long start, long long stop) override
         {
             if (!ensure_connected())
                 return false;
