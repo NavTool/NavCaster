@@ -10,6 +10,7 @@ set(SOURCES
     connection_history_service.h connection_history_service.cpp
     controller_response.h
     controller_helpers.h
+    mountpoint_subscriber_service.h mountpoint_subscriber_service.cpp
     node_history_service.h node_history_service.cpp
     audit_log_service.h audit_log_service.cpp
     account_controller.h account_controller.cpp

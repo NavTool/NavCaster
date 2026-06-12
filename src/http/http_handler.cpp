@@ -11,6 +11,7 @@
 #include "config_controller.h"
 #include "config_repository.h"
 #include "connection_history_service.h"
+#include "mountpoint_subscriber_service.h"
 #include "node_history_service.h"
 #include "redis_keys.h"
 #include "redis_monitor_service.h"
@@ -44,8 +45,6 @@ static const char *KEY_PULL_RECORD = navcaster::redis_keys::PULL_RECORD;
 static const char *KEY_PULL_STATE = navcaster::redis_keys::PULL_STAT;
 static const char *KEY_PUSH_RECORD = navcaster::redis_keys::PUSH_RECORD;
 static const char *KEY_PUSH_STATE = navcaster::redis_keys::PUSH_STAT;
-static const char *KEY_MPT_ONLINE = "MPT:LIST";
-static const char *KEY_MPT_SUB = "MPT:SUB";
 static const char *KEY_LOG_MPT = "LOG:MPT";
 static const char *KEY_LOG_USR = "LOG:USR";
 
@@ -1716,17 +1715,11 @@ void http_handler::handle_get_stats_usr_history(const HttpRequest &req, HttpResp
 
 void http_handler::handle_get_mountpoint_subscribers(const HttpRequest &req, HttpResponse &resp)
 {
-    // Get all online mountpoints from MPT:LIST
-    json mpts = sync_redis::instance().hgetall(KEY_MPT_ONLINE);
-    json result = json::object();
-    for (auto &[mpt_name, _] : mpts.items())
-    {
-        std::string sub_key = std::string(KEY_MPT_SUB) + ":" + mpt_name;
-        long long count = sync_redis::instance().hlen(sub_key.c_str());
-        result[mpt_name] = count;
-    }
-    resp.status_code = 200;
-    resp.body = result.dump();
+    (void)req;
+    navcaster::http_api::MountpointSubscriberService service(sync_redis::instance());
+    auto result = service.list();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Status ====================

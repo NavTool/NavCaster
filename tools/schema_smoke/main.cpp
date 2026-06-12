@@ -14,6 +14,8 @@
 #include "connection_history_repository.h"
 #include "connection_history_service.h"
 #include "json_record.h"
+#include "mountpoint_subscriber_repository.h"
+#include "mountpoint_subscriber_service.h"
 #include "node_history_repository.h"
 #include "node_history_service.h"
 #include "redis_keys.h"
@@ -386,6 +388,29 @@ int main()
     expect_eq(redis_keys::STR_ACTIVE_LEGACY, "STR:ACTIVE", "legacy active session key");
     expect_eq(redis_keys::LOG_MPT_PREFIX, "LOG:MPT:", "connection history mpt prefix");
     expect_eq(redis_keys::LOG_USR_PREFIX, "LOG:USR:", "connection history usr prefix");
+
+    FakeRedisHashClient subscriber_redis;
+    subscriber_redis.hashes[redis_keys::MPT_LIST]["BASE01"] = "conn-a";
+    subscriber_redis.hashes[redis_keys::MPT_LIST]["BASE02"] = "conn-b";
+    subscriber_redis.hashes[redis_keys::mpt_sub("BASE01")]["client-a"] = {{"user", "u1"}};
+    subscriber_redis.hashes[redis_keys::mpt_sub("BASE01")]["client-b"] = {{"user", "u2"}};
+    subscriber_redis.hashes[redis_keys::mpt_sub("BASE03")]["ignored"] = {{"user", "u3"}};
+    navcaster::storage::MountpointSubscriberRepository subscriber_repo(subscriber_redis);
+    expect_true(subscriber_repo.online_mountpoints().contains("BASE01"), "mountpoint subscriber repository online list");
+    expect_eq_int(static_cast<int>(subscriber_repo.subscriber_count("BASE01")), 2, "mountpoint subscriber repository count");
+    expect_eq_int(static_cast<int>(subscriber_repo.subscriber_count("BASE02")), 0, "mountpoint subscriber repository empty count");
+    navcaster::http_api::MountpointSubscriberService subscriber_service(subscriber_redis);
+    auto subscriber_response = subscriber_service.list();
+    expect_eq_int(subscriber_response.status_code, 200, "mountpoint subscriber service status");
+    auto subscriber_body = nlohmann::json::parse(subscriber_response.body);
+    expect_eq_int(subscriber_body.value("BASE01", -1), 2, "mountpoint subscriber service BASE01 count");
+    expect_eq_int(subscriber_body.value("BASE02", -1), 0, "mountpoint subscriber service BASE02 count");
+    expect_true(!subscriber_body.contains("BASE03"), "mountpoint subscriber service only online mountpoints");
+    FakeRedisHashClient empty_subscriber_redis;
+    navcaster::http_api::MountpointSubscriberService empty_subscriber_service(empty_subscriber_redis);
+    subscriber_response = empty_subscriber_service.list();
+    subscriber_body = nlohmann::json::parse(subscriber_response.body);
+    expect_true(subscriber_body.is_object() && subscriber_body.empty(), "mountpoint subscriber service empty body");
 
     FakeRedisHashClient monitor_capability_redis;
     monitor_capability_redis.hashes["HASH:ONE"]["field-a"] = {{"value", 1}};

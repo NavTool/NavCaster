@@ -26,6 +26,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/cluster_monitor_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/config_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/connection_history_repository.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/mountpoint_subscriber_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/node_history_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/system_event_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/source_repository.cpp
@@ -41,6 +42,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/cluster_monitor_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/config_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/connection_history_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/mountpoint_subscriber_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/node_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/redis_monitor_service.cpp
