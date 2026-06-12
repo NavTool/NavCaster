@@ -84,7 +84,8 @@
 - [x] 抽 AccessPolicyService，保留 `caster_internal`/`CASTER::*` 现有入口。
 - [x] 抽 SourceTableService，保留 `caster_internal::get_source_list_text` 现有入口。
 - [x] 抽 RelayScheduler，保留 `caster_internal` 的 Redis publish/状态入口。
-- [ ] 抽 Cluster、History 等服务。
+- [x] 抽 NodeHistoryRecorder，保留 `upload_node_status` 触发节奏和 Redis 写入口。
+- [ ] 抽 Cluster 等服务。
 - [ ] Phase 4 完成后复核 `CASTER::*` facade 边界。
 
 ### Phase 5：物理目录迁移
@@ -95,7 +96,7 @@
 
 继续 Phase 4/5：
 
-1. Phase 4 Core：继续拆 History、Cluster 等纯逻辑/状态服务，仍保留 `CASTER::*` facade。
+1. Phase 4 Core：继续拆 Cluster 相关纯逻辑/状态服务，仍保留 `CASTER::*` facade。
 2. Phase 5 准备：等 Core 边界稳定后，再迁移物理目录与 CMake 组织。
 
 ## 待确认问题
@@ -409,3 +410,12 @@
   - RelayScheduler 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - RelayScheduler 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - RelayScheduler 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - 新增 `NodeHistoryRecorder`：将 `record_node_history` 中的 RAW/1M/5M snapshot 构造、12 RAW -> 1M、5 1M -> 5M 聚合与 trim 上限抽成 core context service；`upload_node_status` 仍负责按 `NODE_HISTORY_INTERVAL` 触发，`caster_internal` 仍负责 `LPUSH/LTRIM`。
+  - `NodeHistoryRecorder` 复用 `redis_keys::node_history*` 生成 key；旧 `NODE_HISTORY_*_MAX` 宏改为兼容别名，真实容量常量集中到 recorder，保持 RAW `120960`、1M `43200`、5M `8640`。
+  - `schema_smoke` 新增 NodeHistoryRecorder 写侧测试：覆盖 RAW 字段映射、pull/push 字段保留、trim 上限、缺字段默认值路径、12 次产生 1M、整数平均和最后 total、60 次产生 5M。
+  - Ramanujan 子代理只读梳理节点历史契约；Erdos 子代理只读复核 NodeHistoryRecorder 抽离，结论为未发现记录语义变化，触发 interval 仍由 `upload_node_status` 控制。
+  - NodeHistoryRecorder 抽离后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - NodeHistoryRecorder 抽离后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - NodeHistoryRecorder 抽离后重新执行 `cmake --build build --target castercore --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - NodeHistoryRecorder 抽离后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - NodeHistoryRecorder 抽离后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。

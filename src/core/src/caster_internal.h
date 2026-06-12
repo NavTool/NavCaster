@@ -21,6 +21,7 @@ using json = nlohmann::json;
 #include "client_status.h"
 #include "decode_rtcm.h"
 #include "decode_nmea.h"
+#include "node_history_recorder.h"
 #include "pull_record.h"
 #include "pull_status.h"
 #include "push_record.h"
@@ -226,9 +227,9 @@ using json = nlohmann::json;
 #define NODE_HISTORY_1M_SUFFIX ":1M"       // 60s 聚合后缀
 #define NODE_HISTORY_5M_SUFFIX ":5M"       // 5min 聚合后缀
 
-#define NODE_HISTORY_RAW_MAX   120960      // 5s × 7天
-#define NODE_HISTORY_1M_MAX    43200       // 60s × 30天
-#define NODE_HISTORY_5M_MAX    8640        // 5min × 30天
+#define NODE_HISTORY_RAW_MAX   navcaster::core::NODE_HISTORY_RAW_TRIM_MAX // 5s × 7天
+#define NODE_HISTORY_1M_MAX    navcaster::core::NODE_HISTORY_1M_TRIM_MAX  // 60s × 30天
+#define NODE_HISTORY_5M_MAX    navcaster::core::NODE_HISTORY_5M_TRIM_MAX  // 5min × 30天
 #define NODE_HISTORY_INTERVAL  5           // 每 5 次 TimeoutCallback 记录一次 (=5s)
 
 class caster_cb_item
@@ -261,10 +262,6 @@ private:
     int _master_expire_time = 15; // Master锁TTL, 缩短以加速故障切换
     double _near_switch_distance = 1000.0; // 最近基站切换距离阈值(米)，0表示每次都触发
     int _node_history_counter = 0; // 节点历史记录计数器, 每 5 次 TimeoutCallback 记录一次
-    int _1min_agg_counter = 0;     // 每 12 个 RAW 触发 1M 聚合 (12 × 5s = 60s)
-    int _5min_agg_counter = 0;     // 每 5 个 1M 触发 5M 聚合 (5 × 60s = 300s)
-    json _1min_agg_buffer = json::array(); // RAW 样本累加器
-    json _5min_agg_buffer = json::array(); // 1M 样本累加器
 
     bool _upload_base_stat = true;     // 上报基站数据流统计信息
     bool _upload_rover_stat = true;    // 上报用户数据流统计信息
@@ -295,6 +292,7 @@ private:
     long long _process_id = 0;
     bool _is_master = false;
     std::string _current_master_id; // 当前 master 节点 ID
+    navcaster::core::NodeHistoryRecorder _node_history_recorder;
 
     event_base *_base;
 

@@ -22,6 +22,7 @@
 #include "node_history_service.h"
 #include "node_log_level_service.h"
 #include "redis_keys.h"
+#include "node_history_recorder.h"
 #include "redis_monitor_repository.h"
 #include "redis_monitor_service.h"
 #include "relay_controller.h"
@@ -2306,6 +2307,69 @@ int main()
         }
     }
     expect_true(found_push_disabled, "relay scheduler push disabled action");
+
+    navcaster::core::NodeHistoryRecorder node_recorder("node-hist");
+    nlohmann::json node_sample = {
+        {"cpu_usage", 12.0},
+        {"mem_usage", 100.0},
+        {"server_count", 2},
+        {"client_count", 3},
+        {"pull_count", 1},
+        {"push_count", 4},
+        {"connect_count", 5},
+        {"send_speed", 7.0},
+        {"recv_speed", 9.0},
+        {"send_total", 1000LL},
+        {"recv_total", 2000LL},
+        {"queue_delay", 11.0},
+    };
+    auto history_writes = node_recorder.record(node_sample, 100);
+    expect_eq_int(static_cast<int>(history_writes.size()), 1, "node history first write raw only");
+    expect_eq(history_writes[0].key, navcaster::redis_keys::node_history("node-hist"), "node history raw key");
+    expect_eq_int(history_writes[0].trim_max, navcaster::core::NODE_HISTORY_RAW_TRIM_MAX, "node history raw trim");
+    auto raw_snapshot = nlohmann::json::parse(history_writes[0].value);
+    expect_eq_int(raw_snapshot.value("mpt", 0), 2, "node history raw server count");
+    expect_eq_int(raw_snapshot.value("usr", 0), 3, "node history raw client count");
+    expect_eq_int(raw_snapshot.value("pull", 0), 1, "node history raw pull count");
+    expect_eq_int(raw_snapshot.value("push", 0), 4, "node history raw push count");
+    expect_eq_int(raw_snapshot.value("conn", 0), 5, "node history raw connect count");
+    expect_true(raw_snapshot.value("cpu", 0.0) == 12.0, "node history raw cpu");
+    expect_true(raw_snapshot.value("q_delay", 0.0) == 11.0, "node history raw delay");
+
+    for (int i = 1; i < 11; ++i)
+    {
+        node_sample["cpu_usage"] = 12.0 + i;
+        node_sample["send_total"] = 1000LL + i;
+        node_sample["recv_total"] = 2000LL + i;
+        history_writes = node_recorder.record(node_sample, 100 + i);
+        expect_eq_int(static_cast<int>(history_writes.size()), 1, "node history pre aggregate raw only");
+    }
+    node_sample["cpu_usage"] = 23.0;
+    node_sample["send_total"] = 1011LL;
+    node_sample["recv_total"] = 2011LL;
+    history_writes = node_recorder.record(node_sample, 111);
+    expect_eq_int(static_cast<int>(history_writes.size()), 2, "node history 12th emits 1m");
+    expect_eq(history_writes[1].key, navcaster::redis_keys::node_history_1m("node-hist"), "node history 1m key");
+    expect_eq_int(history_writes[1].trim_max, navcaster::core::NODE_HISTORY_1M_TRIM_MAX, "node history 1m trim");
+    auto one_minute = nlohmann::json::parse(history_writes[1].value);
+    expect_eq_int(one_minute.value("t", 0), 105, "node history 1m avg time");
+    expect_true(one_minute.value("cpu", 0.0) == 17.5, "node history 1m avg cpu");
+    expect_eq_int(one_minute.value("send_total", 0), 1011, "node history 1m last send total");
+    expect_eq_int(one_minute.value("recv_total", 0), 2011, "node history 1m last recv total");
+
+    for (int minute = 1; minute < 5; ++minute)
+    {
+        for (int sample = 0; sample < 12; ++sample)
+        {
+            node_sample["cpu_usage"] = 20.0 + minute;
+            history_writes = node_recorder.record(node_sample, 200 + minute * 12 + sample);
+        }
+    }
+    expect_eq_int(static_cast<int>(history_writes.size()), 3, "node history fifth 1m emits 5m");
+    expect_eq(history_writes[2].key, navcaster::redis_keys::node_history_5m("node-hist"), "node history 5m key");
+    expect_eq_int(history_writes[2].trim_max, navcaster::core::NODE_HISTORY_5M_TRIM_MAX, "node history 5m trim");
+    auto five_minute = nlohmann::json::parse(history_writes[2].value);
+    expect_true(five_minute.contains("cpu"), "node history 5m aggregate body");
 
     FakeRedisHashClient relay_controller_redis;
     navcaster::http_api::RelayController relay_controller(relay_controller_redis);

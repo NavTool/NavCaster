@@ -17,6 +17,7 @@
 #include "knt.h"
 #include "SysUsage.h"
 #include "access_policy_service.h"
+#include "node_history_recorder.h"
 #include "relay_scheduler.h"
 #include "source_table_service.h"
 #include "version.h"
@@ -82,6 +83,7 @@ size_t count_running_relay_statuses(const StatusMap &statuses, const std::string
 
 caster_internal::caster_internal()
 {
+    _node_history_recorder.set_node_id(_node_ID);
 }
 
 caster_internal::~caster_internal()
@@ -139,6 +141,7 @@ void caster_internal::set_node_identity(const std::string &hostname, int listen_
     std::snprintf(buf, sizeof(buf), "Node_%05X", static_cast<unsigned int>(h & 0xFFFFF));
     _node_ID = buf;
     _node_name = _node_ID;
+    _node_history_recorder.set_node_id(_node_ID);
     spdlog::info("[caster_internal::set_node_identity]: host={} listen={} http={} -> {} (pid={})",
                  hostname, listen_port, http_port, _node_ID, _process_id);
 }
@@ -947,123 +950,11 @@ int caster_internal::upload_node_status()
 
 void caster_internal::record_node_history(const json &node_json)
 {
-    json snapshot;
-    snapshot["t"] = util_get_now_second();
-    snapshot["cpu"] = node_json.value("cpu_usage", 0.0);
-    snapshot["mem"] = node_json.value("mem_usage", 0.0);
-    snapshot["mpt"] = node_json.value("server_count", 0);
-    snapshot["usr"] = node_json.value("client_count", 0);
-    snapshot["pull"] = node_json.value("pull_count", 0);
-    snapshot["push"] = node_json.value("push_count", 0);
-    snapshot["conn"] = node_json.value("connect_count", 0);
-    snapshot["send_speed"] = node_json.value("send_speed", 0.0);
-    snapshot["recv_speed"] = node_json.value("recv_speed", 0.0);
-    snapshot["send_total"] = node_json.value("send_total", 0LL);
-    snapshot["recv_total"] = node_json.value("recv_total", 0LL);
-    snapshot["q_delay"] = node_json.value("queue_delay", 0.0);
-
-    std::string raw_key = std::string(NODE_HISTORY_PREFIX) + _node_ID;
-    std::string value = snapshot.dump();
-
-    // 1) RAW 层: 5s 粒度, 保留 7 天
-    redisAsyncCommand(_pub_context, NULL, NULL, "LPUSH %s %s", raw_key.c_str(), value.c_str());
-    redisAsyncCommand(_pub_context, NULL, NULL, "LTRIM %s 0 %d", raw_key.c_str(), NODE_HISTORY_RAW_MAX - 1);
-
-    // 2) 1MIN 聚合: 每 12 个 RAW 样本 (60s) 生成一条
-    _1min_agg_buffer.push_back(snapshot);
-    if (++_1min_agg_counter >= 12)
+    auto writes = _node_history_recorder.record(node_json, util_get_now_second());
+    for (const auto &write : writes)
     {
-        _1min_agg_counter = 0;
-        json agg;
-        double cpu_sum = 0, mem_sum = 0, delay_sum = 0;
-        double send_spd_sum = 0, recv_spd_sum = 0;
-        int mpt_sum = 0, usr_sum = 0, pull_sum = 0, push_sum = 0, conn_sum = 0;
-        long long last_send_total = 0, last_recv_total = 0;
-        long long t_sum = 0;
-        int n = static_cast<int>(_1min_agg_buffer.size());
-        for (auto &s : _1min_agg_buffer)
-        {
-            t_sum += s["t"].get<long long>();
-            cpu_sum += s["cpu"].get<double>();
-            mem_sum += s["mem"].get<double>();
-            mpt_sum += s["mpt"].get<int>();
-            usr_sum += s["usr"].get<int>();
-            pull_sum += s.value("pull", 0);
-            push_sum += s.value("push", 0);
-            conn_sum += s["conn"].get<int>();
-            send_spd_sum += s["send_speed"].get<double>();
-            recv_spd_sum += s["recv_speed"].get<double>();
-            last_send_total = s["send_total"].get<long long>();
-            last_recv_total = s["recv_total"].get<long long>();
-            delay_sum += s["q_delay"].get<double>();
-        }
-        agg["t"] = t_sum / n;
-        agg["cpu"] = cpu_sum / n;
-        agg["mem"] = mem_sum / n;
-        agg["mpt"] = mpt_sum / n;
-        agg["usr"] = usr_sum / n;
-        agg["pull"] = pull_sum / n;
-        agg["push"] = push_sum / n;
-        agg["conn"] = conn_sum / n;
-        agg["send_speed"] = send_spd_sum / n;
-        agg["recv_speed"] = recv_spd_sum / n;
-        agg["send_total"] = last_send_total;
-        agg["recv_total"] = last_recv_total;
-        agg["q_delay"] = delay_sum / n;
-
-        std::string key_1m = raw_key + NODE_HISTORY_1M_SUFFIX;
-        std::string val_1m = agg.dump();
-        redisAsyncCommand(_pub_context, NULL, NULL, "LPUSH %s %s", key_1m.c_str(), val_1m.c_str());
-        redisAsyncCommand(_pub_context, NULL, NULL, "LTRIM %s 0 %d", key_1m.c_str(), NODE_HISTORY_1M_MAX - 1);
-
-        // 3) 5MIN 聚合: 每 5 个 1M 样本 (300s) 生成一条
-        _5min_agg_buffer.push_back(agg);
-        if (++_5min_agg_counter >= 5)
-        {
-            _5min_agg_counter = 0;
-            json agg5;
-            double cpu5 = 0, mem5 = 0, delay5 = 0;
-            double ss5 = 0, rs5 = 0;
-            int mpt5 = 0, usr5 = 0, pull5 = 0, push5 = 0, conn5 = 0;
-            long long lst = 0, lrt = 0, t5 = 0;
-            int m = static_cast<int>(_5min_agg_buffer.size());
-            for (auto &a : _5min_agg_buffer)
-            {
-                t5 += a["t"].get<long long>();
-                cpu5 += a["cpu"].get<double>();
-                mem5 += a["mem"].get<double>();
-                mpt5 += a["mpt"].get<int>();
-                usr5 += a["usr"].get<int>();
-                pull5 += a.value("pull", 0);
-                push5 += a.value("push", 0);
-                conn5 += a["conn"].get<int>();
-                ss5 += a["send_speed"].get<double>();
-                rs5 += a["recv_speed"].get<double>();
-                lst = a["send_total"].get<long long>();
-                lrt = a["recv_total"].get<long long>();
-                delay5 += a["q_delay"].get<double>();
-            }
-            agg5["t"] = t5 / m;
-            agg5["cpu"] = cpu5 / m;
-            agg5["mem"] = mem5 / m;
-            agg5["mpt"] = mpt5 / m;
-            agg5["usr"] = usr5 / m;
-            agg5["pull"] = pull5 / m;
-            agg5["push"] = push5 / m;
-            agg5["conn"] = conn5 / m;
-            agg5["send_speed"] = ss5 / m;
-            agg5["recv_speed"] = rs5 / m;
-            agg5["send_total"] = lst;
-            agg5["recv_total"] = lrt;
-            agg5["q_delay"] = delay5 / m;
-
-            std::string key_5m = raw_key + NODE_HISTORY_5M_SUFFIX;
-            std::string val_5m = agg5.dump();
-            redisAsyncCommand(_pub_context, NULL, NULL, "LPUSH %s %s", key_5m.c_str(), val_5m.c_str());
-            redisAsyncCommand(_pub_context, NULL, NULL, "LTRIM %s 0 %d", key_5m.c_str(), NODE_HISTORY_5M_MAX - 1);
-            _5min_agg_buffer.clear();
-        }
-        _1min_agg_buffer.clear();
+        redisAsyncCommand(_pub_context, NULL, NULL, "LPUSH %s %s", write.key.c_str(), write.value.c_str());
+        redisAsyncCommand(_pub_context, NULL, NULL, "LTRIM %s 0 %d", write.key.c_str(), write.trim_max - 1);
     }
 }
 
