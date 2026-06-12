@@ -8,6 +8,7 @@
 #include "base64.h"
 #include "redis_keys.h"
 #include "ring_log_view.h"
+#include "relay_repository.h"
 #include "source_repository.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -31,10 +32,10 @@ static const char *KEY_CLIENT_STATE = "USR:STAT";
 static const char *KEY_STREAM_STATE = "STR:STAT";
 static const char *KEY_ALIAS_RULE = navcaster::redis_keys::ALIAS_RULE;
 static const char *KEY_ACCESS_GROUP = navcaster::redis_keys::ACCESS_GROUP;
-static const char *KEY_PULL_RECORD = "PULL:RECORD";
-static const char *KEY_PULL_STATE = "PULL:STAT";
-static const char *KEY_PUSH_RECORD = "PUSH:RECORD";
-static const char *KEY_PUSH_STATE = "PUSH:STAT";
+static const char *KEY_PULL_RECORD = navcaster::redis_keys::PULL_RECORD;
+static const char *KEY_PULL_STATE = navcaster::redis_keys::PULL_STAT;
+static const char *KEY_PUSH_RECORD = navcaster::redis_keys::PUSH_RECORD;
+static const char *KEY_PUSH_STATE = navcaster::redis_keys::PUSH_STAT;
 static const char *KEY_CASTER_NODE = "CASTER:NODE";
 static const char *KEY_CONF_SERVICE = "CONF:SERVICE";
 static const char *KEY_CONF_CORE = "CONF:CORE";
@@ -1618,21 +1619,39 @@ void http_handler::handle_delete_access_item(const HttpRequest &req, HttpRespons
 
 // ==================== Pull Relays (PULL:RECORD / PULL:STAT) ====================
 
-IMPL_GET_ALL(handle_get_pulls, KEY_PULL_RECORD)
-IMPL_GET_ONE(handle_get_pull, KEY_PULL_RECORD)
+void http_handler::handle_get_pulls(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    json data = repo.list_records(navcaster::storage::RelayKind::Pull);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_pull(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    json data = repo.get_record(navcaster::storage::RelayKind::Pull, id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 void http_handler::handle_create_pull(const HttpRequest &req, HttpResponse &resp)
 {
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    std::string uid = body.value("uid", "");
-    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing uid"})"; return; }
-    if (!body.contains("enabled")) body["enabled"] = true;
-    bool ok = sync_redis::instance().hsetnx(KEY_PULL_RECORD, uid.c_str(), body.dump());
-    if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Pull record already exists"})"; return; }
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.create_record(navcaster::storage::RelayKind::Pull, std::move(body));
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    resp.body = json{{"ok", true}, {"uid", result.uid}}.dump();
 }
 
 void http_handler::handle_update_pull(const HttpRequest &req, HttpResponse &resp)
@@ -1642,10 +1661,13 @@ void http_handler::handle_update_pull(const HttpRequest &req, HttpResponse &resp
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    bool ok = sync_redis::instance().hset(KEY_PULL_RECORD, id.c_str(), body.dump());
-    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
-    // Delete status to force task restart with new parameters
-    sync_redis::instance().hdel(KEY_PULL_STATE, id.c_str());
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.update_record(navcaster::storage::RelayKind::Pull, id, std::move(body));
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1654,33 +1676,60 @@ void http_handler::handle_delete_pull(const HttpRequest &req, HttpResponse &resp
 {
     std::string id = get_resource_id(req);
     if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    bool ok = sync_redis::instance().hdel(KEY_PULL_RECORD, id.c_str());
-    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    // Also clean up corresponding state entry
-    sync_redis::instance().hdel(KEY_PULL_STATE, id.c_str());
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.delete_record(navcaster::storage::RelayKind::Pull, id);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
 
-IMPL_GET_ALL(handle_get_pull_states, KEY_PULL_STATE)
+void http_handler::handle_get_pull_states(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    json data = repo.list_states(navcaster::storage::RelayKind::Pull);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 // ==================== Push Relays (PUSH:RECORD / PUSH:STAT) ====================
 
-IMPL_GET_ALL(handle_get_pushs, KEY_PUSH_RECORD)
-IMPL_GET_ONE(handle_get_push, KEY_PUSH_RECORD)
+void http_handler::handle_get_pushs(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    json data = repo.list_records(navcaster::storage::RelayKind::Push);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_push(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    json data = repo.get_record(navcaster::storage::RelayKind::Push, id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 void http_handler::handle_create_push(const HttpRequest &req, HttpResponse &resp)
 {
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    std::string uid = body.value("uid", "");
-    if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing uid"})"; return; }
-    if (!body.contains("enabled")) body["enabled"] = true;
-    bool ok = sync_redis::instance().hsetnx(KEY_PUSH_RECORD, uid.c_str(), body.dump());
-    if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Push record already exists"})"; return; }
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.create_record(navcaster::storage::RelayKind::Push, std::move(body));
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
+    resp.body = json{{"ok", true}, {"uid", result.uid}}.dump();
 }
 
 void http_handler::handle_update_push(const HttpRequest &req, HttpResponse &resp)
@@ -1690,10 +1739,13 @@ void http_handler::handle_update_push(const HttpRequest &req, HttpResponse &resp
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    bool ok = sync_redis::instance().hset(KEY_PUSH_RECORD, id.c_str(), body.dump());
-    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
-    // Delete status to force task restart with new parameters
-    sync_redis::instance().hdel(KEY_PUSH_STATE, id.c_str());
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.update_record(navcaster::storage::RelayKind::Push, id, std::move(body));
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1702,15 +1754,24 @@ void http_handler::handle_delete_push(const HttpRequest &req, HttpResponse &resp
 {
     std::string id = get_resource_id(req);
     if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    bool ok = sync_redis::instance().hdel(KEY_PUSH_RECORD, id.c_str());
-    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    // Also clean up corresponding state entry
-    sync_redis::instance().hdel(KEY_PUSH_STATE, id.c_str());
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.delete_record(navcaster::storage::RelayKind::Push, id);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
 
-IMPL_GET_ALL(handle_get_push_states, KEY_PUSH_STATE)
+void http_handler::handle_get_push_states(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    json data = repo.list_states(navcaster::storage::RelayKind::Push);
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 // ==================== Relay Start/Stop ====================
 
@@ -1721,21 +1782,18 @@ void http_handler::handle_relay_start(const HttpRequest &req, HttpResponse &resp
     std::string uid = get_resource_id(req);
     if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
 
-    bool is_pull = path.find("/pull/") != std::string::npos;
-    const char *key = is_pull ? KEY_PULL_RECORD : KEY_PUSH_RECORD;
-
-    auto val = sync_redis::instance().hget(key, uid.c_str());
-    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
-
-    try {
-        json record = val.is_string() ? json::parse(val.get<std::string>()) : val;
-        record["enabled"] = true;
-        sync_redis::instance().hset(key, uid.c_str(), record.dump());
-        resp.status_code = 200;
-        resp.body = json{{"ok", true}, {"uid", uid}}.dump();
-    } catch (...) {
-        resp.status_code = 500; resp.body = R"({"error":"Failed to update record"})";
+    const auto kind = path.find("/pull/") != std::string::npos
+                          ? navcaster::storage::RelayKind::Pull
+                          : navcaster::storage::RelayKind::Push;
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.set_enabled(kind, uid, true);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
     }
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
 
 void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
@@ -1745,26 +1803,18 @@ void http_handler::handle_relay_stop(const HttpRequest &req, HttpResponse &resp)
     std::string uid = get_resource_id(req);
     if (uid.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
 
-    bool is_pull = path.find("/pull/") != std::string::npos;
-    const char *key = is_pull ? KEY_PULL_RECORD : KEY_PUSH_RECORD;
-
-    auto val = sync_redis::instance().hget(key, uid.c_str());
-    if (val.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Record not found"})"; return; }
-
-    try {
-        json record = val.is_string() ? json::parse(val.get<std::string>()) : val;
-        record["enabled"] = false;
-        sync_redis::instance().hset(key, uid.c_str(), record.dump());
-        // Do NOT delete the status entry here — task distribution needs it to
-        // detect the enabled=false mismatch and send an INACTIVE broadcast to
-        // the node running the relay. Premature HDEL causes _pull/_push_status_map
-        // to lose the entry on next sync, preventing the INACTIVE from ever firing,
-        // which leaves stale MPT:REC records that keep refreshing.
-        resp.status_code = 200;
-        resp.body = json{{"ok", true}, {"uid", uid}}.dump();
-    } catch (...) {
-        resp.status_code = 500; resp.body = R"({"error":"Failed to update record"})";
+    const auto kind = path.find("/pull/") != std::string::npos
+                          ? navcaster::storage::RelayKind::Pull
+                          : navcaster::storage::RelayKind::Push;
+    navcaster::storage::RelayRepository repo(sync_redis::instance());
+    auto result = repo.set_enabled(kind, uid, false);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
     }
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}, {"uid", uid}}.dump();
 }
 
 // ==================== Nodes (CASTER:NODE) read-only ====================

@@ -3,6 +3,7 @@
 #include "access_repository.h"
 #include "alias_repository.h"
 #include "redis_keys.h"
+#include "relay_repository.h"
 #include "source_repository.h"
 
 #include <cstdlib>
@@ -490,6 +491,44 @@ int main()
     expect_eq_int(fake_redis.hget(navcaster::redis_keys::access_item("survey").c_str(), "MOUNT9").value("allow_access", 0), 1, "access repository update item value");
     expect_true(access_repo.delete_item("survey", "MOUNT9").status == navcaster::storage::RepositoryStatus::Ok, "access repository delete item ok");
     expect_true(access_repo.delete_item("survey", "MOUNT9").status == navcaster::storage::RepositoryStatus::NotFound, "access repository missing item delete");
+
+    navcaster::storage::RelayRepositoryResult relay_plan;
+    nlohmann::json relay_body = {{"uid", "relay-1"}, {"login_mpt", "LOCAL"}};
+    expect_true(navcaster::storage::build_relay_record_plan(navcaster::storage::RelayKind::Pull, relay_body, relay_plan, &reason), "relay plan");
+    expect_eq(relay_plan.uid, "relay-1", "relay plan uid");
+    expect_true(relay_plan.record.value("enabled", false), "relay plan enabled default");
+    expect_true(!navcaster::storage::build_relay_record_plan(navcaster::storage::RelayKind::Pull, nlohmann::json::object(), relay_plan, &reason), "relay missing uid rejected");
+
+    navcaster::storage::RelayRepository relay_repo(fake_redis);
+    auto relay_result = relay_repo.create_record(navcaster::storage::RelayKind::Pull, relay_body);
+    expect_true(relay_result.status == navcaster::storage::RepositoryStatus::Ok, "relay repository create pull ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::PULL_RECORD, "relay-1").is_object(), "relay repository writes pull record");
+    expect_true(relay_repo.create_record(navcaster::storage::RelayKind::Pull, relay_body).status == navcaster::storage::RepositoryStatus::Conflict, "relay repository duplicate pull");
+    fake_redis.hset(navcaster::redis_keys::PULL_STAT, "relay-1", nlohmann::json{{"state", 1}}.dump());
+    relay_result = relay_repo.update_record(navcaster::storage::RelayKind::Pull, "relay-1", {{"target_ip", "127.0.0.1"}});
+    expect_true(relay_result.status == navcaster::storage::RepositoryStatus::Ok, "relay repository update pull ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::PULL_STAT, "relay-1").is_null(), "relay repository update clears pull state");
+    fake_redis.hset(navcaster::redis_keys::PULL_STAT, "relay-1", nlohmann::json{{"state", 1}}.dump());
+    relay_result = relay_repo.set_enabled(navcaster::storage::RelayKind::Pull, "relay-1", false);
+    expect_true(relay_result.status == navcaster::storage::RepositoryStatus::Ok, "relay repository stop pull ok");
+    expect_true(!fake_redis.hget(navcaster::redis_keys::PULL_STAT, "relay-1").is_null(), "relay repository stop keeps pull state");
+    expect_true(!fake_redis.hget(navcaster::redis_keys::PULL_RECORD, "relay-1").value("enabled", true), "relay repository stop disables record");
+    relay_result = relay_repo.set_enabled(navcaster::storage::RelayKind::Pull, "relay-1", true);
+    expect_true(relay_result.status == navcaster::storage::RepositoryStatus::Ok, "relay repository start pull ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::PULL_RECORD, "relay-1").value("enabled", false), "relay repository start enables record");
+    relay_result = relay_repo.delete_record(navcaster::storage::RelayKind::Pull, "relay-1");
+    expect_true(relay_result.status == navcaster::storage::RepositoryStatus::Ok, "relay repository delete pull ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::PULL_RECORD, "relay-1").is_null(), "relay repository delete removes pull record");
+    expect_true(fake_redis.hget(navcaster::redis_keys::PULL_STAT, "relay-1").is_null(), "relay repository delete clears pull state");
+    expect_true(relay_repo.delete_record(navcaster::storage::RelayKind::Pull, "relay-1").status == navcaster::storage::RepositoryStatus::NotFound, "relay repository missing pull delete");
+
+    nlohmann::json push_body = {{"uid", "push-1"}, {"enabled", false}};
+    relay_result = relay_repo.create_record(navcaster::storage::RelayKind::Push, push_body);
+    expect_true(relay_result.status == navcaster::storage::RepositoryStatus::Ok, "relay repository create push ok");
+    expect_true(!fake_redis.hget(navcaster::redis_keys::PUSH_RECORD, "push-1").value("enabled", true), "relay repository preserves push enabled");
+    fake_redis.hset(navcaster::redis_keys::PUSH_STAT, "push-1", nlohmann::json{{"state", 1}}.dump());
+    expect_true(relay_repo.update_record(navcaster::storage::RelayKind::Push, "push-1", {{"target_ip", "127.0.0.1"}}).status == navcaster::storage::RepositoryStatus::Ok, "relay repository update push ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::PUSH_STAT, "push-1").is_null(), "relay repository update clears push state");
 
     if (failures != 0)
     {
