@@ -771,6 +771,65 @@ int main()
     expect_eq(unknown_category.value("description", std::string{}), "", "redis monitor keys unknown description");
     auto plain_category = find_redis_category(redis_keys_body["categories"], "PLAINKEY");
     expect_eq(plain_category.value("type", std::string{}), "string", "redis monitor keys plain type");
+    FakeRedisHashClient redis_sampler_redis;
+    redis_sampler_redis.info_sections["ALL"] =
+        "# Memory\r\n"
+        "used_memory:2048\r\n"
+        "used_memory_rss:4096\r\n"
+        "used_memory_peak:8192\r\n"
+        "mem_fragmentation_ratio:1.5\r\n"
+        "# Stats\r\n"
+        "instantaneous_ops_per_sec:11\r\n"
+        "total_commands_processed:22\r\n"
+        "total_connections_received:33\r\n"
+        "keyspace_hits:3\r\n"
+        "keyspace_misses:1\r\n"
+        "instantaneous_input_kbps:4.5\r\n"
+        "instantaneous_output_kbps:5.5\r\n"
+        "# Clients\r\n"
+        "connected_clients:6\r\n"
+        "blocked_clients:2\r\n";
+    redis_sampler_redis.hashes["HASH:SAMPLE"]["field"] = {{"value", 1}};
+    navcaster::http_api::RedisMonitorService redis_sampler_service(redis_sampler_redis);
+    expect_true(redis_sampler_service.sample_history(123456), "redis monitor sampler writes valid sample");
+    expect_eq_int(static_cast<int>(redis_sampler_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].size()), 1, "redis monitor sampler list size");
+    auto redis_sample_point = redis_sampler_redis.lists[redis_keys::MONITOR_REDIS_HISTORY][0];
+    expect_eq_int(redis_sample_point.value("t", 0), 123456, "redis monitor sampler timestamp");
+    expect_eq_int(redis_sample_point.value("used_memory", 0), 2048, "redis monitor sampler used memory");
+    expect_eq_int(redis_sample_point.value("used_memory_rss", 0), 4096, "redis monitor sampler rss");
+    expect_eq_int(redis_sample_point.value("used_memory_peak", 0), 8192, "redis monitor sampler peak");
+    expect_true(redis_sample_point.value("mem_fragmentation_ratio", 0.0) == 1.5, "redis monitor sampler fragmentation");
+    expect_eq_int(redis_sample_point.value("total_keys", 0), 1, "redis monitor sampler dbsize before history write");
+    expect_eq_int(redis_sample_point.value("ops_per_sec", 0), 11, "redis monitor sampler ops");
+    expect_eq_int(redis_sample_point.value("total_commands_processed", 0), 22, "redis monitor sampler commands");
+    expect_eq_int(redis_sample_point.value("total_connections_received", 0), 33, "redis monitor sampler connections");
+    expect_eq_int(redis_sample_point.value("hits", 0), 3, "redis monitor sampler hits");
+    expect_eq_int(redis_sample_point.value("misses", 0), 1, "redis monitor sampler misses");
+    expect_true(redis_sample_point.value("hit_rate", 0.0) == 0.75, "redis monitor sampler hit rate");
+    expect_eq_int(redis_sample_point.value("connected_clients", 0), 6, "redis monitor sampler connected clients");
+    expect_eq_int(redis_sample_point.value("blocked_clients", 0), 2, "redis monitor sampler blocked clients");
+    expect_true(redis_sample_point.value("input_kbps", 0.0) == 4.5, "redis monitor sampler input kbps");
+    expect_true(redis_sample_point.value("output_kbps", 0.0) == 5.5, "redis monitor sampler output kbps");
+    for (int i = 0; i < 10090; ++i)
+    {
+        redis_sampler_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].push_back({{"t", i + 1}, {"used_memory", 1}});
+    }
+    expect_true(redis_sampler_service.sample_history(123457), "redis monitor sampler writes before trim");
+    expect_eq_int(static_cast<int>(redis_sampler_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].size()), static_cast<int>(navcaster::http_api::REDIS_MONITOR_HISTORY_KEEP), "redis monitor sampler trims history");
+    FakeRedisHashClient redis_sampler_empty_info;
+    navcaster::http_api::RedisMonitorService redis_sampler_empty_service(redis_sampler_empty_info);
+    expect_true(!redis_sampler_empty_service.sample_history(1), "redis monitor sampler skips empty info");
+    expect_true(redis_sampler_empty_info.lists[redis_keys::MONITOR_REDIS_HISTORY].empty(), "redis monitor sampler empty info writes nothing");
+    FakeRedisHashClient redis_sampler_missing_section;
+    redis_sampler_missing_section.info_sections["ALL"] = "# Memory\r\nused_memory:1\r\n# Stats\r\nkeyspace_hits:1\r\n";
+    navcaster::http_api::RedisMonitorService redis_sampler_missing_service(redis_sampler_missing_section);
+    expect_true(!redis_sampler_missing_service.sample_history(1), "redis monitor sampler skips missing clients");
+    expect_true(redis_sampler_missing_section.lists[redis_keys::MONITOR_REDIS_HISTORY].empty(), "redis monitor sampler missing section writes nothing");
+    FakeRedisHashClient redis_sampler_zero_memory;
+    redis_sampler_zero_memory.info_sections["ALL"] = "# Memory\r\nused_memory:0\r\n# Stats\r\nkeyspace_hits:1\r\n# Clients\r\nconnected_clients:1\r\n";
+    navcaster::http_api::RedisMonitorService redis_sampler_zero_service(redis_sampler_zero_memory);
+    expect_true(!redis_sampler_zero_service.sample_history(1), "redis monitor sampler skips zero memory");
+    expect_true(redis_sampler_zero_memory.lists[redis_keys::MONITOR_REDIS_HISTORY].empty(), "redis monitor sampler zero memory writes nothing");
 
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[trace] detail"), 0, "ring log infers trace");
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[debug] detail"), 1, "ring log infers debug");

@@ -1,6 +1,7 @@
 #include "redis_monitor_service.h"
 
 #include "controller_helpers.h"
+#include "redis_keys.h"
 #include "redis_monitor_repository.h"
 
 #include <algorithm>
@@ -331,6 +332,57 @@ ControllerResponse RedisMonitorService::history(const std::string &range)
     storage::RedisMonitorRepository repo(_redis);
     auto items = redis_monitor_history_items(repo.history(redis_monitor_history_limit(range)));
     return json_response(200, {{"items", items}, {"count", items.size()}});
+}
+
+bool RedisMonitorService::sample_history(long long now_ts)
+{
+    const std::string info = _redis.info("ALL");
+    if (info.empty())
+    {
+        return false;
+    }
+
+    auto parsed = parse_redis_info(info);
+    if (!parsed.contains("memory") || !parsed.contains("stats") || !parsed.contains("clients"))
+    {
+        return false;
+    }
+
+    const auto &memory = parsed["memory"];
+    const auto &stats = parsed["stats"];
+    const auto &clients = parsed["clients"];
+    const auto used_memory = memory.value("used_memory", 0ULL);
+    if (used_memory == 0)
+    {
+        return false;
+    }
+
+    const auto hits = stats.value("keyspace_hits", 0ULL);
+    const auto misses = stats.value("keyspace_misses", 0ULL);
+    const double hit_rate = hits + misses > 0 ? static_cast<double>(hits) / static_cast<double>(hits + misses) : 0.0;
+
+    nlohmann::json point = {
+        {"t", now_ts},
+        {"used_memory", used_memory},
+        {"used_memory_rss", memory.value("used_memory_rss", 0ULL)},
+        {"used_memory_peak", memory.value("used_memory_peak", 0ULL)},
+        {"mem_fragmentation_ratio", memory.value("mem_fragmentation_ratio", 0.0)},
+        {"total_keys", _redis.dbsize()},
+        {"ops_per_sec", stats.value("instantaneous_ops_per_sec", 0.0)},
+        {"total_commands_processed", stats.value("total_commands_processed", 0ULL)},
+        {"total_connections_received", stats.value("total_connections_received", 0ULL)},
+        {"hits", hits},
+        {"misses", misses},
+        {"hit_rate", hit_rate},
+        {"connected_clients", clients.value("connected_clients", 0ULL)},
+        {"blocked_clients", clients.value("blocked_clients", 0ULL)},
+        {"input_kbps", stats.value("instantaneous_input_kbps", 0.0)},
+        {"output_kbps", stats.value("instantaneous_output_kbps", 0.0)}
+    };
+
+    _redis.lpush(redis_keys::MONITOR_REDIS_HISTORY, point.dump());
+    _redis.ltrim(redis_keys::MONITOR_REDIS_HISTORY, 0, REDIS_MONITOR_HISTORY_KEEP - 1);
+    return true;
 }
 
 } // namespace navcaster::http_api

@@ -15,6 +15,7 @@ nlohmann::json redis_monitor_history_items(const nlohmann::json &raw_items);
 nlohmann::json parse_redis_info(const std::string &info_text);
 nlohmann::json redis_monitor_summary_body(const nlohmann::json &info, long long total_keys);
 std::string redis_monitor_key_prefix(const std::string &key);
+constexpr long long REDIS_MONITOR_HISTORY_KEEP = 10080;
 
 class RedisMonitorService
 {
@@ -24,6 +25,7 @@ public:
     ControllerResponse summary();
     ControllerResponse keys();
     ControllerResponse history(const std::string &range);
+    bool sample_history(long long now_ts);
 
 private:
     storage::RedisHashClient &_redis;

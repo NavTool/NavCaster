@@ -1904,12 +1904,6 @@ void http_handler::handle_get_monitor_cluster(const HttpRequest &req, HttpRespon
 
 // ==================== V3 \u5ba1\u8ba1 / \u73af\u5f62\u65e5\u5fd7 / Redis \u91c7\u6837 / \u8282\u70b9\u4e8b\u4ef6 / \u52a8\u6001\u65e5\u5fd7\u7ea7\u522b ====================
 
-namespace
-{
-    static const char *KEY_REDIS_HISTORY = "MONITOR:REDIS:HISTORY";
-    static const int   REDIS_HISTORY_KEEP = 10080; // 7d * 24h * 60min
-}
-
 void http_handler::write_audit(const HttpRequest &req, const HttpResponse &resp,
                                const std::string &actor, const std::string &client_ip)
 {
@@ -2005,51 +1999,11 @@ void http_handler::on_redis_sample_timer(evutil_socket_t /*fd*/, short /*what*/,
 
 void http_handler::sample_redis_history()
 {
-    auto &redis = sync_redis::instance();
-    std::string info = redis.info("ALL");
-    if (info.empty()) return;
-
-    auto parsed = navcaster::http_api::parse_redis_info(info);
-    if (!parsed.contains("memory") || !parsed.contains("stats") || !parsed.contains("clients"))
+    navcaster::http_api::RedisMonitorService service(sync_redis::instance());
+    if (!service.sample_history(static_cast<long long>(std::time(nullptr))))
     {
-        spdlog::warn("[{}:{}]: skip redis history sample, INFO missing required sections", __class__, __func__);
-        return;
+        spdlog::warn("[{}:{}]: skip redis history sample, INFO missing required sections or used_memory is 0", __class__, __func__);
     }
-
-    const auto &memory = parsed["memory"];
-    const auto &stats = parsed["stats"];
-    const auto &clients = parsed["clients"];
-    const auto used_memory = memory.value("used_memory", 0ULL);
-    if (used_memory == 0)
-    {
-        spdlog::warn("[{}:{}]: skip redis history sample, used_memory is 0", __class__, __func__);
-        return;
-    }
-
-    const auto hits = stats.value("keyspace_hits", 0ULL);
-    const auto misses = stats.value("keyspace_misses", 0ULL);
-    const double hit_rate = hits + misses > 0 ? static_cast<double>(hits) / static_cast<double>(hits + misses) : 0.0;
-
-    json point = {
-        {"t",                         std::time(nullptr)},
-        {"used_memory",               used_memory},
-        {"used_memory_rss",           memory.value("used_memory_rss", 0ULL)},
-        {"used_memory_peak",          memory.value("used_memory_peak", 0ULL)},
-        {"mem_fragmentation_ratio",   memory.value("mem_fragmentation_ratio", 0.0)},
-        {"total_keys",                redis.dbsize()},
-        {"ops_per_sec",               stats.value("instantaneous_ops_per_sec", 0.0)},
-        {"total_commands_processed",  stats.value("total_commands_processed", 0ULL)},
-        {"total_connections_received", stats.value("total_connections_received", 0ULL)},
-        {"hits",                      hits},
-        {"misses",                    misses},
-        {"hit_rate",                  hit_rate},
-        {"connected_clients",         clients.value("connected_clients", 0ULL)},
-        {"blocked_clients",           clients.value("blocked_clients", 0ULL)},
-        {"input_kbps",                stats.value("instantaneous_input_kbps", 0.0)},
-        {"output_kbps",               stats.value("instantaneous_output_kbps", 0.0)}
-    };
-    redis.lpush(KEY_REDIS_HISTORY, point.dump());
-    redis.ltrim(KEY_REDIS_HISTORY, 0, REDIS_HISTORY_KEEP - 1);
 }
 
 void http_handler::handle_get_monitor_redis_history(const HttpRequest &req, HttpResponse &resp)
