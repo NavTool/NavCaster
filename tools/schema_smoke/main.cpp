@@ -1,11 +1,15 @@
 #include "account_repository.h"
 #include "account_schema.h"
+#include "alias_repository.h"
 #include "redis_keys.h"
+#include "source_repository.h"
 
 #include <cstdlib>
 #include <iostream>
+#include <utility>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace
 {
@@ -72,7 +76,15 @@ public:
         return key_it->second.erase(field) > 0;
     }
 
+    bool publish(const char *channel, const std::string &message) override
+    {
+        publishes.push_back({channel, message});
+        return publish_ok;
+    }
+
     std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> hashes;
+    std::vector<std::pair<std::string, std::string>> publishes;
+    bool publish_ok = true;
 
 private:
     static nlohmann::json parse_value(const std::string &value)
@@ -380,6 +392,59 @@ int main()
     expect_true(fake_redis.hget(navcaster::redis_keys::ACT_RECORD, "repo-user").is_null(), "repository delete removes record");
     expect_true(fake_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "repo-user").is_null(), "repository delete removes active index");
     expect_true(account_repo.delete_account("repo-user").status == navcaster::storage::RepositoryStatus::NotFound, "repository missing delete not found");
+
+    navcaster::storage::SourceRepositoryResult source_plan;
+    nlohmann::json source_body = {{"mountpoint", "MOUNT1"}, {"format", "RTCM3"}};
+    expect_true(navcaster::storage::build_source_create_plan(source_body, 2000, source_plan, &reason), "source create plan");
+    expect_eq(source_plan.mountpoint, "MOUNT1", "source plan mountpoint");
+    expect_eq(source_plan.record.value("uid", std::string{}), "MOUNT1", "source plan uid");
+    expect_eq(source_plan.record.value("source_group_uid", std::string{}), "default", "source plan default group");
+    expect_eq_int(source_plan.record.value("record_type", 0), 1, "source plan default record type");
+    expect_eq_int(source_plan.record.value("decode_type", 0), 1, "source plan default decode type");
+    expect_eq_int(source_plan.record.value("display_type", 0), 3, "source plan default display type");
+    expect_true(source_plan.record.value("create_time", 0) == 2000, "source plan create time");
+    expect_true(source_plan.record.value("update_time", 0) == 2000, "source plan update time");
+    expect_true(!navcaster::storage::build_source_create_plan(nlohmann::json::object(), 2000, source_plan, &reason), "source missing mountpoint rejected");
+    expect_true(!navcaster::storage::build_source_update_plan("MOUNT1", {{"mountpoint", "OTHER"}}, 2001, source_plan, &reason), "source update mountpoint mismatch rejected");
+
+    navcaster::storage::SourceRepository source_repo(fake_redis);
+    auto source_result = source_repo.create_source(source_body, 2000);
+    expect_true(source_result.status == navcaster::storage::RepositoryStatus::Ok, "source repository create ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::MPT_RECORD, "MOUNT1").is_object(), "source repository writes record");
+    expect_true(source_repo.create_source(source_body, 2001).status == navcaster::storage::RepositoryStatus::Conflict, "source repository duplicate conflict");
+    source_result = source_repo.update_source("MOUNT1", {{"mountpoint", "MOUNT1"}, {"country", "CN"}}, 2002);
+    expect_true(source_result.status == navcaster::storage::RepositoryStatus::Ok, "source repository update ok");
+    expect_eq(fake_redis.hget(navcaster::redis_keys::MPT_RECORD, "MOUNT1").value("country", std::string{}), "CN", "source repository update value");
+    expect_true(source_repo.delete_source("MOUNT1").status == navcaster::storage::RepositoryStatus::Ok, "source repository delete ok");
+    expect_true(source_repo.delete_source("MOUNT1").status == navcaster::storage::RepositoryStatus::NotFound, "source repository delete missing");
+
+    navcaster::storage::AliasRepositoryResult alias_plan;
+    nlohmann::json alias_body = {{"alias_name", "ALIAS1"}, {"source_name", "MOUNT2"}};
+    expect_true(navcaster::storage::build_alias_create_plan(alias_body, 3000, alias_plan, &reason), "alias create plan");
+    expect_eq(alias_plan.uid, "ALIAS1", "alias plan uid fallback");
+    expect_eq(alias_plan.rule.value("alias_name", std::string{}), "ALIAS1", "alias plan alias name");
+    expect_eq(alias_plan.rule.value("source_name", std::string{}), "MOUNT2", "alias plan source name");
+    expect_true(alias_plan.rule.value("enable", false), "alias plan enable default");
+    expect_true(alias_plan.rule.value("visible", false), "alias plan visible default");
+    expect_true(alias_plan.rule.value("create_time", 0) == 3000, "alias plan create time");
+    expect_true(!navcaster::storage::build_alias_create_plan({{"alias_name", "NO_SOURCE"}}, 3000, alias_plan, &reason), "alias missing source rejected");
+    expect_true(navcaster::storage::build_alias_update_plan("URL_ALIAS", {{"alias_name", "BODY_ALIAS"}, {"source_name", "MOUNT3"}}, 3001, alias_plan, &reason), "alias update plan");
+    expect_eq(alias_plan.uid, "URL_ALIAS", "alias update uses URL uid");
+    expect_eq(alias_plan.rule.value("uid", std::string{}), "URL_ALIAS", "alias update writes URL uid");
+
+    navcaster::storage::AliasRepository alias_repo(fake_redis);
+    auto alias_result = alias_repo.create_alias(alias_body, 3000);
+    expect_true(alias_result.status == navcaster::storage::RepositoryStatus::Ok, "alias repository create ok");
+    expect_true(fake_redis.hget(navcaster::redis_keys::ALIAS_RULE, "ALIAS1").is_object(), "alias repository writes rule");
+    expect_true(!fake_redis.publishes.empty(), "alias repository publishes config change");
+    expect_eq(fake_redis.publishes.back().first, navcaster::redis_keys::CASTER_CONF, "alias publish channel");
+    expect_eq(fake_redis.publishes.back().second, "ALIAS", "alias publish payload");
+    expect_true(alias_repo.create_alias(alias_body, 3001).status == navcaster::storage::RepositoryStatus::Conflict, "alias repository duplicate conflict");
+    alias_result = alias_repo.update_alias("ALIAS1", {{"source_name", "MOUNT4"}}, 3002);
+    expect_true(alias_result.status == navcaster::storage::RepositoryStatus::Ok, "alias repository update ok");
+    expect_eq(fake_redis.hget(navcaster::redis_keys::ALIAS_RULE, "ALIAS1").value("source_name", std::string{}), "MOUNT4", "alias repository update source");
+    expect_true(alias_repo.delete_alias("ALIAS1").status == navcaster::storage::RepositoryStatus::Ok, "alias repository delete ok");
+    expect_true(alias_repo.delete_alias("ALIAS1").status == navcaster::storage::RepositoryStatus::NotFound, "alias repository missing delete");
 
     if (failures != 0)
     {

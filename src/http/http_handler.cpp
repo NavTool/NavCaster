@@ -2,10 +2,12 @@
 #include "SysUsage.h"
 #include "Caster_Core.h"
 #include "account_repository.h"
+#include "alias_repository.h"
 #include "broadcast_msg.h"
 #include "base64.h"
 #include "redis_keys.h"
 #include "ring_log_view.h"
+#include "source_repository.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
@@ -22,11 +24,11 @@
 // Redis key constants — matching CasterWeb and caster_internal
 static const char *KEY_ACCOUNT_RECORD = navcaster::redis_keys::ACT_RECORD;
 static const char *KEY_ACCOUNT_ACTIVE = navcaster::redis_keys::STR_ACTIVE_LEGACY;
-static const char *KEY_SOURCE_RECORD = "MPT:RECORD";
+static const char *KEY_SOURCE_RECORD = navcaster::redis_keys::MPT_RECORD;
 static const char *KEY_SERVER_STATE = "MPT:STAT";
 static const char *KEY_CLIENT_STATE = "USR:STAT";
 static const char *KEY_STREAM_STATE = "STR:STAT";
-static const char *KEY_ALIAS_RULE = "ALIAS:RULE";
+static const char *KEY_ALIAS_RULE = navcaster::redis_keys::ALIAS_RULE;
 static const char *KEY_ACCESS_GROUP = "ACCESS:GROUP";
 static const char *KEY_ACCESS_ITEM = "ACCESS:ITEM"; // + ":group_uid"
 static const char *KEY_PULL_RECORD = "PULL:RECORD";
@@ -286,7 +288,7 @@ namespace
         }
 
         // PUBLISH channel message
-        bool publish(const char *channel, const std::string &message)
+        bool publish(const char *channel, const std::string &message) override
         {
             if (!ensure_connected())
                 return false;
@@ -630,6 +632,29 @@ namespace
             break;
         }
         resp.body = json{{"error", result.error.empty() ? "Repository error" : result.error}}.dump();
+    }
+
+    void write_repository_error(navcaster::storage::RepositoryStatus status, const std::string &error, HttpResponse &resp)
+    {
+        switch (status)
+        {
+        case navcaster::storage::RepositoryStatus::Invalid:
+            resp.status_code = 400;
+            break;
+        case navcaster::storage::RepositoryStatus::NotFound:
+            resp.status_code = 404;
+            break;
+        case navcaster::storage::RepositoryStatus::Conflict:
+            resp.status_code = 409;
+            break;
+        case navcaster::storage::RepositoryStatus::RedisError:
+            resp.status_code = 500;
+            break;
+        case navcaster::storage::RepositoryStatus::Ok:
+            resp.status_code = 200;
+            break;
+        }
+        resp.body = json{{"error", error.empty() ? "Repository error" : error}}.dump();
     }
 
 } // anonymous namespace
@@ -1256,24 +1281,73 @@ void http_handler::handle_get_account_actives(const HttpRequest &req, HttpRespon
 
 // ==================== Sources (MPT:RECORD) ====================
 
-IMPL_GET_ALL(handle_get_sources, KEY_SOURCE_RECORD)
-IMPL_GET_ONE(handle_get_source, KEY_SOURCE_RECORD)
+void http_handler::handle_get_sources(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::SourceRepository repo(sync_redis::instance());
+    json data = repo.list_sources();
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_source(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::SourceRepository repo(sync_redis::instance());
+    json data = repo.get_source(id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 void http_handler::handle_create_source(const HttpRequest &req, HttpResponse &resp)
 {
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    std::string mountpoint = body.value("mountpoint", "");
-    if (mountpoint.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing mountpoint"})"; return; }
-    bool ok = sync_redis::instance().hsetnx(KEY_SOURCE_RECORD, mountpoint.c_str(), body.dump());
-    if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Source already exists"})"; return; }
+    navcaster::storage::SourceRepository repo(sync_redis::instance());
+    auto result = repo.create_source(std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"mountpoint", mountpoint}}.dump();
+    resp.body = json{{"ok", true}, {"mountpoint", result.mountpoint}}.dump();
 }
 
-IMPL_UPDATE(handle_update_source, KEY_SOURCE_RECORD)
-IMPL_DELETE(handle_delete_source, KEY_SOURCE_RECORD)
+void http_handler::handle_update_source(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    json body;
+    try { body = json::parse(req.body); }
+    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
+    navcaster::storage::SourceRepository repo(sync_redis::instance());
+    auto result = repo.update_source(id, std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
+
+void http_handler::handle_delete_source(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::SourceRepository repo(sync_redis::instance());
+    auto result = repo.delete_source(id);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
+    resp.status_code = 200;
+    resp.body = json{{"ok", true}}.dump();
+}
 
 // ==================== Servers (MPT:STAT) read-only ====================
 
@@ -1338,29 +1412,39 @@ IMPL_GET_ONE(handle_get_stream, KEY_STREAM_STATE)
 
 // ==================== Aliases (ALIAS:RULE) ====================
 
-IMPL_GET_ALL(handle_get_aliases, KEY_ALIAS_RULE)
-IMPL_GET_ONE(handle_get_alias, KEY_ALIAS_RULE)
+void http_handler::handle_get_aliases(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::storage::AliasRepository repo(sync_redis::instance());
+    json data = repo.list_aliases();
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
+
+void http_handler::handle_get_alias(const HttpRequest &req, HttpResponse &resp)
+{
+    std::string id = get_resource_id(req);
+    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
+    navcaster::storage::AliasRepository repo(sync_redis::instance());
+    json data = repo.get_alias(id);
+    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
+    resp.status_code = 200;
+    resp.body = data.dump();
+}
 
 void http_handler::handle_create_alias(const HttpRequest &req, HttpResponse &resp)
 {
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    std::string uid = body.value("uid", "");
-    if (uid.empty())
+    navcaster::storage::AliasRepository repo(sync_redis::instance());
+    auto result = repo.create_alias(std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
     {
-        // Fallback: try alias_name or alias_mpt or name
-        std::string alias = body.value("alias_name", "");
-        if (alias.empty()) alias = body.value("alias_mpt", "");
-        if (alias.empty()) alias = body.value("name", "");
-        if (alias.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing alias uid"})"; return; }
-        uid = alias;
+        write_repository_error(result.status, result.error, resp);
+        return;
     }
-    bool ok = sync_redis::instance().hsetnx(KEY_ALIAS_RULE, uid.c_str(), body.dump());
-    if (!ok) { resp.status_code = 409; resp.body = R"({"error":"Alias already exists"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ALIAS");
     resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"alias", uid}}.dump();
+    resp.body = json{{"ok", true}, {"alias", result.uid}}.dump();
 }
 
 void http_handler::handle_update_alias(const HttpRequest &req, HttpResponse &resp)
@@ -1370,9 +1454,13 @@ void http_handler::handle_update_alias(const HttpRequest &req, HttpResponse &res
     json body;
     try { body = json::parse(req.body); }
     catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    bool ok = sync_redis::instance().hset(KEY_ALIAS_RULE, id.c_str(), body.dump());
-    if (!ok) { resp.status_code = 500; resp.body = R"({"error":"Redis error"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ALIAS");
+    navcaster::storage::AliasRepository repo(sync_redis::instance());
+    auto result = repo.update_alias(id, std::move(body), current_unix_seconds());
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }
@@ -1381,9 +1469,13 @@ void http_handler::handle_delete_alias(const HttpRequest &req, HttpResponse &res
 {
     std::string id = get_resource_id(req);
     if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    bool ok = sync_redis::instance().hdel(KEY_ALIAS_RULE, id.c_str());
-    if (!ok) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    sync_redis::instance().publish("CASTER:CONF", "ALIAS");
+    navcaster::storage::AliasRepository repo(sync_redis::instance());
+    auto result = repo.delete_alias(id);
+    if (result.status != navcaster::storage::RepositoryStatus::Ok)
+    {
+        write_repository_error(result.status, result.error, resp);
+        return;
+    }
     resp.status_code = 200;
     resp.body = json{{"ok", true}}.dump();
 }

@@ -60,9 +60,12 @@
 ### Phase 2：Repository 层
 
 - [x] 抽账号 repository。
-- [ ] 抽 source/access/relay/runtime repository。
+- [x] 抽 source/alias repository。
+- [ ] 抽 access repository。
+- [ ] 抽 relay repository。
+- [ ] 抽 runtime state repository 边界。
 - [ ] 统一 proto JSON helper。
-- [ ] HTTP CRUD 改为调用 repository。
+- [ ] HTTP CRUD 全部改为调用 repository。
 
 ### Phase 3：拆 HTTP handler
 
@@ -119,6 +122,10 @@
 - 新增 `RedisHashClient` 和 `AccountRepository`：账号列表/详情/legacy active sessions/create/update/delete 收敛到 repository，HTTP 账号 CRUD 只做请求解析和 result -> HTTP status 映射。
 - HTTP 账号 CRUD 替换为调用 `AccountRepository`，保持 400/404/409/500 行为，并把 `ACT:RECORD -> ACT:ACTIVE` 同步与密码材料保留逻辑从 handler 中移出。
 - 扩展 `schema_smoke` fake Redis 测试：覆盖 repository create 双写主表与登录索引、重复创建冲突、禁用更新清理登录索引、更新保留密码材料、URL/body account 冲突、缺失更新、删除同步清理主表和登录索引。
+- 新增 `RepositoryStatus` 公共状态、`SourceRepository` 和 `AliasRepository`：source/alias 列表、详情、create/update/delete 收敛到 repository，HTTP source/alias CRUD 改为调用 repository。
+- Source 写入计划补齐 `uid=mountpoint`、`source_group_uid=default`、`record_type/decode_type/display_type`、`create_time/update_time`，并拒绝 update URL 与 body `mountpoint` 不一致。
+- Alias 写入计划兼容 `uid/alias_name/alias_mpt/name`，补齐 `uid/alias_name/source_name/enable/visible/create_time/update_time`；create/update/delete 成功后继续发布 `CASTER:CONF` 的 `ALIAS` 变更通知。
+- 扩展 `schema_smoke`：覆盖 source 计划默认值、缺 mountpoint 拒绝、update mountpoint 冲突、source repository CRUD；覆盖 alias key fallback、缺 source_name 拒绝、update 使用 URL uid、alias repository CRUD 和 publish 行为。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -137,5 +144,9 @@
   - 账号 repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - 账号 repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - 账号 repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`，未暴露新增 repository 编译错误。
+  - Source/Alias repository 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Source/Alias repository 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Source/Alias repository 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Source/Alias repository 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`。
   - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

@@ -2,6 +2,7 @@
 
 #include "account_schema.h"
 #include "redis_hash_client.h"
+#include "repository_status.h"
 
 #include <cstdint>
 #include <string>
@@ -10,15 +11,6 @@
 
 namespace navcaster::storage
 {
-
-enum class RepositoryStatus
-{
-    Ok,
-    Invalid,
-    NotFound,
-    Conflict,
-    RedisError
-};
 
 struct AccountRepositoryResult
 {
