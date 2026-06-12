@@ -5,10 +5,65 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <sstream>
+#include <unordered_map>
 
 namespace navcaster::http_api
 {
+namespace
+{
+const std::unordered_map<std::string, std::string> &redis_key_descriptions()
+{
+    static const std::unordered_map<std::string, std::string> descriptions = {
+        {"MPT:STAT", "基站/挂载点实时状态"},
+        {"MPT:RECORD", "自定义挂载点源列表记录"},
+        {"MPT:SOURCE", "挂载点源列表（自动解析）"},
+        {"MPT:LIST", "挂载点在线列表（name→connect_key）"},
+        {"MPT:REC", "挂载点连接列表（connect_key→登录时间）"},
+        {"MPT:SUB", "挂载点订阅关系（name→订阅者列表）"},
+        {"MPT:GEO", "挂载点位置（经纬度）"},
+        {"USR:STAT", "用户实时状态（流量/客户端信息）"},
+        {"USR:LIST", "用户在线列表"},
+        {"USR:REC", "用户连接列表"},
+        {"USR:SUB", "用户数据订阅列表"},
+        {"USR:GEO", "用户最近位置"},
+        {"STR:STAT", "数据流状态（含基站和用户所有连接）"},
+        {"STR:ACTIVE", "账号活跃会话"},
+        {"ACT:RECORD", "账号记录（配置）"},
+        {"ALIAS:RULE", "挂载点别名规则"},
+        {"ACCESS:GROUP", "访问控制组"},
+        {"ACCESS:ITEM", "访问控制组成员项"},
+        {"LOG:MPT", "基站/挂载点连接历史 (按 mount 分 hash)"},
+        {"LOG:USR", "用户连接历史 (按 user 分 hash)"},
+        {"LOG:NODE", "节点上下线事件"},
+        {"LOG:AUDIT", "HTTP API 审计日志 (list)"},
+        {"CASTER:NODE", "集群节点状态"},
+        {"CASTER:MASTER", "Master 节点锁"},
+        {"NODE:HISTORY", "节点历史时间序列（5s/1m/5m）"},
+        {"PULL:RECORD", "Pull 数据拉取配置"},
+        {"PULL:STAT", "Pull 转发运行状态"},
+        {"PUSH:RECORD", "Push 数据推送配置"},
+        {"PUSH:STAT", "Push 转发运行状态"},
+        {"CONF:SERVICE", "service 层配置快照"},
+        {"CONF:CORE", "core 层配置快照"},
+        {"CONF:AUTH", "auth 层配置快照"},
+        {"STAT:DAILY", "按天统计缓存 (7 天 TTL)"},
+        {"MONITOR:REDIS", "Redis 监控历史 (每 60s 采样)"},
+    };
+    return descriptions;
+}
+
+struct RedisKeyGroup
+{
+    std::string prefix;
+    std::string type;
+    int count = 0;
+    long long fields = 0;
+    long long memory = 0;
+    std::string description;
+};
+} // namespace
 
 nlohmann::json parse_redis_info(const std::string &info_text)
 {
@@ -149,6 +204,26 @@ nlohmann::json redis_monitor_summary_body(const nlohmann::json &info, long long 
     return result;
 }
 
+std::string redis_monitor_key_prefix(const std::string &key)
+{
+    for (const auto &[prefix, description] : redis_key_descriptions())
+    {
+        (void)description;
+        if (key == prefix || key.substr(0, prefix.size() + 1) == prefix + ":")
+        {
+            return prefix;
+        }
+    }
+
+    auto pos1 = key.find(':');
+    if (pos1 == std::string::npos)
+    {
+        return key;
+    }
+    auto pos2 = key.find(':', pos1 + 1);
+    return pos2 != std::string::npos ? key.substr(0, pos2) : key;
+}
+
 long long redis_monitor_history_limit(const std::string &range)
 {
     if (range == "6h")
@@ -198,6 +273,57 @@ ControllerResponse RedisMonitorService::summary()
         return error_response(503, "Redis not available");
     }
     return json_response(200, redis_monitor_summary_body(parse_redis_info(info_raw), _redis.dbsize()));
+}
+
+ControllerResponse RedisMonitorService::keys()
+{
+    const auto keys = _redis.scan_all_keys();
+    std::map<std::string, RedisKeyGroup> groups;
+    for (const auto &key : keys)
+    {
+        const std::string prefix = redis_monitor_key_prefix(key);
+        auto &group = groups[prefix];
+        group.prefix = prefix;
+        group.count++;
+
+        const auto type = _redis.type(key.c_str());
+        group.type = type;
+        if (type == "hash")
+        {
+            group.fields += _redis.hlen(key.c_str());
+        }
+        else if (type == "list")
+        {
+            group.fields += _redis.llen(key.c_str());
+        }
+        group.memory += _redis.memory_usage(key.c_str());
+
+        auto desc_it = redis_key_descriptions().find(prefix);
+        if (desc_it != redis_key_descriptions().end())
+        {
+            group.description = desc_it->second;
+        }
+    }
+
+    nlohmann::json categories = nlohmann::json::array();
+    long long total_memory = 0;
+    for (const auto &[prefix, group] : groups)
+    {
+        (void)prefix;
+        categories.push_back({
+            {"prefix", group.prefix},
+            {"type", group.type},
+            {"count", group.count},
+            {"fields", group.fields},
+            {"memory", group.memory},
+            {"description", group.description}});
+        total_memory += group.memory;
+    }
+
+    return json_response(200, {
+        {"categories", categories},
+        {"total_keys", static_cast<int>(keys.size())},
+        {"total_memory", total_memory}});
 }
 
 ControllerResponse RedisMonitorService::history(const std::string &range)

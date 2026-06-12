@@ -718,6 +718,59 @@ int main()
     expect_eq_int(redis_summary_response.status_code, 503, "redis monitor summary empty info status");
     redis_summary_service_body = nlohmann::json::parse(redis_summary_response.body);
     expect_eq(redis_summary_service_body.value("error", std::string{}), "Redis not available", "redis monitor summary empty info error");
+    expect_eq(navcaster::http_api::redis_monitor_key_prefix(redis_keys::mpt_rec("BASE01")), "MPT:REC", "redis monitor key prefix known mpt rec");
+    expect_eq(navcaster::http_api::redis_monitor_key_prefix(redis_keys::access_item("default")), "ACCESS:ITEM", "redis monitor key prefix known access item");
+    expect_eq(navcaster::http_api::redis_monitor_key_prefix("A:B:C"), "A:B", "redis monitor key prefix unknown two segments");
+    expect_eq(navcaster::http_api::redis_monitor_key_prefix("PLAINKEY"), "PLAINKEY", "redis monitor key prefix plain");
+    FakeRedisHashClient redis_keys_redis;
+    redis_keys_redis.hashes[redis_keys::mpt_rec("BASE01")]["conn-a"] = {{"t", 1}};
+    redis_keys_redis.hashes[redis_keys::mpt_rec("BASE01")]["conn-b"] = {{"t", 2}};
+    redis_keys_redis.hashes[redis_keys::access_item("default")]["BASE01"] = {{"mount_point_name", "BASE01"}};
+    redis_keys_redis.lists[redis_keys::LOG_AUDIT] = {
+        {{"id", 2}},
+        {{"id", 1}}
+    };
+    redis_keys_redis.strings["A:B:C"] = "unknown";
+    redis_keys_redis.strings["PLAINKEY"] = "plain";
+    redis_keys_redis.memory[redis_keys::mpt_rec("BASE01")] = 100;
+    redis_keys_redis.memory[redis_keys::access_item("default")] = 30;
+    redis_keys_redis.memory[redis_keys::LOG_AUDIT] = 70;
+    redis_keys_redis.memory["A:B:C"] = 5;
+    redis_keys_redis.memory["PLAINKEY"] = 2;
+    navcaster::http_api::RedisMonitorService redis_keys_service(redis_keys_redis);
+    auto redis_keys_response = redis_keys_service.keys();
+    expect_eq_int(redis_keys_response.status_code, 200, "redis monitor keys service status");
+    auto redis_keys_body = nlohmann::json::parse(redis_keys_response.body);
+    expect_eq_int(redis_keys_body.value("total_keys", 0), 5, "redis monitor keys total keys");
+    expect_eq_int(redis_keys_body.value("total_memory", 0), 207, "redis monitor keys total memory");
+    auto find_redis_category = [](const nlohmann::json &categories, const std::string &prefix) {
+        for (const auto &category : categories)
+        {
+            if (category.value("prefix", std::string{}) == prefix)
+            {
+                return category;
+            }
+        }
+        return nlohmann::json::object();
+    };
+    auto mpt_rec_category = find_redis_category(redis_keys_body["categories"], "MPT:REC");
+    expect_eq(mpt_rec_category.value("type", std::string{}), "hash", "redis monitor keys mpt rec type");
+    expect_eq_int(mpt_rec_category.value("count", 0), 1, "redis monitor keys mpt rec count");
+    expect_eq_int(mpt_rec_category.value("fields", 0), 2, "redis monitor keys mpt rec fields");
+    expect_eq_int(mpt_rec_category.value("memory", 0), 100, "redis monitor keys mpt rec memory");
+    expect_eq(mpt_rec_category.value("description", std::string{}), "挂载点连接列表（connect_key→登录时间）", "redis monitor keys mpt rec description");
+    auto access_item_category = find_redis_category(redis_keys_body["categories"], "ACCESS:ITEM");
+    expect_eq_int(access_item_category.value("fields", 0), 1, "redis monitor keys access item fields");
+    expect_eq(access_item_category.value("description", std::string{}), "访问控制组成员项", "redis monitor keys access item description");
+    auto audit_category = find_redis_category(redis_keys_body["categories"], "LOG:AUDIT");
+    expect_eq(audit_category.value("type", std::string{}), "list", "redis monitor keys audit type");
+    expect_eq_int(audit_category.value("fields", 0), 2, "redis monitor keys audit fields");
+    auto unknown_category = find_redis_category(redis_keys_body["categories"], "A:B");
+    expect_eq(unknown_category.value("type", std::string{}), "string", "redis monitor keys unknown type");
+    expect_eq_int(unknown_category.value("fields", -1), 0, "redis monitor keys unknown fields");
+    expect_eq(unknown_category.value("description", std::string{}), "", "redis monitor keys unknown description");
+    auto plain_category = find_redis_category(redis_keys_body["categories"], "PLAINKEY");
+    expect_eq(plain_category.value("type", std::string{}), "string", "redis monitor keys plain type");
 
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[trace] detail"), 0, "ring log infers trace");
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[debug] detail"), 1, "ring log infers debug");
