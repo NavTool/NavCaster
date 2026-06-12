@@ -15,6 +15,7 @@
 #include "runtime_command_service.h"
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
+#include "sourcetable_service.h"
 #include "source_controller.h"
 #include "source_repository.h"
 #include "sse_snapshot_service.h"
@@ -715,6 +716,64 @@ int main()
     runtime_command_response = runtime_commands.kick(navcaster::storage::RuntimeStateKind::Client, "cli-kick");
     expect_eq_int(runtime_command_response.status_code, 500, "runtime command publish failure");
     runtime_command_redis.publish_ok = true;
+
+    const std::string sourcetable_text =
+        "SOURCETABLE 200 OK\r\n"
+        "STR;MOUNT1;Identifier;RTCM 3.3;1004(1),1005(10);2;GPS;NET;USA;39.123;-104.456;0;0;Caster;none;B;N;0;misc\r\n"
+        "STR;MOUNT2;Other;RTCM 3.2;;;;;CAN;45.000;-75.000\r\n"
+        "ENDSOURCETABLE\r\n"
+        "STR;IGNORED;AfterEnd;RTCM\r\n";
+    auto sourcetable_mounts = navcaster::http_api::parse_sourcetable_text(sourcetable_text);
+    expect_eq_int(static_cast<int>(sourcetable_mounts.size()), 2, "sourcetable parser stops at end");
+    expect_eq(sourcetable_mounts[0].value("mountpoint", std::string{}), "MOUNT1", "sourcetable parser mountpoint");
+    expect_eq(sourcetable_mounts[0].value("identifier", std::string{}), "Identifier", "sourcetable parser identifier");
+    expect_eq(sourcetable_mounts[0].value("format", std::string{}), "RTCM 3.3", "sourcetable parser format");
+    expect_eq(sourcetable_mounts[0].value("format_details", std::string{}), "1004(1),1005(10)", "sourcetable parser format details");
+    expect_eq(sourcetable_mounts[0].value("country", std::string{}), "USA", "sourcetable parser country");
+    expect_eq(sourcetable_mounts[0].value("latitude", std::string{}), "39.123", "sourcetable parser latitude");
+    expect_eq(sourcetable_mounts[0].value("longitude", std::string{}), "-104.456", "sourcetable parser longitude");
+
+    navcaster::http_api::SourcetableRequest sourcetable_request;
+    sourcetable_request.host = "caster.example";
+    sourcetable_request.port = 2102;
+    sourcetable_request.username = "user";
+    sourcetable_request.password = "pass";
+    sourcetable_request.ntrip_version = "1.0";
+    auto request_10 = navcaster::http_api::build_sourcetable_request(sourcetable_request);
+    expect_true(request_10.find("GET / HTTP/1.0\r\n") == 0, "sourcetable request ntrip 1.0 line");
+    expect_true(request_10.find("Host: caster.example:2102\r\n") != std::string::npos, "sourcetable request host header");
+    expect_true(request_10.find("Authorization: Basic dXNlcjpwYXNz\r\n") != std::string::npos, "sourcetable request basic auth");
+    sourcetable_request.ntrip_version = "2.0";
+    auto request_20 = navcaster::http_api::build_sourcetable_request(sourcetable_request);
+    expect_true(request_20.find("GET / HTTP/1.1\r\n") == 0, "sourcetable request ntrip 2.0 line");
+    expect_true(request_20.find("Ntrip-Version: Ntrip/2.0\r\n") != std::string::npos, "sourcetable request ntrip 2.0 header");
+    expect_true(request_20.find("Connection: close\r\n") != std::string::npos, "sourcetable request close header");
+
+    std::string captured_request;
+    navcaster::http_api::SourcetableService sourcetable_service(
+        [&](const navcaster::http_api::SourcetableRequest &, const std::string &request_text) {
+            captured_request = request_text;
+            return navcaster::http_api::SourcetableFetchResult{true, sourcetable_text, {}, {}};
+        });
+    auto sourcetable_response = sourcetable_service.fetch_remote(R"({"host":"caster.example","port":2102,"username":"user","password":"pass","ntrip_version":"2.0"})");
+    expect_eq_int(sourcetable_response.status_code, 200, "sourcetable service fetch ok");
+    expect_true(captured_request.find("Authorization: Basic dXNlcjpwYXNz\r\n") != std::string::npos, "sourcetable service passes request");
+    auto sourcetable_body = nlohmann::json::parse(sourcetable_response.body);
+    expect_eq_int(static_cast<int>(sourcetable_body["mountpoints"].size()), 2, "sourcetable service response mountpoints");
+    sourcetable_response = sourcetable_service.fetch_remote("{");
+    expect_eq_int(sourcetable_response.status_code, 400, "sourcetable service invalid json");
+    sourcetable_response = sourcetable_service.fetch_remote(R"({})");
+    expect_eq_int(sourcetable_response.status_code, 400, "sourcetable service missing host");
+    navcaster::http_api::SourcetableService sourcetable_error_service(
+        [](const navcaster::http_api::SourcetableRequest &, const std::string &) {
+            return navcaster::http_api::SourcetableFetchResult{false, {}, "DNS resolve failed", "no such host"};
+        });
+    sourcetable_response = sourcetable_error_service.fetch_remote(R"({"host":"missing.example"})");
+    expect_eq_int(sourcetable_response.status_code, 502, "sourcetable service fetch error");
+    sourcetable_body = nlohmann::json::parse(sourcetable_response.body);
+    expect_eq(sourcetable_body.value("detail", std::string{}), "no such host", "sourcetable service fetch error detail");
+    sourcetable_response = sourcetable_service.local_from_text(sourcetable_text);
+    expect_eq_int(sourcetable_response.status_code, 200, "sourcetable service local ok");
 
     navcaster::storage::ConfigSection config_section;
     expect_true(navcaster::storage::parse_config_section("service", config_section), "config parses service section");

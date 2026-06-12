@@ -35,10 +35,14 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_command_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/runtime_state_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/sourcetable_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/source_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sse_snapshot_service.cpp
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE caster_proto libprotobuf)
+target_link_libraries(${PROJECT_NAME} PRIVATE casterbase caster_proto libprotobuf)
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
+endif()
 
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})

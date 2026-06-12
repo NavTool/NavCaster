@@ -15,6 +15,7 @@ set(SOURCES
     relay_controller.h relay_controller.cpp
     runtime_command_service.h runtime_command_service.cpp
     runtime_state_controller.h runtime_state_controller.cpp
+    sourcetable_service.h sourcetable_service.cpp
     source_controller.h source_controller.cpp
     redis_adapter.h    redis_adapter.cpp
     sse_manager.h      sse_manager.cpp
@@ -36,6 +37,10 @@ target_link_libraries(${PROJECT_NAME}
     event_extra
     hiredis
 )
+
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} ws2_32)
+endif()
 
 #nlohmann/json
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})

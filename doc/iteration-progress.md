@@ -12,6 +12,7 @@
 
 - 仓库已重新 clone 到 `F:\Dev\NavCaster`。
 - 当前代码快照：`main` @ `96dd728`。
+- 当前迭代分支：`codex-redis-schema-iteration`，已持续按小功能提交推进。
 - 已生成项目记忆文件：`doc/project-memory.md`。
 - 已完成 Redis/账号/模块边界初步评估。
 - 已确认第一轮迭代重点：Redis schema 与账号模型。
@@ -71,6 +72,7 @@
 
 - [~] 按业务域拆 controller。
 - [x] SSE 数据源改为 service/repository。
+- [x] Sourcetable 工具接口拆为 service，并补跨平台 TCP 封装。
 
 ### Phase 4：拆 Caster Core
 
@@ -83,12 +85,12 @@
 
 ## 下一步建议
 
-从 Phase 1 开始：
+继续 Phase 3/4：
 
-1. 新增 Redis key registry 和账号 schema helper。
-2. 梳理并实现 `ACT:RECORD -> ACT:ACTIVE` 同步。
-3. 设计 `STR:ACTIVE` 到 `ACT:SESSION` 或 `ACT:REC:*` 的迁移兼容。
-4. 为实名账号登录路径补验证。
+1. 统计接口：先抽纯聚合函数和 service 测试，再接入 `/api/stats/*` handler。
+2. 历史接口：拆 `LOG:MPT:*`、`LOG:USR:*`、`NODE:HISTORY:*` 的 repository/service 边界。
+3. 运维接口：拆 audit、ring logs、monitor Redis/cluster、node log level。
+4. Caster Core：开始抽 SourceTable、AccessPolicy、RelayScheduler、History 等服务，保留 `CASTER::*` facade。
 
 ## 待确认问题
 
@@ -164,6 +166,10 @@
 - 扩展 `schema_smoke`：直接编译并测试 `RuntimeStateController`，覆盖 Server/Client/Stream/Node 四类 key 的 list/get、空 ID 400、缺失记录 404。
 - 新增 `RuntimeCommandService`：将 server/client kick 的在线状态检查和 `CASTER:BROADCAST` delete 广播发布逻辑从 `http_handler.cpp` 移出，handler 仅负责按路由传入 Server/Client 类型和 uid。
 - 扩展 `schema_smoke`：直接编译并测试 `RuntimeCommandService`，覆盖缺 uid 400、非 server/client 目标 400、离线对象 404、publish 失败 500、server/client kick 成功，并解析真实 `broadcast_msg` JSON 校验广播类型、delete 操作和 target。
+- 新增 `SourcetableService`：将 `/api/utils/sourcetable` 远端抓取和 `/api/utils/sourcetable/local` 本地源表解析从 `http_handler.cpp` 移出，提供可注入 fetcher、NTRIP 1.0/2.0 请求构造、STR 行解析和统一 HTTP 响应。
+- Sourcetable TCP 抓取补跨平台封装：Windows 使用 Winsock/`ws2_32`，POSIX 继续使用 socket API；`http_handler.cpp` 不再直接包含 `sys/socket.h`/`netdb.h`/`unistd.h`。
+- 顺手补齐 `http_handler.cpp` 统计路径的日期解析/本地时间跨平台 helper，用 `std::get_time` 与 `localtime_s/localtime_r` 包装替代 MSVC 不支持的 `strptime/localtime_r` 直调，解除窄构建 `casterhttp` 的 Windows 编译阻塞。
+- 扩展 `schema_smoke`：覆盖 sourcetable STR 解析、`ENDSOURCETABLE` 截止、NTRIP 1.0/2.0 请求头、Basic Auth、远端 mock fetch 成功/失败、非法 JSON、缺 host 和本地源表解析。
 - 验证结果：
   - `cmake -S . -B build` 通过，存在全局 git ignore 权限和 libevent dubious ownership 环境警告。
   - `cmake --build build --target schema_smoke --config Release --parallel` 通过。
@@ -242,5 +248,9 @@
   - Runtime command service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
   - Runtime command service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - Runtime command service 改动后执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false`，仍被既有 Windows/MSVC 头文件问题阻塞于 `src/http/http_handler.cpp` 的 `sys/socket.h`；日志显示 `runtime_command_service.cpp` 已被 `casterhttp` 目标收编译。
-  - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境被既有跨平台头文件问题阻塞：先后失败于 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h`，以及窄构建 `http_handler.cpp` 的 `sys/socket.h`。本轮未将 `casterhttp` 作为通过依据。
+  - Sourcetable service 改动后重新执行 `cmake --build build --target schema_smoke --config Release --parallel` 通过。
+  - Sourcetable service 改动后重新执行 `bin\Release\schema_smoke.exe` 通过，输出 `[schema_smoke] all checks passed`。
+  - Sourcetable service 改动后重新执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
+  - Sourcetable service 改动后重新执行 `cmake --build build --target casterhttp --config Release --parallel -- /p:BuildProjectReferences=false` 通过，`http_handler.cpp` 的 `sys/socket.h` 和 `strptime/localtime_r` Windows/MSVC 阻塞已解除。
+  - `cmake --build build --target casterhttp --config Release --parallel` 在 Windows/MSVC 环境的完整依赖构建仍可能被 `src/core/src/Caster_Core.cpp`/`caster_internal.cpp` 的 `unistd.h` 阻塞；本轮以窄构建 `casterhttp -- /p:BuildProjectReferences=false` 验证 HTTP 目标自身编译通过。
   - `cmake --build build --target castercore --config Release --parallel` 超过 120 秒未完成，本轮未作为通过依据；已终止该次超时遗留的构建进程树。

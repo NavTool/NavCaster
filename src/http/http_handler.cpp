@@ -6,7 +6,6 @@
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
-#include "base64.h"
 #include "config_controller.h"
 #include "config_repository.h"
 #include "redis_keys.h"
@@ -16,6 +15,7 @@
 #include "runtime_command_service.h"
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
+#include "sourcetable_service.h"
 #include "source_controller.h"
 #include "source_repository.h"
 #include "sse_snapshot_service.h"
@@ -26,9 +26,6 @@
 #include <iomanip>
 #include <set>
 #include <sstream>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <unistd.h>
 
 #define __class__ "http_handler"
 
@@ -612,6 +609,28 @@ namespace
     std::int64_t current_unix_seconds()
     {
         return static_cast<std::int64_t>(std::time(nullptr));
+    }
+
+    bool parse_yyyy_mm_dd(const std::string &value, std::tm &tm_value)
+    {
+        std::tm parsed{};
+        std::istringstream stream(value);
+        stream >> std::get_time(&parsed, "%Y-%m-%d");
+        if (stream.fail())
+            return false;
+        tm_value = parsed;
+        return true;
+    }
+
+    std::tm local_time_snapshot(std::time_t value)
+    {
+        std::tm result{};
+#ifdef _WIN32
+        localtime_s(&result, &value);
+#else
+        localtime_r(&value, &result);
+#endif
+        return result;
     }
 
     void write_repository_error(navcaster::storage::RepositoryStatus status, const std::string &error, HttpResponse &resp)
@@ -1536,7 +1555,7 @@ static long long parse_time_param(const std::unordered_map<std::string, std::str
     try { return std::stoll(it->second); } catch (...) {}
     // Try date string "YYYY-MM-DD"
     struct tm tm_val{};
-    if (strptime(it->second.c_str(), "%Y-%m-%d", &tm_val))
+    if (parse_yyyy_mm_dd(it->second, tm_val))
         return mktime(&tm_val);
     return 0;
 }
@@ -1555,7 +1574,7 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     if (date_it != req.query_params.end() && !date_it->second.empty())
     {
         struct tm tm_val{};
-        if (strptime(date_it->second.c_str(), "%Y-%m-%d", &tm_val))
+        if (parse_yyyy_mm_dd(date_it->second, tm_val))
         {
             start_ts = mktime(&tm_val);
             tm_val.tm_mday += 1;
@@ -1566,9 +1585,8 @@ void http_handler::handle_get_stats_overview(const HttpRequest &req, HttpRespons
     // Default: today
     if (start_ts == 0)
     {
-        struct tm tm_today{};
         time_t t = time(nullptr);
-        localtime_r(&t, &tm_today);
+        struct tm tm_today = local_time_snapshot(t);
         tm_today.tm_hour = 0; tm_today.tm_min = 0; tm_today.tm_sec = 0;
         start_ts = mktime(&tm_today);
     }
@@ -1726,7 +1744,7 @@ void http_handler::handle_get_stats_daily(const HttpRequest &req, HttpResponse &
 
     // Parse date to start_ts / end_ts
     struct tm tm_val{};
-    if (!strptime(date_str.c_str(), "%Y-%m-%d", &tm_val))
+    if (!parse_yyyy_mm_dd(date_str, tm_val))
     {
         resp.status_code = 400;
         resp.body = R"({"error":"Invalid date"})";
@@ -1885,7 +1903,7 @@ void http_handler::handle_get_stats_mpt_ranking(const HttpRequest &req, HttpResp
     long long now_ts = static_cast<long long>(time(nullptr));
     long long start_ts = parse_time_param(req.query_params, "start");
     long long end_ts = parse_time_param(req.query_params, "end");
-    if (start_ts == 0) { struct tm t{}; time_t tt = time(nullptr); localtime_r(&tt, &t); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
+    if (start_ts == 0) { time_t tt = time(nullptr); struct tm t = local_time_snapshot(tt); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
     if (end_ts == 0) end_ts = now_ts + 1;
 
     int limit = 20;
@@ -1952,7 +1970,7 @@ void http_handler::handle_get_stats_usr_ranking(const HttpRequest &req, HttpResp
     long long now_ts = static_cast<long long>(time(nullptr));
     long long start_ts = parse_time_param(req.query_params, "start");
     long long end_ts = parse_time_param(req.query_params, "end");
-    if (start_ts == 0) { struct tm t{}; time_t tt = time(nullptr); localtime_r(&tt, &t); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
+    if (start_ts == 0) { time_t tt = time(nullptr); struct tm t = local_time_snapshot(tt); t.tm_hour=0;t.tm_min=0;t.tm_sec=0; start_ts = mktime(&t); }
     if (end_ts == 0) end_ts = now_ts + 1;
 
     int limit = 20;
@@ -2153,184 +2171,20 @@ void http_handler::handle_get_health(const HttpRequest &req, HttpResponse &resp)
 
 void http_handler::handle_fetch_sourcetable(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-
-    std::string host = body.value("host", "");
-    int port = body.value("port", 2101);
-    std::string user = body.value("username", "");
-    std::string pass = body.value("password", "");
-    std::string ntrip_ver = body.value("ntrip_version", "2.0"); // "1.0" or "2.0"
-
-    if (host.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing host"})"; return; }
-
-    // Synchronous TCP connect + NTRIP sourcetable request
-    int sock = -1;
-    struct addrinfo hints{}, *res = nullptr;
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    int gai = getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res);
-    if (gai != 0 || !res)
-    {
-        resp.status_code = 502;
-        resp.body = json{{"error", "DNS resolve failed"}, {"detail", gai_strerror(gai)}}.dump();
-        if (res) freeaddrinfo(res);
-        return;
-    }
-
-    sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sock < 0)
-    {
-        freeaddrinfo(res);
-        resp.status_code = 502;
-        resp.body = R"({"error":"Socket creation failed"})";
-        return;
-    }
-
-    // Set connect timeout (5 seconds)
-    struct timeval tv{5, 0};
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-
-    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0)
-    {
-        freeaddrinfo(res);
-        close(sock);
-        resp.status_code = 502;
-        resp.body = json{{"error", "Connection failed"}, {"detail", std::string(strerror(errno))}}.dump();
-        return;
-    }
-    freeaddrinfo(res);
-
-    // Build NTRIP sourcetable request based on version
-    std::string request_str;
-    if (ntrip_ver == "1.0")
-    {
-        // NTRIP 1.0: simple HTTP/1.0 request
-        request_str = "GET / HTTP/1.0\r\nHost: " + host + ":" + std::to_string(port) + "\r\n"
-                      "User-Agent: NTRIP NavCaster/1.0\r\n";
-    }
-    else
-    {
-        // NTRIP 2.0: HTTP/1.1 with Ntrip-Version header
-        request_str = "GET / HTTP/1.1\r\nHost: " + host + ":" + std::to_string(port) + "\r\n"
-                      "Ntrip-Version: Ntrip/2.0\r\n"
-                      "User-Agent: NTRIP NavCaster/2.0\r\n"
-                      "Connection: close\r\n";
-    }
-    if (!user.empty())
-    {
-        std::string credentials = user + ":" + pass;
-        std::string encoded = util_base64_encode(credentials.c_str());
-        request_str += "Authorization: Basic " + encoded + "\r\n";
-    }
-    request_str += "\r\n";
-
-    ssize_t sent = send(sock, request_str.c_str(), request_str.size(), 0);
-    if (sent <= 0)
-    {
-        close(sock);
-        resp.status_code = 502;
-        resp.body = R"({"error":"Send failed"})";
-        return;
-    }
-
-    // Read response (sourcetable is typically small, 64KB buffer is plenty)
-    std::string response;
-    char buf[4096];
-    ssize_t n;
-    while ((n = recv(sock, buf, sizeof(buf), 0)) > 0)
-    {
-        response.append(buf, n);
-        if (response.size() > 65536) break; // Safety limit
-    }
-    close(sock);
-
-    if (response.empty())
-    {
-        resp.status_code = 502;
-        resp.body = R"({"error":"No response from server"})";
-        return;
-    }
-
-    // Parse STR lines from NTRIP sourcetable
-    json mountpoints = json::array();
-    std::istringstream stream(response);
-    std::string line;
-    while (std::getline(stream, line))
-    {
-        // Remove trailing \r
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-
-        if (line.substr(0, 4) == "STR;")
-        {
-            // STR;mountpoint;identifier;format;...
-            std::vector<std::string> fields;
-            std::string field;
-            std::istringstream lss(line);
-            while (std::getline(lss, field, ';'))
-                fields.push_back(field);
-
-            if (fields.size() >= 2)
-            {
-                json entry;
-                entry["mountpoint"] = fields[1];
-                if (fields.size() > 2) entry["identifier"] = fields[2];
-                if (fields.size() > 3) entry["format"] = fields[3];
-                if (fields.size() > 4) entry["format_details"] = fields[4];
-                if (fields.size() > 8) entry["country"] = fields[8];
-                if (fields.size() > 9) entry["latitude"] = fields[9];
-                if (fields.size() > 10) entry["longitude"] = fields[10];
-                mountpoints.push_back(entry);
-            }
-        }
-        if (line.find("ENDSOURCETABLE") != std::string::npos)
-            break;
-    }
-
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"mountpoints", mountpoints}}.dump();
+    navcaster::http_api::SourcetableService service;
+    auto result = service.fetch_remote(req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_local_sourcetable(const HttpRequest &req, HttpResponse &resp)
 {
     // 直接从 CasterCore 获取本地源表，不通过 NTRIP 协议（避免同线程阻塞死锁）
     std::string source_table_text = CASTER::Get_Source_Table_Text();
-
-    // 解析 STR 行
-    json mountpoints = json::array();
-    std::istringstream stream(source_table_text);
-    std::string line;
-    while (std::getline(stream, line))
-    {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (line.substr(0, 4) == "STR;")
-        {
-            std::vector<std::string> fields;
-            std::string field;
-            std::istringstream lss(line);
-            while (std::getline(lss, field, ';'))
-                fields.push_back(field);
-
-            if (fields.size() >= 2)
-            {
-                json entry;
-                entry["mountpoint"] = fields[1];
-                if (fields.size() > 2) entry["identifier"] = fields[2];
-                if (fields.size() > 3) entry["format"] = fields[3];
-                if (fields.size() > 4) entry["format_details"] = fields[4];
-                if (fields.size() > 8) entry["country"] = fields[8];
-                if (fields.size() > 9) entry["latitude"] = fields[9];
-                if (fields.size() > 10) entry["longitude"] = fields[10];
-                mountpoints.push_back(entry);
-            }
-        }
-    }
-
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}, {"mountpoints", mountpoints}}.dump();
+    navcaster::http_api::SourcetableService service;
+    auto result = service.local_from_text(source_table_text);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Configuration ====================
