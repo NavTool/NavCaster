@@ -35,6 +35,15 @@ int number_to_int(const nlohmann::json &value, int fallback = 0)
     return fallback;
 }
 
+int bool_or_number_to_int(const nlohmann::json &value, int fallback = 0)
+{
+    if (value.is_boolean())
+    {
+        return value.get<bool>() ? 1 : 0;
+    }
+    return number_to_int(value, fallback);
+}
+
 std::string string_or_empty(const nlohmann::json &record, const char *field)
 {
     auto it = record.find(field);
@@ -108,6 +117,56 @@ nlohmann::json build_active_index(const nlohmann::json &record)
     return active;
 }
 
+bool build_account_sync_plan(nlohmann::json record, std::int64_t now, AccountSyncPlan &plan, std::string *error)
+{
+    plan = {};
+    auto normalized = normalize_account_record(std::move(record), now);
+    const std::string account = normalized.value("account", std::string{});
+    if (account.empty())
+    {
+        if (error)
+        {
+            *error = "account is required";
+        }
+        return false;
+    }
+
+    plan.account = account;
+    plan.record = std::move(normalized);
+
+    std::string reason;
+    if (is_login_enabled(plan.record, now, &reason))
+    {
+        plan.write_active_index = true;
+        plan.active_index = build_active_index(plan.record);
+    }
+    else
+    {
+        plan.delete_active_index = true;
+        plan.inactive_reason = std::move(reason);
+    }
+
+    return true;
+}
+
+bool build_account_delete_plan(const std::string &account, AccountDeletePlan &plan, std::string *error)
+{
+    plan = {};
+    if (account.empty())
+    {
+        if (error)
+        {
+            *error = "account is required";
+        }
+        return false;
+    }
+
+    plan.account = account;
+    plan.delete_record = true;
+    plan.delete_active_index = true;
+    return true;
+}
+
 bool is_login_enabled(const nlohmann::json &record, std::int64_t now, std::string *reason)
 {
     const int state = record.value("state", 0);
@@ -171,8 +230,10 @@ bool parse_auth_view(const std::string &json_text, AccountAuthView &view, std::s
     view.group_uid = normalize_group_uid(record.value("group_uid", record.value("group", std::string{})));
     view.connection_limit = normalize_connection_limit(record.value("connection_limit", record.value("connect_limit", 0)));
     view.type = record.value("type", 0);
-    view.state = record.value("state", 0);
-    view.active = record.value("active", 0);
+    auto state_it = record.find("state");
+    view.state = state_it == record.end() ? 0 : bool_or_number_to_int(*state_it);
+    auto active_it = record.find("active");
+    view.active = active_it == record.end() ? 0 : bool_or_number_to_int(*active_it);
 
     auto expire_it = record.find("expire_time");
     if (expire_it == record.end())
