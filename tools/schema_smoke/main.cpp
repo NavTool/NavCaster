@@ -17,6 +17,8 @@
 #include "node_history_repository.h"
 #include "node_history_service.h"
 #include "redis_keys.h"
+#include "redis_monitor_repository.h"
+#include "redis_monitor_service.h"
 #include "relay_controller.h"
 #include "relay_repository.h"
 #include "ring_log_service.h"
@@ -517,6 +519,50 @@ int main()
     expect_eq_int(cluster_response.status_code, 200, "cluster monitor service status");
     auto cluster_body = nlohmann::json::parse(cluster_response.body);
     expect_eq(cluster_body.value("master_node", std::string{}), "node-a", "cluster monitor service body");
+
+    expect_eq_int(static_cast<int>(navcaster::http_api::redis_monitor_history_limit("")), 60, "redis monitor history default range");
+    expect_eq_int(static_cast<int>(navcaster::http_api::redis_monitor_history_limit("1h")), 60, "redis monitor history 1h range");
+    expect_eq_int(static_cast<int>(navcaster::http_api::redis_monitor_history_limit("6h")), 360, "redis monitor history 6h range");
+    expect_eq_int(static_cast<int>(navcaster::http_api::redis_monitor_history_limit("24h")), 1440, "redis monitor history 24h range");
+    expect_eq_int(static_cast<int>(navcaster::http_api::redis_monitor_history_limit("7d")), 10080, "redis monitor history 7d range");
+    expect_eq_int(static_cast<int>(navcaster::http_api::redis_monitor_history_limit("bad")), 60, "redis monitor history bad range defaults");
+    FakeRedisHashClient redis_monitor_redis;
+    for (int t = 65; t >= 1; --t)
+    {
+        redis_monitor_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].push_back({{"t", t}, {"used_memory", t * 10}});
+    }
+    redis_monitor_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].insert(
+        redis_monitor_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].begin(),
+        nlohmann::json{{"t", 66}, {"used_memory", 0}});
+    redis_monitor_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].insert(
+        redis_monitor_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].begin(),
+        nlohmann::json{{"t", 0}, {"used_memory", 670}});
+    redis_monitor_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].insert(
+        redis_monitor_redis.lists[redis_keys::MONITOR_REDIS_HISTORY].begin(),
+        "bad");
+    navcaster::storage::RedisMonitorRepository redis_monitor_repo(redis_monitor_redis);
+    auto redis_monitor_raw = redis_monitor_repo.history(2);
+    expect_eq_int(static_cast<int>(redis_monitor_raw.size()), 2, "redis monitor repository applies limit");
+    expect_true(redis_monitor_raw[0].is_string(), "redis monitor repository keeps newest item");
+    auto redis_monitor_items = navcaster::http_api::redis_monitor_history_items(redis_monitor_raw);
+    expect_eq_int(static_cast<int>(redis_monitor_items.size()), 0, "redis monitor history helper filters invalid recent items");
+    navcaster::http_api::RedisMonitorService redis_monitor_service(redis_monitor_redis);
+    auto redis_monitor_response = redis_monitor_service.history("");
+    expect_eq_int(redis_monitor_response.status_code, 200, "redis monitor history service status");
+    auto redis_monitor_body = nlohmann::json::parse(redis_monitor_response.body);
+    expect_eq_int(redis_monitor_body.value("count", 0), 57, "redis monitor history service defaults to 60 raw points");
+    expect_eq_int(redis_monitor_body["items"][0].value("t", 0), 9, "redis monitor history service returns ascending time");
+    expect_eq_int(redis_monitor_body["items"].back().value("t", 0), 65, "redis monitor history service newest retained");
+    redis_monitor_response = redis_monitor_service.history("7d");
+    redis_monitor_body = nlohmann::json::parse(redis_monitor_response.body);
+    expect_eq_int(redis_monitor_body.value("count", 0), 65, "redis monitor history service 7d reads all valid points");
+    expect_eq_int(redis_monitor_body["items"][0].value("t", 0), 1, "redis monitor history service 7d oldest first");
+    FakeRedisHashClient empty_redis_monitor_redis;
+    navcaster::http_api::RedisMonitorService empty_redis_monitor_service(empty_redis_monitor_redis);
+    redis_monitor_response = empty_redis_monitor_service.history("24h");
+    redis_monitor_body = nlohmann::json::parse(redis_monitor_response.body);
+    expect_eq_int(redis_monitor_body.value("count", -1), 0, "redis monitor history service empty list count");
+    expect_true(redis_monitor_body["items"].is_array() && redis_monitor_body["items"].empty(), "redis monitor history service empty list items");
 
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[trace] detail"), 0, "ring log infers trace");
     expect_eq_int(navcaster::http_api::infer_ring_log_level("[debug] detail"), 1, "ring log infers debug");

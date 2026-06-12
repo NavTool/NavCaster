@@ -13,6 +13,7 @@
 #include "connection_history_service.h"
 #include "node_history_service.h"
 #include "redis_keys.h"
+#include "redis_monitor_service.h"
 #include "ring_log_service.h"
 #include "ring_log_view.h"
 #include "relay_controller.h"
@@ -2341,29 +2342,15 @@ void http_handler::sample_redis_history()
 
 void http_handler::handle_get_monitor_redis_history(const HttpRequest &req, HttpResponse &resp)
 {
-    long long minutes = 60; // 1h \u9ed8\u8ba4
+    std::string range;
     auto it = req.query_params.find("range");
     if (it != req.query_params.end())
     {
-        const std::string &r = it->second;
-        if (r == "6h")  minutes = 360;
-        else if (r == "24h") minutes = 1440;
-        else if (r == "7d") minutes = 10080;
-        else if (r == "1h")  minutes = 60;
+        range = it->second;
     }
-    auto &redis = sync_redis::instance();
-    json arr = redis.lrange(KEY_REDIS_HISTORY, 0, minutes - 1);
-    // Redis \u5b58\u4ee5 LPUSH\uff08\u6700\u65b0\u5728\u5934\uff09\uff0c\u53cd\u8f6c\u4e3a\u65f6\u95f4\u5347\u5e8f
-    json items = json::array();
-    for (auto it2 = arr.rbegin(); it2 != arr.rend(); ++it2)
-    {
-        if (!it2->is_object() || it2->value("t", 0LL) <= 0 || it2->value("used_memory", 0ULL) == 0)
-        {
-            continue;
-        }
-        items.push_back(*it2);
-    }
-    json result = {{"items", items}, {"count", items.size()}};
-    resp.status_code = 200;
-    resp.body = result.dump();
+
+    navcaster::http_api::RedisMonitorService service(sync_redis::instance());
+    auto result = service.history(range);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }

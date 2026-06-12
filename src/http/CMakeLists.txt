@@ -17,6 +17,7 @@ set(SOURCES
     alias_controller.h alias_controller.cpp
     config_controller.h config_controller.cpp
     relay_controller.h relay_controller.cpp
+    redis_monitor_service.h redis_monitor_service.cpp
     runtime_command_service.h runtime_command_service.cpp
     runtime_state_controller.h runtime_state_controller.cpp
     sourcetable_service.h sourcetable_service.cpp
