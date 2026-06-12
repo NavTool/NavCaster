@@ -12,6 +12,7 @@
 #include "ring_log_view.h"
 #include "relay_repository.h"
 #include "runtime_state_repository.h"
+#include "source_controller.h"
 #include "source_repository.h"
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -1193,70 +1194,42 @@ void http_handler::handle_get_account_actives(const HttpRequest &req, HttpRespon
 
 void http_handler::handle_get_sources(const HttpRequest &req, HttpResponse &resp)
 {
-    navcaster::storage::SourceRepository repo(sync_redis::instance());
-    json data = repo.list_sources();
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.list_sources();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_get_source(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::SourceRepository repo(sync_redis::instance());
-    json data = repo.get_source(id);
-    if (data.is_null()) { resp.status_code = 404; resp.body = R"({"error":"Not found"})"; return; }
-    resp.status_code = 200;
-    resp.body = data.dump();
+    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.get_source(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_create_source(const HttpRequest &req, HttpResponse &resp)
 {
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::SourceRepository repo(sync_redis::instance());
-    auto result = repo.create_source(std::move(body), current_unix_seconds());
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 201;
-    resp.body = json{{"ok", true}, {"mountpoint", result.mountpoint}}.dump();
+    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.create_source(req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_update_source(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    json body;
-    try { body = json::parse(req.body); }
-    catch (...) { resp.status_code = 400; resp.body = R"({"error":"Invalid JSON"})"; return; }
-    navcaster::storage::SourceRepository repo(sync_redis::instance());
-    auto result = repo.update_source(id, std::move(body), current_unix_seconds());
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.update_source(get_resource_id(req), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 void http_handler::handle_delete_source(const HttpRequest &req, HttpResponse &resp)
 {
-    std::string id = get_resource_id(req);
-    if (id.empty()) { resp.status_code = 400; resp.body = R"({"error":"Missing ID"})"; return; }
-    navcaster::storage::SourceRepository repo(sync_redis::instance());
-    auto result = repo.delete_source(id);
-    if (result.status != navcaster::storage::RepositoryStatus::Ok)
-    {
-        write_repository_error(result.status, result.error, resp);
-        return;
-    }
-    resp.status_code = 200;
-    resp.body = json{{"ok", true}}.dump();
+    navcaster::http_api::SourceController controller(sync_redis::instance(), current_unix_seconds());
+    auto result = controller.delete_source(get_resource_id(req));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
 }
 
 // ==================== Servers (MPT:STAT) read-only ====================

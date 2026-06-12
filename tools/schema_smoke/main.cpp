@@ -8,6 +8,7 @@
 #include "redis_keys.h"
 #include "relay_repository.h"
 #include "runtime_state_repository.h"
+#include "source_controller.h"
 #include "source_repository.h"
 
 #include <cstdlib>
@@ -628,6 +629,33 @@ int main()
     expect_missing(saved_auth, "old_password", "config controller strips old password");
     config_response = config_controller.update_config("service", "{");
     expect_eq_int(config_response.status_code, 400, "config controller rejects invalid json");
+
+    FakeRedisHashClient source_controller_redis;
+    navcaster::http_api::SourceController source_controller(source_controller_redis, 9010);
+    auto source_response = source_controller.list_sources();
+    expect_eq_int(source_response.status_code, 200, "source controller list ok");
+    source_response = source_controller.create_source(R"({"mountpoint":"CTRL1"})");
+    expect_eq_int(source_response.status_code, 201, "source controller create ok");
+    auto source_controller_body = nlohmann::json::parse(source_response.body);
+    expect_eq(source_controller_body.value("mountpoint", std::string{}), "CTRL1", "source controller create response");
+    source_response = source_controller.get_source("CTRL1");
+    expect_eq_int(source_response.status_code, 200, "source controller get ok");
+    source_controller_body = nlohmann::json::parse(source_response.body);
+    expect_eq_int(source_controller_body.value("create_time", 0), 9010, "source controller create time");
+    source_response = source_controller.create_source(R"({"mountpoint":"CTRL1"})");
+    expect_eq_int(source_response.status_code, 409, "source controller duplicate create");
+    source_response = source_controller.create_source("{");
+    expect_eq_int(source_response.status_code, 400, "source controller invalid json");
+    source_response = source_controller.get_source("");
+    expect_eq_int(source_response.status_code, 400, "source controller missing get id");
+    source_response = source_controller.get_source("missing");
+    expect_eq_int(source_response.status_code, 404, "source controller missing get");
+    source_response = source_controller.update_source("CTRL1", R"({"country":"CN"})");
+    expect_eq_int(source_response.status_code, 200, "source controller update ok");
+    source_response = source_controller.delete_source("CTRL1");
+    expect_eq_int(source_response.status_code, 200, "source controller delete ok");
+    source_response = source_controller.delete_source("CTRL1");
+    expect_eq_int(source_response.status_code, 404, "source controller missing delete");
 
     if (failures != 0)
     {

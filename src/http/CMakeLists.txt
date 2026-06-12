@@ -8,6 +8,7 @@ set(SOURCES
     http_handler.h     http_handler.cpp
     controller_response.h
     config_controller.h config_controller.cpp
+    source_controller.h source_controller.cpp
     redis_adapter.h    redis_adapter.cpp
     sse_manager.h      sse_manager.cpp
     ring_log_view.h    ring_log_view.cpp
