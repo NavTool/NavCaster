@@ -120,7 +120,8 @@
 
 返回当前活跃（在线）的账户列表。
 
-> Redis Key: `STR:ACTIVE`（auth Redis 实例）
+> Redis Key: 优先聚合 `ACT:SESSION:<account>`（auth Redis 实例），并兼容
+> legacy `STR:ACTIVE` fallback。`ACT:ACTIVE` 是登录索引，不作为在线会话来源。
 
 **Response 200:** `Record<string, AccountActive>`
 
@@ -861,7 +862,7 @@ data: {"node01:user01":{"uid":"node01:user01","username":"user01",...}}
 | `pull_states` | `PULL:STAT` | Pull 中继状态 |
 | `push_records` | `PUSH:RECORD` | Push 中继配置 |
 | `push_states` | `PUSH:STAT` | Push 中继状态 |
-| `account_actives` | `STR:ACTIVE` | 在线活跃账户 |
+| `account_actives` | `ACT:SESSION:*` + `STR:ACTIVE` fallback | 在线活跃账户 |
 
 **连接行为**：
 - 建立连接后立即推送所有订阅频道的当前快照

@@ -99,7 +99,7 @@ ControllerResponse AccountController::delete_account(const std::string &account)
 ControllerResponse AccountController::list_active_sessions()
 {
     storage::AccountRepository repo(_redis);
-    return json_response(200, repo.list_legacy_active_sessions());
+    return json_response(200, repo.list_active_sessions());
 }
 
 } // namespace navcaster::http_api

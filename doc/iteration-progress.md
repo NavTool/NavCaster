@@ -440,3 +440,5 @@
   - NC-008A Auth Session 写侧：新增 `ACT:SESSION:<account>` 实名会话写入契约，登录通过连接数限制后写 JSON，会话续期刷新 TTL 和 `update_time`，登出、拒绝登录、连接数踢线时删除对应 `connect_key`；匿名登录暂不进入展示会话桶。
   - NC-008A 保护 `ACT:REC:*` 连接数控制桶语义：`ACT:SESSION:*` 只作为展示会话来源，定时续期只刷新已通过限流回调放行的实名会话，广播踢线先关闭本地续期标志，避免被踢连接重新写回展示桶。
   - NC-008A `schema_smoke` 新增 `ACT:SESSION:*` key、`auth_type`、默认/显式 `group_uid`、`online_time/update_time`、空 `addr/port` 和 registered flag 的纯逻辑断言；真实 Redis/NTRIP e2e 需在 Redis 8.4+ fixture 下继续补。
+  - NC-008B HTTP/SSE 读侧：`AccountRepository::list_active_sessions()` 优先聚合 `ACT:SESSION:*`，合并 legacy `STR:ACTIVE` fallback，冲突时新 session 优先；`/api/accounts/active`、`get_account("active")` 兜底和 SSE `account_actives` 复用同源方法。
+  - NC-008B `schema_smoke` 覆盖空数据 `{}`、仅 `STR:ACTIVE`、仅 `ACT:SESSION:*`、二者冲突、仅 `ACT:ACTIVE` 不算在线会话、多连接同账号不丢失、输出剥离密码材料，以及 SSE auth Redis 同源。

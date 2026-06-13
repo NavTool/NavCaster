@@ -26,6 +26,41 @@ AccountRepositoryResult redis_error_result(const std::string &account, const std
     result.error = message;
     return result;
 }
+
+void strip_password_material(nlohmann::json &record)
+{
+    static constexpr const char *fields[] = {
+        "password",
+        "password_hash",
+        "password_algo",
+        "password_salt",
+        "password_iterations",
+        "old_password",
+    };
+    for (const auto *field : fields)
+    {
+        record.erase(field);
+    }
+}
+
+void merge_active_session_records(nlohmann::json &target, const nlohmann::json &records)
+{
+    if (!records.is_object())
+    {
+        return;
+    }
+
+    for (auto it = records.begin(); it != records.end(); ++it)
+    {
+        nlohmann::json record;
+        if (!json_record::coerce_record(it.value(), record))
+        {
+            continue;
+        }
+        strip_password_material(record);
+        target[it.key()] = std::move(record);
+    }
+}
 } // namespace
 
 AccountRepository::AccountRepository(RedisHashClient &redis)
@@ -50,6 +85,14 @@ nlohmann::json AccountRepository::get_account(const std::string &account)
 nlohmann::json AccountRepository::list_legacy_active_sessions()
 {
     return _redis.hgetall(redis_keys::STR_ACTIVE_LEGACY);
+}
+
+nlohmann::json AccountRepository::list_active_sessions()
+{
+    nlohmann::json result = nlohmann::json::object();
+    merge_active_session_records(result, _redis.hgetall(redis_keys::STR_ACTIVE_LEGACY));
+    merge_active_session_records(result, _redis.scan_hgetall_prefix(redis_keys::ACT_SESSION_PREFIX));
+    return result;
 }
 
 AccountRepositoryResult AccountRepository::create_account(nlohmann::json record, std::int64_t now)

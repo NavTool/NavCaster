@@ -1590,6 +1590,47 @@ int main()
     expect_true(fake_redis.hget(navcaster::redis_keys::ACT_ACTIVE, "repo-user").is_null(), "repository delete removes active index");
     expect_true(account_repo.delete_account("repo-user").status == navcaster::storage::RepositoryStatus::NotFound, "repository missing delete not found");
 
+    auto active_sessions = account_repo.list_active_sessions();
+    expect_true(active_sessions.is_object() && active_sessions.empty(), "repository active sessions empty object");
+    fake_redis.hset(navcaster::redis_keys::ACT_ACTIVE, "login-index-only", nlohmann::json{{"account", "login-index-only"}}.dump());
+    active_sessions = account_repo.list_active_sessions();
+    expect_true(!active_sessions.contains("login-index-only"), "repository active sessions ignore ACT_ACTIVE");
+
+    {
+        FakeRedisHashClient only_legacy_redis;
+        navcaster::storage::AccountRepository only_legacy_repo(only_legacy_redis);
+        only_legacy_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "legacy-only", nlohmann::json{{"uid", "legacy-only"}, {"account", "legacy-user"}, {"password", "legacy-secret"}}.dump());
+        auto only_legacy_sessions = only_legacy_repo.list_active_sessions();
+        expect_true(only_legacy_sessions.contains("legacy-only"), "repository active sessions read only STR_ACTIVE");
+        expect_eq(only_legacy_sessions["legacy-only"].value("account", std::string{}), "legacy-user", "repository only legacy account");
+        expect_missing(only_legacy_sessions["legacy-only"], "password", "repository only legacy strips password");
+    }
+
+    {
+        FakeRedisHashClient only_session_redis;
+        navcaster::storage::AccountRepository only_session_repo(only_session_redis);
+        only_session_redis.hset(navcaster::redis_keys::act_session("active-user").c_str(), "session-only", nlohmann::json{{"uid", "session-only"}, {"connect_key", "session-only"}, {"account", "active-user"}, {"auth_type", "client"}, {"online_time", 10}, {"update_time", 20}, {"password_hash", "hidden"}}.dump());
+        auto only_session_sessions = only_session_repo.list_active_sessions();
+        expect_true(only_session_sessions.contains("session-only"), "repository active sessions read only ACT_SESSION");
+        expect_eq(only_session_sessions["session-only"].value("connect_key", std::string{}), "session-only", "repository only session connect key");
+        expect_missing(only_session_sessions["session-only"], "password_hash", "repository only session strips hash");
+    }
+
+    fake_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "legacy-1", nlohmann::json{{"uid", "legacy-1"}, {"account", "legacy-user"}}.dump());
+    fake_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "conflict", nlohmann::json{{"uid", "conflict"}, {"account", "legacy-user"}, {"password", "legacy-secret"}}.dump());
+    fake_redis.hset(navcaster::redis_keys::act_session("active-user").c_str(), "session-1", nlohmann::json{{"uid", "session-1"}, {"connect_key", "session-1"}, {"account", "active-user"}, {"auth_type", "client"}, {"online_time", 10}, {"update_time", 20}, {"password_hash", "hidden"}}.dump());
+    fake_redis.hset(navcaster::redis_keys::act_session("active-user").c_str(), "session-2", nlohmann::json{{"uid", "session-2"}, {"connect_key", "session-2"}, {"account", "active-user"}, {"auth_type", "server"}}.dump());
+    fake_redis.hset(navcaster::redis_keys::act_session("legacy-user").c_str(), "conflict", nlohmann::json{{"uid", "conflict"}, {"connect_key", "conflict"}, {"account", "active-user"}, {"auth_type", "client"}, {"password_salt", "hidden"}}.dump());
+    active_sessions = account_repo.list_active_sessions();
+    expect_true(active_sessions.contains("legacy-1"), "repository active sessions keep legacy fallback");
+    expect_true(active_sessions.contains("session-1"), "repository active sessions read ACT_SESSION");
+    expect_true(active_sessions.contains("session-2"), "repository active sessions preserve multi connect same account");
+    expect_eq(active_sessions["session-1"].value("connect_key", std::string{}), "session-1", "repository active sessions connect key");
+    expect_eq(active_sessions["conflict"].value("account", std::string{}), "active-user", "repository active sessions prefer ACT_SESSION over legacy");
+    expect_missing(active_sessions["conflict"], "password", "repository active sessions strips legacy password");
+    expect_missing(active_sessions["conflict"], "password_salt", "repository active sessions strips session salt");
+    expect_missing(active_sessions["session-1"], "password_hash", "repository active sessions strips session hash");
+
     FakeRedisHashClient account_controller_redis;
     navcaster::http_api::AccountController account_controller(account_controller_redis, 12000);
     auto account_response = account_controller.list_accounts();
@@ -1620,14 +1661,20 @@ int main()
     account_response = account_controller.get_account("missing");
     expect_eq_int(account_response.status_code, 404, "account controller missing get");
     account_controller_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "session-user", nlohmann::json{{"account", "session-user"}}.dump());
+    account_controller_redis.hset(navcaster::redis_keys::act_session("session-user").c_str(), "active-session", nlohmann::json{{"uid", "active-session"}, {"connect_key", "active-session"}, {"account", "session-user"}}.dump());
     account_response = account_controller.get_account("active");
     expect_eq_int(account_response.status_code, 200, "account controller active special get ok");
     account_controller_body = nlohmann::json::parse(account_response.body);
     expect_true(account_controller_body.contains("session-user"), "account controller active special reads sessions");
+    expect_true(account_controller_body.contains("active-session"), "account controller active special reads ACT_SESSION");
     account_response = account_controller.get_account("");
     expect_eq_int(account_response.status_code, 200, "account controller empty get lists active sessions");
+    account_controller_body = nlohmann::json::parse(account_response.body);
+    expect_true(account_controller_body.contains("active-session"), "account controller empty get uses active sessions");
     account_response = account_controller.list_active_sessions();
     expect_eq_int(account_response.status_code, 200, "account controller list active sessions ok");
+    account_controller_body = nlohmann::json::parse(account_response.body);
+    expect_true(account_controller_body.contains("active-session"), "account controller list active sessions uses ACT_SESSION");
     account_response = account_controller.update_account("ctrl-user", R"({"password":"","state":1,"active":1,"connection_limit":4})");
     expect_eq_int(account_response.status_code, 200, "account controller update keeps password ok");
     auto controller_record_after_keep = account_controller_redis.hget(navcaster::redis_keys::ACT_RECORD, "ctrl-user");
@@ -2112,7 +2159,11 @@ int main()
     caster_sse_redis.hset(navcaster::redis_keys::PUSH_STAT, "push-1", nlohmann::json{{"state", 1}}.dump());
     auth_sse_redis.hset(navcaster::redis_keys::ACT_RECORD, "acct-1", nlohmann::json{{"account", "acct-1"}}.dump());
     auth_sse_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "acct-1", nlohmann::json{{"account", "acct-1"}}.dump());
+    auth_sse_redis.hset(navcaster::redis_keys::STR_ACTIVE_LEGACY, "sse-conflict", nlohmann::json{{"account", "legacy-acct"}}.dump());
+    auth_sse_redis.hset(navcaster::redis_keys::act_session("acct-1").c_str(), "acct-1-conn", nlohmann::json{{"uid", "acct-1-conn"}, {"connect_key", "acct-1-conn"}, {"account", "acct-1"}}.dump());
+    auth_sse_redis.hset(navcaster::redis_keys::act_session("acct-1").c_str(), "sse-conflict", nlohmann::json{{"uid", "sse-conflict"}, {"connect_key", "sse-conflict"}, {"account", "session-acct"}}.dump());
     caster_sse_redis.hset(navcaster::redis_keys::ACT_RECORD, "wrong-redis", nlohmann::json{{"account", "wrong-redis"}}.dump());
+    caster_sse_redis.hset(navcaster::redis_keys::act_session("wrong-redis").c_str(), "wrong-session", nlohmann::json{{"account", "wrong-redis"}}.dump());
     expect_true(sse_snapshots.servers().contains("srv-1"), "sse snapshot servers via runtime repo");
     expect_true(sse_snapshots.clients().contains("cli-1"), "sse snapshot clients via runtime repo");
     expect_true(sse_snapshots.streams().contains("str-1"), "sse snapshot streams via runtime repo");
@@ -2126,7 +2177,11 @@ int main()
     expect_true(sse_snapshots.push_states().contains("push-1"), "sse snapshot push states via repository");
     expect_true(sse_snapshots.accounts().contains("acct-1"), "sse snapshot accounts uses auth redis");
     expect_true(!sse_snapshots.accounts().contains("wrong-redis"), "sse snapshot accounts ignores caster redis");
-    expect_true(sse_snapshots.account_actives().contains("acct-1"), "sse snapshot account actives uses auth redis");
+    auto sse_account_actives = sse_snapshots.account_actives();
+    expect_true(sse_account_actives.contains("acct-1"), "sse snapshot account actives keeps legacy fallback");
+    expect_true(sse_account_actives.contains("acct-1-conn"), "sse snapshot account actives reads ACT_SESSION");
+    expect_true(!sse_account_actives.contains("wrong-session"), "sse snapshot account actives ignores caster redis");
+    expect_eq(sse_account_actives["sse-conflict"].value("account", std::string{}), "session-acct", "sse snapshot account actives prefers ACT_SESSION");
 
     FakeRedisHashClient alias_controller_redis;
     navcaster::http_api::AliasController alias_controller(alias_controller_redis, 10020);

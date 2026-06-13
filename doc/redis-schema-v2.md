@@ -117,8 +117,8 @@ Redis Open Source 8.4.0+。部署和命令校验见 `doc/redis-deployment.md`。
 
 - HTTP 账号管理写 `ACT:RECORD`。
 - NTRIP 鉴权读 `ACT:ACTIVE`。
-- 活跃账号 API 读 `STR:ACTIVE`。
-- Auth 写侧已开始维护 `ACT:SESSION:<account>`，但 `/api/accounts/active` 读侧尚未切换。
+- 活跃账号 API/SSE 已切换为聚合 `ACT:SESSION:*`，并兼容读取 `STR:ACTIVE` fallback。
+- Auth 写侧已开始维护 `ACT:SESSION:<account>`，真实 Redis/SSE 端到端仍需补测。
 - `ACT:RECORD` 到 `ACT:ACTIVE` 没有清晰同步链路。
 - `STR:ACTIVE` 没有在当前源码中发现明确写入点。
 
@@ -127,7 +127,7 @@ V2 建议：
 - `ACT:RECORD` 是唯一账号主表。
 - `ACT:ACTIVE` 是由 `ACT:RECORD` 派生的可登录索引。
 - `ACT:SESSION:<account>` 是展示用在线会话；`ACT:REC:<account>` 只作为连接数控制桶。
-- `STR:ACTIVE` 标记为 legacy，后续迁移到 `ACT:SESSION:*` 聚合读。
+- `STR:ACTIVE` 标记为 legacy，仅作为 `ACT:SESSION:*` 聚合读的 fallback。
 
 密码字段建议：
 
@@ -274,10 +274,12 @@ V2 建议：
 
 - HTTP 写 `ACT:RECORD` 后同步 `ACT:ACTIVE`。
 - Auth 继续读 `ACT:ACTIVE`。
-- 活跃会话仍兼容 `STR:ACTIVE`，但新增 `ACT:SESSION:*` 写入。
+- 活跃会话由 Auth 写入 `ACT:SESSION:*`，读侧仍兼容 `STR:ACTIVE` fallback。
 
 ### Step 3：账号读路径统一
 
+- `/api/accounts/active` 和 SSE `account_actives` 统一读取 `ACT:SESSION:*` 聚合，并合并
+  legacy `STR:ACTIVE` fallback；冲突时 `ACT:SESSION:*` 优先。
 - AuthService 通过 AccountRepository 读取账号。
 - `ACT:ACTIVE` 变成缓存索引，可由 `ACT:RECORD` 重建。
 

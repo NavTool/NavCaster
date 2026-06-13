@@ -171,12 +171,16 @@ export interface AccountRecord {
 
 export interface AccountActive {
   uid: string;
-  create_time: number;
+  connect_key?: string;
+  create_time?: number;
   update_time: number;
   account: string;
+  anonymous?: boolean;
+  auth_type?: string;
   online_time: number;
   addr: string;
   port: string;
+  group_uid?: string;
 }
 
 export interface AliasRule {
