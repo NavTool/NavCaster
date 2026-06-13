@@ -48,7 +48,7 @@ nlohmann::json SseSnapshotService::accounts()
 nlohmann::json SseSnapshotService::account_actives()
 {
     storage::AccountRepository repo(_auth_redis);
-    return repo.list_legacy_active_sessions();
+    return repo.list_active_sessions();
 }
 
 nlohmann::json SseSnapshotService::sources()

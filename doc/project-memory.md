@@ -193,9 +193,11 @@ NC-008A 开始，实名 Auth 登录生命周期额外维护展示会话桶：
 - value 是 JSON：`uid/connect_key/account/anonymous/auth_type/online_time/update_time/addr/port/group_uid`。
 - 只有实名登录通过连接数限制后才写入；拒绝登录、连接数踢线、登出会删除对应 field。
 - 定时续期只刷新已放行的实名会话，匿名登录暂不写入 `ACT:SESSION:*`。
-- `/api/accounts/active` 和 SSE `account_actives` 读侧仍待 NC-008B 从 legacy `STR:ACTIVE` 迁移。
+- NC-008B 后 `/api/accounts/active` 和 SSE `account_actives` 统一调用 `AccountRepository::list_active_sessions()`，
+  优先聚合 `ACT:SESSION:*`，并合并 legacy `STR:ACTIVE` fallback；冲突时新 session 优先。
 
-`schema_smoke` 已覆盖 Auth 配置解析组合、Redis 连接字段解析、实名连接数策略纯逻辑和 `ACT:SESSION:*` JSON 契约。
+`schema_smoke` 已覆盖 Auth 配置解析组合、Redis 连接字段解析、实名连接数策略纯逻辑、
+`ACT:SESSION:*` JSON 契约，以及活跃账号 REST/SSE 读侧的新旧源兼容。
 
 ## HTTP API
 

@@ -63,7 +63,7 @@ private:
     void handle_update_account(const HttpRequest &req, HttpResponse &resp);
     void handle_delete_account(const HttpRequest &req, HttpResponse &resp);
 
-    // Account Active (STR:ACTIVE) — uses auth_redis, read-only
+    // Account Active (ACT:SESSION:* + STR:ACTIVE fallback) — uses auth_redis, read-only
     void handle_get_account_actives(const HttpRequest &req, HttpResponse &resp);
 
     // Source Records (MPT:RECORD)

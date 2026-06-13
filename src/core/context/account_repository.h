@@ -28,6 +28,7 @@ public:
     nlohmann::json list_accounts();
     nlohmann::json get_account(const std::string &account);
     nlohmann::json list_legacy_active_sessions();
+    nlohmann::json list_active_sessions();
 
     AccountRepositoryResult create_account(nlohmann::json record, std::int64_t now);
     AccountRepositoryResult update_account(const std::string &account, nlohmann::json record, std::int64_t now);

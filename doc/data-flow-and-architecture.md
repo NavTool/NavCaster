@@ -441,7 +441,7 @@ poll_and_broadcast()
 | `pull_states` | `PULL:STAT` | Pull 运行状态变化 |
 | `push_records` | `PUSH:RECORD` | Push 配置变化 |
 | `push_states` | `PUSH:STAT` | Push 运行状态变化 |
-| `account_actives` | `STR:ACTIVE` | 账户活跃状态变化 |
+| `account_actives` | `ACT:SESSION:*` + `STR:ACTIVE` fallback | 账户活跃状态变化 |
 
 ---
 
