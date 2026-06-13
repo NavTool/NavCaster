@@ -16,7 +16,13 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/services
     ${CMAKE_SOURCE_DIR}/src/core/context/repositories
     ${CMAKE_SOURCE_DIR}/src/http
+    ${CMAKE_SOURCE_DIR}/src/service
+    ${CMAKE_SOURCE_DIR}/src/auth/include
+    ${CMAKE_SOURCE_DIR}/src/auth/src
+    ${CMAKE_BINARY_DIR}
     ${SPDLOG_INCLUDE_PATH}
+    ${CMAKE_SOURCE_DIR}/third_party/hiredis
+    ${CMAKE_SOURCE_DIR}/third_party/yaml-cpp/include
     ${CMAKE_SOURCE_DIR}/third_party/libevent/include
     ${CMAKE_BINARY_DIR}/third_party/libevent/include
 )
@@ -66,9 +72,10 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/source_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/sse_snapshot_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/system_event_service.cpp
+    ${CMAKE_SOURCE_DIR}/src/service/ntrip_config.cpp
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE casterbase caster_proto libprotobuf)
+target_link_libraries(${PROJECT_NAME} PRIVATE casterbase caster_proto libprotobuf yaml-cpp)
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
 endif()

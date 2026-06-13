@@ -88,6 +88,8 @@ Redis Open Source 8.4.0+。部署和命令校验见 `doc/redis-deployment.md`。
 - `ACT:REC:<account>` 是实名账号在线连接桶，用于连接数限制和踢下线广播。
 - `ACT:UND:<name>` 是匿名登录在线连接桶。
 - `ACT:UNNAMED` 是匿名账号痕迹表，仅在匿名模式注册临时名称。
+- Auth `Online_Protection=true` 表示已在线连接优先，实名连接数超过上限时拒绝新连接；
+  `false` 表示允许新连接挤掉最早的旧实名连接。
 - `STR:ACTIVE` 是旧版在线账号展示表，当前 `/api/accounts/active` 仍兼容读取它；后续由 `ACT:SESSION:<account>` 或统一 session API 替换。
 
 当前问题：

@@ -21,6 +21,7 @@ include_directories(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/src/core/context)
 set(SOURCES
     include/Auth_Verify.h
     src/Auth_Verify.cpp
+    src/auth_record_limit.h
     src/auth_verify_internal.h
     src/auth_verify_internal.cpp
 )

@@ -41,14 +41,24 @@
 #include "status_service.h"
 #include "system_event_service.h"
 #include "source_table_service.h"
+#include "auth_record_limit.h"
+#include "ntrip_config.h"
 
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <utility>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace
 {
@@ -519,11 +529,107 @@ push_status make_push_schedule_status(const std::string &uid)
     status.update_state("connect-" + uid, 1);
     return status;
 }
+
+int current_process_id()
+{
+#if defined(_WIN32)
+    return _getpid();
+#else
+    return getpid();
+#endif
+}
 } // namespace
 
 int main()
 {
     using namespace navcaster;
+
+    {
+        const auto auth_conf_path = std::filesystem::temp_directory_path() / ("navcaster_schema_auth_verify_" + std::to_string(current_process_id()) + ".yml");
+        std::ofstream auth_conf(auth_conf_path);
+        auth_conf
+            << "Base_Setting:\n"
+            << "  Anonymous_Login: true\n"
+            << "  Online_Protection: false\n"
+            << "Rover_Setting:\n"
+            << "  Anonymous_Login: false\n"
+            << "  Online_Protection: true\n"
+            << "Source_Setting:\n"
+            << "  Anonymous_Login: false\n"
+            << "Reids_Connect_Setting:\n"
+            << "  IP: 127.0.0.1\n"
+            << "  Port: 16379\n"
+            << "  Requirepass: password\n";
+        auth_conf.close();
+
+        auto *config = ntrip_config::getInstance();
+        expect_eq_int(config->load_Auth_Conf(auth_conf_path.string()), 0, "auth config load");
+        expect_true(config->_auth_verify_opt.base_anonymous_login(), "auth config base anonymous");
+        expect_true(!config->_auth_verify_opt.base_online_protection(), "auth config base online protection");
+        expect_true(!config->_auth_verify_opt.rover_anonymous_login(), "auth config rover anonymous preserved");
+        expect_true(config->_auth_verify_opt.rover_online_protection(), "auth config rover online protection");
+        expect_true(!config->_auth_verify_opt.source_anonymous_login(), "auth config source anonymous");
+        expect_eq(config->_auth_verify_opt.redis_host(), "127.0.0.1", "auth config redis host");
+        expect_eq_int(config->_auth_verify_opt.redis_port(), 16379, "auth config redis port");
+        expect_eq(config->_auth_verify_opt.redis_password(), "password", "auth config redis password");
+
+        std::ofstream reverse_auth_conf(auth_conf_path);
+        reverse_auth_conf
+            << "Base_Setting:\n"
+            << "  Anonymous_Login: false\n"
+            << "  Online_Protection: true\n"
+            << "Rover_Setting:\n"
+            << "  Anonymous_Login: true\n"
+            << "  Online_Protection: false\n"
+            << "Source_Setting:\n"
+            << "  Anonymous_Login: true\n"
+            << "Reids_Connect_Setting:\n"
+            << "  IP: 127.0.0.2\n"
+            << "  Port: 26379\n"
+            << "  Requirepass: other\n";
+        reverse_auth_conf.close();
+
+        expect_eq_int(config->load_Auth_Conf(auth_conf_path.string()), 0, "auth config reload");
+        expect_true(config->_auth_verify_opt.rover_anonymous_login(), "auth config rover anonymous true preserved");
+        expect_true(!config->_auth_verify_opt.rover_online_protection(), "auth config rover online protection false preserved");
+        std::filesystem::remove(auth_conf_path);
+    }
+
+    {
+        std::multimap<std::time_t, std::string> records = {
+            {100, "old"},
+            {200, "middle"},
+            {300, "current"}};
+        auto decision = auth::plan_record_limit(records, "current", 2, true);
+        expect_true(!decision.current_allowed, "auth online protection rejects newest current");
+        expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 0, "auth online protection no old eviction");
+
+        decision = auth::plan_record_limit(records, "current", 2, false);
+        expect_true(decision.current_allowed, "auth online protection disabled allows current");
+        expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 1, "auth online protection disabled evicts one");
+        expect_eq(decision.evicted_connect_keys[0], "old", "auth online protection disabled evicts oldest");
+
+        std::multimap<std::time_t, std::string> same_second_records = {
+            {100, "current"},
+            {100, "old-a"},
+            {100, "old-b"}};
+        decision = auth::plan_record_limit(same_second_records, "current", 2, true);
+        expect_true(!decision.current_allowed, "auth online protection same second rejects current");
+        expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 0, "auth online protection same second keeps old records");
+
+        decision = auth::plan_record_limit(same_second_records, "current", 2, false);
+        expect_true(decision.current_allowed, "auth online protection disabled same second allows current");
+        expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 1, "auth online protection disabled same second evicts one");
+        expect_eq(decision.evicted_connect_keys[0], "old-a", "auth online protection disabled same second evicts non current");
+
+        decision = auth::plan_record_limit(same_second_records, "current", 1, false);
+        expect_true(decision.current_allowed, "auth online protection disabled limit one keeps current");
+        expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 2, "auth online protection disabled limit one evicts others");
+
+        decision = auth::plan_record_limit(same_second_records, "current", 0, false);
+        expect_true(!decision.current_allowed, "auth online protection zero limit rejects current");
+        expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 0, "auth online protection zero limit no eviction");
+    }
 
     expect_eq(redis_keys::mpt_rec("BASE01"), "MPT:REC:BASE01", "mpt_rec key");
     expect_eq(redis_keys::access_item("default"), "ACCESS:ITEM:default", "access item key");

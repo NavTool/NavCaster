@@ -223,7 +223,7 @@ int ntrip_config::load_Auth_Conf(std::string conf_file_path)
 
     auto Rover_Setting = Conf["Rover_Setting"];
     _auth_verify_opt.set_rover_anonymous_login(Rover_Setting["Anonymous_Login"].as<bool>());
-    _auth_verify_opt.set_rover_anonymous_login(Rover_Setting["Online_Protection"].as<bool>());
+    _auth_verify_opt.set_rover_online_protection(Rover_Setting["Online_Protection"].as<bool>());
 
     auto Source_Setting = Conf["Source_Setting"];
     _auth_verify_opt.set_source_anonymous_login(Source_Setting["Anonymous_Login"].as<bool>());
