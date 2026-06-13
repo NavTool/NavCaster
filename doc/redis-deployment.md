@@ -2,7 +2,7 @@
 
 更新时间：2026-06-14
 
-基线：NC-019 基于 `team-dev @ 1fb4f61`。
+基线：NC-020 基于 `team-dev @ 97b1340`。
 
 ## 版本口径
 
@@ -108,6 +108,17 @@ ACT:ACTIVE
 `ACT:SESSION:*`，兼容 `STR:ACTIVE`，不把 `ACT:ACTIVE` 登录索引当作在线会话。
 PowerShell 脚本通过 `redis-cli -x HSET` 从 stdin 写入 JSON seed，以避免 Windows
 native 参数转发导致 JSON 双引号丢失。
+
+活跃账号 SSE 运行中增量推送可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeActiveAccountSseDelta
+```
+
+该检查会在真实 SSE client 已订阅 `account_actives` 后，对唯一
+`ACT:SESSION:<account>` field 执行新增、更新和删除，并要求同一条 SSE 连接收到
+对应的 `account_actives` payload；每一步继续用 `/api/accounts/active` 验证
+REST 与 SSE 同源且不泄露密码材料。
 
 真实 NTRIP/Auth 写侧会话可追加：
 

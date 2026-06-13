@@ -17,6 +17,7 @@ param(
     [switch]$SkipRedisCompat,
     [switch]$KeepRedisContainer,
     [switch]$IncludeActiveAccounts,
+    [switch]$IncludeActiveAccountSseDelta,
     [switch]$IncludeNtripAuthSession,
     [switch]$IncludeNtripAuthSessionRenewal,
     [int]$NtripRenewalWaitSec = 25,
@@ -1062,6 +1063,8 @@ function New-ActiveSessionRecord {
         [string]$ConnectKey,
         [string]$GroupUid,
         [string]$Marker,
+        [long]$OnlineTime = 1710000000,
+        [long]$UpdateTime = 1710000010,
         [switch]$IncludePasswordMaterial
     )
 
@@ -1071,8 +1074,8 @@ function New-ActiveSessionRecord {
         account = $Account
         anonymous = $false
         auth_type = "client"
-        online_time = 1710000000
-        update_time = 1710000010
+        online_time = $OnlineTime
+        update_time = $UpdateTime
         addr = "127.0.0.1"
         port = "2101"
         group_uid = $GroupUid
@@ -1207,6 +1210,45 @@ function Remove-ActiveAccountSeed {
     Invoke-RedisCommand @delSessions | Out-Null
 }
 
+function New-ActiveAccountSseDeltaSeed {
+    $prefix = "nc020-$PID-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+    $account = "$prefix-account"
+    $field = "$prefix-connect"
+    return [pscustomobject]@{
+        Prefix = $prefix
+        Account = $account
+        Field = $field
+        SessionKey = "ACT:SESSION:$account"
+        GroupUid = "$prefix-group"
+        OnlineTime = 1710000100
+        CreateUpdateTime = 1710000110
+        UpdateUpdateTime = 1710000120
+        CreatedMarker = "delta-created"
+        UpdatedMarker = "delta-updated"
+    }
+}
+
+function Set-ActiveAccountSseDeltaRecord {
+    param(
+        [pscustomobject]$Seed,
+        [string]$Marker,
+        [long]$UpdateTime
+    )
+
+    Invoke-RedisHSetValue $Seed.SessionKey $Seed.Field `
+        (New-ActiveSessionRecord $Seed.Account $Seed.Field $Seed.GroupUid $Marker `
+            -OnlineTime $Seed.OnlineTime -UpdateTime $UpdateTime -IncludePasswordMaterial) | Out-Null
+}
+
+function Remove-ActiveAccountSseDeltaSeed {
+    param([pscustomobject]$Seed)
+
+    if (-not $Seed) {
+        return
+    }
+    Invoke-RedisCommand DEL $Seed.SessionKey | Out-Null
+}
+
 function Get-JsonProperty {
     param(
         [object]$Object,
@@ -1290,10 +1332,68 @@ function Assert-ActiveAccountPayload {
     }
 }
 
-function Read-SseEvent {
+function Test-ActiveAccountDeltaPayload {
+    param(
+        [object]$Payload,
+        [pscustomobject]$Seed,
+        [string]$ExpectedMarker,
+        [long]$ExpectedUpdateTime
+    )
+
+    $record = Get-JsonProperty $Payload $Seed.Field
+    if ($null -eq $record) {
+        return $false
+    }
+    return (
+        $record.account -eq $Seed.Account -and
+        $record.connect_key -eq $Seed.Field -and
+        $record.group_uid -eq $Seed.GroupUid -and
+        $record.marker -eq $ExpectedMarker -and
+        [long]$record.online_time -eq [long]$Seed.OnlineTime -and
+        [long]$record.update_time -eq [long]$ExpectedUpdateTime
+    )
+}
+
+function Assert-ActiveAccountDeltaPayload {
+    param(
+        [object]$Payload,
+        [pscustomobject]$Seed,
+        [string]$ExpectedMarker,
+        [long]$ExpectedUpdateTime,
+        [string]$Label
+    )
+
+    $record = Require-JsonProperty $Payload $Seed.Field "$Label active account delta payload"
+    if (-not (Test-ActiveAccountDeltaPayload $Payload $Seed $ExpectedMarker $ExpectedUpdateTime)) {
+        Fail "$Label active account delta record mismatch for field $($Seed.Field)"
+    }
+    Assert-NoPasswordMaterial $record "$Label active account delta"
+}
+
+function Test-ActiveAccountDeltaAbsent {
+    param(
+        [object]$Payload,
+        [pscustomobject]$Seed
+    )
+
+    return ($null -eq (Get-JsonProperty $Payload $Seed.Field))
+}
+
+function Assert-ActiveAccountDeltaAbsent {
+    param(
+        [object]$Payload,
+        [pscustomobject]$Seed,
+        [string]$Label
+    )
+
+    if (-not (Test-ActiveAccountDeltaAbsent $Payload $Seed)) {
+        Fail "$Label still included active account delta field $($Seed.Field)"
+    }
+}
+
+function New-SseClient {
     param(
         [string]$Uri,
-        [string]$ExpectedEvent,
         [int]$TimeoutSec
     )
 
@@ -1302,7 +1402,7 @@ function Read-SseEvent {
     $reader = $null
     try {
         $client = New-Object System.Net.Http.HttpClient
-        $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec + 5)
+        $client.Timeout = [TimeSpan]::FromSeconds([Math]::Max($TimeoutSec + 30, 60))
         $request = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Get, $Uri)
         $response = $client.SendAsync($request, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
         if (-not $response.IsSuccessStatusCode) {
@@ -1311,45 +1411,177 @@ function Read-SseEvent {
 
         $stream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
         $reader = New-Object System.IO.StreamReader($stream)
-        $deadline = (Get-Date).AddSeconds($TimeoutSec)
-        $currentEvent = ""
-        $dataLines = New-Object System.Collections.Generic.List[string]
-        $lineTask = $reader.ReadLineAsync()
-
-        while ((Get-Date) -lt $deadline) {
-            if (-not $lineTask.Wait(1000)) {
-                continue
-            }
-            $line = $lineTask.Result
-            if ($null -eq $line) {
-                break
-            }
-
-            if ($line.Length -eq 0) {
-                if ($currentEvent -eq $ExpectedEvent -and $dataLines.Count -gt 0) {
-                    $data = $dataLines -join "`n"
-                    return ($data | ConvertFrom-Json)
-                }
-                $currentEvent = ""
-                $dataLines.Clear()
-            }
-            elseif ($line.StartsWith("event:")) {
-                $currentEvent = $line.Substring(6).Trim()
-            }
-            elseif ($line.StartsWith("data:")) {
-                $dataLines.Add($line.Substring(5).TrimStart())
-            }
-
-            $lineTask = $reader.ReadLineAsync()
+        return [pscustomobject]@{
+            Client = $client
+            Response = $response
+            Reader = $reader
+            LineTask = $reader.ReadLineAsync()
+            CurrentEvent = ""
+            DataLines = (New-Object System.Collections.Generic.List[string])
         }
     }
-    finally {
+    catch {
         if ($reader) { $reader.Dispose() }
         if ($response) { $response.Dispose() }
         if ($client) { $client.Dispose() }
+        throw
+    }
+}
+
+function Close-SseClient {
+    param([object]$SseClient)
+
+    if (-not $SseClient) {
+        return
+    }
+    if ($SseClient.Reader) { $SseClient.Reader.Dispose() }
+    if ($SseClient.Response) { $SseClient.Response.Dispose() }
+    if ($SseClient.Client) { $SseClient.Client.Dispose() }
+}
+
+function Read-SseClientEvent {
+    param(
+        [object]$SseClient,
+        [string]$ExpectedEvent,
+        [int]$TimeoutSec,
+        [scriptblock]$Predicate,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    $lastPayload = ""
+
+    while ((Get-Date) -lt $deadline) {
+        if (-not $SseClient.LineTask.Wait(1000)) {
+            continue
+        }
+        $line = $SseClient.LineTask.Result
+        if ($null -eq $line) {
+            break
+        }
+
+        if ($line.Length -eq 0) {
+            if ($SseClient.CurrentEvent -eq $ExpectedEvent -and $SseClient.DataLines.Count -gt 0) {
+                $data = $SseClient.DataLines -join "`n"
+                $lastPayload = Format-DebugText $data
+                try {
+                    $payload = $data | ConvertFrom-Json
+                }
+                catch {
+                    Fail "$Context received invalid JSON for SSE event '$ExpectedEvent': $(Format-DebugText $data)"
+                }
+                if (-not $Predicate -or (& $Predicate $payload)) {
+                    return $payload
+                }
+            }
+            $SseClient.CurrentEvent = ""
+            $SseClient.DataLines.Clear()
+        }
+        elseif ($line.StartsWith("event:")) {
+            $SseClient.CurrentEvent = $line.Substring(6).Trim()
+        }
+        elseif ($line.StartsWith("data:")) {
+            $SseClient.DataLines.Add($line.Substring(5).TrimStart())
+        }
+
+        $SseClient.LineTask = $SseClient.Reader.ReadLineAsync()
     }
 
-    Fail "SSE event '$ExpectedEvent' was not received before timeout"
+    Fail "$Context SSE event '$ExpectedEvent' was not received before timeout; last_payload=[$lastPayload]"
+}
+
+function Read-SseEvent {
+    param(
+        [string]$Uri,
+        [string]$ExpectedEvent,
+        [int]$TimeoutSec
+    )
+
+    $sse = $null
+    try {
+        $sse = New-SseClient $Uri $TimeoutSec
+        return Read-SseClientEvent $sse $ExpectedEvent $TimeoutSec $null "SSE"
+    }
+    finally {
+        Close-SseClient $sse
+    }
+}
+
+function Invoke-ActiveAccountSseDeltaSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Token
+    )
+
+    $script:activeAccountSseDeltaSeed = New-ActiveAccountSseDeltaSeed
+    $sseUri = "$Base/api/events/stream?token=$Token&channels=account_actives"
+    $script:activeAccountSseClient = $null
+
+    try {
+        Say "opening SSE account_actives runtime delta stream"
+        $script:activeAccountSseClient = New-SseClient $sseUri $StartupTimeoutSec
+        Start-Sleep -Milliseconds 500
+
+        $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+        Assert-ActiveAccountDeltaAbsent $rest $script:activeAccountSseDeltaSeed "REST /api/accounts/active initial"
+
+        Say "validating SSE account_actives create delta"
+        Set-ActiveAccountSseDeltaRecord $script:activeAccountSseDeltaSeed `
+            $script:activeAccountSseDeltaSeed.CreatedMarker `
+            $script:activeAccountSseDeltaSeed.CreateUpdateTime
+        $created = Read-SseClientEvent $script:activeAccountSseClient "account_actives" $StartupTimeoutSec `
+            { param($payload) Test-ActiveAccountDeltaPayload $payload $script:activeAccountSseDeltaSeed $script:activeAccountSseDeltaSeed.CreatedMarker $script:activeAccountSseDeltaSeed.CreateUpdateTime } `
+            "SSE account_actives create delta"
+        Assert-ActiveAccountDeltaPayload $created $script:activeAccountSseDeltaSeed `
+            $script:activeAccountSseDeltaSeed.CreatedMarker `
+            $script:activeAccountSseDeltaSeed.CreateUpdateTime `
+            "SSE account_actives create"
+        $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+        Assert-ActiveAccountDeltaPayload $rest $script:activeAccountSseDeltaSeed `
+            $script:activeAccountSseDeltaSeed.CreatedMarker `
+            $script:activeAccountSseDeltaSeed.CreateUpdateTime `
+            "REST /api/accounts/active create"
+
+        Say "validating SSE account_actives update delta"
+        Set-ActiveAccountSseDeltaRecord $script:activeAccountSseDeltaSeed `
+            $script:activeAccountSseDeltaSeed.UpdatedMarker `
+            $script:activeAccountSseDeltaSeed.UpdateUpdateTime
+        $updated = Read-SseClientEvent $script:activeAccountSseClient "account_actives" $StartupTimeoutSec `
+            { param($payload) Test-ActiveAccountDeltaPayload $payload $script:activeAccountSseDeltaSeed $script:activeAccountSseDeltaSeed.UpdatedMarker $script:activeAccountSseDeltaSeed.UpdateUpdateTime } `
+            "SSE account_actives update delta"
+        Assert-ActiveAccountDeltaPayload $updated $script:activeAccountSseDeltaSeed `
+            $script:activeAccountSseDeltaSeed.UpdatedMarker `
+            $script:activeAccountSseDeltaSeed.UpdateUpdateTime `
+            "SSE account_actives update"
+        $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+        Assert-ActiveAccountDeltaPayload $rest $script:activeAccountSseDeltaSeed `
+            $script:activeAccountSseDeltaSeed.UpdatedMarker `
+            $script:activeAccountSseDeltaSeed.UpdateUpdateTime `
+            "REST /api/accounts/active update"
+
+        Say "validating SSE account_actives delete delta"
+        Remove-ActiveAccountSseDeltaSeed $script:activeAccountSseDeltaSeed
+        $deleted = Read-SseClientEvent $script:activeAccountSseClient "account_actives" $StartupTimeoutSec `
+            { param($payload) Test-ActiveAccountDeltaAbsent $payload $script:activeAccountSseDeltaSeed } `
+            "SSE account_actives delete delta"
+        Assert-ActiveAccountDeltaAbsent $deleted $script:activeAccountSseDeltaSeed "SSE account_actives delete"
+        $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+        Assert-ActiveAccountDeltaAbsent $rest $script:activeAccountSseDeltaSeed "REST /api/accounts/active delete"
+
+        Close-SseClient $script:activeAccountSseClient
+        $script:activeAccountSseClient = $null
+        $script:activeAccountSseDeltaSeed = $null
+        Say "PASS active account SSE runtime delta smoke"
+    }
+    finally {
+        Close-SseClient $script:activeAccountSseClient
+        $script:activeAccountSseClient = $null
+        if ($script:activeAccountSseDeltaSeed) {
+            Remove-ActiveAccountSseDeltaSeed $script:activeAccountSseDeltaSeed
+            $script:activeAccountSseDeltaSeed = $null
+        }
+    }
 }
 
 function Invoke-ActiveAccountSmoke {
@@ -1409,6 +1641,8 @@ $startedContainer = $false
 $serviceProcess = $null
 $originals = @{}
 $activeAccountSeed = $null
+$activeAccountSseDeltaSeed = $null
+$activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
@@ -1602,6 +1836,10 @@ try {
         Invoke-ActiveAccountSmoke $base $headers $login.token
     }
 
+    if ($IncludeActiveAccountSseDelta) {
+        Invoke-ActiveAccountSseDeltaSmoke $base $headers $login.token
+    }
+
     if ($IncludeNtripAuthSession) {
         Invoke-NtripAuthSessionSmoke $base $headers $HttpBindAddr $NtripPort
     }
@@ -1635,6 +1873,26 @@ finally {
     }
     catch {
         Write-Warning "failed to close NTRIP source connection: $($_.Exception.Message)"
+    }
+
+    try {
+        if ($activeAccountSseClient) {
+            Close-SseClient $activeAccountSseClient
+            $activeAccountSseClient = $null
+        }
+    }
+    catch {
+        Write-Warning "failed to close active account SSE client: $($_.Exception.Message)"
+    }
+
+    try {
+        if ($activeAccountSseDeltaSeed) {
+            Remove-ActiveAccountSseDeltaSeed $activeAccountSseDeltaSeed
+            $activeAccountSseDeltaSeed = $null
+        }
+    }
+    catch {
+        Write-Warning "failed to remove active account SSE delta Redis seed: $($_.Exception.Message)"
     }
 
     try {

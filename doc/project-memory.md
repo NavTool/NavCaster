@@ -90,7 +90,8 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 .\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
 ```
 
-活跃账号读侧可追加 `-IncludeActiveAccounts`；真实 NTRIP/Auth 写侧实名会话可追加
+活跃账号读侧可追加 `-IncludeActiveAccounts`；活跃账号运行中 SSE 增量可追加
+`-IncludeActiveAccountSseDelta`；真实 NTRIP/Auth 写侧实名会话可追加
 `-IncludeNtripAuthSession`；真实连接续期长跑可追加
 `-IncludeNtripAuthSessionRenewal`；`Online_Protection` 连接数矩阵可追加
 `-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`。
@@ -366,6 +367,18 @@ SSE：
 - 该 e2e 只覆盖读侧真实 Redis/HTTP/SSE；NC-017 已补真实 NTRIP/Auth 登录写入和
   断连清理，NC-018 已补踢线矩阵，NC-019 已补续期长跑；多节点场景仍是后续缺口。
 
+## 2026-06-14 NC-020 Active Account SSE 运行中增量 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeActiveAccountSseDelta`。
+- 该模式在服务运行并登录后，打开真实
+  `/api/events/stream?channels=account_actives` SSE 连接。
+- 在同一条 SSE 连接上验证唯一 `ACT:SESSION:<account>` field 的新增、更新和删除
+  都会触发 `account_actives` 事件。
+- 每一步都用 `/api/accounts/active` 交叉验证 REST 与 SSE payload 同源，并继续
+  验证密码材料剥离。
+- 该 e2e 闭合单节点运行中 `account_actives` 增量推送缺口；多节点
+  AUTH:BROADCAST、匿名登录矩阵和 relay failover 仍是后续专项。
+
 ## 2026-06-14 NC-017 NTRIP Auth Session 写侧 e2e
 
 - Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSession` 和
@@ -403,4 +416,4 @@ SSE：
   与续期后的真实会话一致且不泄露密码材料。
 - client 断连后确认 `ACT:SESSION/ACT:REC/USR:REC` 对应 field 都被清理。
 - `check_redis_compat.{ps1,sh}` 同步纳入 `HTTL` 兼容检查，避免 QA 依赖未声明命令。
-- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵、relay failover 和运行中 SSE 增量推送。
+- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵和 relay failover。

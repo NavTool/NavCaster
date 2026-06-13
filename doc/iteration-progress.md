@@ -464,3 +464,6 @@
   - NC-019 NTRIP Auth session 续期 e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSessionRenewal` 与 `-NtripRenewalWaitSec`，用真实 NTRIP POST source 和实名 GET client 保持连接跨过续期窗口。
   - NC-019 覆盖 `ACT:SESSION:<account>` 同 connect_key 的 `update_time` 单调增长、`online_time` 不变，并通过 `HTTL` 确认 `ACT:SESSION`、`ACT:REC`、`USR:REC` 三处 field TTL 为正。
   - NC-019 继续验证 `/api/accounts/active` 与续期后的真实会话一致、密码材料剥离，以及 client 断连后三处 field 都被清理；多节点 `AUTH:BROADCAST`、匿名登录矩阵、relay failover 和运行中 SSE 增量推送仍需后续专项。
+  - NC-020 Active account SSE runtime delta e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeActiveAccountSseDelta`，在真实 SSE client 已订阅 `account_actives` 后，对唯一 `ACT:SESSION:<account>` field 执行新增、更新和删除。
+  - NC-020 覆盖同一条 SSE 连接上的 `account_actives` create/update/delete payload，并用 `/api/accounts/active` 逐步交叉验证 REST/SSE 同源和密码材料剥离。
+  - NC-020 闭合单节点运行中 `account_actives` 增量推送缺口；多节点 `AUTH:BROADCAST`、匿名登录矩阵和 relay failover 仍需后续专项。

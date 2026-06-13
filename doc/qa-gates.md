@@ -105,6 +105,19 @@ cmake --build build --target CasterService --config Release --parallel
 使用 `redis-cli -x HSET` 从 stdin 传值，避免 Windows/Docker native 参数层破坏 JSON
 双引号。成功和失败路径都必须清理 seed、恢复配置、停止服务并删除 fixture 容器。
 
+活跃账号运行中 SSE 增量 smoke 使用同一个 Windows fixture 入口：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeActiveAccountSseDelta
+```
+
+该模式会在服务启动并登录后打开真实
+`/api/events/stream?channels=account_actives` SSE 连接，然后在 Redis 中对唯一
+`ACT:SESSION:<account>` field 依次执行新增、更新和删除。每一步必须收到同一条
+SSE 连接上的 `account_actives` 事件，并用 `/api/accounts/active` 交叉验证
+payload 同源；REST/SSE 都必须剥离密码材料。成功和失败路径都必须关闭 SSE
+连接并清理 Redis seed、服务进程、配置和 fixture 容器。
+
 NTRIP/Auth 写侧 active session 深度 smoke 使用真实 NTRIP TCP source/client 连接：
 
 ```powershell
@@ -236,7 +249,8 @@ NC-008B/NC-009 活跃账号 REST/SSE 读侧
   account_actives 初始快照同源读取 ACT:SESSION:* + STR:ACTIVE fallback。NC-017 已补
   真实 NTRIP/Auth client 登录写入与断连清理 ACT:SESSION:* 的 e2e；NC-018 已补
   Online_Protection 踢线矩阵对 /api/accounts/active 的回归；NC-019 已补续期长跑
-  对 /api/accounts/active 的回归。运行中 SSE 增量推送和多节点场景仍需专项覆盖。
+  对 /api/accounts/active 的回归；NC-020 已补 account_actives 运行中新增/更新/删除
+  SSE 增量推送。多节点场景仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。
