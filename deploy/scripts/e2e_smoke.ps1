@@ -29,7 +29,8 @@ param(
     [switch]$IncludeNtripAnonymousAuth,
     [ValidateSet("AllowAnonymous", "RejectAnonymous")]
     [string]$NtripAnonymousScenario = "AllowAnonymous",
-    [switch]$IncludeNtripAuthBroadcast
+    [switch]$IncludeNtripAuthBroadcast,
+    [switch]$IncludeNtripDisabledAccount
 )
 
 $ErrorActionPreference = "Stop"
@@ -736,6 +737,46 @@ function Wait-NtripOnlineFieldGone {
     Fail "$Context expected field $Field removed from ACT:SESSION/ACT:REC/USR:REC but got session=[$sessionRaw] act_rec=[$actRecRaw] usr_rec=[$usrRecRaw]"
 }
 
+function Wait-NtripAuthActiveIndexPresent {
+    param(
+        [pscustomobject]$Seed,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $raw = Invoke-RedisCommand HGET "ACT:ACTIVE" $Seed.Account
+        if (-not [string]::IsNullOrWhiteSpace($raw)) {
+            return $raw
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $activeRaw = Format-DebugText (Invoke-RedisCommand HGETALL "ACT:ACTIVE")
+    Fail "$Context expected ACT:ACTIVE index for $($Seed.Account); active=[$activeRaw]"
+}
+
+function Wait-NtripAuthActiveIndexGone {
+    param(
+        [pscustomobject]$Seed,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $raw = Invoke-RedisCommand HGET "ACT:ACTIVE" $Seed.Account
+        if ([string]::IsNullOrWhiteSpace($raw)) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGET "ACT:ACTIVE" $Seed.Account)
+    Fail "$Context expected ACT:ACTIVE index removed for $($Seed.Account); raw=[$raw]"
+}
+
 function Wait-NtripSessionUpdateTimeAdvanced {
     param(
         [pscustomobject]$Seed,
@@ -1240,6 +1281,116 @@ function Assert-NtripNoAnonymousAuthResidue {
     }
 }
 
+function New-NtripDisabledAccountBody {
+    param(
+        [pscustomobject]$Seed,
+        [string]$Scenario = "Enabled"
+    )
+
+    $body = [ordered]@{
+        uid = $Seed.Account
+        account = $Seed.Account
+        password = $Seed.Password
+        group_uid = $Seed.GroupUid
+        connection_limit = $Seed.ConnectionLimit
+        type = 1
+        state = 1
+        active = 1
+        expire_time = 0
+    }
+
+    if ($Scenario -eq "Frozen") {
+        $body.state = 2
+    }
+    elseif ($Scenario -eq "Inactive") {
+        $body.active = 2
+    }
+    elseif ($Scenario -eq "Expired") {
+        $body.type = 2
+        $body.expire_time = 1
+    }
+
+    return $body
+}
+
+function Invoke-NtripCreateAccount {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [pscustomobject]$Seed
+    )
+
+    $body = New-NtripDisabledAccountBody $Seed "Enabled" | ConvertTo-Json -Compress
+    $response = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $body -Uri "$Base/api/accounts" -TimeoutSec 10
+    if ($response.account -ne $Seed.Account) {
+        Fail "create account response mismatch: expected=$($Seed.Account) actual=$($response.account)"
+    }
+}
+
+function Invoke-NtripUpdateAccountState {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [pscustomobject]$Seed,
+        [string]$Scenario
+    )
+
+    $body = New-NtripDisabledAccountBody $Seed $Scenario | ConvertTo-Json -Compress
+    $response = Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body $body -Uri "$Base/api/accounts/$($Seed.Account)" -TimeoutSec 10
+    if ($response.ok -ne $true) {
+        Fail "update account $Scenario did not return ok"
+    }
+}
+
+function Remove-NtripHttpAccount {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [pscustomobject]$Seed
+    )
+
+    if (-not $Seed) {
+        return
+    }
+
+    try {
+        Invoke-RestMethod -Method Delete -Headers $Headers -Uri "$Base/api/accounts/$($Seed.Account)" -TimeoutSec 10 | Out-Null
+    }
+    catch {
+    }
+
+    Remove-NtripAuthSessionSeed $Seed
+}
+
+function Assert-NtripNoNamedAuthResidue {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [pscustomobject]$Seed,
+        [string]$Context
+    )
+
+    $sessionRaw = Format-DebugText (Invoke-RedisCommand HGETALL "ACT:SESSION:$($Seed.Account)")
+    $actRecRaw = Format-DebugText (Invoke-RedisCommand HGETALL "ACT:REC:$($Seed.Account)")
+    $usrRecRaw = Format-DebugText (Invoke-RedisCommand HGETALL "USR:REC:$($Seed.Account)")
+    if (-not [string]::IsNullOrWhiteSpace($sessionRaw) -or
+        -not [string]::IsNullOrWhiteSpace($actRecRaw) -or
+        -not [string]::IsNullOrWhiteSpace($usrRecRaw)) {
+        Fail "$Context left named auth records: ACT:SESSION=[$sessionRaw] ACT:REC=[$actRecRaw] USR:REC=[$usrRecRaw]"
+    }
+
+    $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+    foreach ($prop in @($rest.PSObject.Properties)) {
+        $value = $prop.Value
+        if ($prop.Name -like "$($Seed.Prefix)*" -or
+            $prop.Name -eq $Seed.ClientConnectKey -or
+            $prop.Name -in @($Seed.ExtraClientConnectKeys) -or
+            ($value -and $value.account -eq $Seed.Account)) {
+            Fail "$Context REST /api/accounts/active exposed disabled account residue field=$($prop.Name)"
+        }
+    }
+}
+
 function Invoke-NtripAuthSessionSmoke {
     param(
         [string]$Base,
@@ -1651,6 +1802,78 @@ function Invoke-NtripAuthBroadcastSmoke {
             catch {
                 Write-Warning "failed to remove secondary service config: $($_.Exception.Message)"
             }
+        }
+    }
+}
+
+function Invoke-NtripDisabledAccountSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$NtripHost,
+        [int]$NtripPort
+    )
+
+    $sourceConnection = $null
+    $clientConnection = $null
+    $rejectedClient = $null
+    $seed = $null
+
+    try {
+        $seed = New-NtripAuthSessionSeed -Label "nc023_disabled" -ConnectionLimit 1
+        $script:ntripAuthSeed = $seed
+
+        Invoke-NtripCreateAccount $Base $Headers $seed
+        Wait-NtripAuthActiveIndexPresent $seed $StartupTimeoutSec "disabled account enabled create" | Out-Null
+
+        $sourceConnection = Open-NtripSourceForSeed $seed $NtripHost $NtripPort "source-disabled-account"
+        $script:ntripSourceConnection = $sourceConnection
+
+        $clientConnection = Open-NtripClientForSeed $seed $NtripHost $NtripPort "client-enabled-account"
+        $script:ntripClientConnection = $clientConnection
+        $enabledSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $enabledSession.Field
+        Wait-NtripOnlineExactFields $seed @($enabledSession.Field) $StartupTimeoutSec "disabled account enabled login" | Out-Null
+
+        $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+        Assert-NtripActiveAccountPayload $rest $seed $enabledSession "REST /api/accounts/active enabled account"
+
+        Close-NtripTcpConnection $clientConnection
+        $clientConnection = $null
+        $script:ntripClientConnection = $null
+        Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "disabled account enabled cleanup" | Out-Null
+
+        foreach ($scenario in @("Frozen", "Inactive", "Expired")) {
+            Say "validating disabled account scenario $scenario account=$($seed.Account)"
+            Invoke-NtripUpdateAccountState $Base $Headers $seed $scenario
+            Wait-NtripAuthActiveIndexGone $seed $StartupTimeoutSec "disabled account $scenario update"
+
+            $rejectedClient = Open-NtripClientForSeed $seed $NtripHost $NtripPort "client-disabled-$scenario" -AllowRejected
+            $script:ntripClientConnection = $rejectedClient
+            Wait-NtripTcpConnectionClosed $rejectedClient 10 "disabled account $scenario rejected client"
+            Close-NtripTcpConnection $rejectedClient
+            $rejectedClient = $null
+            $script:ntripClientConnection = $null
+
+            Start-Sleep -Milliseconds 500
+            Assert-NtripNoNamedAuthResidue $Base $Headers $seed "disabled account $scenario rejected login"
+        }
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        $script:ntripSourceConnection = $null
+
+        Remove-NtripHttpAccount $Base $Headers $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+        Say "PASS NTRIP disabled account matrix smoke"
+    }
+    finally {
+        Close-NtripTcpConnection $rejectedClient
+        Close-NtripTcpConnection $clientConnection
+        Close-NtripTcpConnection $sourceConnection
+        if ($seed) {
+            Remove-NtripHttpAccount $Base $Headers $seed
         }
     }
 }
@@ -2244,7 +2467,7 @@ $activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount
 $ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
@@ -2258,6 +2481,9 @@ try {
     }
     if ($IncludeNtripAuthBroadcast -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection)) {
         Fail "NTRIP Auth Broadcast smoke must run in a separate service lifecycle because it starts a second local CasterService instance and requires Online_Protection=false."
+    }
+    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast)) {
+        Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
     }
     if ($IncludeNtripAuthBroadcast -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "NTRIP Auth Broadcast secondary HTTP port must differ from primary HTTP port."
@@ -2471,6 +2697,10 @@ try {
 
     if ($IncludeNtripAuthBroadcast) {
         Invoke-NtripAuthBroadcastSmoke $base $headers $HttpBindAddr $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+    }
+
+    if ($IncludeNtripDisabledAccount) {
+        Invoke-NtripDisabledAccountSmoke $base $headers $HttpBindAddr $NtripPort
     }
 
     Say "PASS health/login/status/cluster smoke"

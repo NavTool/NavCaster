@@ -473,3 +473,6 @@
   - NC-022 NTRIP Auth Broadcast cross-instance e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthBroadcast`，在同一 Redis 8.6.3 fixture 下启动两个本地 `CasterService` 进程，分别使用独立 conf、HTTP 端口和 NTRIP 端口。
   - NC-022 覆盖 `Online_Protection=false` + `connection_limit=1` 时，Node A 旧实名 rover client 建立后，Node B 同账号新 client 登录触发 KickOld，并通过 `AUTH:BROADCAST` 关闭 Node A 旧 TCP 连接。
   - NC-022 同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 最终只保留 Node B connect_key，两实例 `/api/accounts/active` 都只展示 Node B 连接，并等待更新周期确认 Node A 旧 field 不会被重写；relay failover、禁用账号矩阵和真实多机器 node identity 仍需后续专项。
+  - NC-023 NTRIP disabled account matrix e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripDisabledAccount`，通过 HTTP `/api/accounts` 创建 enabled 实名账号，再依次更新为 frozen、inactive 和 expired。
+  - NC-023 覆盖 enabled 账号真实 NTRIP Basic Auth client 可登录并写入/清理 `ACT:SESSION/ACT:REC/USR:REC`；账号更新为 frozen、inactive 或 expired 后，`ACT:ACTIVE` 登录索引被删除，真实 NTRIP client 被拒绝并关闭。
+  - NC-023 同时断言三个拒绝场景均不残留 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 或 `/api/accounts/active` 记录；relay failover、Redis 断线恢复和真实多机器 node identity 仍需后续专项。
