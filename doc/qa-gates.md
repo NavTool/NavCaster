@@ -89,6 +89,7 @@ cmake --build build --target CasterService --config Release --parallel
 的 HTTP API 改为 `Force_Enable: true`，把 `Caster_Core.yml` 与
 `Auth_Verify.yml` 指向 fixture Redis；结束后恢复配置、停止服务并删除容器。
 如果 `16379` 已被本机 Redis 或其他服务占用，使用 `-RedisPort 16380` 等空闲端口。
+如果默认 NTRIP 端口 `4202` 被占用，使用 `-NtripPort 14202` 等空闲端口。
 
 活跃账号 REST/SSE 读侧深度 smoke 使用同一个 Windows fixture 入口：
 
@@ -103,6 +104,28 @@ cmake --build build --target CasterService --config Release --parallel
 输出剥离密码材料，以及 `ACT:ACTIVE` 不被当作在线会话来源。脚本写入 JSON seed 时
 使用 `redis-cli -x HSET` 从 stdin 传值，避免 Windows/Docker native 参数层破坏 JSON
 双引号。成功和失败路径都必须清理 seed、恢复配置、停止服务并删除 fixture 容器。
+
+NTRIP/Auth 写侧 active session 深度 smoke 使用真实 NTRIP TCP source/client 连接：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAuthSession
+```
+
+该模式会临时把 `Rover_Setting.Anonymous_Login` 设为 `false`，保持
+`Base_Setting.Anonymous_Login` 为 `true`，在 `ACT:ACTIVE` 中写入唯一实名 rover
+账号 fixture，然后：
+
+```text
+1. 打开真实 NTRIP POST source 连接，形成 live mountpoint。
+2. 打开真实 NTRIP GET client 连接并使用 Basic Auth 登录。
+3. 轮询 Redis，确认 Auth/Core 写入 ACT:SESSION:<account>。
+4. 验证 /api/accounts/active 能读取该真实会话且不泄露密码材料。
+5. 关闭 client socket，确认 ACT:SESSION:<account> 对应 connect_key 被 HDEL 清理。
+```
+
+该检查覆盖真实 NTRIP listener、Auth 验证、`AUTH::Add_Login_Record`、
+Core register/subscribe 和 active account REST 读侧的串联路径。它不覆盖多节点
+online protection、踢线矩阵和 relay failover；这些仍需专项任务。
 
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
@@ -164,13 +187,15 @@ NC-006 Redis 版本/命令兼容
   8.4.0+、HSETEX/HEXPIRE/SET IFEQ 检查；Redis 可用环境必须执行并记录结果。
 
 NC-007 Auth Online_Protection
-  已补 Auth_Verify.yml 解析和实名连接数策略 schema_smoke；真实 Redis/NTRIP
-  账号登录、匿名登录、禁用账号和在线桶写入清理仍需 Redis 8.4+ 环境补测。
+  已补 Auth_Verify.yml 解析和实名连接数策略 schema_smoke；NC-017 已用 Redis
+  8.6.3 fixture 覆盖真实 NTRIP client 登录写入/断连清理 ACT:SESSION。匿名登录、
+  禁用账号和在线保护踢线矩阵仍需后续专项补测。
 
 NC-008B/NC-009 活跃账号 REST/SSE 读侧
   NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
-  account_actives 初始快照同源读取 ACT:SESSION:* + STR:ACTIVE fallback。真实 NTRIP/Auth
-  写侧登录、续期、登出和踢线产生 ACT:SESSION:* 的链路仍需后续 e2e。
+  account_actives 初始快照同源读取 ACT:SESSION:* + STR:ACTIVE fallback。NC-017 已补
+  真实 NTRIP/Auth client 登录写入与断连清理 ACT:SESSION:* 的 e2e；续期长跑和踢线
+  矩阵仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。

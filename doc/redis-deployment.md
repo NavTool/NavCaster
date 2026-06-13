@@ -107,6 +107,18 @@ ACT:ACTIVE
 PowerShell 脚本通过 `redis-cli -x HSET` 从 stdin 写入 JSON seed，以避免 Windows
 native 参数转发导致 JSON 双引号丢失。
 
+真实 NTRIP/Auth 写侧会话可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAuthSession
+```
+
+该检查使用同一个 Redis 8.6.3 fixture，临时关闭 rover/client 匿名登录，seed
+`ACT:ACTIVE` 实名账号，打开真实 NTRIP POST source 和 GET client 连接，验证
+`ACT:SESSION:<account>` 写入、`/api/accounts/active` 可读取，以及 client 断连后
+对应 `connect_key` 被清理。如果 `4202` 被占用，可通过 `-NtripPort 14202`
+指定空闲 NTRIP 端口。
+
 当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，
 不能替代 e2e 通过记录。
 
