@@ -74,3 +74,7 @@ if(WIN32)
 endif()
 
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})
+
+if(BUILD_TESTING)
+    add_test(NAME schema_smoke COMMAND ${PROJECT_NAME})
+endif()
