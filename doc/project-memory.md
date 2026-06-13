@@ -166,7 +166,11 @@ session 职责：
 - relay：`PULL:RECORD`、`PULL:STAT`、`PUSH:RECORD`、`PUSH:STAT`
 - 历史：`LOG:MPT:*`、`LOG:USR:*`、`LOG:NODE:*`、`NODE:HISTORY:*`
 
-主节点通过 `CASTER:MASTER` 做 `SET NX EX` 抢占和续租。主节点还负责 relay 分配、节点状态汇总、访问组/别名/nearest 等全局状态维护。
+主节点通过 `CASTER:MASTER` 做 `SET NX EX` 抢占和 `SET ... IFEQ ... EX` 续租。
+NC-011 后，续租成功/失败后的本地 master 状态转移、`master_acquired` /
+`master_lost` 事件 JSON 和是否触发 cluster sync 由
+`src/core/context/services/master_lease_service.*` 的纯逻辑规划；Redis 命令顺序仍保留在
+`caster_internal` 回调中。主节点还负责 relay 分配、节点状态汇总、访问组/别名/nearest 等全局状态维护。
 
 ## Auth 模块
 
