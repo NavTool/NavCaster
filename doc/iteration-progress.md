@@ -447,3 +447,5 @@
   - NC-010 已新增 `doc/api-contract-sync.md`，把契约检查命令、覆盖范围、允许差异和修改规则纳入文档；主 CI 在 Web build 前执行 `node tools/contract_check/check_api_contracts.mjs`，并把 `team-dev` 加入 workflow 触发分支。
   - NC-011 Cluster/master lease 第一切片：新增 `MasterLeaseService`，把 `CASTER:MASTER` 续租结果到本地 `_is_master`、`master_acquired/master_lost` 事件 JSON、是否触发 `sync_cluster_state()` 的判断抽成纯逻辑；`try_set_master_node()` 的 SET NX、GET、SET IFEQ EX Redis 命令顺序保持不变。
   - NC-011 `schema_smoke` 新增 master lease 测试：覆盖首次观察 self/remote master、观察值不变、follower->master、master 续租保持、master->follower、follower 续租失败、`LOG:NODE:<node>` key/field/payload 和 cluster sync 触发条件。
+  - NC-012 Relay 分发幂等第一切片：强化 `RelayScheduler` 纯逻辑测试，不改变 `sync_cluster_state()` HGETALL 回调顺序、不改变 `PUBLISH NODE:<node_id>` 和真实 `_relay_cb` start/stop I/O。
+  - NC-012 `schema_smoke` 明确 Relay 调度抗丢广播语义：enabled record 尚无 status 时 ACTIVE 可重试；orphan/disabled status 尚存在时 INACTIVE 可重试；record/status/distributed 一致后静默；配置变化保持两轮式先 INACTIVE 清 distributed，待 status 消失后再 ACTIVE。

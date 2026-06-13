@@ -172,6 +172,12 @@ NC-011 后，续租成功/失败后的本地 master 状态转移、`master_acqui
 `src/core/context/services/master_lease_service.*` 的纯逻辑规划；Redis 命令顺序仍保留在
 `caster_internal` 回调中。主节点还负责 relay 分配、节点状态汇总、访问组/别名/nearest 等全局状态维护。
 
+NC-012 后，`RelayScheduler` 的纯逻辑测试锁定 relay 分发幂等边界：record/status/distributed
+一致时不发布动作；enabled record 尚无 status 时 ACTIVE 可重试以抗丢广播；orphan 或 disabled
+status 尚存在时 INACTIVE 可重试；配置变化保持两轮式，先 INACTIVE 并清 distributed，待 status
+消失后再 ACTIVE。真实 Redis callback 顺序、`PUBLISH NODE:<node_id>` 和 `_relay_cb` I/O 仍由
+`caster_internal` 保持原时序。
+
 ## Auth 模块
 
 入口在 `src/auth/include/Auth_Verify.h`：
