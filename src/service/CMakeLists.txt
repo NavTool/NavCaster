@@ -53,11 +53,14 @@ target_link_libraries(${PROJECT_NAME}
     event
     event_extra
     event_core
-    event_pthreads
     yaml-cpp
     libprotobuf
     caster_proto
 )
+
+if(NOT WIN32)
+    target_link_libraries(${PROJECT_NAME} event_pthreads)
+endif()
 
 #nlohmann/json
 include_directories(${PROJECT_NAME} ${JSON_INCLUDE_PATH})

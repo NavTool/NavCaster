@@ -57,10 +57,16 @@ int verify_internal::start()
 
 int verify_internal::stop()
 {
-    redisAsyncDisconnect(_sub_context);
-    redisAsyncFree(_sub_context);
-    redisAsyncDisconnect(_pub_context);
-    redisAsyncFree(_pub_context);
+    if (_sub_context)
+    {
+        redisAsyncDisconnect(_sub_context);
+        redisAsyncFree(_sub_context);
+    }
+    if (_pub_context)
+    {
+        redisAsyncDisconnect(_pub_context);
+        redisAsyncFree(_pub_context);
+    }
     return 0;
 }
 
@@ -475,11 +481,10 @@ void verify_internal::Redis_Pub_Connect_Cb(const redisAsyncContext *c, int statu
     else
     {
         svr->_is_pub_connected = false;
-        svr->_pub_context_errstr = c->err;
-        spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, svr->_pub_context_errstr);
+        svr->_pub_context_errstr = c->errstr ? c->errstr : "unknown";
+        spdlog::error("[{}:{}]: Redis pub connection failed: {}", __class__, __func__, svr->_pub_context_errstr);
         svr->_pub_context = nullptr; /* avoid stale pointer when callback returns */
-
-        exit(1);
+        return;
     }
     svr->pubAttemptReconnect();
 }
@@ -497,11 +502,10 @@ void verify_internal::Redis_Sub_Connect_Cb(const redisAsyncContext *c, int statu
     else
     {
         svr->_is_sub_connected = false;
-        svr->_sub_context_errstr = c->err;
-        spdlog::error("[{}:{}]: redis eror: {}", __class__, __func__, svr->_sub_context_errstr);
+        svr->_sub_context_errstr = c->errstr ? c->errstr : "unknown";
+        spdlog::error("[{}:{}]: Redis sub connection failed: {}", __class__, __func__, svr->_sub_context_errstr);
         svr->_sub_context = nullptr; /* avoid stale pointer when callback returns */
-
-        exit(1);
+        return;
     }
     svr->subAttemptReconnect();
 }
@@ -574,6 +578,12 @@ void verify_internal::Redis_Broadcast_Callback(redisAsyncContext *c, void *r, vo
 void verify_internal::TimeoutCallback(evutil_socket_t fd, short events, void *arg)
 {
     auto svr = static_cast<verify_internal *>(arg);
+
+    if (!svr->_pub_context || !svr->_is_pub_connected)
+    {
+        svr->pubAttemptReconnect();
+        return;
+    }
 
     // 判断过期用户
 

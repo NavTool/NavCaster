@@ -840,6 +840,23 @@ int caster_internal::set_base_source_info(const char *mount_point, const char *c
 
 int caster_internal::check_redis_connection()
 {
+    if (!_sub_context || !_is_sub_connected)
+    {
+        _is_sub_connected = false;
+        subAttemptReconnect();
+    }
+
+    if (!_pub_context || !_is_pub_connected)
+    {
+        _is_pub_connected = false;
+        pubAttemptReconnect();
+    }
+
+    if (!_sub_context || !_pub_context)
+    {
+        return 0;
+    }
+
     if (_sub_ping_fail_count > 2)
     {
         spdlog::error("[{}] Redis SUB connection lost, try to reconnect...", __class__);
@@ -1695,6 +1712,13 @@ void caster_internal::TimeoutCallback(evutil_socket_t fd, short events, void *ar
 {
     auto svr = static_cast<caster_internal *>(arg);
 
+    // Redis 失联时保留事件循环和 HTTP health，不执行依赖 Redis 的周期任务。
+    if (!svr->_pub_context || !svr->_sub_context || !svr->_is_pub_connected || !svr->_is_sub_connected)
+    {
+        svr->check_redis_connection();
+        return;
+    }
+
     svr->test_queue_delay();
 
     svr->upload_node_status(); // 上传当前节点的状态   上传到CASTER:NODE中添加一条记录
@@ -2269,11 +2293,10 @@ void caster_internal::Redis_Pub_Connect_Cb(const redisAsyncContext *c, int statu
     else
     {
         svr->_is_pub_connected = false;
-        svr->_pub_context_errstr = c->err;
-        spdlog::critical("[{}:{}]: Redis pub connection failed: {}, terminating", __class__, __func__, svr->_pub_context_errstr);
+        svr->_pub_context_errstr = c->errstr ? c->errstr : "unknown";
+        spdlog::error("[{}:{}]: Redis pub connection failed: {}", __class__, __func__, svr->_pub_context_errstr);
         svr->_pub_context = nullptr; /* avoid stale pointer when callback returns */
-
-        exit(1);
+        return;
     }
     svr->pubAttemptReconnect();
 }
@@ -2291,11 +2314,10 @@ void caster_internal::Redis_Sub_Connect_Cb(const redisAsyncContext *c, int statu
     else
     {
         svr->_is_sub_connected = false;
-        svr->_sub_context_errstr = c->err;
-        spdlog::critical("[{}:{}]: Redis sub connection failed: {}, terminating", __class__, __func__, svr->_sub_context_errstr);
+        svr->_sub_context_errstr = c->errstr ? c->errstr : "unknown";
+        spdlog::error("[{}:{}]: Redis sub connection failed: {}", __class__, __func__, svr->_sub_context_errstr);
         svr->_sub_context = nullptr; /* avoid stale pointer when callback returns */
-
-        exit(1);
+        return;
     }
     svr->subAttemptReconnect();
 }
