@@ -37,6 +37,7 @@
 #include "source_controller.h"
 #include "source_repository.h"
 #include "statistics_service.h"
+#include "sse_manager.h"
 #include "sse_snapshot_service.h"
 #include "status_service.h"
 #include "system_event_service.h"
@@ -2182,6 +2183,37 @@ int main()
     expect_true(sse_account_actives.contains("acct-1-conn"), "sse snapshot account actives reads ACT_SESSION");
     expect_true(!sse_account_actives.contains("wrong-session"), "sse snapshot account actives ignores caster redis");
     expect_eq(sse_account_actives["sse-conflict"].value("account", std::string{}), "session-acct", "sse snapshot account actives prefers ACT_SESSION");
+
+    std::unordered_set<std::string> parsed_channels;
+    bool wildcard_channels = false;
+    parse_sse_channels("clients, streams ,account_actives", parsed_channels, wildcard_channels);
+    expect_true(!wildcard_channels, "sse channels parser keeps explicit list non-wildcard");
+    expect_true(parsed_channels.contains("clients"), "sse channels parser reads clients");
+    expect_true(parsed_channels.contains("streams"), "sse channels parser trims streams");
+    expect_true(parsed_channels.contains("account_actives"), "sse channels parser reads account actives");
+    expect_true(!parsed_channels.contains("servers"), "sse channels parser excludes unsubscribed channel");
+
+    SseClient explicit_sse_client;
+    explicit_sse_client.channels = parsed_channels;
+    explicit_sse_client.wildcard = wildcard_channels;
+    expect_true(sse_client_subscribes_to(explicit_sse_client, "clients"), "sse explicit client subscribes to listed channel");
+    expect_true(!sse_client_subscribes_to(explicit_sse_client, "servers"), "sse explicit client skips unlisted channel");
+
+    std::vector<SseClient> sse_clients{explicit_sse_client};
+    expect_true(sse_channel_has_subscriber(sse_clients, "streams"), "sse channel subscriber lookup finds subscribed channel");
+    expect_true(!sse_channel_has_subscriber(sse_clients, "servers"), "sse channel subscriber lookup skips unsubscribed channel");
+
+    parse_sse_channels("*", parsed_channels, wildcard_channels);
+    SseClient wildcard_sse_client;
+    wildcard_sse_client.channels = parsed_channels;
+    wildcard_sse_client.wildcard = wildcard_channels;
+    expect_true(wildcard_sse_client.wildcard, "sse channels parser preserves wildcard");
+    expect_true(sse_client_subscribes_to(wildcard_sse_client, "servers"), "sse wildcard client subscribes to any channel");
+    sse_clients.push_back(wildcard_sse_client);
+    expect_true(sse_channel_has_subscriber(sse_clients, "servers"), "sse channel subscriber lookup honors wildcard");
+
+    parse_sse_channels(" , ", parsed_channels, wildcard_channels);
+    expect_true(wildcard_channels, "sse empty channel list falls back to wildcard");
 
     FakeRedisHashClient alias_controller_redis;
     navcaster::http_api::AliasController alias_controller(alias_controller_redis, 10020);

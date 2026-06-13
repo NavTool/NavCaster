@@ -148,8 +148,8 @@ GET /api/events/stream?token=<jwt>&channels=servers,clients,nodes
              └─ 立即发送各订阅 channel 当前快照
 
 每 2 s on_timer (_http_base):
-   ├─ 遍历所有已注册 channel：
-   │    new_data = fetcher();    (从 Redis 拉一次 HGETALL)
+   ├─ 遍历当前有订阅者的已注册 channel：
+   │    new_data = fetcher();    (从 Redis 拉一次 HGETALL / snapshot)
    │    if (new_data != cached_data) broadcast
    └─ 向所有 client 发 ":keepalive" 注释
 ```

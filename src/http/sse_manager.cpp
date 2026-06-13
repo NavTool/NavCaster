@@ -55,37 +55,6 @@ void sse_manager::register_channel(const std::string &channel, DataFetcher fetch
     spdlog::debug("[{}:{}]: Registered SSE channel: {}", __class__, __func__, channel);
 }
 
-static void parse_channels(const std::string &csv,
-                           std::unordered_set<std::string> &out,
-                           bool &wildcard)
-{
-    wildcard = false;
-    out.clear();
-    if (csv.empty() || csv == "*")
-    {
-        wildcard = true;
-        return;
-    }
-    size_t pos = 0;
-    while (pos < csv.size())
-    {
-        size_t comma = csv.find(',', pos);
-        std::string item = csv.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
-        size_t l = item.find_first_not_of(" \t");
-        size_t r = item.find_last_not_of(" \t");
-        if (l != std::string::npos)
-            item = item.substr(l, r - l + 1);
-        if (item == "*")
-            wildcard = true;
-        else if (!item.empty())
-            out.insert(item);
-        if (comma == std::string::npos) break;
-        pos = comma + 1;
-    }
-    if (out.empty() && !wildcard)
-        wildcard = true;
-}
-
 int sse_manager::add_client(evhttp_request *req, const std::string &channels)
 {
     if (_max_clients > 0 && _clients.size() >= _max_clients)
@@ -114,7 +83,7 @@ int sse_manager::add_client(evhttp_request *req, const std::string &channels)
 
     SseClient cli;
     cli.req = req;
-    parse_channels(channels, cli.channels, cli.wildcard);
+    parse_sse_channels(channels, cli.channels, cli.wildcard);
     _clients.push_back(std::move(cli));
     const SseClient &back = _clients.back();
 
@@ -184,6 +153,9 @@ void sse_manager::poll_and_broadcast()
 
     for (auto &[channel, info] : _channels)
     {
+        if (!sse_channel_has_subscriber(_clients, channel))
+            continue;
+
         try
         {
             json new_data = info.fetcher();
