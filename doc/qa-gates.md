@@ -137,8 +137,9 @@ NTRIP/Auth 写侧 active session 深度 smoke 使用真实 NTRIP TCP source/clie
 ```
 
 该检查覆盖真实 NTRIP listener、Auth 验证、`AUTH::Add_Login_Record`、
-Core register/subscribe 和 active account REST 读侧的串联路径。它不覆盖多节点
-`AUTH:BROADCAST`、`Online_Protection` 踢线矩阵或长时间续期。
+Core register/subscribe 和 active account REST 读侧的串联路径。它不覆盖
+`Online_Protection` 踢线矩阵或长时间续期；跨实例 `AUTH:BROADCAST` 由
+`-IncludeNtripAuthBroadcast` 专项覆盖。
 
 NTRIP/Auth active session 续期长跑 smoke 使用同一个真实 NTRIP 入口：
 
@@ -192,7 +193,29 @@ NTRIP/Auth 匿名登录矩阵 deep smoke 需要分场景运行，因为
 `ACT:UND:<name>` field 被清理。`RejectAnonymous` 临时设置
 `Rover_Setting.Anonymous_Login=false`，断言无 Basic Auth client 被拒绝/关闭，
 且 `ACT:UND`、`ACT:SESSION`、`ACT:REC`、`USR:REC` 不残留该匿名连接。
-多节点 `AUTH:BROADCAST` 和 relay failover 仍需专项任务覆盖。
+
+NTRIP/Auth Broadcast 跨实例 deep smoke 使用同一个 Redis fixture 拉起两个本地
+`CasterService` 进程：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAuthBroadcast -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该模式会为第二实例复制临时 conf 目录，并通过 `-conf <dir>\` 指向独立配置。
+测试固定 `connection_limit=1` 和 `Online_Protection=false`，先让 Node A 建立
+实名 rover client，再让 Node B 同账号新 client 登录。必须验证：
+
+```text
+1. Node A 真实 client 先写入 ACT:SESSION/ACT:REC/USR:REC。
+2. Node B 真实 client 登录后触发 KickOld/AUTH:BROADCAST。
+3. Node A 旧 TCP client 被关闭。
+4. ACT:SESSION:<account>、ACT:REC:<account>、USR:REC:<account> 最终只保留 Node B connect_key。
+5. Node A 和 Node B 的 /api/accounts/active 均只展示 Node B 连接。
+6. 等待至少一个更新周期后 Node A 旧 connect_key 不会被重写。
+```
+
+该检查覆盖本地双进程 `AUTH:BROADCAST` 关闭旧会话链路；真实多机器 node
+identity、relay failover 和 Redis 断线恢复仍需专项任务覆盖。
 
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
@@ -258,7 +281,8 @@ NC-007 Auth Online_Protection
   8.6.3 fixture 覆盖真实 NTRIP client 登录写入/断连清理 ACT:SESSION；NC-018
   已补 Online_Protection=true 拒新与 false 踢旧的真实 NTRIP 连接矩阵；NC-019
   已补真实连接存活期间 ACT:SESSION/ACT:REC/USR:REC 续期长跑；NC-021 已补
-  单节点匿名登录允许/拒绝矩阵。禁用账号和多节点 AUTH:BROADCAST 仍需后续专项补测。
+  单节点匿名登录允许/拒绝矩阵；NC-022 已补本地双实例 AUTH:BROADCAST 踢旧连接。
+  禁用账号、真实多机器 node identity 和 relay failover 仍需后续专项补测。
 
 NC-008B/NC-009 活跃账号 REST/SSE 读侧
   NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
@@ -266,8 +290,9 @@ NC-008B/NC-009 活跃账号 REST/SSE 读侧
   真实 NTRIP/Auth client 登录写入与断连清理 ACT:SESSION:* 的 e2e；NC-018 已补
   Online_Protection 踢线矩阵对 /api/accounts/active 的回归；NC-019 已补续期长跑
   对 /api/accounts/active 的回归；NC-020 已补 account_actives 运行中新增/更新/删除
-  SSE 增量推送；NC-021 已补匿名 client 不进入 /api/accounts/active 的回归。
-  多节点场景仍需专项覆盖。
+  SSE 增量推送；NC-021 已补匿名 client 不进入 /api/accounts/active 的回归；
+  NC-022 已补本地双实例 AUTH:BROADCAST 后两实例 /api/accounts/active 读侧一致。
+  真实多机器入口、反代/sticky session 和 relay failover 仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。

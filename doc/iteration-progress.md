@@ -470,3 +470,6 @@
   - NC-021 NTRIP anonymous auth matrix e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAnonymousAuth` 与 `-NtripAnonymousScenario AllowAnonymous|RejectAnonymous`，两种场景分别启动服务，避免 `Rover_Setting.Anonymous_Login` 启动时配置相互污染。
   - NC-021 覆盖 `Anonymous_Login=true` 时无 Basic Auth rover 真实连接成功，`ACT:UND:<name>` 写入且 `HTTL` 为正，不进入 `ACT:SESSION:*` 或 `/api/accounts/active`，断连后 `ACT:UND` field 清理。
   - NC-021 覆盖 `Anonymous_Login=false` 时无 Basic Auth rover 被拒绝并关闭，且 `ACT:UND/ACT:SESSION/ACT:REC/USR:REC` 不残留该匿名连接；多节点 `AUTH:BROADCAST`、relay failover 和禁用账号矩阵仍需后续专项。
+  - NC-022 NTRIP Auth Broadcast cross-instance e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthBroadcast`，在同一 Redis 8.6.3 fixture 下启动两个本地 `CasterService` 进程，分别使用独立 conf、HTTP 端口和 NTRIP 端口。
+  - NC-022 覆盖 `Online_Protection=false` + `connection_limit=1` 时，Node A 旧实名 rover client 建立后，Node B 同账号新 client 登录触发 KickOld，并通过 `AUTH:BROADCAST` 关闭 Node A 旧 TCP 连接。
+  - NC-022 同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 最终只保留 Node B connect_key，两实例 `/api/accounts/active` 都只展示 Node B 连接，并等待更新周期确认 Node A 旧 field 不会被重写；relay failover、禁用账号矩阵和真实多机器 node identity 仍需后续专项。
