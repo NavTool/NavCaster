@@ -445,3 +445,5 @@
   - NC-008B `schema_smoke` 覆盖空数据 `{}`、仅 `STR:ACTIVE`、仅 `ACT:SESSION:*`、二者冲突、仅 `ACT:ACTIVE` 不算在线会话、多连接同账号不丢失、输出剥离密码材料，以及 SSE auth Redis 同源。
   - NC-010 Proto/API/Web 类型同步机制：新增 `tools/contract_check/check_api_contracts.mjs`，比较关键 `proto/caster` message 字段、enum 成员名和 enum 数字值与 `web/src/api/types.ts` 的同步状态；未知漂移失败，`SourceRecord` ECEF 和 `AccountActive` ACT:SESSION 扩展作为显式允许差异输出。
   - NC-010 已新增 `doc/api-contract-sync.md`，把契约检查命令、覆盖范围、允许差异和修改规则纳入文档；主 CI 在 Web build 前执行 `node tools/contract_check/check_api_contracts.mjs`，并把 `team-dev` 加入 workflow 触发分支。
+  - NC-011 Cluster/master lease 第一切片：新增 `MasterLeaseService`，把 `CASTER:MASTER` 续租结果到本地 `_is_master`、`master_acquired/master_lost` 事件 JSON、是否触发 `sync_cluster_state()` 的判断抽成纯逻辑；`try_set_master_node()` 的 SET NX、GET、SET IFEQ EX Redis 命令顺序保持不变。
+  - NC-011 `schema_smoke` 新增 master lease 测试：覆盖首次观察 self/remote master、观察值不变、follower->master、master 续租保持、master->follower、follower 续租失败、`LOG:NODE:<node>` key/field/payload 和 cluster sync 触发条件。

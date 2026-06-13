@@ -45,6 +45,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/core/context/services/access_policy_service.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/services/source_table_service.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/services/relay_scheduler.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/context/services/master_lease_service.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/services/node_history_recorder.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/relay_repository.cpp
     ${CMAKE_SOURCE_DIR}/src/core/context/repositories/redis_monitor_repository.cpp

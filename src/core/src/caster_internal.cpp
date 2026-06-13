@@ -19,6 +19,7 @@
 #include "access_policy_service.h"
 #include "node_history_recorder.h"
 #include "relay_scheduler.h"
+#include "master_lease_service.h"
 #include "source_table_service.h"
 #include "version.h"
 
@@ -1145,17 +1146,19 @@ void caster_internal::Redis_SetMaster_Callback(redisAsyncContext *c, void *r, vo
     // 读取当前 master 节点 ID
     if (reply && reply->type == REDIS_REPLY_STRING && reply->str)
     {
-        std::string master_id = reply->str;
-        if (svr->_current_master_id != master_id)
+        const auto observed = navcaster::core::MasterLeaseService::observe_master(svr->_current_master_id,
+                                                                                  reply->str,
+                                                                                  svr->_node_ID);
+        if (observed.changed)
         {
-            svr->_current_master_id = master_id;
-            if (master_id == svr->_node_ID)
+            svr->_current_master_id = observed.current_master_id;
+            if (observed.is_self)
             {
                 spdlog::info("[caster_internal]: This node ({}) became MASTER", svr->_node_ID);
             }
             else
             {
-                spdlog::info("[caster_internal]: Master node changed to {}", master_id);
+                spdlog::info("[caster_internal]: Master node changed to {}", observed.current_master_id);
             }
         }
     }
@@ -1177,35 +1180,25 @@ void caster_internal::Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, v
     // 检查续期是否成功 (reply 为 OK 表示成功, nil 表示已非 master)
     bool renewed = (reply && reply->type == REDIS_REPLY_STATUS && reply->str && std::string(reply->str) == "OK");
 
-    if (renewed && !svr->_is_master)
+    const auto plan = navcaster::core::MasterLeaseService::apply_keepalive_result(svr->_is_master,
+                                                                                  renewed,
+                                                                                  svr->_node_ID,
+                                                                                  util_get_now_second());
+
+    if (plan.event == navcaster::core::MasterLeaseEventType::Acquired)
     {
-        svr->_is_master = true;
+        svr->_is_master = plan.is_master;
         spdlog::info("[caster_internal]: Node {} confirmed as MASTER (TTL={}s)", svr->_node_ID, svr->_master_expire_time);
-        // 写入主节点获取事件
-        long long ts = util_get_now_second();
-        json ev;
-        ev["event"] = "master_acquired";
-        ev["node_id"] = svr->_node_ID;
-        ev["timestamp"] = ts;
-        std::string nk = std::string(LOG_NODE_PREFIX) + svr->_node_ID;
-        std::string nf = std::to_string(ts) + "_master_acquired";
-        redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", nk.c_str(), nf.c_str(), ev.dump().c_str());
+        redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", plan.log_key.c_str(), plan.log_field.c_str(), plan.payload.dump().c_str());
     }
-    else if (!renewed && svr->_is_master)
+    else if (plan.event == navcaster::core::MasterLeaseEventType::Lost)
     {
-        svr->_is_master = false;
+        svr->_is_master = plan.is_master;
         spdlog::warn("[caster_internal]: Node {} lost MASTER role", svr->_node_ID);
-        long long ts = util_get_now_second();
-        json ev;
-        ev["event"] = "master_lost";
-        ev["node_id"] = svr->_node_ID;
-        ev["timestamp"] = ts;
-        std::string nk = std::string(LOG_NODE_PREFIX) + svr->_node_ID;
-        std::string nf = std::to_string(ts) + "_master_lost";
-        redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", nk.c_str(), nf.c_str(), ev.dump().c_str());
+        redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", plan.log_key.c_str(), plan.log_field.c_str(), plan.payload.dump().c_str());
     }
 
-    if (renewed)
+    if (plan.trigger_cluster_sync)
     {
         // Master 节点续期成功，开始执行节点任务
         svr->sync_cluster_state();

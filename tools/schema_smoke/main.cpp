@@ -28,6 +28,7 @@
 #include "relay_controller.h"
 #include "relay_repository.h"
 #include "relay_scheduler.h"
+#include "master_lease_service.h"
 #include "ring_log_service.h"
 #include "runtime_command_service.h"
 #include "runtime_state_controller.h"
@@ -2464,6 +2465,48 @@ int main()
     expect_eq(table_by_mount["NEAREST"][4], "1074(1),1084(1),1094(1),1124(1)", "source table nearest default details");
     expect_true(source_table_by_mount(policy_table.build_text("missing")).empty(), "source table missing group hidden");
     expect_true(source_table_by_mount(policy_table.build_text("SYSTEM")).contains("HIDDEN"), "source table system sees hidden source");
+
+    auto observed_master = navcaster::core::MasterLeaseService::observe_master("", "node-a", "node-a");
+    expect_true(observed_master.changed, "master lease observes first master change");
+    expect_true(observed_master.is_self, "master lease observes self master");
+    expect_eq(observed_master.current_master_id, "node-a", "master lease observed self id");
+    observed_master = navcaster::core::MasterLeaseService::observe_master("node-a", "node-b", "node-a");
+    expect_true(observed_master.changed, "master lease observes remote master change");
+    expect_true(!observed_master.is_self, "master lease remote master is not self");
+    expect_eq(observed_master.current_master_id, "node-b", "master lease observed remote id");
+    observed_master = navcaster::core::MasterLeaseService::observe_master("node-b", "node-b", "node-a");
+    expect_true(!observed_master.changed, "master lease unchanged observed master");
+
+    auto lease_plan = navcaster::core::MasterLeaseService::apply_keepalive_result(false, true, "node-a", 1234);
+    expect_eq_int(static_cast<int>(lease_plan.event), static_cast<int>(navcaster::core::MasterLeaseEventType::Acquired), "master lease acquired event");
+    expect_true(lease_plan.is_master, "master lease acquired sets master");
+    expect_true(lease_plan.trigger_cluster_sync, "master lease acquired triggers sync");
+    expect_eq(lease_plan.log_key, navcaster::redis_keys::log_node("node-a"), "master lease acquired log key");
+    expect_eq(lease_plan.log_field, "1234_master_acquired", "master lease acquired log field");
+    expect_eq(lease_plan.payload.value("event", std::string{}), "master_acquired", "master lease acquired payload event");
+    expect_eq(lease_plan.payload.value("node_id", std::string{}), "node-a", "master lease acquired payload node");
+    expect_eq_int(lease_plan.payload.value("timestamp", 0), 1234, "master lease acquired payload timestamp");
+
+    lease_plan = navcaster::core::MasterLeaseService::apply_keepalive_result(true, true, "node-a", 1235);
+    expect_eq_int(static_cast<int>(lease_plan.event), static_cast<int>(navcaster::core::MasterLeaseEventType::None), "master lease renewed no event");
+    expect_true(lease_plan.is_master, "master lease renewed keeps master");
+    expect_true(lease_plan.trigger_cluster_sync, "master lease renewed triggers sync");
+    expect_true(lease_plan.log_key.empty(), "master lease renewed no log key");
+
+    lease_plan = navcaster::core::MasterLeaseService::apply_keepalive_result(true, false, "node-a", 1236);
+    expect_eq_int(static_cast<int>(lease_plan.event), static_cast<int>(navcaster::core::MasterLeaseEventType::Lost), "master lease lost event");
+    expect_true(!lease_plan.is_master, "master lease lost clears master");
+    expect_true(!lease_plan.trigger_cluster_sync, "master lease lost does not trigger sync");
+    expect_eq(lease_plan.log_key, navcaster::redis_keys::log_node("node-a"), "master lease lost log key");
+    expect_eq(lease_plan.log_field, "1236_master_lost", "master lease lost log field");
+    expect_eq(lease_plan.payload.value("event", std::string{}), "master_lost", "master lease lost payload event");
+    expect_eq(lease_plan.payload.value("node_id", std::string{}), "node-a", "master lease lost payload node");
+    expect_eq_int(lease_plan.payload.value("timestamp", 0), 1236, "master lease lost payload timestamp");
+
+    lease_plan = navcaster::core::MasterLeaseService::apply_keepalive_result(false, false, "node-a", 1237);
+    expect_eq_int(static_cast<int>(lease_plan.event), static_cast<int>(navcaster::core::MasterLeaseEventType::None), "master lease follower failed no event");
+    expect_true(!lease_plan.is_master, "master lease follower failed stays follower");
+    expect_true(!lease_plan.trigger_cluster_sync, "master lease follower failed no sync");
 
     navcaster::core::PullRecordMap pull_records;
     navcaster::core::PullStatusMap pull_statuses;
