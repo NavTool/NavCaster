@@ -1,5 +1,6 @@
 #include "auth_verify_internal.h"
 #include "auth_record_limit.h"
+#include "auth_session_record.h"
 #include "account_schema.h"
 #include <list>
 #include <spdlog/spdlog.h>
@@ -137,6 +138,9 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
         auth_cb_item cb_item;
         cb_item.connect_key = connect_key;
         cb_item.user_name = user_name;
+        cb_item.type = type;
+        cb_item.online_time = util_get_time_stamp();
+        cb_item.group_uid = "default";
         cb_item.cb = cb;
         cb_item.arg = arg;
 
@@ -186,6 +190,8 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
         auth_cb_item cb_item;
         cb_item.connect_key = connect_key;
         cb_item.user_name = user_name;
+        cb_item.type = type;
+        cb_item.online_time = util_get_time_stamp();
         cb_item.cb = cb;
         cb_item.arg = arg;
 
@@ -271,6 +277,7 @@ int verify_internal::add_logout_record(const char *user_name, const char *connec
         user_registers->second.erase(item);
         // 删除Redis记录
         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL ACT:REC:%s %s", user_name, connect_key);
+        remove_active_session(user_name, connect_key);
     }
 
     // 删除status记录
@@ -376,6 +383,10 @@ int verify_internal::upload_record_item()
         {
             // 更新注册用户
             redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE ACT:REC:%s %s FIELDS 1 %s", items.second.user_name.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
+            if (items.second.active_session_enabled)
+            {
+                update_active_session(items.second, util_get_time_stamp());
+            }
         }
     }
     for (auto iter : _unnamed_map)
@@ -405,6 +416,29 @@ int verify_internal::send_change_auth_status(const char *user_name, const char *
     return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH AUTH:BROADCAST %s", item.toString().c_str());
 
     return 0;
+}
+
+int verify_internal::remove_active_session(const char *user_name, const char *connect_key)
+{
+    if (!_pub_context || !_is_pub_connected)
+    {
+        return REDIS_ERR;
+    }
+    return redisAsyncCommand(_pub_context, NULL, NULL, "HDEL %s %s", navcaster::auth::active_session_key(user_name).c_str(), connect_key);
+}
+
+int verify_internal::update_active_session(const auth_cb_item &item, std::time_t update_time)
+{
+    if (!_pub_context || !_is_pub_connected)
+    {
+        return REDIS_ERR;
+    }
+    const auto online_time = item.online_time > 0 ? item.online_time : update_time;
+    return redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX %s EX %s FIELDS 1 %s %s",
+                             navcaster::auth::active_session_key(item.user_name).c_str(),
+                             std::to_string(_key_expire_time).c_str(),
+                             item.connect_key.c_str(),
+                             navcaster::auth::build_active_session_record_json(item.user_name, item.connect_key, item.type, online_time, update_time, item.group_uid).c_str());
 }
 
 int verify_internal::broadcast_response(std::string req_str)
@@ -442,10 +476,19 @@ int verify_internal::broadcast_response(std::string req_str)
     Reply.type = req.status;
     Reply.str = req.reason.c_str();
 
+    const bool disable_active_session =
+        req.type == AuthBroadcastType::ACCOUNT_STATUS_UPDATE &&
+        (req.status == AuthReply::ERR || req.status == AuthReply::INACTIVE);
+
     if (req.connect_key.size() == 0) // 没有指定特定的连接，则对所有的连接都发送一次回复（针对允许同名频道都在线的情况）
     {
-        for (auto iter : item->second)
+        for (auto &iter : item->second)
         {
+            if (disable_active_session)
+            {
+                iter.second.active_session_enabled = false;
+                remove_active_session(req.channel.c_str(), iter.second.connect_key.c_str());
+            }
             auto cb_item = iter.second;
             auto Func = cb_item.cb;
             auto arg = cb_item.arg;
@@ -460,6 +503,11 @@ int verify_internal::broadcast_response(std::string req_str)
             return 3; // 本地没有该连接的注册记录
         }
 
+        if (disable_active_session)
+        {
+            target->second.active_session_enabled = false;
+            remove_active_session(req.channel.c_str(), req.connect_key.c_str());
+        }
         auto cb_item = target->second;
         auto Func = cb_item.cb;
         auto arg = cb_item.arg;
@@ -754,6 +802,16 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
         _check = decision.current_allowed;
         for (const auto &evicted_connect_key : decision.evicted_connect_keys)
         {
+            auto register_item = verify_internal::getInstance()->_register_map.find(ctx->user_name);
+            if (register_item != verify_internal::getInstance()->_register_map.end())
+            {
+                auto evicted_item = register_item->second.find(evicted_connect_key);
+                if (evicted_item != register_item->second.end())
+                {
+                    evicted_item->second.active_session_enabled = false;
+                }
+            }
+            verify_internal::getInstance()->remove_active_session(ctx->user_name.c_str(), evicted_connect_key.c_str());
             verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), evicted_connect_key.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!");
         }
 
@@ -764,6 +822,18 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
 
         // else 有1个或者多个连接，但是允许多个记录
         // 正常，返回一个成功回调
+        auto register_item = verify_internal::getInstance()->_register_map.find(ctx->user_name);
+        if (register_item != verify_internal::getInstance()->_register_map.end())
+        {
+            auto cb_item = register_item->second.find(ctx->connect_key);
+            if (cb_item != register_item->second.end())
+            {
+                cb_item->second.group_uid = normalize_group_uid(limit_item->second._group);
+                verify_internal::getInstance()->update_active_session(cb_item->second, util_get_time_stamp());
+                cb_item->second.active_session_enabled = true;
+            }
+        }
+
         auth_reply Reply;
         Reply.type = AuthReply::OK;
         Reply.str = "";
@@ -772,6 +842,16 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
     }
     catch (const std::exception &e)
     {
+        auto register_item = verify_internal::getInstance()->_register_map.find(ctx->user_name);
+        if (register_item != verify_internal::getInstance()->_register_map.end())
+        {
+            auto cb_item = register_item->second.find(ctx->connect_key);
+            if (cb_item != register_item->second.end())
+            {
+                cb_item->second.active_session_enabled = false;
+            }
+        }
+        verify_internal::getInstance()->remove_active_session(ctx->user_name.c_str(), ctx->connect_key.c_str());
         verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), ctx->connect_key.c_str(), AuthReply::ERR, e.what()); //
     }
 

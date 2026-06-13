@@ -437,3 +437,6 @@
   - NC-005 验证：执行 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`、`cmake --build build --target CasterService --config Release --parallel`、`cmake --build build --target schema_smoke --config Release --parallel`、`ctest --test-dir build --build-config Release --output-on-failure -R schema_smoke` 通过；临时 `Force_Enable=true` 后访问 `/api/status/health` 返回 `200 {"status":"ok"}`。
   - NC-006 Redis 版本/命令兼容：新增 `doc/redis-deployment.md` 和 `deploy/scripts/check_redis_compat.{sh,ps1}`，把生产最低版本收口为 Redis Open Source 8.4.0+，Docker/CI/Linux package 默认验证版本保持 8.6.3；兼容 smoke 实测 `HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`。
   - NC-007 Auth Online_Protection：修复 `load_Auth_Conf` 中 Rover `Online_Protection` 错写到 `rover_anonymous_login` 的配置解析 bug；抽出实名连接数限制纯决策，修复 `Online_Protection=false` 时新连接挤掉旧连接的淘汰语义；`schema_smoke` 新增 Auth_Verify.yml 解析、Redis 连接字段和连接数策略断言。
+  - NC-008A Auth Session 写侧：新增 `ACT:SESSION:<account>` 实名会话写入契约，登录通过连接数限制后写 JSON，会话续期刷新 TTL 和 `update_time`，登出、拒绝登录、连接数踢线时删除对应 `connect_key`；匿名登录暂不进入展示会话桶。
+  - NC-008A 保护 `ACT:REC:*` 连接数控制桶语义：`ACT:SESSION:*` 只作为展示会话来源，定时续期只刷新已通过限流回调放行的实名会话，广播踢线先关闭本地续期标志，避免被踢连接重新写回展示桶。
+  - NC-008A `schema_smoke` 新增 `ACT:SESSION:*` key、`auth_type`、默认/显式 `group_uid`、`online_time/update_time`、空 `addr/port` 和 registered flag 的纯逻辑断言；真实 Redis/NTRIP e2e 需在 Redis 8.4+ fixture 下继续补。

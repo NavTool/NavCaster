@@ -187,7 +187,15 @@ NC-007 已确认并修复 Auth 在线保护语义：
 - `Online_Protection=true` 时已在线连接优先，新连接超过连接数上限会被拒绝。
 - `Online_Protection=false` 时允许新连接挤掉最早的旧实名连接。
 
-`schema_smoke` 已覆盖 Auth 配置解析组合、Redis 连接字段解析和实名连接数策略纯逻辑。
+NC-008A 开始，实名 Auth 登录生命周期额外维护展示会话桶：
+
+- key 为 `ACT:SESSION:<account>`，field 为 `connect_key`。
+- value 是 JSON：`uid/connect_key/account/anonymous/auth_type/online_time/update_time/addr/port/group_uid`。
+- 只有实名登录通过连接数限制后才写入；拒绝登录、连接数踢线、登出会删除对应 field。
+- 定时续期只刷新已放行的实名会话，匿名登录暂不写入 `ACT:SESSION:*`。
+- `/api/accounts/active` 和 SSE `account_actives` 读侧仍待 NC-008B 从 legacy `STR:ACTIVE` 迁移。
+
+`schema_smoke` 已覆盖 Auth 配置解析组合、Redis 连接字段解析、实名连接数策略纯逻辑和 `ACT:SESSION:*` JSON 契约。
 
 ## HTTP API
 
@@ -296,6 +304,7 @@ SSE：
 
 - 仓库刚重新 clone，当前 `git status` 干净，但 Windows Git 会反复警告 `C:\Users\KOROyo/.config/git/ignore` permission denied；这不代表仓库脏。
 - Windows 环境下 `git submodule status` 可能因为 Git 自带 Unix helper 缺失而失败；当前各 `third_party` 子模块目录已存在。
+- 团队任务 worktree 默认从 `repo\third_party` 本地水合子模块，不让每个任务 worktree 单独从远端拉取。
 - 顶层构建会把二进制和配置输出到源码树下的 `bin/<BuildType>`。
 - `doc/data-flow-and-architecture.md` 对 HTTP event loop 的描述已落后于源码。
 - `web/README.md` 还是 Vite 模板说明，不是项目说明。

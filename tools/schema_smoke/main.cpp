@@ -42,6 +42,7 @@
 #include "system_event_service.h"
 #include "source_table_service.h"
 #include "auth_record_limit.h"
+#include "auth_session_record.h"
 #include "ntrip_config.h"
 
 #include <cstdlib>
@@ -629,6 +630,42 @@ int main()
         decision = auth::plan_record_limit(same_second_records, "current", 0, false);
         expect_true(!decision.current_allowed, "auth online protection zero limit rejects current");
         expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 0, "auth online protection zero limit no eviction");
+    }
+
+    {
+        expect_eq(auth::active_session_key("alice"), "ACT:SESSION:alice", "auth active session key");
+        expect_eq(std::string(auth::auth_type_name(AuthType::SERVER)), "server", "auth active session server type");
+        expect_eq(std::string(auth::auth_type_name(AuthType::CLIENT)), "client", "auth active session client type");
+        expect_eq(std::string(auth::auth_type_name(AuthType::SOURCE)), "source", "auth active session source type");
+        expect_eq(std::string(auth::auth_type_name(AuthType::UNKNOWN)), "unknown", "auth active session unknown type");
+
+        const auto session = nlohmann::json::parse(auth::build_active_session_record_json(
+            "alice",
+            "conn-1",
+            AuthType::CLIENT,
+            100,
+            105,
+            ""));
+        expect_eq(session.value("uid", ""), "conn-1", "auth active session uid");
+        expect_eq(session.value("connect_key", ""), "conn-1", "auth active session connect key");
+        expect_eq(session.value("account", ""), "alice", "auth active session account");
+        expect_true(!session.value("anonymous", true), "auth active session registered flag");
+        expect_eq(session.value("auth_type", ""), "client", "auth active session auth type");
+        expect_eq_int(session.value("online_time", 0), 100, "auth active session online time");
+        expect_eq_int(session.value("update_time", 0), 105, "auth active session update time");
+        expect_eq(session.value("addr", "x"), "", "auth active session empty addr");
+        expect_eq(session.value("port", "x"), "", "auth active session empty port");
+        expect_eq(session.value("group_uid", ""), "default", "auth active session default group");
+
+        const auto grouped_session = nlohmann::json::parse(auth::build_active_session_record_json(
+            "base",
+            "conn-2",
+            AuthType::SERVER,
+            200,
+            240,
+            "ops"));
+        expect_eq(grouped_session.value("auth_type", ""), "server", "auth active session grouped server type");
+        expect_eq(grouped_session.value("group_uid", ""), "ops", "auth active session explicit group");
     }
 
     expect_eq(redis_keys::mpt_rec("BASE01"), "MPT:REC:BASE01", "mpt_rec key");
