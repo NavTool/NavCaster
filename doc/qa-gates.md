@@ -217,6 +217,30 @@ NTRIP/Auth Broadcast 跨实例 deep smoke 使用同一个 Redis fixture 拉起�
 该检查覆盖本地双进程 `AUTH:BROADCAST` 关闭旧会话链路；真实多机器 node
 identity、relay failover 和 Redis 断线恢复仍需专项任务覆盖。
 
+NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripDisabledAccount
+```
+
+该模式必须单独运行，不能与其他实名 NTRIP Include* 混在同一服务生命周期。
+测试先创建 enabled 账号并建立真实 NTRIP POST source / GET client，再依次通过
+`/api/accounts` 更新同一账号为 frozen、inactive 和 expired。必须验证：
+
+```text
+1. enabled 账号创建后 ACT:ACTIVE 存在。
+2. enabled 账号真实 Basic Auth client 可登录，ACT:SESSION/ACT:REC/USR:REC 与 /api/accounts/active 一致。
+3. enabled client 断连后三处在线 field 清理。
+4. frozen 更新后 ACT:ACTIVE 删除，NTRIP client 被拒绝并关闭。
+5. inactive 更新后 ACT:ACTIVE 删除，NTRIP client 被拒绝并关闭。
+6. expired 更新后 ACT:ACTIVE 删除，NTRIP client 被拒绝并关闭。
+7. 三个拒绝场景均不残留 ACT:SESSION:<account>、ACT:REC:<account>、USR:REC:<account> 或 /api/accounts/active 记录。
+```
+
+该检查覆盖账号状态从 HTTP 写侧到 Auth 登录索引、真实 NTRIP 拒绝行为和
+active account 读侧清理的闭环；relay failover、真实多机器 node identity 和
+Redis 断线恢复仍需专项任务覆盖。
+
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
 ```powershell
@@ -282,7 +306,8 @@ NC-007 Auth Online_Protection
   已补 Online_Protection=true 拒新与 false 踢旧的真实 NTRIP 连接矩阵；NC-019
   已补真实连接存活期间 ACT:SESSION/ACT:REC/USR:REC 续期长跑；NC-021 已补
   单节点匿名登录允许/拒绝矩阵；NC-022 已补本地双实例 AUTH:BROADCAST 踢旧连接。
-  禁用账号、真实多机器 node identity 和 relay failover 仍需后续专项补测。
+  NC-023 已补禁用/失效账号矩阵。真实多机器 node identity、Redis 断线恢复和
+  relay failover 仍需后续专项补测。
 
 NC-008B/NC-009 活跃账号 REST/SSE 读侧
   NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
@@ -292,7 +317,8 @@ NC-008B/NC-009 活跃账号 REST/SSE 读侧
   对 /api/accounts/active 的回归；NC-020 已补 account_actives 运行中新增/更新/删除
   SSE 增量推送；NC-021 已补匿名 client 不进入 /api/accounts/active 的回归；
   NC-022 已补本地双实例 AUTH:BROADCAST 后两实例 /api/accounts/active 读侧一致。
-  真实多机器入口、反代/sticky session 和 relay failover 仍需专项覆盖。
+  NC-023 已补禁用/失效账号拒绝后不进入 /api/accounts/active 的回归。真实多机器入口、
+  反代/sticky session、Redis 断线恢复和 relay failover 仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。

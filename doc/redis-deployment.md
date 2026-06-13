@@ -191,6 +191,21 @@ Node A：旧 TCP client 被关闭，旧 connect_key 不再被重写。
 Redis/HTTP：ACT:SESSION/ACT:REC/USR:REC 和两实例 /api/accounts/active 均只保留 Node B connect_key。
 ```
 
+真实 NTRIP/Auth 禁用/失效账号矩阵可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripDisabledAccount
+```
+
+该检查通过 HTTP `/api/accounts` 创建 enabled 账号，再依次更新为 frozen、
+inactive 和 expired。脚本会打开真实 NTRIP POST source 和实名 GET client，并验证：
+
+```text
+Enabled：ACT:ACTIVE 存在，Basic Auth client 可登录，ACT:SESSION/ACT:REC/USR:REC 与 /api/accounts/active 一致。
+Frozen/Inactive/Expired：ACT:ACTIVE 被删除，同账号 client 被拒绝并关闭。
+Redis/HTTP：拒绝场景不残留 ACT:SESSION:<account>、ACT:REC:<account>、USR:REC:<account> 或 /api/accounts/active 记录。
+```
+
 当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，
 不能替代 e2e 通过记录。
 

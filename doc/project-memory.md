@@ -96,7 +96,8 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 `-IncludeNtripAuthSessionRenewal`；`Online_Protection` 连接数矩阵可追加
 `-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`；
 匿名登录矩阵可追加
-`-IncludeNtripAnonymousAuth -NtripAnonymousScenario AllowAnonymous|RejectAnonymous`。
+`-IncludeNtripAnonymousAuth -NtripAnonymousScenario AllowAnonymous|RejectAnonymous`；
+禁用/失效账号矩阵可追加 `-IncludeNtripDisabledAccount`。
 必要时用 `-NtripPort` 避开本机端口冲突。
 
 ## 后端启动链路
@@ -245,6 +246,10 @@ fixture 打开真实 NTRIP POST source 和实名 GET client，验证 Auth/Core �
 同账号新连接触发 `AUTH:BROADCAST` 关闭 Node A 旧连接，并确认
 `ACT:SESSION/ACT:REC/USR:REC` 和两实例 `/api/accounts/active` 最终只保留
 Node B connect_key。
+NC-023 后，`-IncludeNtripDisabledAccount` 会通过 HTTP 账号 API 创建 enabled
+账号，验证真实 NTRIP Basic Auth client 可登录；随后依次更新 frozen、inactive
+和 expired，确认 `ACT:ACTIVE` 删除、NTRIP client 被拒绝关闭，且
+`ACT:SESSION/ACT:REC/USR:REC` 与 `/api/accounts/active` 不残留该账号。
 
 ## HTTP API
 
@@ -441,8 +446,8 @@ SSE：
   `/api/accounts/active`，断连后 `ACT:UND:<name>` field 被清理。
 - `RejectAnonymous` 覆盖无 Basic Auth rover 被拒绝/关闭，且
   `ACT:UND/ACT:SESSION/ACT:REC/USR:REC` 不残留该匿名连接。
-- NC-022 已覆盖本地双实例 `AUTH:BROADCAST` 踢旧连接；NC-021 自身仍不覆盖
-  relay failover 和禁用账号矩阵。
+- NC-022 已覆盖本地双实例 `AUTH:BROADCAST` 踢旧连接；NC-023 已覆盖禁用/失效
+  账号矩阵；NC-021 自身仍不覆盖 relay failover。
 
 ## 2026-06-14 NC-022 NTRIP Auth Broadcast 跨实例 e2e
 
@@ -460,5 +465,21 @@ SSE：
   最终只保留 Node B connect_key，Node A/Node B 两边 `/api/accounts/active`
   均只展示 Node B 连接。
 - 覆盖：等待至少一个更新周期后再次确认 Node A 旧 connect_key 不会被重写。
-- 该 e2e 闭合本地双实例 `AUTH:BROADCAST` 踢线链路；真实多机器 node identity、
-  relay failover、禁用账号矩阵和 Redis 断线恢复仍需后续专项。
+- 该 e2e 闭合本地双实例 `AUTH:BROADCAST` 踢线链路；禁用/失效账号矩阵由
+  NC-023 覆盖；真实多机器 node identity、relay failover 和 Redis 断线恢复
+  仍需后续专项。
+
+## 2026-06-14 NC-023 NTRIP 禁用/失效账号矩阵 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripDisabledAccount`，
+  默认关闭，必须作为独立服务生命周期运行，因为它会通过 HTTP API 变更账号状态。
+- 该 smoke 使用 Redis 8.6.3 Docker fixture、本地 `CasterService`、真实 NTRIP
+  POST source 和 GET client；账号创建和状态变化均通过 `/api/accounts`。
+- 覆盖：enabled 账号创建后 `ACT:ACTIVE` 存在，真实 Basic Auth client 可登录，
+  `/api/accounts/active` 展示该实名会话且不泄露密码材料，断连后三处在线 field 清理。
+- 覆盖：frozen、inactive 和 expired 三个场景更新后 `ACT:ACTIVE` 被删除，
+  同账号真实 NTRIP client 被拒绝并关闭。
+- 覆盖：三个拒绝场景均不残留 `ACT:SESSION:<account>`、`ACT:REC:<account>`、
+  `USR:REC:<account>` 或 `/api/accounts/active` 记录。
+- 该 e2e 闭合禁用/失效账号矩阵；真实多机器 node identity、relay failover
+  和 Redis 断线恢复仍需后续专项。
