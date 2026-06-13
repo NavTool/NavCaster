@@ -91,7 +91,8 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 ```
 
 活跃账号读侧可追加 `-IncludeActiveAccounts`；真实 NTRIP/Auth 写侧实名会话可追加
-`-IncludeNtripAuthSession`；`Online_Protection` 连接数矩阵可追加
+`-IncludeNtripAuthSession`；真实连接续期长跑可追加
+`-IncludeNtripAuthSessionRenewal`；`Online_Protection` 连接数矩阵可追加
 `-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`。
 必要时用 `-NtripPort` 避开本机端口冲突。
 
@@ -229,7 +230,10 @@ fixture 打开真实 NTRIP POST source 和实名 GET client，验证 Auth/Core �
 对应 `connect_key`。NC-018 后，`-IncludeNtripOnlineProtection` 会在独立服务
 生命周期中验证 `Online_Protection=true` 拒绝新同账号连接、`false` 踢掉旧同账号
 连接，并同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>`
-最终只保留预期 `connect_key`。
+最终只保留预期 `connect_key`。NC-019 后，`-IncludeNtripAuthSessionRenewal`
+会保持真实实名 client 在线跨过续期窗口，断言 `ACT:SESSION:<account>` 同 field
+的 `update_time` 增长，并用 `HTTL` 确认 `ACT:SESSION`、`ACT:REC`、`USR:REC`
+三处 field TTL 仍为正；断连后继续确认三处 field 被清理。
 
 ## HTTP API
 
@@ -360,7 +364,7 @@ SSE：
   作为 native 参数传给 `docker exec redis-cli HSET` 会在 Windows 上丢失双引号，
   造成 Redis 中存入非法 JSON。
 - 该 e2e 只覆盖读侧真实 Redis/HTTP/SSE；NC-017 已补真实 NTRIP/Auth 登录写入和
-  断连清理，续期长跑、踢线矩阵和多节点场景仍是后续缺口。
+  断连清理，NC-018 已补踢线矩阵，NC-019 已补续期长跑；多节点场景仍是后续缺口。
 
 ## 2026-06-14 NC-017 NTRIP Auth Session 写侧 e2e
 
@@ -371,7 +375,7 @@ SSE：
 - 覆盖：真实 Basic Auth client 登录、`ACT:SESSION:<account>` 写入、REST
   `/api/accounts/active` 读取真实会话、密码材料剥离，以及 client 断连后
   `ACT:SESSION:<account>` 对应 field 被清理。
-- 仍未覆盖多节点 AUTH:BROADCAST、长时间续期、匿名登录矩阵和 relay failover。
+- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵和 relay failover。
 
 ## 2026-06-14 NC-018 NTRIP Online_Protection e2e
 
@@ -384,4 +388,19 @@ SSE：
   client 成功登录，旧 client 被关闭。
 - 两种场景都断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>`
   最终字段集合与预期 connect_key 一致，并验证 `/api/accounts/active` 不泄露密码材料。
-- 仍未覆盖多节点 AUTH:BROADCAST、长时间续期、匿名登录矩阵和 relay failover。
+- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵和 relay failover。
+
+## 2026-06-14 NC-019 NTRIP Auth Session 续期 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSessionRenewal`
+  和 `-NtripRenewalWaitSec`。
+- 续期 smoke 使用 Redis 8.6.3 Docker fixture、真实 NTRIP POST source 和实名
+  GET client，默认等待 25 秒，跨过 Auth 默认 5 秒更新周期和 10 秒 field TTL。
+- 覆盖：`ACT:SESSION:<account>` 同 connect_key 在连接存活期间持续存在，
+  `update_time` 从初始值单调增长，`online_time` 保持不变。
+- 同时通过 `HTTL` 断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、
+  `USR:REC:<account>` 三处 field TTL 为正，并验证 `/api/accounts/active`
+  与续期后的真实会话一致且不泄露密码材料。
+- client 断连后确认 `ACT:SESSION/ACT:REC/USR:REC` 对应 field 都被清理。
+- `check_redis_compat.{ps1,sh}` 同步纳入 `HTTL` 兼容检查，避免 QA 依赖未声明命令。
+- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵、relay failover 和运行中 SSE 增量推送。

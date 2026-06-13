@@ -122,6 +122,13 @@ try {
         Fail "unexpected HEXPIRE response: $out"
     }
 
+    $out = Invoke-Redis HTTL $hashKey FIELDS 1 field
+    $ttlLine = (($out -split "`n") | Where-Object { $_.Trim() -ne "" } | Select-Object -Last 1).Trim()
+    $ttl = 0
+    if (-not [int]::TryParse($ttlLine, [ref]$ttl) -or $ttl -le 0) {
+        Fail "unexpected HTTL response: $out"
+    }
+
     $out = Invoke-Redis SET $leaseKey node-a NX EX 30
     if ($out -ne "OK") {
         Fail "unexpected SET NX EX response: $out"
@@ -132,7 +139,7 @@ try {
         Fail "unexpected SET IFEQ EX response: $out"
     }
 
-    Write-Host "[redis-compat] PASS HSETEX, HEXPIRE, SET IFEQ EX"
+    Write-Host "[redis-compat] PASS HSETEX, HEXPIRE, HTTL, SET IFEQ EX"
 }
 catch {
     Fail $_.Exception.Message

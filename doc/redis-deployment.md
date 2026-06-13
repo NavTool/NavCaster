@@ -2,7 +2,7 @@
 
 更新时间：2026-06-14
 
-基线：NC-016 基于 `team-dev @ 53772e5`。
+基线：NC-019 基于 `team-dev @ 1fb4f61`。
 
 ## 版本口径
 
@@ -14,6 +14,7 @@ Linux 打包和 GitHub Actions 默认验证/打包版本为 **Redis 8.6.3**。
 | 命令能力 | 最低 Redis | NavCaster 用途 |
 |----------|------------|----------------|
 | `HEXPIRE` | 7.4.0 | 给 hash field 续期，维护连接/订阅/账号在线状态 |
+| `HTTL` | 7.4.0 | 读取 hash field TTL，部署兼容检查和续期 QA 使用 |
 | `HSETEX` | 8.0.0 | 写入带 field TTL 的运行态 hash |
 | `SET ... IFEQ ... EX` | 8.4.0 | Master lease 续约，只有当前 Master 才能刷新 TTL |
 
@@ -24,6 +25,7 @@ Linux 打包和 GitHub Actions 默认验证/打包版本为 **Redis 8.6.3**。
 
 - Redis `HSETEX`：https://redis.io/docs/latest/commands/hsetex/
 - Redis `HEXPIRE`：https://redis.io/docs/latest/commands/hexpire/
+- Redis `HTTL`：https://redis.io/docs/latest/commands/httl/
 - Redis `SET` 条件选项：https://redis.io/docs/latest/commands/set/
 
 ## 当前依赖位置
@@ -119,6 +121,18 @@ native 参数转发导致 JSON 双引号丢失。
 对应 `connect_key` 被清理。如果 `4202` 被占用，可通过 `-NtripPort 14202`
 指定空闲 NTRIP 端口。
 
+真实 NTRIP/Auth active session 续期长跑可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAuthSessionRenewal
+```
+
+该检查默认等待 25 秒，验证真实 client 保持在线时 `ACT:SESSION:<account>` 同
+`connect_key` 的 `update_time` 增长，并通过 `HTTL` 确认
+`ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 三个 hash
+field 仍有正 TTL；随后关闭 client 并确认三处 field 被清理。调试时可通过
+`-NtripRenewalWaitSec` 调整等待窗口。
+
 真实 NTRIP/Auth `Online_Protection` 连接数矩阵可追加：
 
 ```powershell
@@ -171,6 +185,7 @@ PING
 INFO server
 HSETEX NC:COMPAT:* EX 30 FIELDS 1 field value
 HEXPIRE NC:COMPAT:* 30 FIELDS 1 field
+HTTL NC:COMPAT:* FIELDS 1 field
 SET NC:COMPAT:* node-a NX EX 30
 SET NC:COMPAT:* node-b IFEQ node-a EX 30
 DEL NC:COMPAT:*
@@ -179,7 +194,7 @@ DEL NC:COMPAT:*
 预期结果：
 
 ```text
-[redis-compat] PASS HSETEX, HEXPIRE, SET IFEQ EX
+[redis-compat] PASS HSETEX, HEXPIRE, HTTL, SET IFEQ EX
 ```
 
 失败时按照输出处理：版本低于 8.4.0、缺少命令或 `IFEQ` 不被接受，都视为部署
