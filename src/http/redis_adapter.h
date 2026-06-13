@@ -51,6 +51,7 @@ public:
 private:
     static void connect_callback(const redisAsyncContext *c, int status);
     static void disconnect_callback(const redisAsyncContext *c, int status);
+    static void reconnect_callback(evutil_socket_t fd, short what, void *arg);
 
     // Redis command callbacks
     static void hgetall_callback(redisAsyncContext *c, void *r, void *privdata);
@@ -60,11 +61,17 @@ private:
     static void generic_callback(redisAsyncContext *c, void *r, void *privdata);
 
     void execute_pending();
+    int connect_async();
+    void schedule_reconnect();
 
 private:
     event_base *_base = nullptr;
     redisAsyncContext *_ctx = nullptr;
+    event *_reconnect_event = nullptr;
     bool _connected = false;
+    bool _reconnect_scheduled = false;
+    bool _shutting_down = false;
+    int _reconnect_attempts = 0;
 
     std::string _host;
     int _port = 6379;

@@ -7,6 +7,13 @@ redis_adapter::redis_adapter() {}
 
 redis_adapter::~redis_adapter()
 {
+    _shutting_down = true;
+    if (_reconnect_event)
+    {
+        event_del(_reconnect_event);
+        event_free(_reconnect_event);
+        _reconnect_event = nullptr;
+    }
     if (_ctx)
     {
         redisAsyncDisconnect(_ctx);
@@ -20,6 +27,26 @@ int redis_adapter::init(event_base *base, const std::string &host, int port, con
     _host = host;
     _port = port;
     _password = password;
+
+    const int result = connect_async();
+    if (result != 0)
+    {
+        schedule_reconnect();
+    }
+    return result;
+}
+
+int redis_adapter::connect_async()
+{
+    if (_shutting_down)
+    {
+        return -1;
+    }
+    if (_ctx)
+    {
+        redisAsyncDisconnect(_ctx);
+        _ctx = nullptr;
+    }
 
     redisOptions options = {0};
     REDIS_OPTIONS_SET_TCP(&options, _host.c_str(), _port);
@@ -58,29 +85,87 @@ int redis_adapter::init(event_base *base, const std::string &host, int port, con
 void redis_adapter::connect_callback(const redisAsyncContext *c, int status)
 {
     auto *adapter = static_cast<redis_adapter *>(c->data);
+    if (!adapter)
+    {
+        return;
+    }
     if (status != REDIS_OK)
     {
         spdlog::error("[{}]: Redis connect failed: {}", __class__, c->errstr);
         adapter->_connected = false;
+        adapter->_ctx = nullptr;
+        adapter->schedule_reconnect();
         return;
     }
     spdlog::info("[{}]: Redis connected for HTTP API", __class__);
     adapter->_connected = true;
+    adapter->_reconnect_attempts = 0;
     adapter->execute_pending();
 }
 
 void redis_adapter::disconnect_callback(const redisAsyncContext *c, int status)
 {
     auto *adapter = static_cast<redis_adapter *>(c->data);
+    if (!adapter)
+    {
+        return;
+    }
     adapter->_connected = false;
+    adapter->_ctx = nullptr;
     if (status != REDIS_OK)
     {
         spdlog::warn("[{}]: Redis disconnected with error: {}", __class__, c->errstr);
+        adapter->schedule_reconnect();
     }
     else
     {
         spdlog::info("[{}]: Redis disconnected", __class__);
     }
+}
+
+void redis_adapter::reconnect_callback(evutil_socket_t /*fd*/, short /*what*/, void *arg)
+{
+    auto *adapter = static_cast<redis_adapter *>(arg);
+    if (!adapter || adapter->_shutting_down)
+    {
+        return;
+    }
+
+    adapter->_reconnect_scheduled = false;
+    spdlog::info("[{}]: attempting Redis reconnect for HTTP API", __class__);
+    if (adapter->connect_async() != 0)
+    {
+        adapter->schedule_reconnect();
+    }
+}
+
+void redis_adapter::schedule_reconnect()
+{
+    if (_shutting_down || !_base || _connected || _reconnect_scheduled)
+    {
+        return;
+    }
+
+    if (!_reconnect_event)
+    {
+        _reconnect_event = event_new(_base, -1, 0, reconnect_callback, this);
+        if (!_reconnect_event)
+        {
+            spdlog::error("[{}]: failed to create Redis reconnect timer", __class__);
+            return;
+        }
+    }
+
+    _reconnect_attempts = std::min(_reconnect_attempts + 1, 5);
+    const int delay_sec = std::min(_reconnect_attempts == 1 ? 1 : _reconnect_attempts * 2, 10);
+    timeval tv{delay_sec, 0};
+    if (event_add(_reconnect_event, &tv) != 0)
+    {
+        spdlog::error("[{}]: failed to schedule Redis reconnect timer", __class__);
+        return;
+    }
+    _reconnect_scheduled = true;
+    spdlog::warn("[{}]: scheduled Redis reconnect in {}s", __class__, delay_sec);
 }
 
 void redis_adapter::execute_pending()

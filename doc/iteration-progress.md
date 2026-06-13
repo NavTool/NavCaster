@@ -475,4 +475,7 @@
   - NC-022 同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 最终只保留 Node B connect_key，两实例 `/api/accounts/active` 都只展示 Node B 连接，并等待更新周期确认 Node A 旧 field 不会被重写；relay failover、禁用账号矩阵和真实多机器 node identity 仍需后续专项。
   - NC-023 NTRIP disabled account matrix e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripDisabledAccount`，通过 HTTP `/api/accounts` 创建 enabled 实名账号，再依次更新为 frozen、inactive 和 expired。
   - NC-023 覆盖 enabled 账号真实 NTRIP Basic Auth client 可登录并写入/清理 `ACT:SESSION/ACT:REC/USR:REC`；账号更新为 frozen、inactive 或 expired 后，`ACT:ACTIVE` 登录索引被删除，真实 NTRIP client 被拒绝并关闭。
-  - NC-023 同时断言三个拒绝场景均不残留 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 或 `/api/accounts/active` 记录；relay failover、Redis 断线恢复和真实多机器 node identity 仍需后续专项。
+  - NC-023 同时断言三个拒绝场景均不残留 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 或 `/api/accounts/active` 记录；HTTP/API Redis 断线恢复由 NC-024 覆盖，relay failover 和真实多机器 node identity 仍需后续专项。
+  - NC-024 Redis reconnect e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeRedisReconnect`，在 Docker Redis 8.6.3 fixture 下启动服务后停止 Redis 容器，验证 `/api/status/health` 仍可响应且 `CasterService` 进程存活，再重启同一容器并等待 `/api/status` 中 caster/auth Redis 连接恢复。
+  - NC-024 修复 HTTP API async `redis_adapter` 断开后不重连的问题：断开时在 HTTP event loop 上安排 1/2/4/8/10 秒退避重连，重连成功后恢复 `_connected=true` 并继续执行 pending command。
+  - NC-024 同时验证重连后重新登录、`/api/status` 和 `/api/monitor/cluster` 可用；relay failover 和真实多机器 node identity 仍需后续专项。

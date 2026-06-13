@@ -97,7 +97,8 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 `-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`；
 匿名登录矩阵可追加
 `-IncludeNtripAnonymousAuth -NtripAnonymousScenario AllowAnonymous|RejectAnonymous`；
-禁用/失效账号矩阵可追加 `-IncludeNtripDisabledAccount`。
+禁用/失效账号矩阵可追加 `-IncludeNtripDisabledAccount`；HTTP Redis 断线/重连
+可追加 `-IncludeRedisReconnect`。
 必要时用 `-NtripPort` 避开本机端口冲突。
 
 ## 后端启动链路
@@ -466,8 +467,8 @@ SSE：
   均只展示 Node B 连接。
 - 覆盖：等待至少一个更新周期后再次确认 Node A 旧 connect_key 不会被重写。
 - 该 e2e 闭合本地双实例 `AUTH:BROADCAST` 踢线链路；禁用/失效账号矩阵由
-  NC-023 覆盖；真实多机器 node identity、relay failover 和 Redis 断线恢复
-  仍需后续专项。
+  NC-023 覆盖；HTTP/API Redis 断线恢复由 NC-024 覆盖；真实多机器 node identity
+  和 relay failover 仍需后续专项。
 
 ## 2026-06-14 NC-023 NTRIP 禁用/失效账号矩阵 e2e
 
@@ -481,5 +482,22 @@ SSE：
   同账号真实 NTRIP client 被拒绝并关闭。
 - 覆盖：三个拒绝场景均不残留 `ACT:SESSION:<account>`、`ACT:REC:<account>`、
   `USR:REC:<account>` 或 `/api/accounts/active` 记录。
-- 该 e2e 闭合禁用/失效账号矩阵；真实多机器 node identity、relay failover
-  和 Redis 断线恢复仍需后续专项。
+- 该 e2e 闭合禁用/失效账号矩阵；HTTP/API Redis 断线恢复由 NC-024 覆盖；
+  真实多机器 node identity 和 relay failover 仍需后续专项。
+
+## 2026-06-14 NC-024 Redis 断线/重连 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeRedisReconnect`，仅支持
+  Docker Redis fixture，因为测试需要停止并重启同一 Redis 容器。
+- 首轮运行暴露真实缺口：Redis 容器恢复后，HTTP API async `redis_adapter`
+  没有重新建立连接，`/api/status` 长时间保持 `redis_caster_connected=false`
+  和 `redis_auth_connected=false`。
+- `src/http/redis_adapter.*` 新增 HTTP event loop 上的重连 timer。断开时安排
+  1/2/4/8/10 秒退避重连，重连成功后恢复 `_connected=true` 并执行 pending command；
+  析构时取消 timer 并避免关闭路径误触发重连。
+- 覆盖：Redis fixture 停止后 `CasterService` 进程保持存活，`/api/status/health`
+  仍返回 ok。
+- 覆盖：同一 Redis fixture 重启后，`/api/status` 中 caster/auth Redis 连接恢复，
+  随后重新登录并查询 `/api/status`、`/api/monitor/cluster` 成功。
+- 该 e2e 闭合 HTTP/API 层 Redis 短断重连缺口；relay failover 和真实多机器
+  node identity 仍需后续专项。

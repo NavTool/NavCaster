@@ -214,8 +214,8 @@ NTRIP/Auth Broadcast 跨实例 deep smoke 使用同一个 Redis fixture 拉起�
 6. 等待至少一个更新周期后 Node A 旧 connect_key 不会被重写。
 ```
 
-该检查覆盖本地双进程 `AUTH:BROADCAST` 关闭旧会话链路；真实多机器 node
-identity、relay failover 和 Redis 断线恢复仍需专项任务覆盖。
+该检查覆盖本地双进程 `AUTH:BROADCAST` 关闭旧会话链路；HTTP/API Redis 断线恢复
+由 NC-024 覆盖，真实多机器 node identity 和 relay failover 仍需专项任务覆盖。
 
 NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
 
@@ -238,8 +238,28 @@ NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真
 ```
 
 该检查覆盖账号状态从 HTTP 写侧到 Auth 登录索引、真实 NTRIP 拒绝行为和
-active account 读侧清理的闭环；relay failover、真实多机器 node identity 和
-Redis 断线恢复仍需专项任务覆盖。
+active account 读侧清理的闭环；HTTP/API Redis 断线恢复由 NC-024 覆盖，
+relay failover 和真实多机器 node identity 仍需专项任务覆盖。
+
+HTTP/API Redis 断线/重连 deep smoke 使用 Docker Redis fixture 控制短断窗口：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeRedisReconnect
+```
+
+该模式只支持 `RedisMode Docker`。必须验证：
+
+```text
+1. 初始 Redis fixture 下 health/login/status/cluster 通过。
+2. 停止 Redis fixture 后 CasterService 进程仍存活。
+3. Redis 不可用窗口 /api/status/health 仍返回 ok。
+4. 重启同一 Redis fixture 后 /api/status 报告 redis_caster_connected=true 且 redis_auth_connected=true。
+5. 重连后重新登录，/api/status 和 /api/monitor/cluster 仍可访问。
+6. finally 清理服务进程、配置和 Docker fixture。
+```
+
+该检查覆盖 HTTP API async Redis adapter 与 blocking Redis client 在短断后的
+恢复路径；relay failover 和真实多机器 node identity 仍需专项任务覆盖。
 
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
@@ -306,8 +326,8 @@ NC-007 Auth Online_Protection
   已补 Online_Protection=true 拒新与 false 踢旧的真实 NTRIP 连接矩阵；NC-019
   已补真实连接存活期间 ACT:SESSION/ACT:REC/USR:REC 续期长跑；NC-021 已补
   单节点匿名登录允许/拒绝矩阵；NC-022 已补本地双实例 AUTH:BROADCAST 踢旧连接。
-  NC-023 已补禁用/失效账号矩阵。真实多机器 node identity、Redis 断线恢复和
-  relay failover 仍需后续专项补测。
+  NC-023 已补禁用/失效账号矩阵；NC-024 已补 HTTP/API Redis 断线重连。真实多机器
+  node identity 和 relay failover 仍需后续专项补测。
 
 NC-008B/NC-009 活跃账号 REST/SSE 读侧
   NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
@@ -317,8 +337,9 @@ NC-008B/NC-009 活跃账号 REST/SSE 读侧
   对 /api/accounts/active 的回归；NC-020 已补 account_actives 运行中新增/更新/删除
   SSE 增量推送；NC-021 已补匿名 client 不进入 /api/accounts/active 的回归；
   NC-022 已补本地双实例 AUTH:BROADCAST 后两实例 /api/accounts/active 读侧一致。
-  NC-023 已补禁用/失效账号拒绝后不进入 /api/accounts/active 的回归。真实多机器入口、
-  反代/sticky session、Redis 断线恢复和 relay failover 仍需专项覆盖。
+  NC-023 已补禁用/失效账号拒绝后不进入 /api/accounts/active 的回归；NC-024 已补
+  HTTP API 短断后 Redis 连接状态恢复。真实多机器入口、反代/sticky session 和
+  relay failover 仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。
