@@ -107,6 +107,13 @@ HTTP 启动策略：
 - 当前配置模板显式写出 `Force_Enable: false`。部署契约见 `doc/http-deployment.md`。
 - 当前 HTTP listener 一旦启动不会因后续 Master 丢失自动关闭。
 
+Redis 部署策略：
+
+- 生产最低版本为 Redis Open Source 8.4.0+。
+- 当前 Docker、CI 和 Linux package 默认 Redis 版本为 8.6.3。
+- 关键命令依赖：`HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`。
+- 部署前用 `deploy/scripts/check_redis_compat.sh` 或 `.ps1` 校验外部 Redis。
+
 ## NTRIP 连接流
 
 核心文件：

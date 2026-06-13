@@ -84,6 +84,21 @@ GET http://127.0.0.1:8080/api/status/health
 该检查只证明 HTTP 进程和 listener 可用，不证明 Redis、Master 正确性或登录后 API
 完整可用。Redis 可用时仍应优先运行 `deploy/scripts/e2e_smoke.sh`。
 
+Redis 命令兼容 smoke 用于部署和 Redis 相关任务：
+
+```bash
+REDIS_HOST=127.0.0.1 REDIS_PORT=6379 bash deploy/scripts/check_redis_compat.sh
+```
+
+Windows：
+
+```powershell
+.\deploy\scripts\check_redis_compat.ps1 -HostName 127.0.0.1 -Port 6379
+```
+
+该检查要求目标 Redis 为 8.4.0+，并实测 `HSETEX`、`HEXPIRE` 和
+`SET ... IFEQ ... EX`。
+
 ## 后续任务要求
 
 ```text
@@ -95,7 +110,8 @@ NC-005 HTTP 多节点入口契约
   必须单独建任务修复现有 npm run lint 错误，然后再把 Web lint 升级为 CI 硬门槛。
 
 NC-006 Redis 版本/命令兼容
-  必须补 Redis 版本和 HSETEX/HEXPIRE 命令检查。
+  已由 doc/redis-deployment.md 和 deploy/scripts/check_redis_compat.* 明确 Redis
+  8.4.0+、HSETEX/HEXPIRE/SET IFEQ 检查；Redis 可用环境必须执行并记录结果。
 
 NC-007 Auth Online_Protection
   必须补账号登录、匿名登录、在线保护和连接数限制的 schema_smoke 或等价验证。

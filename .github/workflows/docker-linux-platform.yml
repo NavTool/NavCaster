@@ -17,7 +17,7 @@ on:
 
 env:
   BUILD_TYPE: Release
-  REDIS_VERSION: 8.6.3
+  REDIS_VERSION: 8.6.3 # NavCaster minimum is Redis 8.4.0; CI packages the verified default.
 
 jobs:
   build:
