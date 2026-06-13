@@ -411,14 +411,14 @@ Web 浏览器
     ▼
 sse_manager::add_client()
     ├── evhttp_send_reply_start(200, chunked)
-    ├── 发送初始快照（所有频道当前数据）
+    ├── 发送初始快照（客户端订阅频道当前数据）
     └── 加入客户端列表
     
 每 2 秒定时器触发:
     ▼
 poll_and_broadcast()
     ├── 无客户端 → 跳过
-    ├── 遍历 16 个频道:
+    ├── 遍历当前有订阅者的频道:
     │   ├── sync_redis::hgetall(KEY)     ← 阻塞读取
     │   ├── 对比 cached_data
     │   └── 有变化 → broadcast()
@@ -506,12 +506,13 @@ Target Node:
 |--------|----------|----------|----------|
 | `sync_redis` 调用 | < 1ms（本地 Redis） | HTTP API 响应期间 | 可接受 |
 | `handle_fetch_sourcetable` | 最多 5+ 秒 | 远程 TCP 连接 | ⚠️ 高风险 |
-| SSE `poll_and_broadcast` | ~13 次 HGETALL | 每 2 秒一次 | 可监控 |
+| SSE `poll_and_broadcast` | 订阅频道数对应的 HGETALL | 每 2 秒一次 | 已按订阅者过滤 |
 | `getaddrinfo()` | 不确定 | DNS 解析 | ⚠️ 无法控制 |
 
 **缓解措施**：
 - `handle_local_sourcetable` 直接调用 Core 接口，避免网络阻塞
 - `sync_redis` 连接本地 Redis，延迟极低
+- SSE 定时器只刷新当前存在订阅者的频道，单频道前端 hook 默认显式订阅该频道
 - 考虑未来将 HTTP 服务移到独立线程
 
 ### 2. sync_redis 设计权衡
@@ -523,9 +524,9 @@ HTTP handler 使用**同步阻塞** Redis 客户端而非异步：
 
 ### 3. SSE 轮询开销
 
-每 2 秒对 16 个频道执行 `HGETALL`，数据量大时可能影响性能。改进方向：
+每 2 秒仅对当前有订阅者的已注册频道执行 fetch / `HGETALL`，避免单频道页面触发全量
+SSE 快照轮询。数据量继续增大时的改进方向：
 - Redis Keyspace Notification 替代轮询
-- 仅查询有 SSE 客户端订阅的频道
 - 增大轮询间隔或引入自适应间隔
 
 ### 4. 无持久化的会话状态

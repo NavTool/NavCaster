@@ -249,6 +249,7 @@ SSE：
 - `web/src/api/index.ts`：业务 API 聚合。
 - `web/src/api/types.ts`：前端类型，与 proto/HTTP JSON 字段保持一致。
 - `web/src/hooks/useSSE.ts`：EventSource 封装，支持单 channel 和多 channel，断线指数退避重连。
+- NC-009 后 `useSSE(channel)` 默认请求 `channels=<channel>`，服务端 SSE 定时器只轮询当前有订阅者的频道；`channels=*` 仍保留订阅全部语义。
 - `web/src/hooks/usePolling.ts`：轮询 hook。
 - `web/src/layouts/MainLayout.tsx`：侧边菜单、顶部集群摘要和 SSE 状态。
 - `web/src/router.tsx`：HashRouter 路由和登录守卫。

@@ -28,6 +28,7 @@ export function useSSE<T>(
   options: UseSSEOptions = {}
 ): UseSSEResult<T> {
   const { channels, enabled = true } = options;
+  const requestedChannels = channels ?? channel;
 
   const [data, setData] = useState<T | null>(null);
   const [connected, setConnected] = useState(false);
@@ -44,7 +45,7 @@ export function useSSE<T>(
     // Build SSE URL with auth token
     const params = new URLSearchParams();
     params.set('token', token);
-    if (channels) params.set('channels', channels);
+    if (requestedChannels) params.set('channels', requestedChannels);
     const url = `${baseURL}/api/events/stream?${params.toString()}`;
 
     const es = new EventSource(url);
@@ -76,7 +77,7 @@ export function useSSE<T>(
       reconnectAttempt.current += 1;
       reconnectTimer.current = setTimeout(connect, delay);
     };
-  }, [channel, channels]);
+  }, [channel, requestedChannels]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -131,7 +132,7 @@ export function useMultiSSE<T extends Record<string, unknown>>(
       reconnectAttempt.current = 0;
     };
 
-    for (const ch of channelNames) {
+    for (const ch of channelsStr.split(',').filter(Boolean)) {
       es.addEventListener(ch, (event) => {
         try {
           const parsed = JSON.parse(event.data);

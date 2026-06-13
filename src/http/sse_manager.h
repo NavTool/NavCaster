@@ -21,12 +21,62 @@ struct SseClient
     bool wildcard = false;                    // true 表示订阅全部
 };
 
+inline void parse_sse_channels(const std::string &csv,
+                               std::unordered_set<std::string> &out,
+                               bool &wildcard)
+{
+    wildcard = false;
+    out.clear();
+    if (csv.empty() || csv == "*")
+    {
+        wildcard = true;
+        return;
+    }
+
+    size_t pos = 0;
+    while (pos < csv.size())
+    {
+        size_t comma = csv.find(',', pos);
+        std::string item = csv.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
+        size_t l = item.find_first_not_of(" \t");
+        size_t r = item.find_last_not_of(" \t");
+        if (l != std::string::npos)
+            item = item.substr(l, r - l + 1);
+        else
+            item.clear();
+        if (item == "*")
+            wildcard = true;
+        else if (!item.empty())
+            out.insert(item);
+        if (comma == std::string::npos)
+            break;
+        pos = comma + 1;
+    }
+    if (out.empty() && !wildcard)
+        wildcard = true;
+}
+
+inline bool sse_client_subscribes_to(const SseClient &client, const std::string &channel)
+{
+    return client.wildcard || client.channels.count(channel) > 0;
+}
+
+inline bool sse_channel_has_subscriber(const std::vector<SseClient> &clients, const std::string &channel)
+{
+    for (const auto &client : clients)
+    {
+        if (sse_client_subscribes_to(client, channel))
+            return true;
+    }
+    return false;
+}
+
 /**
  * sse_manager: Manages Server-Sent Events connections and broadcasts.
  *
  * Data flow:
  *   1. Client opens GET /api/events/stream → registered as SseClient
- *   2. A periodic timer fires on the event loop, calling data_fetcher callbacks
+ *   2. A periodic timer fires on the event loop, calling subscribed channel fetchers
  *   3. Changed data is broadcast as SSE events to all connected clients
  *
  * SSE format per event:
@@ -49,7 +99,7 @@ public:
 
     // Register a data channel with a fetcher function.
     // The fetcher returns a JSON object (the full HGETALL result).
-    // On each tick, if the result differs from cached, an SSE event is sent.
+    // On each tick, subscribed channels are fetched and changed data is sent.
     using DataFetcher = std::function<json()>;
     void register_channel(const std::string &channel, DataFetcher fetcher);
 
