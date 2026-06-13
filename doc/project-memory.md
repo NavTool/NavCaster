@@ -83,6 +83,13 @@ Smoke test：
 BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.sh
 ```
 
+Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改写
+`bin/<config>/conf/*.yml`、启动 `CasterService` 并验证 health/login/status/cluster：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
+```
+
 ## 后端启动链路
 
 入口是 `src/service/main.cpp`：
@@ -113,6 +120,9 @@ Redis 部署策略：
 - 当前 Docker、CI 和 Linux package 默认 Redis 版本为 8.6.3。
 - 关键命令依赖：`HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`。
 - 部署前用 `deploy/scripts/check_redis_compat.sh` 或 `.ps1` 校验外部 Redis。
+- 本地任务 worktree 验证优先用 `deploy/scripts/e2e_smoke.ps1 -RedisMode Docker`
+  拉起一次性 Redis fixture；若 Docker engine 或外部 Redis 不可用，QA 记录必须
+  明确环境缺口。
 
 ## NTRIP 连接流
 

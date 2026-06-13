@@ -74,14 +74,40 @@ npm run build
 
 ## 手动或环境依赖门槛
 
-HTTP e2e smoke 需要一个正在运行的 `CasterService`、可用 Redis、`curl` 和 `jq`：
+Windows HTTP e2e smoke 优先使用脚本自动编排 Redis fixture、临时配置
+`CasterService` 并清理现场：
+
+```powershell
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target CasterService --config Release --parallel
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
+```
+
+默认 Docker fixture 使用 `redis:8.6.3`，映射到 `127.0.0.1:16379`，并复用
+`deploy\scripts\check_redis_compat.ps1` 校验 `HSETEX`、`HEXPIRE` 和
+`SET ... IFEQ ... EX`。脚本会临时把 `bin\<config>\conf\Service_Setting.yml`
+的 HTTP API 改为 `Force_Enable: true`，把 `Caster_Core.yml` 与
+`Auth_Verify.yml` 指向 fixture Redis；结束后恢复配置、停止服务并删除容器。
+如果 `16379` 已被本机 Redis 或其他服务占用，使用 `-RedisPort 16380` 等空闲端口。
+
+如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode External -RedisHost 127.0.0.1 -RedisPort 6379
+```
+
+Docker engine、`redis-cli` 或目标 Redis 不可用时，脚本必须非零失败并在 QA
+记录中说明环境缺口，不允许记为通过。
+
+Linux/macOS 或已有服务进程的 HTTP e2e smoke 可继续使用 Bash 脚本；它需要一个
+正在运行的 `CasterService`、可用 Redis、`curl` 和 `jq`：
 
 ```bash
 BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.sh
 ```
 
-它是 HTTP/API、部署和运行契约任务的最低验证项，但当前不作为主 CI 的硬门槛，
-因为仓库 CI 尚未编排服务进程、Redis fixture 和端口生命周期。
+HTTP e2e 是 HTTP/API、部署和运行契约任务的最低验证项，但当前不作为主 CI 的
+硬门槛，因为仓库 CI 尚未统一编排跨平台服务进程、Redis fixture 和端口生命周期。
 
 HTTP listener 最小存活 smoke 可按 `doc/http-deployment.md` 执行：临时设置
 `HTTP_API_Setting.Force_Enable: true`，启动 CasterService，再访问：
@@ -91,7 +117,8 @@ GET http://127.0.0.1:8080/api/status/health
 ```
 
 该检查只证明 HTTP 进程和 listener 可用，不证明 Redis、Master 正确性或登录后 API
-完整可用。Redis 可用时仍应优先运行 `deploy/scripts/e2e_smoke.sh`。
+完整可用。Redis 可用时仍应优先运行 `deploy/scripts/e2e_smoke.ps1` 或
+`deploy/scripts/e2e_smoke.sh`。
 
 Redis 命令兼容 smoke 用于部署和 Redis 相关任务：
 

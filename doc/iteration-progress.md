@@ -449,3 +449,5 @@
   - NC-011 `schema_smoke` 新增 master lease 测试：覆盖首次观察 self/remote master、观察值不变、follower->master、master 续租保持、master->follower、follower 续租失败、`LOG:NODE:<node>` key/field/payload 和 cluster sync 触发条件。
   - NC-012 Relay 分发幂等第一切片：强化 `RelayScheduler` 纯逻辑测试，不改变 `sync_cluster_state()` HGETALL 回调顺序、不改变 `PUBLISH NODE:<node_id>` 和真实 `_relay_cb` start/stop I/O。
   - NC-012 `schema_smoke` 明确 Relay 调度抗丢广播语义：enabled record 尚无 status 时 ACTIVE 可重试；orphan/disabled status 尚存在时 INACTIVE 可重试；record/status/distributed 一致后静默；配置变化保持两轮式先 INACTIVE 清 distributed，待 status 消失后再 ACTIVE。
+  - NC-015 Redis e2e fixture smoke：新增 Windows `deploy/scripts/e2e_smoke.ps1`，可用 `redis:8.6.3` Docker fixture 或外部 Redis 8.4+ 启动 `CasterService`，临时开启 HTTP `Force_Enable` 并验证 health/login/status/cluster。
+  - NC-015 扩展 `check_redis_compat.ps1` 支持 `-DockerContainer`，fixture 模式通过容器内 `redis-cli` 实测 `HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`；Docker/Redis 不可用时脚本明确非零失败，不允许伪通过。

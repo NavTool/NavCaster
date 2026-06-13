@@ -54,6 +54,43 @@ Linux package：deploy/ci/build_in_linux.sh 默认 REDIS_VERSION=8.6.3
 如果使用外部 Redis，部署前必须运行兼容检查脚本。检查通过前不要把该 Redis
 环境接入生产 CasterService。
 
+## 本地 e2e fixture
+
+Windows 本地 QA 可用 PowerShell smoke 脚本自动启动一次性 Redis fixture，并把
+构建产物中的三个运行时配置临时指向该 fixture：
+
+```powershell
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target CasterService --config Release --parallel
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
+```
+
+默认 fixture：
+
+```text
+Redis image: redis:8.6.3
+Host: 127.0.0.1
+Port: 16379
+Password: password
+Container name: navcaster-e2e-redis-<pid>
+```
+
+如果 `16379` 已被本机 Redis 或其他服务占用，可通过 `-RedisPort 16380` 等参数
+改用空闲端口。
+
+脚本会先通过容器内 `redis-cli` 运行兼容检查，再启动 `CasterService` 并验证
+`/api/status/health`、登录、`/api/status` 和 `/api/monitor/cluster`。结束后
+恢复 `bin\<config>\conf\*.yml`，停止服务并删除容器。
+
+如使用外部 Redis，可改为：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode External -RedisHost 127.0.0.1 -RedisPort 6379
+```
+
+当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，
+不能替代 e2e 通过记录。
+
 ## 兼容检查
 
 Bash：
@@ -73,6 +110,12 @@ Windows PowerShell：
 
 ```powershell
 .\deploy\scripts\check_redis_compat.ps1 -HostName 127.0.0.1 -Port 6379
+```
+
+在 Redis Docker fixture 容器内检查：
+
+```powershell
+.\deploy\scripts\check_redis_compat.ps1 -DockerContainer navcaster-e2e-redis-1234 -Password password
 ```
 
 脚本会执行：
