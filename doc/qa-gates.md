@@ -10,6 +10,9 @@
 主 CI `.github/workflows/build-and-package.yml` 当前执行：
 
 ```text
+API contract check
+  node tools/contract_check/check_api_contracts.mjs
+
 Web build
   cd web
   npm ci
@@ -24,6 +27,10 @@ package build
   deploy/ci/build_in_linux.sh
   deploy/ci/build_in_windows.ps1
 ```
+
+API contract check 会比较 `proto/caster` 中关键 message 字段、enum 成员名和
+enum 数字值与 `web/src/api/types.ts` 的同步状态。未知差异会失败；当前阶段性允许差异
+记录在 `doc/api-contract-sync.md` 和脚本 allowlist 中。
 
 `npm run lint` 是前端任务的目标门槛，但当前代码基线仍有既有 ESLint
 错误；在修复该债务前不作为主 CI 硬门槛。前端任务仍必须运行并记录 lint
@@ -40,6 +47,7 @@ schema_smoke
 Windows：
 
 ```powershell
+node tools\contract_check\check_api_contracts.mjs
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target schema_smoke --config Release --parallel
 ctest --test-dir build --build-config Release --output-on-failure -R schema_smoke
@@ -53,6 +61,7 @@ npm run build
 Linux：
 
 ```bash
+node tools/contract_check/check_api_contracts.mjs
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target schema_smoke --parallel
 ctest --test-dir build --output-on-failure -R schema_smoke
@@ -116,4 +125,8 @@ NC-006 Redis 版本/命令兼容
 NC-007 Auth Online_Protection
   已补 Auth_Verify.yml 解析和实名连接数策略 schema_smoke；真实 Redis/NTRIP
   账号登录、匿名登录、禁用账号和在线桶写入清理仍需 Redis 8.4+ 环境补测。
+
+NC-010 Proto/API/Web 类型同步
+  已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。
+  改 proto、HTTP JSON 或 web/src/api/types.ts 时必须运行并记录结果。
 ```

@@ -443,3 +443,5 @@
   - NC-008B HTTP/SSE 读侧：`AccountRepository::list_active_sessions()` 优先聚合 `ACT:SESSION:*`，合并 legacy `STR:ACTIVE` fallback，冲突时新 session 优先；`/api/accounts/active`、`get_account("active")` 兜底和 SSE `account_actives` 复用同源方法。
   - NC-009 SSE/轮询刷新策略：`SseManager::poll_and_broadcast()` 只刷新当前有订阅者的 channel，`channels=*` 保留全量订阅；`useSSE(channel)` 默认显式请求 `channels=<channel>`，避免单频道页面误订阅全部 SSE channel。
   - NC-008B `schema_smoke` 覆盖空数据 `{}`、仅 `STR:ACTIVE`、仅 `ACT:SESSION:*`、二者冲突、仅 `ACT:ACTIVE` 不算在线会话、多连接同账号不丢失、输出剥离密码材料，以及 SSE auth Redis 同源。
+  - NC-010 Proto/API/Web 类型同步机制：新增 `tools/contract_check/check_api_contracts.mjs`，比较关键 `proto/caster` message 字段、enum 成员名和 enum 数字值与 `web/src/api/types.ts` 的同步状态；未知漂移失败，`SourceRecord` ECEF 和 `AccountActive` ACT:SESSION 扩展作为显式允许差异输出。
+  - NC-010 已新增 `doc/api-contract-sync.md`，把契约检查命令、覆盖范围、允许差异和修改规则纳入文档；主 CI 在 Web build 前执行 `node tools/contract_check/check_api_contracts.mjs`，并把 `team-dev` 加入 workflow 触发分支。

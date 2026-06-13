@@ -3,7 +3,7 @@
 生成时间：2026-06-12
 基线复核：2026-06-13
 
-当前团队基线：`team-dev` @ `03f15e3bfb6d731a6827915c8a1b7f4fd8f5fa91`
+当前团队基线：`team-dev`，以 Git 最新提交和 `doc/iteration-progress.md` 最近记录为准。
 
 说明：本文是当前项目入口记忆。若和源码、`doc/workflow.md` 或
 `doc/iteration-progress.md` 冲突，以源码和最近迭代记录为准。
@@ -31,7 +31,7 @@ NavCaster 是一个 C++ NTRIP Caster 服务，围绕 Redis 做集群状态、账
 - `src/service`：服务入口、配置加载、NTRIP listener、连接队列、session 和 relay 编排。
 - `proto/caster`：`.proto` 源文件；`proto/src`：已提交的 `.pb.cc/.pb.h`，当前 CMake 直接消费生成物，不在构建时自动生成。
 - `web`：Vite + React + TypeScript + Ant Design 管理台。
-- `tools`：NTRIP client/server 模拟器、`strsvr_mult` 等联调工具。
+- `tools`：NTRIP client/server 模拟器、`strsvr_mult`、`schema_smoke` 和 API 契约检查等联调/验证工具。
 - `deploy`：CI 打包、Docker runtime、systemd/supervisor/nssm 脚本和 smoke test。
 - `doc`：较新的架构/API/计划文档。
 - `docs`：协议、早期需求和参考资料，部分内容偏历史。
@@ -270,7 +270,10 @@ SSE：
 
 - `.proto` 源文件在 `proto/caster`。
 - 生成后的 C++ 文件在 `proto/src`，并被 `proto/CMakeLists.txt` 直接编译进 `caster_proto`。
-- 如果修改 proto，需要同步重新生成 `proto/src`，并检查前端 `web/src/api/types.ts`。
+- API 契约检查命令：`node tools/contract_check/check_api_contracts.mjs`。
+- NC-010 后该命令覆盖关键管理台 message 字段、enum 成员名和 enum 数字值与 `web/src/api/types.ts` 的漂移，并已接入主 CI。
+- 当前允许差异和维护规则见 `doc/api-contract-sync.md`；新增差异必须写明原因，不能静默跳过。
+- 如果修改 proto，需要同步重新生成 `proto/src`，检查 HTTP JSON 和前端 `web/src/api/types.ts`，并运行契约检查。
 - 生成方式可先参考 `docs/build-pb.txt`。
 
 ## 后续改动建议路径
@@ -281,7 +284,8 @@ SSE：
 2. 如涉及 Redis hash/schema，同步 `src/core` 或 `src/auth`。
 3. 更新 `web/src/api/index.ts` 和 `web/src/api/types.ts`。
 4. 更新页面或 hook。
-5. 必要时更新 `doc/api-reference.md` 和 `deploy/scripts/e2e_smoke.sh`。
+5. 运行 `node tools/contract_check/check_api_contracts.mjs`。
+6. 必要时更新 `doc/api-reference.md` 和 `deploy/scripts/e2e_smoke.sh`。
 
 改 NTRIP 连接行为：
 

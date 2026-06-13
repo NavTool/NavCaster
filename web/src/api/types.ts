@@ -296,9 +296,6 @@ export interface CasterNode {
   http_port?: number;
   process_id?: number;
   http_enabled?: boolean;
-  uptime_sec?: number;
-  online?: boolean;
-  master?: boolean;
   // v3 扩展
   sse_clients?: number;
   process_threads?: number;
