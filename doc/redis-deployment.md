@@ -206,6 +206,20 @@ Frozen/Inactive/Expired：ACT:ACTIVE 被删除，同账号 client 被拒绝并�
 Redis/HTTP：拒绝场景不残留 ACT:SESSION:<account>、ACT:REC:<account>、USR:REC:<account> 或 /api/accounts/active 记录。
 ```
 
+HTTP/API Redis 断线/重连可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeRedisReconnect
+```
+
+该检查只支持 Docker fixture，会停止并重启同一个 Redis 容器，验证：
+
+```text
+Redis stopped：CasterService 进程存活，/api/status/health 仍返回 ok。
+Redis restarted：/api/status 恢复 redis_caster_connected=true、redis_auth_connected=true。
+HTTP/API：重连后可重新登录，/api/status 和 /api/monitor/cluster 可访问。
+```
+
 当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，
 不能替代 e2e 通过记录。
 

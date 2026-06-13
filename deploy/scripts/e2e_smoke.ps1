@@ -30,7 +30,8 @@ param(
     [ValidateSet("AllowAnonymous", "RejectAnonymous")]
     [string]$NtripAnonymousScenario = "AllowAnonymous",
     [switch]$IncludeNtripAuthBroadcast,
-    [switch]$IncludeNtripDisabledAccount
+    [switch]$IncludeNtripDisabledAccount,
+    [switch]$IncludeRedisReconnect
 )
 
 $ErrorActionPreference = "Stop"
@@ -2438,6 +2439,143 @@ function Invoke-ActiveAccountSmoke {
     Say "PASS active account REST/SSE smoke"
 }
 
+function Invoke-E2eLogin {
+    param([string]$Base)
+
+    Say "logging in as $AdminUser"
+    $loginBody = @{ username = $AdminUser; password = $AdminPassword } | ConvertTo-Json -Compress
+    $login = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $loginBody -Uri "$Base/api/auth/login" -TimeoutSec 10
+    if (-not $login.token) {
+        Fail "login did not return token"
+    }
+
+    return [pscustomobject]@{
+        Token = $login.token
+        Headers = @{ Authorization = "Bearer $($login.token)" }
+    }
+}
+
+function Assert-E2eHealth {
+    param(
+        [string]$Base,
+        [string]$Context
+    )
+
+    $health = Invoke-RestMethod -Uri "$Base/api/status/health" -TimeoutSec 5
+    if ($health.status -ne "ok") {
+        Fail "$Context health endpoint returned unexpected status: $($health.status)"
+    }
+}
+
+function Assert-E2eStatusAndCluster {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Context,
+        [switch]$RequireRedisConnected
+    )
+
+    $status = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/status" -TimeoutSec 10
+    if ($null -eq $status.node_id -or $null -eq $status.cpu_percent) {
+        Fail "$Context status response missing node_id or cpu_percent"
+    }
+    if ($RequireRedisConnected -and ($status.redis_auth_connected -ne $true -or $status.redis_caster_connected -ne $true)) {
+        Fail "$Context status response reports Redis disconnected: caster=$($status.redis_caster_connected) auth=$($status.redis_auth_connected)"
+    }
+
+    $cluster = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/monitor/cluster" -TimeoutSec 10
+    if ($null -eq $cluster.nodes) {
+        Fail "$Context cluster monitor response missing nodes"
+    }
+
+    return $status
+}
+
+function Wait-E2eRedisStatusConnected {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        try {
+            $last = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/status" -TimeoutSec 10
+            if ($last.redis_auth_connected -eq $true -and $last.redis_caster_connected -eq $true) {
+                return $last
+            }
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context did not report Redis reconnected before timeout; last=[$last]"
+}
+
+function Wait-RedisDockerReady {
+    param(
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 500
+        try {
+            if ((Invoke-RedisInDocker PING) -eq "PONG") {
+                return
+            }
+        }
+        catch {
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context Redis fixture did not become ready before timeout"
+}
+
+function Invoke-RedisReconnectSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers
+    )
+
+    if ($RedisMode -ne "Docker") {
+        Fail "Redis reconnect smoke requires RedisMode Docker so the fixture container can be stopped and started."
+    }
+
+    Say "stopping Redis fixture container $RedisContainerName for reconnect smoke"
+    $stopResult = Invoke-NativeCommand "docker" @("stop", "-t", "1", $RedisContainerName)
+    if ($stopResult.ExitCode -ne 0) {
+        Fail ("failed to stop Redis fixture container: " + ($stopResult.Output -join " "))
+    }
+
+    Start-Sleep -Seconds 2
+    Assert-E2eHealth $Base "redis reconnect while fixture stopped"
+
+    $left = Get-Process -Id $serviceProcess.Id -ErrorAction SilentlyContinue
+    if (-not $left -or $serviceProcess.HasExited) {
+        Fail "CasterService exited while Redis fixture was stopped"
+    }
+
+    Say "restarting Redis fixture container $RedisContainerName"
+    $startResult = Invoke-NativeCommand "docker" @("start", $RedisContainerName)
+    if ($startResult.ExitCode -ne 0) {
+        Fail ("failed to restart Redis fixture container: " + ($startResult.Output -join " "))
+    }
+
+    Wait-RedisDockerReady $StartupTimeoutSec "redis reconnect smoke restart"
+    Wait-E2eRedisStatusConnected $Base $Headers $StartupTimeoutSec "redis reconnect smoke" | Out-Null
+
+    $session = Invoke-E2eLogin $Base
+    Assert-E2eStatusAndCluster $Base $session.Headers "redis reconnect post-recovery" -RequireRedisConnected | Out-Null
+    Say "PASS Redis reconnect smoke"
+}
+
 if (-not $RootPath) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $RootPath = Join-Path $scriptDir "..\.."
@@ -2650,33 +2788,16 @@ try {
         Fail "health endpoint did not become ready: $exitText"
     }
 
-    Say "logging in as $AdminUser"
-    $loginBody = @{ username = $AdminUser; password = $AdminPassword } | ConvertTo-Json -Compress
-    $login = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $loginBody -Uri "$base/api/auth/login" -TimeoutSec 10
-    if (-not $login.token) {
-        Fail "login did not return token"
-    }
-
-    $headers = @{ Authorization = "Bearer $($login.token)" }
-    $status = Invoke-RestMethod -Headers $headers -Uri "$base/api/status" -TimeoutSec 10
-    if ($null -eq $status.node_id -or $null -eq $status.cpu_percent) {
-        Fail "status response missing node_id or cpu_percent"
-    }
-    if ($status.redis_auth_connected -ne $true -or $status.redis_caster_connected -ne $true) {
-        Fail "status response reports Redis disconnected: caster=$($status.redis_caster_connected) auth=$($status.redis_auth_connected)"
-    }
-
-    $cluster = Invoke-RestMethod -Headers $headers -Uri "$base/api/monitor/cluster" -TimeoutSec 10
-    if ($null -eq $cluster.nodes) {
-        Fail "cluster monitor response missing nodes"
-    }
+    $session = Invoke-E2eLogin $base
+    $headers = $session.Headers
+    Assert-E2eStatusAndCluster $base $headers "initial smoke" -RequireRedisConnected | Out-Null
 
     if ($IncludeActiveAccounts) {
-        Invoke-ActiveAccountSmoke $base $headers $login.token
+        Invoke-ActiveAccountSmoke $base $headers $session.Token
     }
 
     if ($IncludeActiveAccountSseDelta) {
-        Invoke-ActiveAccountSseDeltaSmoke $base $headers $login.token
+        Invoke-ActiveAccountSseDeltaSmoke $base $headers $session.Token
     }
 
     if ($IncludeNtripAuthSession) {
@@ -2701,6 +2822,10 @@ try {
 
     if ($IncludeNtripDisabledAccount) {
         Invoke-NtripDisabledAccountSmoke $base $headers $HttpBindAddr $NtripPort
+    }
+
+    if ($IncludeRedisReconnect) {
+        Invoke-RedisReconnectSmoke $base $headers
     }
 
     Say "PASS health/login/status/cluster smoke"
