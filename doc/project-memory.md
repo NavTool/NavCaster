@@ -179,7 +179,15 @@ session 职责：
 
 实现使用 hiredis async，维护发布和订阅连接，并订阅 `AUTH:BROADCAST`。账号、在线、匿名用户相关 key 在 `src/auth/src/auth_verify_internal.cpp` 中，存在 `ACT:ACTIVE`、`ACT:REC:*`、`ACT:UND:*`、`ACT:UNNAMED` 等历史命名。
 
-注意：`src/service/ntrip_config.cpp` 的 `load_Auth_Conf` 里，`Rover_Setting["Online_Protection"]` 当前写到了 `set_rover_anonymous_login(...)`，后续改鉴权时需要先确认这是历史 bug 还是字段语义变更。
+NC-007 已确认并修复 Auth 在线保护语义：
+
+- `Rover_Setting["Online_Protection"]` 必须写入 `set_rover_online_protection(...)`，
+  不能覆盖 `rover_anonymous_login`。
+- `ACT:REC:<account>` 是实名连接数限制桶；`ACT:UND:<name>` 是匿名连接桶。
+- `Online_Protection=true` 时已在线连接优先，新连接超过连接数上限会被拒绝。
+- `Online_Protection=false` 时允许新连接挤掉最早的旧实名连接。
+
+`schema_smoke` 已覆盖 Auth 配置解析组合、Redis 连接字段解析和实名连接数策略纯逻辑。
 
 ## HTTP API
 

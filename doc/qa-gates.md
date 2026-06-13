@@ -114,5 +114,6 @@ NC-006 Redis 版本/命令兼容
   8.4.0+、HSETEX/HEXPIRE/SET IFEQ 检查；Redis 可用环境必须执行并记录结果。
 
 NC-007 Auth Online_Protection
-  必须补账号登录、匿名登录、在线保护和连接数限制的 schema_smoke 或等价验证。
+  已补 Auth_Verify.yml 解析和实名连接数策略 schema_smoke；真实 Redis/NTRIP
+  账号登录、匿名登录、禁用账号和在线桶写入清理仍需 Redis 8.4+ 环境补测。
 ```

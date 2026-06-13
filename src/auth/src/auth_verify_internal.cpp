@@ -1,4 +1,5 @@
 #include "auth_verify_internal.h"
+#include "auth_record_limit.h"
 #include "account_schema.h"
 #include <list>
 #include <spdlog/spdlog.h>
@@ -742,37 +743,18 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
             throw std::logic_error("Can't Find User Active Info"); // 找不到用户的登录限制信息
         }
 
-        while (records.size() > limit_item->second._connect_limit) // 有多个连接记录且设置不允许多个记录
+        const bool online_protection =
+            (ctx->type == AuthType::SERVER && verify_internal::getInstance()->_server_online_protection) ||
+            (ctx->type == AuthType::CLIENT && verify_internal::getInstance()->_client_online_protection);
+        const auto decision = navcaster::auth::plan_record_limit(
+            records,
+            ctx->connect_key,
+            limit_item->second._connect_limit,
+            online_protection);
+        _check = decision.current_allowed;
+        for (const auto &evicted_connect_key : decision.evicted_connect_keys)
         {
-            if ((ctx->type == AuthType::SERVER && verify_internal::getInstance()->_server_online_protection) ||
-                (ctx->type == AuthType::CLIENT && verify_internal::getInstance()->_client_online_protection)) // 已在线的优先级高，踢出当前
-            {
-                // 发送广播切换这个连接被踢出的连接的状态
-                if (records.rbegin()->second == ctx->connect_key)
-                {
-                    _check = false;
-                }
-                else
-                {
-                    verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.rbegin()->second.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!"); // 用户连接数已经到达上线，此连接被踢出
-                }
-                // 从records中删除最后一条记录(使用rbegin是为了保证切换状态和删除的是同一个连接)
-                records.erase(records.rbegin()->first);
-            }
-            else
-            {
-                // 发送广播切换这个连接被踢出的连接的状态
-                // 从records中删除这个连接
-                records.erase(records.begin()->first);
-                if (records.begin()->second == ctx->connect_key)
-                {
-                    _check = false;
-                }
-                else
-                {
-                    verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), records.begin()->second.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!"); // 用户连接数已经到达上线，此连接被踢出
-                }
-            }
+            verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), evicted_connect_key.c_str(), AuthReply::ERR, "User Connects Upper Limit , kick out this Connect!");
         }
 
         if (!_check) // 本条记录被踢出 不需要再发送OK的回调，  通过send_change_auth_status这个链路会使得这个连接接收到一个ERR的回调
