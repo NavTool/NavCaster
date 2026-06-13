@@ -125,7 +125,25 @@ NTRIP/Auth 写侧 active session 深度 smoke 使用真实 NTRIP TCP source/clie
 
 该检查覆盖真实 NTRIP listener、Auth 验证、`AUTH::Add_Login_Record`、
 Core register/subscribe 和 active account REST 读侧的串联路径。它不覆盖多节点
-online protection、踢线矩阵和 relay failover；这些仍需专项任务。
+`AUTH:BROADCAST`、`Online_Protection` 踢线矩阵或长时间续期。
+
+NTRIP/Auth `Online_Protection` 连接数矩阵深度 smoke 需要分场景运行，因为
+`Online_Protection` 是服务启动时读取的配置：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripOnlineProtection -NtripOnlineProtectionScenario KickOld
+```
+
+两个场景都会使用真实 NTRIP POST source 和两个同账号 GET client，并临时固定
+`Caster_Setting.Update_Intv=1`、`Rover_Setting.Enable_Mult=true`、`Keep_Early=false`。
+`RejectNew` 断言 `Online_Protection=true` 且 `connection_limit=1` 时第二个
+client 被拒绝/关闭，`ACT:SESSION:<account>`、`ACT:REC:<account>` 与
+`USR:REC:<account>` 最终只保留第一个 `connect_key`。`KickOld` 断言
+`Online_Protection=false` 时第二个 client 登录成功、旧 socket 被关闭，上述三个
+Redis hash 最终只保留第二个 `connect_key`。两个场景都继续验证
+`/api/accounts/active` 与真实在线会话一致且不泄露密码材料。
+多节点 `AUTH:BROADCAST`、长时间续期、匿名登录矩阵和 relay failover 仍需专项任务覆盖。
 
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
@@ -188,14 +206,16 @@ NC-006 Redis 版本/命令兼容
 
 NC-007 Auth Online_Protection
   已补 Auth_Verify.yml 解析和实名连接数策略 schema_smoke；NC-017 已用 Redis
-  8.6.3 fixture 覆盖真实 NTRIP client 登录写入/断连清理 ACT:SESSION。匿名登录、
-  禁用账号和在线保护踢线矩阵仍需后续专项补测。
+  8.6.3 fixture 覆盖真实 NTRIP client 登录写入/断连清理 ACT:SESSION；NC-018
+  已补 Online_Protection=true 拒新与 false 踢旧的真实 NTRIP 连接矩阵。匿名登录、
+  禁用账号、多节点 AUTH:BROADCAST 和长时间续期仍需后续专项补测。
 
 NC-008B/NC-009 活跃账号 REST/SSE 读侧
   NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
   account_actives 初始快照同源读取 ACT:SESSION:* + STR:ACTIVE fallback。NC-017 已补
-  真实 NTRIP/Auth client 登录写入与断连清理 ACT:SESSION:* 的 e2e；续期长跑和踢线
-  矩阵仍需专项覆盖。
+  真实 NTRIP/Auth client 登录写入与断连清理 ACT:SESSION:* 的 e2e；NC-018 已补
+  Online_Protection 踢线矩阵对 /api/accounts/active 的回归。运行中 SSE 增量推送、
+  续期长跑和多节点场景仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。

@@ -17,7 +17,10 @@ param(
     [switch]$SkipRedisCompat,
     [switch]$KeepRedisContainer,
     [switch]$IncludeActiveAccounts,
-    [switch]$IncludeNtripAuthSession
+    [switch]$IncludeNtripAuthSession,
+    [switch]$IncludeNtripOnlineProtection,
+    [ValidateSet("RejectNew", "KickOld")]
+    [string]$NtripOnlineProtectionScenario = "RejectNew"
 )
 
 $ErrorActionPreference = "Stop"
@@ -262,8 +265,24 @@ function Get-RedisHashMap {
     return ConvertFrom-RedisHashRaw $raw
 }
 
+function Test-FieldSetEquals {
+    param(
+        [string[]]$ActualFields,
+        [string[]]$ExpectedFields
+    )
+
+    $actual = @($ActualFields | Sort-Object)
+    $expected = @($ExpectedFields | Sort-Object)
+    return (($actual -join "`n") -eq ($expected -join "`n"))
+}
+
 function New-NtripAuthSessionSeed {
-    $prefix = "nc017_${PID}_$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+    param(
+        [string]$Label = "nc017",
+        [int]$ConnectionLimit = 9999
+    )
+
+    $prefix = "${Label}_${PID}_$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
     return [pscustomobject]@{
         Prefix = $prefix
         Mount = "${prefix}_MPT"
@@ -272,8 +291,10 @@ function New-NtripAuthSessionSeed {
         SourceUser = "${prefix}_source"
         SourcePassword = "${prefix}_source_pw"
         GroupUid = "default"
+        ConnectionLimit = $ConnectionLimit
         SourceConnectKey = ""
         ClientConnectKey = ""
+        ExtraClientConnectKeys = @()
     }
 }
 
@@ -288,7 +309,7 @@ function Add-NtripAuthAccountSeed {
         password = $Seed.Password
         legacy_plain_password = $true
         group_uid = $Seed.GroupUid
-        connection_limit = 9999
+        connection_limit = $Seed.ConnectionLimit
         type = 0
         state = 1
         active = 1
@@ -315,6 +336,12 @@ function Remove-NtripAuthSessionSeed {
     if ($Seed.ClientConnectKey) {
         Invoke-RedisCommand HDEL "USR:STAT" $Seed.ClientConnectKey | Out-Null
         Invoke-RedisCommand HDEL "STR:STAT" $Seed.ClientConnectKey | Out-Null
+    }
+    foreach ($connectKey in @($Seed.ExtraClientConnectKeys)) {
+        if ($connectKey) {
+            Invoke-RedisCommand HDEL "USR:STAT" $connectKey | Out-Null
+            Invoke-RedisCommand HDEL "STR:STAT" $connectKey | Out-Null
+        }
     }
     Invoke-RedisCommand DEL `
         "ACT:SESSION:$($Seed.Account)" `
@@ -369,7 +396,8 @@ function Open-NtripTcpConnection {
         [int]$Port,
         [string]$RequestText,
         [string]$Label,
-        [int]$TimeoutSec
+        [int]$TimeoutSec,
+        [switch]$AllowEmptyResponse
     )
 
     $client = New-Object System.Net.Sockets.TcpClient
@@ -388,7 +416,7 @@ function Open-NtripTcpConnection {
         $stream.Flush()
 
         $response = Read-NtripResponse $client $TimeoutSec
-        if ([string]::IsNullOrWhiteSpace($response)) {
+        if (-not $AllowEmptyResponse -and [string]::IsNullOrWhiteSpace($response)) {
             Fail "$Label NTRIP login returned an empty response"
         }
 
@@ -488,6 +516,59 @@ function Wait-NtripActiveSession {
     Fail "NTRIP client active session did not appear in $key; raw=[$raw]"
 }
 
+function Get-NtripSessionMap {
+    param([pscustomobject]$Seed)
+
+    $key = "ACT:SESSION:$($Seed.Account)"
+    $sessions = Get-RedisHashMap $key
+    $records = @{}
+    foreach ($field in $sessions.Keys) {
+        try {
+            $record = $sessions[$field] | ConvertFrom-Json
+            if ($record.account -eq $Seed.Account -and $record.auth_type -eq "client") {
+                $records[$field] = $record
+            }
+        }
+        catch {
+        }
+    }
+    return [pscustomobject]@{
+        Key = $key
+        Records = $records
+    }
+}
+
+function Wait-NtripOnlineExactFields {
+    param(
+        [pscustomobject]$Seed,
+        [string[]]$ExpectedFields,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $expected = @($ExpectedFields | Sort-Object)
+    $actRecKey = "ACT:REC:$($Seed.Account)"
+    $usrRecKey = "USR:REC:$($Seed.Account)"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $sessionMap = Get-NtripSessionMap $Seed
+        $sessionFields = @($sessionMap.Records.Keys | Sort-Object)
+        $actRecFields = @((Get-RedisHashMap $actRecKey).Keys | Sort-Object)
+        $usrRecFields = @((Get-RedisHashMap $usrRecKey).Keys | Sort-Object)
+        if ((Test-FieldSetEquals $sessionFields $expected) -and
+            (Test-FieldSetEquals $actRecFields $expected) -and
+            (Test-FieldSetEquals $usrRecFields $expected)) {
+            return $sessionMap
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $sessionRaw = Format-DebugText (Invoke-RedisCommand HGETALL "ACT:SESSION:$($Seed.Account)")
+    $actRecRaw = Format-DebugText (Invoke-RedisCommand HGETALL $actRecKey)
+    $usrRecRaw = Format-DebugText (Invoke-RedisCommand HGETALL $usrRecKey)
+    Fail "$Context expected online fields [$($expected -join ',')] but got ACT:SESSION=[$sessionRaw] ACT:REC=[$actRecRaw] USR:REC=[$usrRecRaw]"
+}
+
 function Wait-NtripActiveSessionGone {
     param(
         [string]$Key,
@@ -508,6 +589,51 @@ function Wait-NtripActiveSessionGone {
     Fail "NTRIP client active session field was not removed after disconnect; key=$Key field=$Field raw=[$raw]"
 }
 
+function Test-NtripTcpConnectionClosed {
+    param([object]$Connection)
+
+    if (-not $Connection -or -not $Connection.Client) {
+        return $true
+    }
+    $client = $Connection.Client
+    if (-not $client.Connected) {
+        return $true
+    }
+    try {
+        if ($client.Client.Poll(0, [System.Net.Sockets.SelectMode]::SelectRead) -and $client.Available -eq 0) {
+            return $true
+        }
+        $stream = $client.GetStream()
+        if ($client.Available -gt 0 -or $stream.DataAvailable) {
+            $buffer = New-Object byte[] 1
+            $read = $stream.Read($buffer, 0, 1)
+            return ($read -le 0)
+        }
+    }
+    catch {
+        return $true
+    }
+    return $false
+}
+
+function Wait-NtripTcpConnectionClosed {
+    param(
+        [object]$Connection,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        if (Test-NtripTcpConnectionClosed $Connection) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context TCP connection did not close before timeout"
+}
+
 function Assert-NtripActiveAccountPayload {
     param(
         [object]$Payload,
@@ -526,6 +652,60 @@ function Assert-NtripActiveAccountPayload {
     Assert-NoPasswordMaterial $record "$Label NTRIP active account"
 }
 
+function Open-NtripSourceForSeed {
+    param(
+        [pscustomobject]$Seed,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [string]$Label = "source"
+    )
+
+    $sourceAuth = ConvertTo-BasicAuthValue $Seed.SourceUser $Seed.SourcePassword
+    $sourceRequest = "POST /$($Seed.Mount) HTTP/1.1`r`n" +
+        "Host: ${NtripHost}:$NtripPort`r`n" +
+        "Ntrip-Version: Ntrip/2.0`r`n" +
+        "Authorization: Basic $sourceAuth`r`n" +
+        "User-Agent: NTRIP NavCasterE2E/$($Seed.Prefix)`r`n" +
+        "Connection: close`r`n`r`n"
+
+    Say "opening NTRIP source mount=$($Seed.Mount)"
+    $connection = Open-NtripTcpConnection $NtripHost $NtripPort $sourceRequest $Label 10
+    Assert-NtripResponseOk $connection.Response $Label
+    $Seed.SourceConnectKey = Wait-NtripSourceActive $Seed $StartupTimeoutSec
+    return $connection
+}
+
+function Open-NtripClientForSeed {
+    param(
+        [pscustomobject]$Seed,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [string]$Label = "client",
+        [switch]$AllowRejected
+    )
+
+    $clientAuth = ConvertTo-BasicAuthValue $Seed.Account $Seed.Password
+    $clientRequest = "GET /$($Seed.Mount) HTTP/1.1`r`n" +
+        "Host: ${NtripHost}:$NtripPort`r`n" +
+        "Ntrip-Version: Ntrip/2.0`r`n" +
+        "Authorization: Basic $clientAuth`r`n" +
+        "User-Agent: NTRIP NavCasterE2E/$($Seed.Prefix)`r`n" +
+        "Connection: close`r`n`r`n"
+
+    Say "opening NTRIP client account=$($Seed.Account) label=$Label"
+    $connection = Open-NtripTcpConnection $NtripHost $NtripPort $clientRequest $Label 10 -AllowEmptyResponse:$AllowRejected
+    if (-not $AllowRejected) {
+        Assert-NtripResponseOk $connection.Response $Label
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($connection.Response)) {
+        $firstLine = (($connection.Response -split "`r?`n") | Select-Object -First 1)
+        if ($firstLine -match '^HTTP/1\.[01]\s+200\b' -or $firstLine -eq "ICY 200 OK" -or $firstLine -eq "OK") {
+            Fail "$Label unexpectedly received a successful NTRIP response while rejection was expected"
+        }
+    }
+    return $connection
+}
+
 function Invoke-NtripAuthSessionSmoke {
     param(
         [string]$Base,
@@ -537,30 +717,8 @@ function Invoke-NtripAuthSessionSmoke {
     $script:ntripAuthSeed = New-NtripAuthSessionSeed
     Add-NtripAuthAccountSeed $script:ntripAuthSeed
 
-    $sourceAuth = ConvertTo-BasicAuthValue $script:ntripAuthSeed.SourceUser $script:ntripAuthSeed.SourcePassword
-    $sourceRequest = "POST /$($script:ntripAuthSeed.Mount) HTTP/1.1`r`n" +
-        "Host: ${NtripHost}:$NtripPort`r`n" +
-        "Ntrip-Version: Ntrip/2.0`r`n" +
-        "Authorization: Basic $sourceAuth`r`n" +
-        "User-Agent: NTRIP NavCasterE2E/NC017`r`n" +
-        "Connection: close`r`n`r`n"
-
-    Say "opening NTRIP source mount=$($script:ntripAuthSeed.Mount)"
-    $script:ntripSourceConnection = Open-NtripTcpConnection $NtripHost $NtripPort $sourceRequest "source" 10
-    Assert-NtripResponseOk $script:ntripSourceConnection.Response "source"
-    $script:ntripAuthSeed.SourceConnectKey = Wait-NtripSourceActive $script:ntripAuthSeed $StartupTimeoutSec
-
-    $clientAuth = ConvertTo-BasicAuthValue $script:ntripAuthSeed.Account $script:ntripAuthSeed.Password
-    $clientRequest = "GET /$($script:ntripAuthSeed.Mount) HTTP/1.1`r`n" +
-        "Host: ${NtripHost}:$NtripPort`r`n" +
-        "Ntrip-Version: Ntrip/2.0`r`n" +
-        "Authorization: Basic $clientAuth`r`n" +
-        "User-Agent: NTRIP NavCasterE2E/NC017`r`n" +
-        "Connection: close`r`n`r`n"
-
-    Say "opening NTRIP client account=$($script:ntripAuthSeed.Account)"
-    $script:ntripClientConnection = Open-NtripTcpConnection $NtripHost $NtripPort $clientRequest "client" 10
-    Assert-NtripResponseOk $script:ntripClientConnection.Response "client"
+    $script:ntripSourceConnection = Open-NtripSourceForSeed $script:ntripAuthSeed $NtripHost $NtripPort
+    $script:ntripClientConnection = Open-NtripClientForSeed $script:ntripAuthSeed $NtripHost $NtripPort
 
     $session = Wait-NtripActiveSession $script:ntripAuthSeed $StartupTimeoutSec
     $script:ntripAuthSeed.ClientConnectKey = $session.Field
@@ -581,6 +739,113 @@ function Invoke-NtripAuthSessionSmoke {
     Remove-NtripAuthSessionSeed $script:ntripAuthSeed
     $script:ntripAuthSeed = $null
     Say "PASS NTRIP Auth active session smoke"
+}
+
+function Invoke-NtripOnlineProtectionSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [string]$Scenario
+    )
+
+    $sourceConnection = $null
+    $firstClient = $null
+    $secondClient = $null
+    $seed = $null
+
+    try {
+        $label = if ($Scenario -eq "RejectNew") { "nc018_reject" } else { "nc018_kick" }
+        $seed = New-NtripAuthSessionSeed -Label $label -ConnectionLimit 1
+        $script:ntripAuthSeed = $seed
+        Add-NtripAuthAccountSeed $seed
+
+        $sourceConnection = Open-NtripSourceForSeed $seed $NtripHost $NtripPort "source-$Scenario"
+        $script:ntripSourceConnection = $sourceConnection
+
+        $firstClient = Open-NtripClientForSeed $seed $NtripHost $NtripPort "client-1-$Scenario"
+        $script:ntripClientConnection = $firstClient
+        $firstSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $firstSession.Field
+        Wait-NtripOnlineExactFields $seed @($firstSession.Field) $StartupTimeoutSec "$Scenario first login" | Out-Null
+
+        $secondClient = Open-NtripClientForSeed $seed $NtripHost $NtripPort "client-2-$Scenario" -AllowRejected:($Scenario -eq "RejectNew")
+        $secondObserved = $false
+        $secondSession = $null
+
+        $deadline = (Get-Date).AddSeconds($StartupTimeoutSec)
+        do {
+            $sessionMap = Get-NtripSessionMap $seed
+            $fields = @($sessionMap.Records.Keys)
+            if ($Scenario -eq "RejectNew") {
+                if ($fields.Count -eq 1 -and $fields[0] -eq $firstSession.Field) {
+                    $secondObserved = $true
+                    break
+                }
+            }
+            else {
+                if ($fields.Count -eq 1 -and $fields[0] -ne $firstSession.Field) {
+                    $secondSession = [pscustomobject]@{
+                        Key = $sessionMap.Key
+                        Field = $fields[0]
+                        Record = $sessionMap.Records[$fields[0]]
+                    }
+                    $seed.ExtraClientConnectKeys += $secondSession.Field
+                    $secondObserved = $true
+                    break
+                }
+            }
+            Start-Sleep -Milliseconds 500
+        } while ((Get-Date) -lt $deadline)
+
+        if (-not $secondObserved) {
+            $raw = Format-DebugText (Invoke-RedisCommand HGETALL "ACT:SESSION:$($seed.Account)")
+            Fail "$Scenario Online_Protection session state did not reach expected result; raw=[$raw]"
+        }
+
+        if ($Scenario -eq "RejectNew") {
+            Wait-NtripTcpConnectionClosed $secondClient 10 "$Scenario rejected second client"
+            Wait-NtripOnlineExactFields $seed @($firstSession.Field) $StartupTimeoutSec "$Scenario rejected second client final state" | Out-Null
+            $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+            Assert-NtripActiveAccountPayload $rest $seed $firstSession "REST /api/accounts/active $Scenario"
+        }
+        else {
+            Wait-NtripTcpConnectionClosed $firstClient 10 "$Scenario evicted first client"
+            Wait-NtripOnlineExactFields $seed @($secondSession.Field) $StartupTimeoutSec "$Scenario evicted first client final state" | Out-Null
+            $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+            Assert-NtripActiveAccountPayload $rest $seed $secondSession "REST /api/accounts/active $Scenario"
+        }
+
+        Close-NtripTcpConnection $secondClient
+        $secondClient = $null
+        if ($Scenario -eq "KickOld" -and $secondSession) {
+            Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "$Scenario second client disconnect cleanup" | Out-Null
+        }
+
+        Close-NtripTcpConnection $firstClient
+        $firstClient = $null
+        if ($Scenario -eq "RejectNew") {
+            Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "$Scenario first client disconnect cleanup" | Out-Null
+        }
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        Remove-NtripAuthSessionSeed $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+        $script:ntripSourceConnection = $null
+        $script:ntripClientConnection = $null
+        Say "PASS NTRIP Online_Protection $Scenario smoke"
+    }
+    finally {
+        Close-NtripTcpConnection $secondClient
+        Close-NtripTcpConnection $firstClient
+        Close-NtripTcpConnection $sourceConnection
+        if ($seed) {
+            Remove-NtripAuthSessionSeed $seed
+        }
+    }
 }
 
 function New-ActiveSessionRecord {
@@ -939,6 +1204,7 @@ $activeAccountSeed = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripOnlineProtection
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
 $scriptFailed = $false
@@ -1050,8 +1316,10 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($IncludeNtripAuthSession) {
+    if ($ntripNeedsNamedRover) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
+        $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Enable_Mult" "true"
+        $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Keep_Early" "false"
     }
     Write-TextFile $coreConfig $coreText
 
@@ -1059,9 +1327,11 @@ try {
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "IP" $RedisHost
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($IncludeNtripAuthSession) {
+    if ($ntripNeedsNamedRover) {
+        $roverOnlineProtection = if ($NtripOnlineProtectionScenario -eq "RejectNew") { "true" } else { "false" }
         $authText = Set-YamlValueInSection $authText "Base_Setting" "Anonymous_Login" "true"
         $authText = Set-YamlValueInSection $authText "Rover_Setting" "Anonymous_Login" "false"
+        $authText = Set-YamlValueInSection $authText "Rover_Setting" "Online_Protection" $roverOnlineProtection
         $authText = Set-YamlValueInSection $authText "Source_Setting" "Anonymous_Login" "true"
     }
     Write-TextFile $authConfig $authText
@@ -1125,6 +1395,10 @@ try {
 
     if ($IncludeNtripAuthSession) {
         Invoke-NtripAuthSessionSmoke $base $headers $HttpBindAddr $NtripPort
+    }
+
+    if ($IncludeNtripOnlineProtection) {
+        Invoke-NtripOnlineProtectionSmoke $base $headers $HttpBindAddr $NtripPort $NtripOnlineProtectionScenario
     }
 
     Say "PASS health/login/status/cluster smoke"

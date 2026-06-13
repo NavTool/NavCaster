@@ -119,6 +119,21 @@ native 参数转发导致 JSON 双引号丢失。
 对应 `connect_key` 被清理。如果 `4202` 被占用，可通过 `-NtripPort 14202`
 指定空闲 NTRIP 端口。
 
+真实 NTRIP/Auth `Online_Protection` 连接数矩阵可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripOnlineProtection -NtripOnlineProtectionScenario KickOld
+```
+
+`Online_Protection` 是启动时配置，两个场景应作为独立服务生命周期运行。脚本会
+seed `connection_limit=1` 的唯一实名账号，并验证：
+
+```text
+RejectNew：Online_Protection=true，第二个同账号 client 被拒绝并关闭，ACT:SESSION/ACT:REC/USR:REC 只保留旧 connect_key。
+KickOld：Online_Protection=false，第二个同账号 client 登录成功，旧 socket 被关闭，ACT:SESSION/ACT:REC/USR:REC 只保留新 connect_key。
+```
+
 当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，
 不能替代 e2e 通过记录。
 
