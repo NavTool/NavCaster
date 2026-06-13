@@ -1,6 +1,6 @@
 # NavCaster QA Gates
 
-更新时间：2026-06-13
+更新时间：2026-06-14
 
 本文档定义 `team-dev` 之后的最低验证门槛。团队级流程见
 `F:\Projects\NavCaster\_team\QUALITY_GATES.md`。
@@ -90,6 +90,20 @@ cmake --build build --target CasterService --config Release --parallel
 `Auth_Verify.yml` 指向 fixture Redis；结束后恢复配置、停止服务并删除容器。
 如果 `16379` 已被本机 Redis 或其他服务占用，使用 `-RedisPort 16380` 等空闲端口。
 
+活跃账号 REST/SSE 读侧深度 smoke 使用同一个 Windows fixture 入口：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeActiveAccounts
+```
+
+该模式会在 fixture Redis 中写入唯一前缀的 `STR:ACTIVE` legacy 数据、
+`ACT:SESSION:*` 新会话数据和 `ACT:ACTIVE` 登录索引噪声数据，然后验证
+`GET /api/accounts/active` 与 SSE `account_actives` 初始快照同源。覆盖点包括：
+`ACT:SESSION:*` 优先覆盖 legacy 同 field、仅 legacy fallback、仅新会话、多连接同账号、
+输出剥离密码材料，以及 `ACT:ACTIVE` 不被当作在线会话来源。脚本写入 JSON seed 时
+使用 `redis-cli -x HSET` 从 stdin 传值，避免 Windows/Docker native 参数层破坏 JSON
+双引号。成功和失败路径都必须清理 seed、恢复配置、停止服务并删除 fixture 容器。
+
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
 ```powershell
@@ -152,6 +166,11 @@ NC-006 Redis 版本/命令兼容
 NC-007 Auth Online_Protection
   已补 Auth_Verify.yml 解析和实名连接数策略 schema_smoke；真实 Redis/NTRIP
   账号登录、匿名登录、禁用账号和在线桶写入清理仍需 Redis 8.4+ 环境补测。
+
+NC-008B/NC-009 活跃账号 REST/SSE 读侧
+  NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
+  account_actives 初始快照同源读取 ACT:SESSION:* + STR:ACTIVE fallback。真实 NTRIP/Auth
+  写侧登录、续期、登出和踢线产生 ACT:SESSION:* 的链路仍需后续 e2e。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。

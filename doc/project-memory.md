@@ -336,3 +336,16 @@ SSE：
 - `doc/data-flow-and-architecture.md` 对 HTTP event loop 的描述已落后于源码。
 - `web/README.md` 还是 Vite 模板说明，不是项目说明。
 - `docs` 目录里有协议和历史资料，动手前要优先看源码和 `doc` 下的新文档。
+
+## 2026-06-14 NC-016 活跃账号 Redis/SSE e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeActiveAccounts`。
+- 该模式使用 Redis fixture 种入 `STR:ACTIVE`、`ACT:SESSION:*` 和 `ACT:ACTIVE`
+  噪声数据，并验证 `/api/accounts/active` 与 SSE `account_actives` 初始快照同源。
+- 覆盖：legacy fallback、`ACT:SESSION:*` 优先、多连接同账号、密码材料剥离、
+  `ACT:ACTIVE` 不作为在线会话来源。
+- PowerShell 写 JSON seed 必须用 `redis-cli -x HSET` 从 stdin 输入值；直接把 JSON
+  作为 native 参数传给 `docker exec redis-cli HSET` 会在 Windows 上丢失双引号，
+  造成 Redis 中存入非法 JSON。
+- 该 e2e 只覆盖读侧真实 Redis/HTTP/SSE；真实 NTRIP/Auth 登录、续期、登出、踢线
+  写入 `ACT:SESSION:*` 的端到端链路仍是后续缺口。

@@ -451,3 +451,6 @@
   - NC-012 `schema_smoke` 明确 Relay 调度抗丢广播语义：enabled record 尚无 status 时 ACTIVE 可重试；orphan/disabled status 尚存在时 INACTIVE 可重试；record/status/distributed 一致后静默；配置变化保持两轮式先 INACTIVE 清 distributed，待 status 消失后再 ACTIVE。
   - NC-015 Redis e2e fixture smoke：新增 Windows `deploy/scripts/e2e_smoke.ps1`，可用 `redis:8.6.3` Docker fixture 或外部 Redis 8.4+ 启动 `CasterService`，临时开启 HTTP `Force_Enable` 并验证 health/login/status/cluster。
   - NC-015 扩展 `check_redis_compat.ps1` 支持 `-DockerContainer`，fixture 模式通过容器内 `redis-cli` 实测 `HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`；Docker/Redis 不可用时脚本明确非零失败，不允许伪通过。
+  - NC-016 活跃账号真实 Redis/HTTP/SSE e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeActiveAccounts`，在 Redis 8.6.3 Docker fixture 中种入唯一前缀的 `STR:ACTIVE`、`ACT:SESSION:*` 和 `ACT:ACTIVE` 数据，验证 `/api/accounts/active` 与 SSE `account_actives` 初始快照同源。
+  - NC-016 覆盖 `ACT:SESSION:*` 优先、legacy fallback、多连接同账号、密码材料剥离和 `ACT:ACTIVE` 不混入在线会话；写 JSON seed 改用 `redis-cli -x HSET` stdin 路径，避免 Windows/Docker 参数层破坏 JSON 引号。
+  - NC-016 收口了 NC-008B/NC-009 的读侧真实 Redis/SSE 自动化缺口；真实 NTRIP/Auth 写侧登录、续期、登出、踢线产生 `ACT:SESSION:*` 的 e2e 仍需后续任务。
