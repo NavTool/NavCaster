@@ -2,10 +2,10 @@
 
 更新时间：2026-06-13
 
-基线：
+本轮复核基线：
 
 ```text
-team-dev @ 03f15e3bfb6d731a6827915c8a1b7f4fd8f5fa91
+NC-005 基于 team-dev @ 8e725e1
 ```
 
 ## 阅读顺序
@@ -28,6 +28,9 @@ redis-schema-v2.md
 
 api-reference.md
   HTTP API 和 SSE 文档。改接口时必须和 src\http、web\src\api 交叉核对。
+
+http-deployment.md
+  HTTP API 多节点入口、Force_Enable 默认策略、反向代理/failover 和 smoke 口径。
 ```
 
 ## 可信度分层
@@ -55,7 +58,8 @@ api-reference.md
 NC-002 后续迭代需要总控持续跟踪这些项目级决策：
 
 ```text
-HTTP 多节点入口策略：master-only + 反向代理，还是固定管理节点 Force_Enable=true。
+HTTP 多节点入口策略：已由 http-deployment.md 收口为默认 master-only + 反向代理；
+  Force_Enable=true 仅用于固定管理节点或本地 smoke，不能作为普通多节点负载均衡池。
 Redis 最低生产版本：是否强制 Redis 8.6.3+，是否兼容无 HSETEX/HEXPIRE 环境。
 STR:ACTIVE legacy 去留：是否有外部依赖，何时迁移到 ACT:SESSION:* 或新 session API。
 Auth Redis 与 Caster Redis：是否长期保持双实例。

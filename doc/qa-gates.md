@@ -74,11 +74,22 @@ BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.s
 它是 HTTP/API、部署和运行契约任务的最低验证项，但当前不作为主 CI 的硬门槛，
 因为仓库 CI 尚未编排服务进程、Redis fixture 和端口生命周期。
 
+HTTP listener 最小存活 smoke 可按 `doc/http-deployment.md` 执行：临时设置
+`HTTP_API_Setting.Force_Enable: true`，启动 CasterService，再访问：
+
+```text
+GET http://127.0.0.1:8080/api/status/health
+```
+
+该检查只证明 HTTP 进程和 listener 可用，不证明 Redis、Master 正确性或登录后 API
+完整可用。Redis 可用时仍应优先运行 `deploy/scripts/e2e_smoke.sh`。
+
 ## 后续任务要求
 
 ```text
 NC-005 HTTP 多节点入口契约
-  必须补充 Force_Enable / master-only 部署 smoke 说明，并尽量让 e2e_smoke 可复用。
+  已由 doc/http-deployment.md 明确 Force_Enable / master-only 部署 smoke 说明；
+  Redis 可用时继续复用 e2e_smoke。
 
 前端 lint 债务
   必须单独建任务修复现有 npm run lint 错误，然后再把 Web lint 升级为 CI 硬门槛。
