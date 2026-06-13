@@ -453,4 +453,7 @@
   - NC-015 扩展 `check_redis_compat.ps1` 支持 `-DockerContainer`，fixture 模式通过容器内 `redis-cli` 实测 `HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`；Docker/Redis 不可用时脚本明确非零失败，不允许伪通过。
   - NC-016 活跃账号真实 Redis/HTTP/SSE e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeActiveAccounts`，在 Redis 8.6.3 Docker fixture 中种入唯一前缀的 `STR:ACTIVE`、`ACT:SESSION:*` 和 `ACT:ACTIVE` 数据，验证 `/api/accounts/active` 与 SSE `account_actives` 初始快照同源。
   - NC-016 覆盖 `ACT:SESSION:*` 优先、legacy fallback、多连接同账号、密码材料剥离和 `ACT:ACTIVE` 不混入在线会话；写 JSON seed 改用 `redis-cli -x HSET` stdin 路径，避免 Windows/Docker 参数层破坏 JSON 引号。
-  - NC-016 收口了 NC-008B/NC-009 的读侧真实 Redis/SSE 自动化缺口；真实 NTRIP/Auth 写侧登录、续期、登出、踢线产生 `ACT:SESSION:*` 的 e2e 仍需后续任务。
+  - NC-016 收口了 NC-008B/NC-009 的读侧真实 Redis/SSE 自动化缺口；当时真实 NTRIP/Auth 写侧登录、续期、登出、踢线产生 `ACT:SESSION:*` 的 e2e 仍需后续任务。
+  - NC-017 NTRIP/Auth 写侧 e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSession` 和 `-NtripPort`，用 Redis 8.6.3 Docker fixture 临时关闭 rover 匿名登录，seed `ACT:ACTIVE` 实名账号，建立真实 NTRIP POST source 和 GET client。
+  - NC-017 覆盖真实 Basic Auth client 登录写入 `ACT:SESSION:<account>`、`/api/accounts/active` 读取该真实会话、输出不泄露密码材料，以及 client 断连后 `ACT:SESSION:<account>` 对应 `connect_key` 被 HDEL 清理。
+  - NC-017 后 Auth active session 的真实读写闭环已具备自动化 smoke；长时间续期、online protection 踢线矩阵、多节点和 relay failover 仍需后续专项覆盖。

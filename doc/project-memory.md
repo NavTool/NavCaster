@@ -90,6 +90,9 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 .\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
 ```
 
+活跃账号读侧可追加 `-IncludeActiveAccounts`；真实 NTRIP/Auth 写侧实名会话可追加
+`-IncludeNtripAuthSession`，必要时用 `-NtripPort` 避开本机端口冲突。
+
 ## 后端启动链路
 
 入口是 `src/service/main.cpp`：
@@ -217,7 +220,11 @@ NC-008A 开始，实名 Auth 登录生命周期额外维护展示会话桶：
   优先聚合 `ACT:SESSION:*`，并合并 legacy `STR:ACTIVE` fallback；冲突时新 session 优先。
 
 `schema_smoke` 已覆盖 Auth 配置解析组合、Redis 连接字段解析、实名连接数策略纯逻辑、
-`ACT:SESSION:*` JSON 契约，以及活跃账号 REST/SSE 读侧的新旧源兼容。
+`ACT:SESSION:*` JSON 契约，以及活跃账号 REST/SSE 读侧的新旧源兼容。NC-017 后，
+Windows `deploy/scripts/e2e_smoke.ps1 -IncludeNtripAuthSession` 还会用 Redis 8.6.3
+fixture 打开真实 NTRIP POST source 和实名 GET client，验证 Auth/Core 写入
+`ACT:SESSION:<account>`、`/api/accounts/active` 可读取，并在 client 断连后清理
+对应 `connect_key`。
 
 ## HTTP API
 
@@ -347,5 +354,16 @@ SSE：
 - PowerShell 写 JSON seed 必须用 `redis-cli -x HSET` 从 stdin 输入值；直接把 JSON
   作为 native 参数传给 `docker exec redis-cli HSET` 会在 Windows 上丢失双引号，
   造成 Redis 中存入非法 JSON。
-- 该 e2e 只覆盖读侧真实 Redis/HTTP/SSE；真实 NTRIP/Auth 登录、续期、登出、踢线
-  写入 `ACT:SESSION:*` 的端到端链路仍是后续缺口。
+- 该 e2e 只覆盖读侧真实 Redis/HTTP/SSE；NC-017 已补真实 NTRIP/Auth 登录写入和
+  断连清理，续期长跑、踢线矩阵和多节点场景仍是后续缺口。
+
+## 2026-06-14 NC-017 NTRIP Auth Session 写侧 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSession` 和
+  `-NtripPort`。
+- 该模式使用 Docker Redis 8.6.3 fixture，临时关闭 rover/client 匿名登录，
+  seed `ACT:ACTIVE` 实名账号，建立真实 NTRIP POST source 和 GET client。
+- 覆盖：真实 Basic Auth client 登录、`ACT:SESSION:<account>` 写入、REST
+  `/api/accounts/active` 读取真实会话、密码材料剥离，以及 client 断连后
+  `ACT:SESSION:<account>` 对应 field 被清理。
+- 仍未覆盖多节点 online protection、踢线矩阵、长时间续期和 relay failover。

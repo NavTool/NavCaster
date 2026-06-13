@@ -12,10 +12,12 @@ param(
     [string]$HttpBindAddr = "127.0.0.1",
     [string]$AdminUser = "admin",
     [string]$AdminPassword = "admin",
+    [int]$NtripPort = 4202,
     [int]$StartupTimeoutSec = 45,
     [switch]$SkipRedisCompat,
     [switch]$KeepRedisContainer,
-    [switch]$IncludeActiveAccounts
+    [switch]$IncludeActiveAccounts,
+    [switch]$IncludeNtripAuthSession
 )
 
 $ErrorActionPreference = "Stop"
@@ -226,6 +228,359 @@ function Invoke-RedisHSetValue {
 function ConvertTo-CompactJson {
     param([object]$InputObject)
     return ($InputObject | ConvertTo-Json -Compress -Depth 8)
+}
+
+function ConvertTo-BasicAuthValue {
+    param(
+        [string]$User,
+        [string]$Password
+    )
+
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("${User}:$Password")
+    return [Convert]::ToBase64String($bytes)
+}
+
+function ConvertFrom-RedisHashRaw {
+    param([string]$Raw)
+
+    $map = @{}
+    if ([string]::IsNullOrWhiteSpace($Raw)) {
+        return $map
+    }
+
+    $lines = @($Raw -split "`r?`n")
+    for ($i = 0; ($i + 1) -lt $lines.Count; $i += 2) {
+        $map[$lines[$i]] = $lines[$i + 1]
+    }
+    return $map
+}
+
+function Get-RedisHashMap {
+    param([string]$Key)
+
+    $raw = Invoke-RedisCommand HGETALL $Key
+    return ConvertFrom-RedisHashRaw $raw
+}
+
+function New-NtripAuthSessionSeed {
+    $prefix = "nc017_${PID}_$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+    return [pscustomobject]@{
+        Prefix = $prefix
+        Mount = "${prefix}_MPT"
+        Account = "${prefix}_rover"
+        Password = "${prefix}_pw"
+        SourceUser = "${prefix}_source"
+        SourcePassword = "${prefix}_source_pw"
+        GroupUid = "default"
+        SourceConnectKey = ""
+        ClientConnectKey = ""
+    }
+}
+
+function Add-NtripAuthAccountSeed {
+    param([pscustomobject]$Seed)
+
+    Say "seeding NTRIP auth ACT:ACTIVE record account=$($Seed.Account) mount=$($Seed.Mount)"
+    $activeIndex = [ordered]@{
+        schema_version = 1
+        uid = $Seed.Account
+        account = $Seed.Account
+        password = $Seed.Password
+        legacy_plain_password = $true
+        group_uid = $Seed.GroupUid
+        connection_limit = 9999
+        type = 0
+        state = 1
+        active = 1
+        expire_time = 0
+    }
+    Invoke-RedisHSetValue "ACT:ACTIVE" $Seed.Account (ConvertTo-CompactJson $activeIndex) | Out-Null
+}
+
+function Remove-NtripAuthSessionSeed {
+    param([pscustomobject]$Seed)
+
+    if (-not $Seed) {
+        return
+    }
+
+    Invoke-RedisCommand HDEL "ACT:ACTIVE" $Seed.Account | Out-Null
+    Invoke-RedisCommand HDEL "MPT:LIST" $Seed.Mount | Out-Null
+    Invoke-RedisCommand HDEL "USR:LIST" $Seed.Account | Out-Null
+    Invoke-RedisCommand HDEL "MPT:SOURCE" $Seed.Mount | Out-Null
+    if ($Seed.SourceConnectKey) {
+        Invoke-RedisCommand HDEL "MPT:STAT" $Seed.SourceConnectKey | Out-Null
+        Invoke-RedisCommand HDEL "STR:STAT" $Seed.SourceConnectKey | Out-Null
+    }
+    if ($Seed.ClientConnectKey) {
+        Invoke-RedisCommand HDEL "USR:STAT" $Seed.ClientConnectKey | Out-Null
+        Invoke-RedisCommand HDEL "STR:STAT" $Seed.ClientConnectKey | Out-Null
+    }
+    Invoke-RedisCommand DEL `
+        "ACT:SESSION:$($Seed.Account)" `
+        "ACT:REC:$($Seed.Account)" `
+        "ACT:UND:$($Seed.SourceUser)" `
+        "USR:REC:$($Seed.Account)" `
+        "USR:SUB:$($Seed.Account)" `
+        "MPT:REC:$($Seed.Mount)" `
+        "MPT:SUB:$($Seed.Mount)" `
+        "LOG:USR:$($Seed.Account)" `
+        "LOG:MPT:$($Seed.Mount)" | Out-Null
+}
+
+function Read-NtripResponse {
+    param(
+        [System.Net.Sockets.TcpClient]$Client,
+        [int]$TimeoutSec
+    )
+
+    $stream = $Client.GetStream()
+    $buffer = New-Object byte[] 4096
+    $builder = New-Object System.Text.StringBuilder
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+
+    while ((Get-Date) -lt $deadline) {
+        if ($Client.Available -gt 0 -or $stream.DataAvailable) {
+            $available = $Client.Available
+            if ($available -le 0) {
+                $available = $buffer.Length
+            }
+            $read = $stream.Read($buffer, 0, [Math]::Min($buffer.Length, $available))
+            if ($read -le 0) {
+                break
+            }
+            [void]$builder.Append([System.Text.Encoding]::ASCII.GetString($buffer, 0, $read))
+            $text = $builder.ToString()
+            if ($text -match "`r?`n`r?`n") {
+                return $text
+            }
+        }
+        else {
+            Start-Sleep -Milliseconds 100
+        }
+    }
+
+    return $builder.ToString()
+}
+
+function Open-NtripTcpConnection {
+    param(
+        [string]$HostName,
+        [int]$Port,
+        [string]$RequestText,
+        [string]$Label,
+        [int]$TimeoutSec
+    )
+
+    $client = New-Object System.Net.Sockets.TcpClient
+    try {
+        $connectResult = $client.BeginConnect($HostName, $Port, $null, $null)
+        if (-not $connectResult.AsyncWaitHandle.WaitOne([TimeSpan]::FromSeconds($TimeoutSec))) {
+            Fail "$Label NTRIP TCP connect timed out to $HostName`:$Port"
+        }
+        $client.EndConnect($connectResult)
+        $client.ReceiveTimeout = $TimeoutSec * 1000
+        $client.SendTimeout = $TimeoutSec * 1000
+
+        $stream = $client.GetStream()
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($RequestText)
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush()
+
+        $response = Read-NtripResponse $client $TimeoutSec
+        if ([string]::IsNullOrWhiteSpace($response)) {
+            Fail "$Label NTRIP login returned an empty response"
+        }
+
+        return [pscustomobject]@{
+            Label = $Label
+            Client = $client
+            Response = $response
+        }
+    }
+    catch {
+        try { $client.Close() } catch {}
+        throw
+    }
+}
+
+function Close-NtripTcpConnection {
+    param([object]$Connection)
+
+    if (-not $Connection) {
+        return
+    }
+
+    try {
+        if ($Connection.Client) {
+            $Connection.Client.Close()
+            $Connection.Client.Dispose()
+        }
+    }
+    catch {
+    }
+}
+
+function Assert-NtripResponseOk {
+    param(
+        [string]$Response,
+        [string]$Context
+    )
+
+    $firstLine = (($Response -split "`r?`n") | Select-Object -First 1)
+    if ($firstLine -match '^HTTP/1\.[01]\s+200\b' -or $firstLine -eq "ICY 200 OK" -or $firstLine -eq "OK") {
+        return
+    }
+    Fail "$Context NTRIP response was not successful: $(Format-DebugText $Response)"
+}
+
+function Wait-NtripSourceActive {
+    param(
+        [pscustomobject]$Seed,
+        [int]$TimeoutSec
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $online = Get-RedisHashMap "MPT:LIST"
+        $records = Get-RedisHashMap "MPT:REC:$($Seed.Mount)"
+        if ($online.ContainsKey($Seed.Mount) -and $records.Count -gt 0) {
+            Start-Sleep -Milliseconds 1500
+            return ($records.Keys | Select-Object -First 1)
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $onlineRaw = Format-DebugText (Invoke-RedisCommand HGETALL "MPT:LIST")
+    $recRaw = Format-DebugText (Invoke-RedisCommand HGETALL "MPT:REC:$($Seed.Mount)")
+    Fail "NTRIP source mount did not become active; mpt_list=[$onlineRaw], mpt_rec=[$recRaw]"
+}
+
+function Wait-NtripActiveSession {
+    param(
+        [pscustomobject]$Seed,
+        [int]$TimeoutSec
+    )
+
+    $key = "ACT:SESSION:$($Seed.Account)"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $sessions = Get-RedisHashMap $key
+        foreach ($field in $sessions.Keys) {
+            try {
+                $record = $sessions[$field] | ConvertFrom-Json
+                if ($record.account -eq $Seed.Account -and $record.auth_type -eq "client") {
+                    return [pscustomobject]@{
+                        Key = $key
+                        Field = $field
+                        Record = $record
+                        Raw = $sessions[$field]
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $key)
+    Fail "NTRIP client active session did not appear in $key; raw=[$raw]"
+}
+
+function Wait-NtripActiveSessionGone {
+    param(
+        [string]$Key,
+        [string]$Field,
+        [int]$TimeoutSec
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $value = Invoke-RedisCommand HGET $Key $Field
+        if ([string]::IsNullOrEmpty($value)) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $Key)
+    Fail "NTRIP client active session field was not removed after disconnect; key=$Key field=$Field raw=[$raw]"
+}
+
+function Assert-NtripActiveAccountPayload {
+    param(
+        [object]$Payload,
+        [pscustomobject]$Seed,
+        [object]$Session,
+        [string]$Label
+    )
+
+    $record = Require-JsonProperty $Payload $Session.Field "$Label active account payload"
+    if ($record.account -ne $Seed.Account -or $record.auth_type -ne "client") {
+        Fail "$Label NTRIP active account record mismatch"
+    }
+    if ($record.group_uid -ne $Seed.GroupUid) {
+        Fail "$Label NTRIP active account group mismatch: $($record.group_uid)"
+    }
+    Assert-NoPasswordMaterial $record "$Label NTRIP active account"
+}
+
+function Invoke-NtripAuthSessionSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$NtripHost,
+        [int]$NtripPort
+    )
+
+    $script:ntripAuthSeed = New-NtripAuthSessionSeed
+    Add-NtripAuthAccountSeed $script:ntripAuthSeed
+
+    $sourceAuth = ConvertTo-BasicAuthValue $script:ntripAuthSeed.SourceUser $script:ntripAuthSeed.SourcePassword
+    $sourceRequest = "POST /$($script:ntripAuthSeed.Mount) HTTP/1.1`r`n" +
+        "Host: ${NtripHost}:$NtripPort`r`n" +
+        "Ntrip-Version: Ntrip/2.0`r`n" +
+        "Authorization: Basic $sourceAuth`r`n" +
+        "User-Agent: NTRIP NavCasterE2E/NC017`r`n" +
+        "Connection: close`r`n`r`n"
+
+    Say "opening NTRIP source mount=$($script:ntripAuthSeed.Mount)"
+    $script:ntripSourceConnection = Open-NtripTcpConnection $NtripHost $NtripPort $sourceRequest "source" 10
+    Assert-NtripResponseOk $script:ntripSourceConnection.Response "source"
+    $script:ntripAuthSeed.SourceConnectKey = Wait-NtripSourceActive $script:ntripAuthSeed $StartupTimeoutSec
+
+    $clientAuth = ConvertTo-BasicAuthValue $script:ntripAuthSeed.Account $script:ntripAuthSeed.Password
+    $clientRequest = "GET /$($script:ntripAuthSeed.Mount) HTTP/1.1`r`n" +
+        "Host: ${NtripHost}:$NtripPort`r`n" +
+        "Ntrip-Version: Ntrip/2.0`r`n" +
+        "Authorization: Basic $clientAuth`r`n" +
+        "User-Agent: NTRIP NavCasterE2E/NC017`r`n" +
+        "Connection: close`r`n`r`n"
+
+    Say "opening NTRIP client account=$($script:ntripAuthSeed.Account)"
+    $script:ntripClientConnection = Open-NtripTcpConnection $NtripHost $NtripPort $clientRequest "client" 10
+    Assert-NtripResponseOk $script:ntripClientConnection.Response "client"
+
+    $session = Wait-NtripActiveSession $script:ntripAuthSeed $StartupTimeoutSec
+    $script:ntripAuthSeed.ClientConnectKey = $session.Field
+    if ($session.Record.group_uid -ne $script:ntripAuthSeed.GroupUid) {
+        Fail "NTRIP active session group mismatch: $($session.Record.group_uid)"
+    }
+
+    Say "validating /api/accounts/active against real NTRIP Auth session"
+    $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+    Assert-NtripActiveAccountPayload $rest $script:ntripAuthSeed $session "REST /api/accounts/active"
+
+    Close-NtripTcpConnection $script:ntripClientConnection
+    $script:ntripClientConnection = $null
+    Wait-NtripActiveSessionGone $session.Key $session.Field $StartupTimeoutSec
+
+    Close-NtripTcpConnection $script:ntripSourceConnection
+    $script:ntripSourceConnection = $null
+    Remove-NtripAuthSessionSeed $script:ntripAuthSeed
+    $script:ntripAuthSeed = $null
+    Say "PASS NTRIP Auth active session smoke"
 }
 
 function New-ActiveSessionRecord {
@@ -581,6 +936,9 @@ $startedContainer = $false
 $serviceProcess = $null
 $originals = @{}
 $activeAccountSeed = $null
+$ntripAuthSeed = $null
+$ntripSourceConnection = $null
+$ntripClientConnection = $null
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
 $scriptFailed = $false
@@ -678,6 +1036,9 @@ try {
     }
 
     $serviceText = $originals[$serviceConfig]
+    $serviceText = Set-YamlValueInSection $serviceText "Ntrip_Listener_Setting" "Listen_Port" ([string]$NtripPort)
+    $serviceText = Set-YamlValueInSection $serviceText "Ntrip_Listener_Setting" "Enable_Server_Login" "true"
+    $serviceText = Set-YamlValueInSection $serviceText "Ntrip_Listener_Setting" "Enable_Client_Login" "true"
     $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Port" ([string]$HttpPort)
     $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Bind_Addr" "`"$HttpBindAddr`""
     $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Force_Enable" "true"
@@ -689,12 +1050,20 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
+    if ($IncludeNtripAuthSession) {
+        $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
+    }
     Write-TextFile $coreConfig $coreText
 
     $authText = $originals[$authConfig]
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "IP" $RedisHost
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Requirepass" $RedisPassword
+    if ($IncludeNtripAuthSession) {
+        $authText = Set-YamlValueInSection $authText "Base_Setting" "Anonymous_Login" "true"
+        $authText = Set-YamlValueInSection $authText "Rover_Setting" "Anonymous_Login" "false"
+        $authText = Set-YamlValueInSection $authText "Source_Setting" "Anonymous_Login" "true"
+    }
     Write-TextFile $authConfig $authText
 
     $base = "http://${HttpBindAddr}:${HttpPort}"
@@ -754,6 +1123,10 @@ try {
         Invoke-ActiveAccountSmoke $base $headers $login.token
     }
 
+    if ($IncludeNtripAuthSession) {
+        Invoke-NtripAuthSessionSmoke $base $headers $HttpBindAddr $NtripPort
+    }
+
     Say "PASS health/login/status/cluster smoke"
 }
 catch {
@@ -762,6 +1135,22 @@ catch {
 }
 finally {
     try {
+        Close-NtripTcpConnection $ntripClientConnection
+        $ntripClientConnection = $null
+    }
+    catch {
+        Write-Warning "failed to close NTRIP client connection: $($_.Exception.Message)"
+    }
+
+    try {
+        Close-NtripTcpConnection $ntripSourceConnection
+        $ntripSourceConnection = $null
+    }
+    catch {
+        Write-Warning "failed to close NTRIP source connection: $($_.Exception.Message)"
+    }
+
+    try {
         if ($activeAccountSeed) {
             Remove-ActiveAccountSeed $activeAccountSeed
             $activeAccountSeed = $null
@@ -769,6 +1158,16 @@ finally {
     }
     catch {
         Write-Warning "failed to remove active account Redis seed: $($_.Exception.Message)"
+    }
+
+    try {
+        if ($ntripAuthSeed) {
+            Remove-NtripAuthSessionSeed $ntripAuthSeed
+            $ntripAuthSeed = $null
+        }
+    }
+    catch {
+        Write-Warning "failed to remove NTRIP Auth Redis seed: $($_.Exception.Message)"
     }
 
     try {
