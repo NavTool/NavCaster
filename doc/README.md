@@ -32,6 +32,9 @@ redis-deployment.md
 api-reference.md
   HTTP API 和 SSE 文档。改接口时必须和 src\http、web\src\api 交叉核对。
 
+api-contract-sync.md
+  Proto/API/Web 类型同步规则、契约检查命令、覆盖范围和当前允许差异。
+
 http-deployment.md
   HTTP API 多节点入口、Force_Enable 默认策略、反向代理/failover 和 smoke 口径。
 ```
@@ -76,7 +79,7 @@ CI/QA 准入门槛：schema_smoke、Web lint/build、HTTP smoke 是否作为合�
 ```text
 修改 HTTP API 时，同步 api-reference.md 和 web\src\api\types.ts，或在任务记录中说明不变更原因。
 修改 Redis key/schema 时，以 redis-schema-v2.md 和 src\core\context\redis_keys.* 为主线。
-修改 proto 时，同步 proto\src 生成物、HTTP JSON、Web types 和相关文档。
+修改 proto 时，同步 proto\src 生成物、HTTP JSON、Web types 和相关文档，并运行契约检查。
 修改部署或运行策略时，同步 deploy、cmake 配置模板和 QA smoke 说明。
 不使用 refactor-plan-v2.md 的旧 checkbox 直接判断当前完成状态；以源码和 iteration-progress.md 为准。
 ```

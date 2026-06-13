@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout, Menu, Button, Space, Tag } from 'antd';
 import {
   DashboardOutlined,
@@ -21,6 +21,7 @@ import {
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api/auth';
+import { getSystemStatus } from '../api';
 import { useMultiSSE } from '../hooks/useSSE';
 import type { CasterNode } from '../api/types';
 
@@ -96,6 +97,7 @@ const menuItems = [
 
 const MainLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [masterNodeId, setMasterNodeId] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -108,9 +110,21 @@ const MainLayout: React.FC = () => {
 
   const nodes = sseData.nodes || {};
   const nodeCount = Object.keys(nodes).length;
-  const masterNode = Object.values(nodes).find(n => n.master);
+  const masterNode = masterNodeId ? nodes[masterNodeId] : undefined;
   const serverCount = Object.keys(sseData.servers || {}).length;
   const clientCount = Object.keys(sseData.clients || {}).length;
+
+  useEffect(() => {
+    const refreshMaster = async () => {
+      try {
+        const status = await getSystemStatus();
+        setMasterNodeId(status?.master_node ?? null);
+      } catch { /* ignore */ }
+    };
+    refreshMaster();
+    const interval = window.setInterval(refreshMaster, 10000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // 根据当前路径确定展开的菜单组
   const openKeys = menuItems
