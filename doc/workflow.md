@@ -1,7 +1,10 @@
 # NavCaster 当前代码工作流程
 
-> 范围：基于当前 `main` 工作树，覆盖 NTRIP 接入、CasterCore 数据分发、Redis 持久化、HTTP API、SSE 实时推送、Web 前端的端到端流程。
-> 时间：2025-11
+> 范围：基于当前 `team-dev` 工作树，覆盖 NTRIP 接入、CasterCore 数据分发、Redis 持久化、HTTP API、SSE 实时推送、Web 前端的端到端流程。
+> 基线：`03f15e3bfb6d731a6827915c8a1b7f4fd8f5fa91`
+> 复核时间：2026-06-13
+>
+> 说明：本文优先描述当前运行事实。若与旧计划文档或 `docs` 目录中的历史资料冲突，以源码和本文为准。
 
 ---
 
