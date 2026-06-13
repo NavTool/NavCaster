@@ -1,8 +1,8 @@
 # Redis 部署契约
 
-更新时间：2026-06-13
+更新时间：2026-06-14
 
-基线：NC-006 基于 `team-dev @ 4f7258b`。
+基线：NC-016 基于 `team-dev @ 53772e5`。
 
 ## 版本口径
 
@@ -87,6 +87,25 @@ Container name: navcaster-e2e-redis-<pid>
 ```powershell
 .\deploy\scripts\e2e_smoke.ps1 -RedisMode External -RedisHost 127.0.0.1 -RedisPort 6379
 ```
+
+活跃账号读侧需要同时验证 auth Redis 中的 legacy 和新会话 key 时，追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeActiveAccounts
+```
+
+该检查会写入并清理：
+
+```text
+STR:ACTIVE
+ACT:SESSION:<account>
+ACT:ACTIVE
+```
+
+预期行为是 `/api/accounts/active` 和 SSE `account_actives` 聚合
+`ACT:SESSION:*`，兼容 `STR:ACTIVE`，不把 `ACT:ACTIVE` 登录索引当作在线会话。
+PowerShell 脚本通过 `redis-cli -x HSET` 从 stdin 写入 JSON seed，以避免 Windows
+native 参数转发导致 JSON 双引号丢失。
 
 当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，
 不能替代 e2e 通过记录。
