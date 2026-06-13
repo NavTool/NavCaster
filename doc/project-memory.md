@@ -94,7 +94,9 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 `-IncludeActiveAccountSseDelta`；真实 NTRIP/Auth 写侧实名会话可追加
 `-IncludeNtripAuthSession`；真实连接续期长跑可追加
 `-IncludeNtripAuthSessionRenewal`；`Online_Protection` 连接数矩阵可追加
-`-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`。
+`-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`；
+匿名登录矩阵可追加
+`-IncludeNtripAnonymousAuth -NtripAnonymousScenario AllowAnonymous|RejectAnonymous`。
 必要时用 `-NtripPort` 避开本机端口冲突。
 
 ## 后端启动链路
@@ -234,7 +236,11 @@ fixture 打开真实 NTRIP POST source 和实名 GET client，验证 Auth/Core �
 最终只保留预期 `connect_key`。NC-019 后，`-IncludeNtripAuthSessionRenewal`
 会保持真实实名 client 在线跨过续期窗口，断言 `ACT:SESSION:<account>` 同 field
 的 `update_time` 增长，并用 `HTTL` 确认 `ACT:SESSION`、`ACT:REC`、`USR:REC`
-三处 field TTL 仍为正；断连后继续确认三处 field 被清理。
+三处 field TTL 仍为正；断连后继续确认三处 field 被清理。NC-021 后，
+`-IncludeNtripAnonymousAuth` 会分别验证 `Rover_Setting.Anonymous_Login=true`
+时无 Basic Auth rover 写入并清理 `ACT:UND:<name>`、不进入 `ACT:SESSION:*`
+和 `/api/accounts/active`，以及 `false` 时无 Basic Auth rover 被拒绝且不残留
+`ACT:UND/ACT:SESSION/ACT:REC/USR:REC`。
 
 ## HTTP API
 
@@ -377,7 +383,7 @@ SSE：
 - 每一步都用 `/api/accounts/active` 交叉验证 REST 与 SSE payload 同源，并继续
   验证密码材料剥离。
 - 该 e2e 闭合单节点运行中 `account_actives` 增量推送缺口；多节点
-  AUTH:BROADCAST、匿名登录矩阵和 relay failover 仍是后续专项。
+  AUTH:BROADCAST 和 relay failover 仍是后续专项；匿名登录矩阵由 NC-021 覆盖。
 
 ## 2026-06-14 NC-017 NTRIP Auth Session 写侧 e2e
 
@@ -388,7 +394,8 @@ SSE：
 - 覆盖：真实 Basic Auth client 登录、`ACT:SESSION:<account>` 写入、REST
   `/api/accounts/active` 读取真实会话、密码材料剥离，以及 client 断连后
   `ACT:SESSION:<account>` 对应 field 被清理。
-- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵和 relay failover。
+- NC-021 已覆盖单节点匿名登录允许/拒绝矩阵；NC-017 自身仍不覆盖多节点
+  AUTH:BROADCAST 和 relay failover。
 
 ## 2026-06-14 NC-018 NTRIP Online_Protection e2e
 
@@ -401,7 +408,8 @@ SSE：
   client 成功登录，旧 client 被关闭。
 - 两种场景都断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>`
   最终字段集合与预期 connect_key 一致，并验证 `/api/accounts/active` 不泄露密码材料。
-- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵和 relay failover。
+- NC-021 已覆盖单节点匿名登录允许/拒绝矩阵；NC-018 自身仍不覆盖多节点
+  AUTH:BROADCAST 和 relay failover。
 
 ## 2026-06-14 NC-019 NTRIP Auth Session 续期 e2e
 
@@ -416,4 +424,18 @@ SSE：
   与续期后的真实会话一致且不泄露密码材料。
 - client 断连后确认 `ACT:SESSION/ACT:REC/USR:REC` 对应 field 都被清理。
 - `check_redis_compat.{ps1,sh}` 同步纳入 `HTTL` 兼容检查，避免 QA 依赖未声明命令。
-- 仍未覆盖多节点 AUTH:BROADCAST、匿名登录矩阵和 relay failover。
+- NC-021 已覆盖单节点匿名登录允许/拒绝矩阵；NC-019 自身仍不覆盖多节点
+  AUTH:BROADCAST 和 relay failover。
+
+## 2026-06-14 NC-021 NTRIP 匿名登录矩阵 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAnonymousAuth`
+  和 `-NtripAnonymousScenario AllowAnonymous|RejectAnonymous`。
+- 两种场景必须分别启动服务，因为 `Rover_Setting.Anonymous_Login` 是启动时配置。
+- `AllowAnonymous` 覆盖无 Basic Auth rover 成功连接，`ACT:UND:<name>` 写入且
+  field `HTTL` 为正，匿名 client 不写入 `ACT:SESSION:*`，也不出现在
+  `/api/accounts/active`，断连后 `ACT:UND:<name>` field 被清理。
+- `RejectAnonymous` 覆盖无 Basic Auth rover 被拒绝/关闭，且
+  `ACT:UND/ACT:SESSION/ACT:REC/USR:REC` 不残留该匿名连接。
+- 该 e2e 闭合单节点 NTRIP/Auth 匿名登录矩阵；多节点 `AUTH:BROADCAST`、
+  relay failover 和禁用账号矩阵仍是后续专项。

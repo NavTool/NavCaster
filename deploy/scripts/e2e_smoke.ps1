@@ -23,7 +23,10 @@ param(
     [int]$NtripRenewalWaitSec = 25,
     [switch]$IncludeNtripOnlineProtection,
     [ValidateSet("RejectNew", "KickOld")]
-    [string]$NtripOnlineProtectionScenario = "RejectNew"
+    [string]$NtripOnlineProtectionScenario = "RejectNew",
+    [switch]$IncludeNtripAnonymousAuth,
+    [ValidateSet("AllowAnonymous", "RejectAnonymous")]
+    [string]$NtripAnonymousScenario = "AllowAnonymous"
 )
 
 $ErrorActionPreference = "Stop"
@@ -288,6 +291,16 @@ function Get-RedisHashMap {
     return ConvertFrom-RedisHashRaw $raw
 }
 
+function Get-RedisKeys {
+    param([string]$Pattern)
+
+    $raw = Invoke-RedisCommand KEYS $Pattern
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return @()
+    }
+    return @($raw -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object)
+}
+
 function Test-FieldSetEquals {
     param(
         [string[]]$ActualFields,
@@ -349,6 +362,7 @@ function Remove-NtripAuthSessionSeed {
     }
 
     Invoke-RedisCommand HDEL "ACT:ACTIVE" $Seed.Account | Out-Null
+    Invoke-RedisCommand HDEL "ACT:UNNAMED" $Seed.SourceUser | Out-Null
     Invoke-RedisCommand HDEL "MPT:LIST" $Seed.Mount | Out-Null
     Invoke-RedisCommand HDEL "USR:LIST" $Seed.Account | Out-Null
     Invoke-RedisCommand HDEL "MPT:SOURCE" $Seed.Mount | Out-Null
@@ -376,6 +390,35 @@ function Remove-NtripAuthSessionSeed {
         "MPT:SUB:$($Seed.Mount)" `
         "LOG:USR:$($Seed.Account)" `
         "LOG:MPT:$($Seed.Mount)" | Out-Null
+}
+
+function Remove-NtripAnonymousAuthSeed {
+    param([pscustomobject]$Seed)
+
+    if (-not $Seed) {
+        return
+    }
+
+    if ($Seed.PSObject.Properties["AnonymousConnectKey"] -and $Seed.AnonymousConnectKey) {
+        Invoke-RedisCommand HDEL "USR:STAT" $Seed.AnonymousConnectKey | Out-Null
+        Invoke-RedisCommand HDEL "STR:STAT" $Seed.AnonymousConnectKey | Out-Null
+    }
+
+    if ($Seed.PSObject.Properties["AnonymousUndKey"] -and $Seed.AnonymousUndKey) {
+        Invoke-RedisCommand DEL $Seed.AnonymousUndKey | Out-Null
+    }
+
+    if ($Seed.PSObject.Properties["AnonymousUser"] -and $null -ne $Seed.AnonymousUser) {
+        Invoke-RedisCommand HDEL "ACT:UNNAMED" $Seed.AnonymousUser | Out-Null
+        Invoke-RedisCommand DEL `
+            "ACT:SESSION:$($Seed.AnonymousUser)" `
+            "ACT:REC:$($Seed.AnonymousUser)" `
+            "USR:REC:$($Seed.AnonymousUser)" `
+            "USR:SUB:$($Seed.AnonymousUser)" `
+            "LOG:USR:$($Seed.AnonymousUser)" | Out-Null
+    }
+
+    Remove-NtripAuthSessionSeed $Seed
 }
 
 function Read-NtripResponse {
@@ -851,6 +894,198 @@ function Open-NtripClientForSeed {
     return $connection
 }
 
+function New-NtripAnonymousAuthSeed {
+    param([string]$Label)
+
+    $seed = New-NtripAuthSessionSeed -Label $Label
+    Add-Member -InputObject $seed -MemberType NoteProperty -Name AnonymousUser -Value ""
+    Add-Member -InputObject $seed -MemberType NoteProperty -Name AnonymousConnectKey -Value ""
+    Add-Member -InputObject $seed -MemberType NoteProperty -Name AnonymousUndKey -Value ""
+    return $seed
+}
+
+function Open-NtripAnonymousClientForSeed {
+    param(
+        [pscustomobject]$Seed,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [string]$Label,
+        [switch]$AllowRejected
+    )
+
+    $clientRequest = "GET /$($Seed.Mount) HTTP/1.1`r`n" +
+        "Host: ${NtripHost}:$NtripPort`r`n" +
+        "Ntrip-Version: Ntrip/2.0`r`n" +
+        "User-Agent: NTRIP NavCasterE2E/$($Seed.Prefix)`r`n" +
+        "Connection: close`r`n`r`n"
+
+    Say "opening anonymous NTRIP client label=$Label mount=$($Seed.Mount)"
+    $connection = Open-NtripTcpConnection $NtripHost $NtripPort $clientRequest $Label 10 -AllowEmptyResponse:$AllowRejected
+    if (-not $AllowRejected) {
+        Assert-NtripResponseOk $connection.Response $Label
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($connection.Response)) {
+        $firstLine = (($connection.Response -split "`r?`n") | Select-Object -First 1)
+        if ($firstLine -match '^HTTP/1\.[01]\s+200\b' -or $firstLine -eq "ICY 200 OK" -or $firstLine -eq "OK") {
+            Fail "$Label unexpectedly received a successful NTRIP response while anonymous rejection was expected"
+        }
+    }
+    return $connection
+}
+
+function Get-NtripAnonymousClientRecords {
+    param([pscustomobject]$Seed)
+
+    $records = @()
+    $sourceUndKey = "ACT:UND:$($Seed.SourceUser)"
+    $undPrefix = "ACT:UND:"
+    foreach ($key in (Get-RedisKeys "ACT:UND:*")) {
+        $map = Get-RedisHashMap $key
+        foreach ($field in $map.Keys) {
+            if ($key -eq $sourceUndKey -and $field -eq $Seed.SourceConnectKey) {
+                continue
+            }
+            $user = $key
+            if ($key.StartsWith($undPrefix)) {
+                $user = $key.Substring($undPrefix.Length)
+            }
+            $records += [pscustomobject]@{
+                Key = $key
+                User = $user
+                Field = $field
+                Value = $map[$field]
+                Ttl = Get-RedisHashFieldTtl $key $field
+            }
+        }
+    }
+    return @($records)
+}
+
+function Format-NtripAnonymousRecords {
+    param([pscustomobject]$Seed)
+
+    $parts = @()
+    foreach ($record in (Get-NtripAnonymousClientRecords $Seed)) {
+        $parts += "$($record.Key)/$($record.Field)/ttl=$($record.Ttl)/value=$($record.Value)"
+    }
+    return ($parts -join "; ")
+}
+
+function Wait-NtripAnonymousClientRecord {
+    param(
+        [pscustomobject]$Seed,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $records = @(Get-NtripAnonymousClientRecords $Seed | Where-Object { $_.Ttl -gt 0 })
+        if ($records.Count -eq 1) {
+            return $records[0]
+        }
+        if ($records.Count -gt 1) {
+            Fail "$Context found multiple anonymous client records: $(Format-DebugText (Format-NtripAnonymousRecords $Seed))"
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context anonymous ACT:UND client record did not appear; records=[$(Format-DebugText (Format-NtripAnonymousRecords $Seed))]"
+}
+
+function Wait-NtripAnonymousClientRecordGone {
+    param(
+        [pscustomobject]$Seed,
+        [string]$ConnectKey,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $records = @(Get-NtripAnonymousClientRecords $Seed | Where-Object { $_.Field -eq $ConnectKey })
+        if ($records.Count -eq 0) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context anonymous ACT:UND field was not removed; records=[$(Format-DebugText (Format-NtripAnonymousRecords $Seed))]"
+}
+
+function Assert-NtripNoAnonymousActiveDisplay {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [object]$AnonymousRecord,
+        [string]$Context
+    )
+
+    foreach ($key in (Get-RedisKeys "ACT:SESSION:*")) {
+        $sessions = Get-RedisHashMap $key
+        foreach ($field in $sessions.Keys) {
+            if ($field -eq $AnonymousRecord.Field) {
+                Fail "$Context unexpectedly wrote anonymous client to $key field=$field"
+            }
+            try {
+                $session = $sessions[$field] | ConvertFrom-Json
+                if ($session.connect_key -eq $AnonymousRecord.Field) {
+                    Fail "$Context unexpectedly exposed anonymous connect_key in $key"
+                }
+                if (-not [string]::IsNullOrEmpty($AnonymousRecord.User) -and $session.account -eq $AnonymousRecord.User) {
+                    Fail "$Context unexpectedly exposed anonymous user in $key"
+                }
+            }
+            catch {
+            }
+        }
+    }
+
+    $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+    foreach ($prop in @($rest.PSObject.Properties)) {
+        if ($prop.Name -eq $AnonymousRecord.Field) {
+            Fail "$Context REST /api/accounts/active exposed anonymous field $($AnonymousRecord.Field)"
+        }
+        $value = $prop.Value
+        if ($null -ne $value) {
+            if ($value.connect_key -eq $AnonymousRecord.Field) {
+                Fail "$Context REST /api/accounts/active exposed anonymous connect_key"
+            }
+            if (-not [string]::IsNullOrEmpty($AnonymousRecord.User) -and $value.account -eq $AnonymousRecord.User) {
+                Fail "$Context REST /api/accounts/active exposed anonymous user"
+            }
+            Assert-NoPasswordMaterial $value "$Context REST /api/accounts/active"
+        }
+    }
+}
+
+function Assert-NtripNoAnonymousAuthResidue {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [pscustomobject]$Seed,
+        [string]$Context
+    )
+
+    $records = @(Get-NtripAnonymousClientRecords $Seed)
+    if ($records.Count -ne 0) {
+        Fail "$Context left anonymous ACT:UND records: $(Format-DebugText (Format-NtripAnonymousRecords $Seed))"
+    }
+
+    foreach ($pattern in @("ACT:SESSION:*", "ACT:REC:*", "USR:REC:*")) {
+        $keys = @(Get-RedisKeys $pattern)
+        if ($keys.Count -ne 0) {
+            Fail "$Context left unexpected auth/core record keys for rejected anonymous client; pattern=$pattern keys=[$($keys -join ',')]"
+        }
+    }
+
+    $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+    $fields = @($rest.PSObject.Properties | ForEach-Object { $_.Name })
+    if ($fields.Count -ne 0) {
+        Fail "$Context REST /api/accounts/active was not empty after rejected anonymous client; fields=[$($fields -join ',')]"
+    }
+}
+
 function Invoke-NtripAuthSessionSmoke {
     param(
         [string]$Base,
@@ -1053,6 +1288,70 @@ function Invoke-NtripOnlineProtectionSmoke {
         Close-NtripTcpConnection $sourceConnection
         if ($seed) {
             Remove-NtripAuthSessionSeed $seed
+        }
+    }
+}
+
+function Invoke-NtripAnonymousAuthSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [string]$Scenario
+    )
+
+    $sourceConnection = $null
+    $anonymousClient = $null
+    $seed = $null
+
+    try {
+        $label = if ($Scenario -eq "AllowAnonymous") { "nc021_anon_allow" } else { "nc021_anon_reject" }
+        $seed = New-NtripAnonymousAuthSeed -Label $label
+        $script:ntripAuthSeed = $seed
+
+        $sourceConnection = Open-NtripSourceForSeed $seed $NtripHost $NtripPort "source-$Scenario"
+        $script:ntripSourceConnection = $sourceConnection
+
+        if ($Scenario -eq "AllowAnonymous") {
+            $anonymousClient = Open-NtripAnonymousClientForSeed $seed $NtripHost $NtripPort "anonymous-client-$Scenario"
+            $script:ntripClientConnection = $anonymousClient
+            $anonymousRecord = Wait-NtripAnonymousClientRecord $seed $StartupTimeoutSec "$Scenario anonymous client login"
+            $seed.AnonymousUser = $anonymousRecord.User
+            $seed.AnonymousConnectKey = $anonymousRecord.Field
+            $seed.AnonymousUndKey = $anonymousRecord.Key
+
+            Say "anonymous NTRIP client accepted user=[$($anonymousRecord.User)] field=$($anonymousRecord.Field) ttl=$($anonymousRecord.Ttl)"
+            Assert-NtripNoAnonymousActiveDisplay $Base $Headers $anonymousRecord "$Scenario anonymous client"
+
+            Close-NtripTcpConnection $anonymousClient
+            $anonymousClient = $null
+            $script:ntripClientConnection = $null
+            Wait-NtripAnonymousClientRecordGone $seed $seed.AnonymousConnectKey $StartupTimeoutSec "$Scenario anonymous client disconnect cleanup"
+        }
+        else {
+            $anonymousClient = Open-NtripAnonymousClientForSeed $seed $NtripHost $NtripPort "anonymous-client-$Scenario" -AllowRejected
+            $script:ntripClientConnection = $anonymousClient
+            Wait-NtripTcpConnectionClosed $anonymousClient 10 "$Scenario anonymous client"
+            Assert-NtripNoAnonymousAuthResidue $Base $Headers $seed "$Scenario anonymous client"
+            Close-NtripTcpConnection $anonymousClient
+            $anonymousClient = $null
+            $script:ntripClientConnection = $null
+        }
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        Remove-NtripAnonymousAuthSeed $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+        $script:ntripSourceConnection = $null
+        Say "PASS NTRIP anonymous auth $Scenario smoke"
+    }
+    finally {
+        Close-NtripTcpConnection $anonymousClient
+        Close-NtripTcpConnection $sourceConnection
+        if ($seed) {
+            Remove-NtripAnonymousAuthSeed $seed
         }
     }
 }
@@ -1647,12 +1946,17 @@ $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
 $ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection
+$ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
 $scriptFailed = $false
 
 try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
+
+    if ($IncludeNtripAnonymousAuth -and $ntripNeedsNamedRover) {
+        Fail "NTRIP anonymous auth smoke must run in a separate service lifecycle from named-rover NTRIP smokes because Rover_Setting.Anonymous_Login is scenario-specific."
+    }
 
     if ($RedisMode -eq "Docker") {
         $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
@@ -1758,7 +2062,7 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsNamedRover) {
+    if ($ntripNeedsAuthFixture) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
         $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Enable_Mult" "true"
@@ -1770,10 +2074,11 @@ try {
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "IP" $RedisHost
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsNamedRover) {
+    if ($ntripNeedsAuthFixture) {
         $roverOnlineProtection = if ($NtripOnlineProtectionScenario -eq "RejectNew") { "true" } else { "false" }
+        $roverAnonymousLogin = if ($IncludeNtripAnonymousAuth -and $NtripAnonymousScenario -eq "AllowAnonymous") { "true" } else { "false" }
         $authText = Set-YamlValueInSection $authText "Base_Setting" "Anonymous_Login" "true"
-        $authText = Set-YamlValueInSection $authText "Rover_Setting" "Anonymous_Login" "false"
+        $authText = Set-YamlValueInSection $authText "Rover_Setting" "Anonymous_Login" $roverAnonymousLogin
         $authText = Set-YamlValueInSection $authText "Rover_Setting" "Online_Protection" $roverOnlineProtection
         $authText = Set-YamlValueInSection $authText "Source_Setting" "Anonymous_Login" "true"
     }
@@ -1850,6 +2155,10 @@ try {
 
     if ($IncludeNtripOnlineProtection) {
         Invoke-NtripOnlineProtectionSmoke $base $headers $HttpBindAddr $NtripPort $NtripOnlineProtectionScenario
+    }
+
+    if ($IncludeNtripAnonymousAuth) {
+        Invoke-NtripAnonymousAuthSmoke $base $headers $HttpBindAddr $NtripPort $NtripAnonymousScenario
     }
 
     Say "PASS health/login/status/cluster smoke"

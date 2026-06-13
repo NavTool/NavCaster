@@ -460,10 +460,13 @@
   - NC-017 后 Auth active session 的真实读写闭环已具备自动化 smoke；当时长时间续期、online protection 踢线矩阵、多节点和 relay failover 仍需后续专项覆盖。
   - NC-018 NTRIP Online_Protection e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripOnlineProtection` 与 `-NtripOnlineProtectionScenario RejectNew|KickOld`，两种场景分别启动服务，避免启动时配置相互污染。
   - NC-018 覆盖 `Online_Protection=true` + `connection_limit=1` 时第二个同账号 client 被拒绝并关闭、旧连接保留，以及 `Online_Protection=false` 时第二个 client 成功登录并踢掉旧连接。
-  - NC-018 同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 最终字段集合和 `/api/accounts/active` 读侧一致，收口单节点真实 NTRIP/Auth Online_Protection 踢线矩阵；长时间续期、多节点 `AUTH:BROADCAST`、匿名登录矩阵和 relay failover 仍需后续专项。
+  - NC-018 同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 最终字段集合和 `/api/accounts/active` 读侧一致，收口单节点真实 NTRIP/Auth Online_Protection 踢线矩阵；当时剩余长时间续期、多节点 `AUTH:BROADCAST`、匿名登录矩阵和 relay failover，续期由 NC-019 补齐，匿名矩阵由 NC-021 补齐。
   - NC-019 NTRIP Auth session 续期 e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSessionRenewal` 与 `-NtripRenewalWaitSec`，用真实 NTRIP POST source 和实名 GET client 保持连接跨过续期窗口。
   - NC-019 覆盖 `ACT:SESSION:<account>` 同 connect_key 的 `update_time` 单调增长、`online_time` 不变，并通过 `HTTL` 确认 `ACT:SESSION`、`ACT:REC`、`USR:REC` 三处 field TTL 为正。
-  - NC-019 继续验证 `/api/accounts/active` 与续期后的真实会话一致、密码材料剥离，以及 client 断连后三处 field 都被清理；多节点 `AUTH:BROADCAST`、匿名登录矩阵、relay failover 和运行中 SSE 增量推送仍需后续专项。
+  - NC-019 继续验证 `/api/accounts/active` 与续期后的真实会话一致、密码材料剥离，以及 client 断连后三处 field 都被清理；当时剩余多节点 `AUTH:BROADCAST`、匿名登录矩阵、relay failover 和运行中 SSE 增量推送，SSE 增量由 NC-020 补齐，匿名矩阵由 NC-021 补齐。
   - NC-020 Active account SSE runtime delta e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeActiveAccountSseDelta`，在真实 SSE client 已订阅 `account_actives` 后，对唯一 `ACT:SESSION:<account>` field 执行新增、更新和删除。
   - NC-020 覆盖同一条 SSE 连接上的 `account_actives` create/update/delete payload，并用 `/api/accounts/active` 逐步交叉验证 REST/SSE 同源和密码材料剥离。
-  - NC-020 闭合单节点运行中 `account_actives` 增量推送缺口；多节点 `AUTH:BROADCAST`、匿名登录矩阵和 relay failover 仍需后续专项。
+  - NC-020 闭合单节点运行中 `account_actives` 增量推送缺口；匿名登录矩阵已由 NC-021 补齐，多节点 `AUTH:BROADCAST` 和 relay failover 仍需后续专项。
+  - NC-021 NTRIP anonymous auth matrix e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAnonymousAuth` 与 `-NtripAnonymousScenario AllowAnonymous|RejectAnonymous`，两种场景分别启动服务，避免 `Rover_Setting.Anonymous_Login` 启动时配置相互污染。
+  - NC-021 覆盖 `Anonymous_Login=true` 时无 Basic Auth rover 真实连接成功，`ACT:UND:<name>` 写入且 `HTTL` 为正，不进入 `ACT:SESSION:*` 或 `/api/accounts/active`，断连后 `ACT:UND` field 清理。
+  - NC-021 覆盖 `Anonymous_Login=false` 时无 Basic Auth rover 被拒绝并关闭，且 `ACT:UND/ACT:SESSION/ACT:REC/USR:REC` 不残留该匿名连接；多节点 `AUTH:BROADCAST`、relay failover 和禁用账号矩阵仍需后续专项。
