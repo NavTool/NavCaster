@@ -435,3 +435,4 @@
   - Phase 5.1 迁移后执行 `cmake --build build --target authverify --config Release --parallel -- /p:BuildProjectReferences=false` 通过。
   - NC-005 HTTP 多节点入口契约：在 `Service_Setting.yml.in` 显式写出 `HTTP_API_Setting.Force_Enable: false`，保持默认 master-only；新增 `doc/http-deployment.md`，收口单节点、多节点、反向代理/failover、固定管理节点和 Force_Enable smoke 口径。
   - NC-005 验证：执行 `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`、`cmake --build build --target CasterService --config Release --parallel`、`cmake --build build --target schema_smoke --config Release --parallel`、`ctest --test-dir build --build-config Release --output-on-failure -R schema_smoke` 通过；临时 `Force_Enable=true` 后访问 `/api/status/health` 返回 `200 {"status":"ok"}`。
+  - NC-006 Redis 版本/命令兼容：新增 `doc/redis-deployment.md` 和 `deploy/scripts/check_redis_compat.{sh,ps1}`，把生产最低版本收口为 Redis Open Source 8.4.0+，Docker/CI/Linux package 默认验证版本保持 8.6.3；兼容 smoke 实测 `HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`。

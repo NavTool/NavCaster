@@ -96,6 +96,8 @@ caster_internal 周期性 (5s) 任务 (_keep_alive_event):
 
 - **稳定 Node ID**：`Set_Node_Runtime_Info` 把 `hostname:listen_port:http_port` 哈希为 `Node_XXXXX`，保证重启不变
 - **Master TTL**：15 s；若 `IFEQ` 不匹配（其他节点已抢占），则放弃续期，本机降级
+- Redis 命令要求：Master 续约依赖 `SET ... IFEQ ... EX`，运行态状态依赖
+  `HSETEX`/`HEXPIRE`；部署最低版本见 `doc/redis-deployment.md`
 - 主节点变更事件写入 `LOG:NODE:<id>` (event=`master_acquired` / `master_lost`)
 
 ---

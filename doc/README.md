@@ -26,6 +26,9 @@ architecture-v2.md
 redis-schema-v2.md
   Redis schema 和账号语义的当前目标文档。
 
+redis-deployment.md
+  Redis 最低版本、关键命令依赖、部署校验脚本和 Docker/CI 版本口径。
+
 api-reference.md
   HTTP API 和 SSE 文档。改接口时必须和 src\http、web\src\api 交叉核对。
 
@@ -60,7 +63,8 @@ NC-002 后续迭代需要总控持续跟踪这些项目级决策：
 ```text
 HTTP 多节点入口策略：已由 http-deployment.md 收口为默认 master-only + 反向代理；
   Force_Enable=true 仅用于固定管理节点或本地 smoke，不能作为普通多节点负载均衡池。
-Redis 最低生产版本：是否强制 Redis 8.6.3+，是否兼容无 HSETEX/HEXPIRE 环境。
+Redis 最低生产版本：已由 redis-deployment.md 收口为 Redis Open Source 8.4.0+；
+  Docker/CI 打包验证版本保持 8.6.3，不兼容环境不提供降级路径。
 STR:ACTIVE legacy 去留：是否有外部依赖，何时迁移到 ACT:SESSION:* 或新 session API。
 Auth Redis 与 Caster Redis：是否长期保持双实例。
 CI/QA 准入门槛：schema_smoke、Web lint/build、HTTP smoke 是否作为合并硬门槛。

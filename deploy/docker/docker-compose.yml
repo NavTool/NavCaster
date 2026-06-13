@@ -41,6 +41,7 @@ services:
       - caster_network
 
   redis:
+    # NavCaster requires Redis Open Source 8.4.0+; 8.6.3 is the verified default.
     image: redis:8.6.3
     container_name: redis_container
     # Redis 仅供 caster_service 内部访问。如需对外暴露，设置 REDIS_PORT

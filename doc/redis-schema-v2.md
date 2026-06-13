@@ -4,6 +4,9 @@
 
 本文档定义目标 Redis 数据模型。当前代码中已有部分 key 与本文档不完全一致，后续迭代以本文档为目标逐步迁移。
 
+部署要求：当前 schema 依赖 hash field TTL 与条件 SET，生产 Redis 最低版本为
+Redis Open Source 8.4.0+。部署和命令校验见 `doc/redis-deployment.md`。
+
 ## 设计原则
 
 - Redis 分四类数据：运行时状态、持久配置、账号鉴权、历史监控。
