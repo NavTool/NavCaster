@@ -10,8 +10,10 @@
 #include <event2/http.h>
 #include "SysUsage.h"
 
+#ifndef _WIN32
 #include <malloc.h> //试图解决linux下（glibc）内存不自动释放问题
 #include <unistd.h>
+#endif
 // https://blog.csdn.net/kenanxiuji/article/details/48547285
 // https://blog.csdn.net/u013259321/article/details/112031002
 
@@ -89,7 +91,11 @@ void ntrip_caster::Relay_Request_Callback(void *arg, const broadcast_msg &msg)
 ntrip_caster::ntrip_caster()
 {
     // 启用 libevent 多线程支持（允许跨线程 event_base_loopbreak）
+#ifdef _WIN32
+    evthread_use_windows_threads();
+#else
     evthread_use_pthreads();
+#endif
 
     _base = event_base_new();
     _http_base = event_base_new();
