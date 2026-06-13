@@ -451,6 +451,7 @@
   - NC-012 `schema_smoke` 明确 Relay 调度抗丢广播语义：enabled record 尚无 status 时 ACTIVE 可重试；orphan/disabled status 尚存在时 INACTIVE 可重试；record/status/distributed 一致后静默；配置变化保持两轮式先 INACTIVE 清 distributed，待 status 消失后再 ACTIVE。
   - NC-015 Redis e2e fixture smoke：新增 Windows `deploy/scripts/e2e_smoke.ps1`，可用 `redis:8.6.3` Docker fixture 或外部 Redis 8.4+ 启动 `CasterService`，临时开启 HTTP `Force_Enable` 并验证 health/login/status/cluster。
   - NC-015 扩展 `check_redis_compat.ps1` 支持 `-DockerContainer`，fixture 模式通过容器内 `redis-cli` 实测 `HSETEX`、`HEXPIRE`、`SET ... IFEQ ... EX`；Docker/Redis 不可用时脚本明确非零失败，不允许伪通过。
+  - NC-019 后 `check_redis_compat.{ps1,sh}` 同步实测 `HTTL`，因为续期 QA 会读取 hash field TTL。
   - NC-016 活跃账号真实 Redis/HTTP/SSE e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeActiveAccounts`，在 Redis 8.6.3 Docker fixture 中种入唯一前缀的 `STR:ACTIVE`、`ACT:SESSION:*` 和 `ACT:ACTIVE` 数据，验证 `/api/accounts/active` 与 SSE `account_actives` 初始快照同源。
   - NC-016 覆盖 `ACT:SESSION:*` 优先、legacy fallback、多连接同账号、密码材料剥离和 `ACT:ACTIVE` 不混入在线会话；写 JSON seed 改用 `redis-cli -x HSET` stdin 路径，避免 Windows/Docker 参数层破坏 JSON 引号。
   - NC-016 收口了 NC-008B/NC-009 的读侧真实 Redis/SSE 自动化缺口；当时真实 NTRIP/Auth 写侧登录、续期、登出、踢线产生 `ACT:SESSION:*` 的 e2e 仍需后续任务。
@@ -460,3 +461,6 @@
   - NC-018 NTRIP Online_Protection e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripOnlineProtection` 与 `-NtripOnlineProtectionScenario RejectNew|KickOld`，两种场景分别启动服务，避免启动时配置相互污染。
   - NC-018 覆盖 `Online_Protection=true` + `connection_limit=1` 时第二个同账号 client 被拒绝并关闭、旧连接保留，以及 `Online_Protection=false` 时第二个 client 成功登录并踢掉旧连接。
   - NC-018 同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 最终字段集合和 `/api/accounts/active` 读侧一致，收口单节点真实 NTRIP/Auth Online_Protection 踢线矩阵；长时间续期、多节点 `AUTH:BROADCAST`、匿名登录矩阵和 relay failover 仍需后续专项。
+  - NC-019 NTRIP Auth session 续期 e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSessionRenewal` 与 `-NtripRenewalWaitSec`，用真实 NTRIP POST source 和实名 GET client 保持连接跨过续期窗口。
+  - NC-019 覆盖 `ACT:SESSION:<account>` 同 connect_key 的 `update_time` 单调增长、`online_time` 不变，并通过 `HTTL` 确认 `ACT:SESSION`、`ACT:REC`、`USR:REC` 三处 field TTL 为正。
+  - NC-019 继续验证 `/api/accounts/active` 与续期后的真实会话一致、密码材料剥离，以及 client 断连后三处 field 都被清理；多节点 `AUTH:BROADCAST`、匿名登录矩阵、relay failover 和运行中 SSE 增量推送仍需后续专项。

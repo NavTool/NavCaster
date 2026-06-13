@@ -84,8 +84,8 @@ cmake --build build --target CasterService --config Release --parallel
 ```
 
 默认 Docker fixture 使用 `redis:8.6.3`，映射到 `127.0.0.1:16379`，并复用
-`deploy\scripts\check_redis_compat.ps1` 校验 `HSETEX`、`HEXPIRE` 和
-`SET ... IFEQ ... EX`。脚本会临时把 `bin\<config>\conf\Service_Setting.yml`
+`deploy\scripts\check_redis_compat.ps1` 校验 `HSETEX`、`HEXPIRE`、`HTTL`
+和 `SET ... IFEQ ... EX`。脚本会临时把 `bin\<config>\conf\Service_Setting.yml`
 的 HTTP API 改为 `Force_Enable: true`，把 `Caster_Core.yml` 与
 `Auth_Verify.yml` 指向 fixture Redis；结束后恢复配置、停止服务并删除容器。
 如果 `16379` 已被本机 Redis 或其他服务占用，使用 `-RedisPort 16380` 等空闲端口。
@@ -127,6 +127,26 @@ NTRIP/Auth 写侧 active session 深度 smoke 使用真实 NTRIP TCP source/clie
 Core register/subscribe 和 active account REST 读侧的串联路径。它不覆盖多节点
 `AUTH:BROADCAST`、`Online_Protection` 踢线矩阵或长时间续期。
 
+NTRIP/Auth active session 续期长跑 smoke 使用同一个真实 NTRIP 入口：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAuthSessionRenewal
+```
+
+该模式默认等待 25 秒，跨过 Auth 默认 5 秒更新周期和 10 秒 field TTL，验证：
+
+```text
+1. 真实 NTRIP POST source 与实名 GET client 建立。
+2. ACT:SESSION:<account> 初始 field 出现并记录 update_time。
+3. 同 field 在续期窗口后仍存在，value.update_time 单调增长。
+4. ACT:SESSION:<account>、ACT:REC:<account>、USR:REC:<account> 对应 field 的 HTTL 均为正。
+5. /api/accounts/active 与续期后的真实会话一致且不泄露密码材料。
+6. client 断连后 ACT:SESSION/ACT:REC/USR:REC 对应 field 被清理。
+```
+
+如需调试可用 `-NtripRenewalWaitSec 25` 显式指定等待秒数；常规回归不要低于
+Auth/Core 默认续期间隔与 TTL 组合，否则不能证明续期链路真实工作。
+
 NTRIP/Auth `Online_Protection` 连接数矩阵深度 smoke 需要分场景运行，因为
 `Online_Protection` 是服务启动时读取的配置：
 
@@ -143,7 +163,7 @@ client 被拒绝/关闭，`ACT:SESSION:<account>`、`ACT:REC:<account>` 与
 `Online_Protection=false` 时第二个 client 登录成功、旧 socket 被关闭，上述三个
 Redis hash 最终只保留第二个 `connect_key`。两个场景都继续验证
 `/api/accounts/active` 与真实在线会话一致且不泄露密码材料。
-多节点 `AUTH:BROADCAST`、长时间续期、匿名登录矩阵和 relay failover 仍需专项任务覆盖。
+多节点 `AUTH:BROADCAST`、匿名登录矩阵和 relay failover 仍需专项任务覆盖。
 
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
@@ -187,8 +207,8 @@ Windows：
 .\deploy\scripts\check_redis_compat.ps1 -HostName 127.0.0.1 -Port 6379
 ```
 
-该检查要求目标 Redis 为 8.4.0+，并实测 `HSETEX`、`HEXPIRE` 和
-`SET ... IFEQ ... EX`。
+该检查要求目标 Redis 为 8.4.0+，并实测 `HSETEX`、`HEXPIRE`、`HTTL`
+和 `SET ... IFEQ ... EX`。
 
 ## 后续任务要求
 
@@ -202,20 +222,21 @@ NC-005 HTTP 多节点入口契约
 
 NC-006 Redis 版本/命令兼容
   已由 doc/redis-deployment.md 和 deploy/scripts/check_redis_compat.* 明确 Redis
-  8.4.0+、HSETEX/HEXPIRE/SET IFEQ 检查；Redis 可用环境必须执行并记录结果。
+  8.4.0+、HSETEX/HEXPIRE/HTTL/SET IFEQ 检查；Redis 可用环境必须执行并记录结果。
 
 NC-007 Auth Online_Protection
   已补 Auth_Verify.yml 解析和实名连接数策略 schema_smoke；NC-017 已用 Redis
   8.6.3 fixture 覆盖真实 NTRIP client 登录写入/断连清理 ACT:SESSION；NC-018
-  已补 Online_Protection=true 拒新与 false 踢旧的真实 NTRIP 连接矩阵。匿名登录、
-  禁用账号、多节点 AUTH:BROADCAST 和长时间续期仍需后续专项补测。
+  已补 Online_Protection=true 拒新与 false 踢旧的真实 NTRIP 连接矩阵；NC-019
+  已补真实连接存活期间 ACT:SESSION/ACT:REC/USR:REC 续期长跑。匿名登录、禁用账号
+  和多节点 AUTH:BROADCAST 仍需后续专项补测。
 
 NC-008B/NC-009 活跃账号 REST/SSE 读侧
   NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
   account_actives 初始快照同源读取 ACT:SESSION:* + STR:ACTIVE fallback。NC-017 已补
   真实 NTRIP/Auth client 登录写入与断连清理 ACT:SESSION:* 的 e2e；NC-018 已补
-  Online_Protection 踢线矩阵对 /api/accounts/active 的回归。运行中 SSE 增量推送、
-  续期长跑和多节点场景仍需专项覆盖。
+  Online_Protection 踢线矩阵对 /api/accounts/active 的回归；NC-019 已补续期长跑
+  对 /api/accounts/active 的回归。运行中 SSE 增量推送和多节点场景仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。

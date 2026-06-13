@@ -18,6 +18,8 @@ param(
     [switch]$KeepRedisContainer,
     [switch]$IncludeActiveAccounts,
     [switch]$IncludeNtripAuthSession,
+    [switch]$IncludeNtripAuthSessionRenewal,
+    [int]$NtripRenewalWaitSec = 25,
     [switch]$IncludeNtripOnlineProtection,
     [ValidateSet("RejectNew", "KickOld")]
     [string]$NtripOnlineProtectionScenario = "RejectNew"
@@ -195,6 +197,26 @@ function Invoke-RedisCommand {
         throw ($result.Output -join "`n")
     }
     return ($result.Output -join "`n").Trim()
+}
+
+function Get-RedisHashFieldTtl {
+    param(
+        [string]$Key,
+        [string]$Field
+    )
+
+    $raw = Invoke-RedisCommand HTTL $Key FIELDS 1 $Field
+    $lines = @($raw -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($lines.Count -eq 0) {
+        return -2
+    }
+
+    try {
+        return [int]($lines[-1].Trim())
+    }
+    catch {
+        Fail "unexpected HTTL response for ${Key} ${Field}: $(Format-DebugText $raw)"
+    }
 }
 
 function Invoke-RedisHSetValue {
@@ -538,6 +560,33 @@ function Get-NtripSessionMap {
     }
 }
 
+function Get-NtripActiveSessionField {
+    param(
+        [pscustomobject]$Seed,
+        [string]$Field
+    )
+
+    $key = "ACT:SESSION:$($Seed.Account)"
+    $raw = Invoke-RedisCommand HGET $key $Field
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return $null
+    }
+    try {
+        $record = $raw | ConvertFrom-Json
+        if ($record.account -eq $Seed.Account -and $record.auth_type -eq "client") {
+            return [pscustomobject]@{
+                Key = $key
+                Field = $Field
+                Record = $record
+                Raw = $raw
+            }
+        }
+    }
+    catch {
+    }
+    return $null
+}
+
 function Wait-NtripOnlineExactFields {
     param(
         [pscustomobject]$Seed,
@@ -567,6 +616,101 @@ function Wait-NtripOnlineExactFields {
     $actRecRaw = Format-DebugText (Invoke-RedisCommand HGETALL $actRecKey)
     $usrRecRaw = Format-DebugText (Invoke-RedisCommand HGETALL $usrRecKey)
     Fail "$Context expected online fields [$($expected -join ',')] but got ACT:SESSION=[$sessionRaw] ACT:REC=[$actRecRaw] USR:REC=[$usrRecRaw]"
+}
+
+function Wait-NtripOnlineFieldPresent {
+    param(
+        [pscustomobject]$Seed,
+        [string]$Field,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    $sessionKey = "ACT:SESSION:$($Seed.Account)"
+    $actRecKey = "ACT:REC:$($Seed.Account)"
+    $usrRecKey = "USR:REC:$($Seed.Account)"
+    do {
+        $session = Get-NtripActiveSessionField $Seed $Field
+        $actRec = Invoke-RedisCommand HGET $actRecKey $Field
+        $usrRec = Invoke-RedisCommand HGET $usrRecKey $Field
+        $sessionTtl = Get-RedisHashFieldTtl $sessionKey $Field
+        $actRecTtl = Get-RedisHashFieldTtl $actRecKey $Field
+        $usrRecTtl = Get-RedisHashFieldTtl $usrRecKey $Field
+        if ($session -and
+            -not [string]::IsNullOrEmpty($actRec) -and
+            -not [string]::IsNullOrEmpty($usrRec) -and
+            $sessionTtl -gt 0 -and
+            $actRecTtl -gt 0 -and
+            $usrRecTtl -gt 0) {
+            return [pscustomobject]@{
+                Session = $session
+                ActRec = $actRec
+                UsrRec = $usrRec
+                SessionTtl = $sessionTtl
+                ActRecTtl = $actRecTtl
+                UsrRecTtl = $usrRecTtl
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $sessionRaw = Format-DebugText (Invoke-RedisCommand HGET $sessionKey $Field)
+    $actRecRaw = Format-DebugText (Invoke-RedisCommand HGET $actRecKey $Field)
+    $usrRecRaw = Format-DebugText (Invoke-RedisCommand HGET $usrRecKey $Field)
+    $sessionTtl = Get-RedisHashFieldTtl $sessionKey $Field
+    $actRecTtl = Get-RedisHashFieldTtl $actRecKey $Field
+    $usrRecTtl = Get-RedisHashFieldTtl $usrRecKey $Field
+    Fail "$Context expected field $Field in ACT:SESSION/ACT:REC/USR:REC with live field TTLs but got session=[$sessionRaw] ttl=$sessionTtl act_rec=[$actRecRaw] ttl=$actRecTtl usr_rec=[$usrRecRaw] ttl=$usrRecTtl"
+}
+
+function Wait-NtripOnlineFieldGone {
+    param(
+        [pscustomobject]$Seed,
+        [string]$Field,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $session = Invoke-RedisCommand HGET "ACT:SESSION:$($Seed.Account)" $Field
+        $actRec = Invoke-RedisCommand HGET "ACT:REC:$($Seed.Account)" $Field
+        $usrRec = Invoke-RedisCommand HGET "USR:REC:$($Seed.Account)" $Field
+        if ([string]::IsNullOrEmpty($session) -and [string]::IsNullOrEmpty($actRec) -and [string]::IsNullOrEmpty($usrRec)) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $sessionRaw = Format-DebugText (Invoke-RedisCommand HGET "ACT:SESSION:$($Seed.Account)" $Field)
+    $actRecRaw = Format-DebugText (Invoke-RedisCommand HGET "ACT:REC:$($Seed.Account)" $Field)
+    $usrRecRaw = Format-DebugText (Invoke-RedisCommand HGET "USR:REC:$($Seed.Account)" $Field)
+    Fail "$Context expected field $Field removed from ACT:SESSION/ACT:REC/USR:REC but got session=[$sessionRaw] act_rec=[$actRecRaw] usr_rec=[$usrRecRaw]"
+}
+
+function Wait-NtripSessionUpdateTimeAdvanced {
+    param(
+        [pscustomobject]$Seed,
+        [string]$Field,
+        [long]$InitialUpdateTime,
+        [int]$TimeoutSec
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $session = Get-NtripActiveSessionField $Seed $Field
+        if ($session) {
+            $current = [long]$session.Record.update_time
+            if ($current -gt $InitialUpdateTime) {
+                return $session
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGET "ACT:SESSION:$($Seed.Account)" $Field)
+    Fail "NTRIP active session update_time did not advance beyond $InitialUpdateTime for field $Field; raw=[$raw]"
 }
 
 function Wait-NtripActiveSessionGone {
@@ -739,6 +883,70 @@ function Invoke-NtripAuthSessionSmoke {
     Remove-NtripAuthSessionSeed $script:ntripAuthSeed
     $script:ntripAuthSeed = $null
     Say "PASS NTRIP Auth active session smoke"
+}
+
+function Invoke-NtripAuthSessionRenewalSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [int]$RenewalWaitSec
+    )
+
+    $sourceConnection = $null
+    $clientConnection = $null
+    $seed = $null
+
+    try {
+        $seed = New-NtripAuthSessionSeed -Label "nc019_renewal"
+        $script:ntripAuthSeed = $seed
+        Add-NtripAuthAccountSeed $seed
+
+        $sourceConnection = Open-NtripSourceForSeed $seed $NtripHost $NtripPort "source-renewal"
+        $script:ntripSourceConnection = $sourceConnection
+
+        $clientConnection = Open-NtripClientForSeed $seed $NtripHost $NtripPort "client-renewal"
+        $script:ntripClientConnection = $clientConnection
+
+        $initialSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $initialSession.Field
+        $initialOnline = Wait-NtripOnlineFieldPresent $seed $initialSession.Field $StartupTimeoutSec "renewal initial login"
+        $initialUpdateTime = [long]$initialSession.Record.update_time
+        Say "waiting ${RenewalWaitSec}s for NTRIP Auth active session renewal field=$($initialSession.Field) ttl=$($initialOnline.SessionTtl)/$($initialOnline.ActRecTtl)/$($initialOnline.UsrRecTtl)"
+        Start-Sleep -Seconds $RenewalWaitSec
+
+        $renewed = Wait-NtripSessionUpdateTimeAdvanced $seed $initialSession.Field $initialUpdateTime $StartupTimeoutSec
+        Wait-NtripOnlineExactFields $seed @($initialSession.Field) $StartupTimeoutSec "renewal final exact fields" | Out-Null
+        $finalOnline = Wait-NtripOnlineFieldPresent $seed $initialSession.Field $StartupTimeoutSec "renewal final online state"
+        if ([long]$renewed.Record.online_time -ne [long]$initialSession.Record.online_time) {
+            Fail "NTRIP active session online_time changed during renewal: initial=$($initialSession.Record.online_time) renewed=$($renewed.Record.online_time)"
+        }
+        Say "NTRIP Auth active session renewed update_time=$($initialUpdateTime)->$($renewed.Record.update_time) ttl=$($finalOnline.SessionTtl)/$($finalOnline.ActRecTtl)/$($finalOnline.UsrRecTtl)"
+
+        $rest = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/active" -TimeoutSec 10
+        Assert-NtripActiveAccountPayload $rest $seed $renewed "REST /api/accounts/active renewal"
+
+        Close-NtripTcpConnection $clientConnection
+        $clientConnection = $null
+        Wait-NtripOnlineFieldGone $seed $initialSession.Field $StartupTimeoutSec "renewal client disconnect cleanup"
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        Remove-NtripAuthSessionSeed $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+        $script:ntripSourceConnection = $null
+        $script:ntripClientConnection = $null
+        Say "PASS NTRIP Auth active session renewal smoke"
+    }
+    finally {
+        Close-NtripTcpConnection $clientConnection
+        Close-NtripTcpConnection $sourceConnection
+        if ($seed) {
+            Remove-NtripAuthSessionSeed $seed
+        }
+    }
 }
 
 function Invoke-NtripOnlineProtectionSmoke {
@@ -1204,7 +1412,7 @@ $activeAccountSeed = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripOnlineProtection
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
 $scriptFailed = $false
@@ -1318,6 +1526,7 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
     if ($ntripNeedsNamedRover) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
+        $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
         $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Enable_Mult" "true"
         $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Keep_Early" "false"
     }
@@ -1395,6 +1604,10 @@ try {
 
     if ($IncludeNtripAuthSession) {
         Invoke-NtripAuthSessionSmoke $base $headers $HttpBindAddr $NtripPort
+    }
+
+    if ($IncludeNtripAuthSessionRenewal) {
+        Invoke-NtripAuthSessionRenewalSmoke $base $headers $HttpBindAddr $NtripPort $NtripRenewalWaitSec
     }
 
     if ($IncludeNtripOnlineProtection) {

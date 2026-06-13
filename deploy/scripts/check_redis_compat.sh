@@ -79,6 +79,12 @@ OUT="$(redis HEXPIRE "${HASH_KEY}" 30 FIELDS 1 field 2>&1)" \
     || fail "HEXPIRE unsupported or failed: ${OUT}"
 [[ "${OUT}" == "1" || "${OUT}" == *$'\n1' ]] || fail "unexpected HEXPIRE response: ${OUT}"
 
+OUT="$(redis HTTL "${HASH_KEY}" FIELDS 1 field 2>&1)" \
+    || fail "HTTL unsupported or failed: ${OUT}"
+TTL_LINE="$(printf '%s\n' "${OUT}" | awk 'NF { last=$0 } END { print last }')"
+[[ "${TTL_LINE}" =~ ^-?[0-9]+$ ]] || fail "unexpected HTTL response: ${OUT}"
+(( TTL_LINE > 0 )) || fail "unexpected HTTL response: ${OUT}"
+
 OUT="$(redis SET "${LEASE_KEY}" node-a NX EX 30 2>&1)" \
     || fail "SET NX EX failed: ${OUT}"
 [[ "${OUT}" == "OK" ]] || fail "unexpected SET NX EX response: ${OUT}"
@@ -87,4 +93,4 @@ OUT="$(redis SET "${LEASE_KEY}" node-b IFEQ node-a EX 30 2>&1)" \
     || fail "SET IFEQ EX unsupported or failed: ${OUT}"
 [[ "${OUT}" == "OK" ]] || fail "unexpected SET IFEQ EX response: ${OUT}"
 
-say "PASS HSETEX, HEXPIRE, SET IFEQ EX"
+say "PASS HSETEX, HEXPIRE, HTTL, SET IFEQ EX"
