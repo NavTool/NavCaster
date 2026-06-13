@@ -2,7 +2,7 @@
 
 更新时间：2026-06-14
 
-基线：NC-021 基于 `team-dev @ 713db4f`。
+基线：NC-022 基于 `team-dev @ 0776e80`。
 
 ## 版本口径
 
@@ -172,6 +172,23 @@ KickOld：Online_Protection=false，第二个同账号 client 登录成功，旧
 ```text
 AllowAnonymous：Anonymous_Login=true，无 Basic Auth client 成功连接，ACT:UND:<name> 写入且 HTTL 为正，不进入 ACT:SESSION:* 或 /api/accounts/active，断连后 ACT:UND field 清理。
 RejectAnonymous：Anonymous_Login=false，无 Basic Auth client 被拒绝并关闭，ACT:UND/ACT:SESSION/ACT:REC/USR:REC 不残留该匿名连接。
+```
+
+真实 NTRIP/Auth Broadcast 跨实例踢线可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAuthBroadcast -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该检查在同一 Redis fixture 下启动两个本地 `CasterService` 进程，第二实例使用
+临时 conf 目录和 `-conf <dir>\`。脚本会 seed `connection_limit=1` 的唯一实名账号，
+两实例均设置 `Online_Protection=false`，并验证：
+
+```text
+Node A：真实 client 先建立并写入 ACT:SESSION/ACT:REC/USR:REC。
+Node B：同账号新 client 登录，触发 KickOld/AUTH:BROADCAST。
+Node A：旧 TCP client 被关闭，旧 connect_key 不再被重写。
+Redis/HTTP：ACT:SESSION/ACT:REC/USR:REC 和两实例 /api/accounts/active 均只保留 Node B connect_key。
 ```
 
 当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，

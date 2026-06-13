@@ -13,6 +13,8 @@ param(
     [string]$AdminUser = "admin",
     [string]$AdminPassword = "admin",
     [int]$NtripPort = 4202,
+    [int]$NtripBroadcastHttpPort = 8081,
+    [int]$NtripBroadcastNtripPort = 4203,
     [int]$StartupTimeoutSec = 45,
     [switch]$SkipRedisCompat,
     [switch]$KeepRedisContainer,
@@ -26,7 +28,8 @@ param(
     [string]$NtripOnlineProtectionScenario = "RejectNew",
     [switch]$IncludeNtripAnonymousAuth,
     [ValidateSet("AllowAnonymous", "RejectAnonymous")]
-    [string]$NtripAnonymousScenario = "AllowAnonymous"
+    [string]$NtripAnonymousScenario = "AllowAnonymous",
+    [switch]$IncludeNtripAuthBroadcast
 )
 
 $ErrorActionPreference = "Stop"
@@ -840,6 +843,157 @@ function Assert-NtripActiveAccountPayload {
     Assert-NoPasswordMaterial $record "$Label NTRIP active account"
 }
 
+function Assert-NtripOnlyActiveAccountPayload {
+    param(
+        [object]$Payload,
+        [pscustomobject]$Seed,
+        [object]$ExpectedSession,
+        [string]$UnexpectedField,
+        [string]$Label
+    )
+
+    Assert-NtripActiveAccountPayload $Payload $Seed $ExpectedSession $Label
+    if (-not [string]::IsNullOrEmpty($UnexpectedField)) {
+        $unexpected = Get-JsonProperty $Payload $UnexpectedField
+        if ($null -ne $unexpected) {
+            Fail "$Label active account payload still exposed evicted field $UnexpectedField"
+        }
+    }
+}
+
+function Copy-E2eServiceConfig {
+    param(
+        [string]$SourceConfDir,
+        [string]$DestinationConfDir,
+        [int]$HttpPort,
+        [int]$NtripPort,
+        [string]$HttpBindAddr,
+        [string]$AdminUser,
+        [string]$AdminPassword,
+        [string]$RedisHost,
+        [int]$RedisPort,
+        [string]$RedisPassword,
+        [bool]$RoverOnlineProtection,
+        [bool]$RoverAnonymousLogin
+    )
+
+    New-Item -ItemType Directory -Path $DestinationConfDir -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $SourceConfDir "Service_Setting.yml") -Destination $DestinationConfDir -Force
+    Copy-Item -LiteralPath (Join-Path $SourceConfDir "Caster_Core.yml") -Destination $DestinationConfDir -Force
+    Copy-Item -LiteralPath (Join-Path $SourceConfDir "Auth_Verify.yml") -Destination $DestinationConfDir -Force
+
+    $servicePath = Join-Path $DestinationConfDir "Service_Setting.yml"
+    $serviceText = Get-Content -LiteralPath $servicePath -Raw
+    $serviceText = Set-YamlValueInSection $serviceText "Ntrip_Listener_Setting" "Listen_Port" ([string]$NtripPort)
+    $serviceText = Set-YamlValueInSection $serviceText "Ntrip_Listener_Setting" "Enable_Server_Login" "true"
+    $serviceText = Set-YamlValueInSection $serviceText "Ntrip_Listener_Setting" "Enable_Client_Login" "true"
+    $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Port" ([string]$HttpPort)
+    $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Bind_Addr" "`"$HttpBindAddr`""
+    $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Force_Enable" "true"
+    $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Admin_User" "`"$AdminUser`""
+    $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Admin_Password" "`"$AdminPassword`""
+    Write-TextFile $servicePath $serviceText
+
+    $corePath = Join-Path $DestinationConfDir "Caster_Core.yml"
+    $coreText = Get-Content -LiteralPath $corePath -Raw
+    $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
+    $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
+    $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
+    $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
+    $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
+    $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Enable_Mult" "true"
+    $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Keep_Early" "false"
+    Write-TextFile $corePath $coreText
+
+    $authPath = Join-Path $DestinationConfDir "Auth_Verify.yml"
+    $authText = Get-Content -LiteralPath $authPath -Raw
+    $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "IP" $RedisHost
+    $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
+    $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Requirepass" $RedisPassword
+    $authText = Set-YamlValueInSection $authText "Base_Setting" "Anonymous_Login" "true"
+    $authText = Set-YamlValueInSection $authText "Rover_Setting" "Anonymous_Login" ($RoverAnonymousLogin.ToString().ToLowerInvariant())
+    $authText = Set-YamlValueInSection $authText "Rover_Setting" "Online_Protection" ($RoverOnlineProtection.ToString().ToLowerInvariant())
+    $authText = Set-YamlValueInSection $authText "Source_Setting" "Anonymous_Login" "true"
+    Write-TextFile $authPath $authText
+}
+
+function Start-E2eCasterServiceNode {
+    param(
+        [string]$Label,
+        [string]$ServiceExe,
+        [string]$ReleaseDir,
+        [string]$ConfDir,
+        [string]$Base,
+        [int]$TimeoutSec
+    )
+
+    $stdoutPath = Join-Path $env:TEMP ("navcaster-e2e-$Label-" + [guid]::NewGuid().ToString() + ".out.log")
+    $stderrPath = Join-Path $env:TEMP ("navcaster-e2e-$Label-" + [guid]::NewGuid().ToString() + ".err.log")
+    $confPath = $ConfDir
+    if (-not $confPath.EndsWith([System.IO.Path]::DirectorySeparatorChar) -and -not $confPath.EndsWith([System.IO.Path]::AltDirectorySeparatorChar)) {
+        $confPath = $confPath + [System.IO.Path]::DirectorySeparatorChar
+    }
+
+    Say "starting CasterService $Label and waiting for $Base/api/status/health"
+    $process = Start-Process -FilePath $ServiceExe `
+        -WorkingDirectory $ReleaseDir `
+        -WindowStyle Hidden `
+        -ArgumentList @("-conf", $confPath) `
+        -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath `
+        -PassThru
+
+    $healthOk = $false
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 800
+        if ($process.HasExited) {
+            break
+        }
+        try {
+            $health = Invoke-RestMethod -Uri "$Base/api/status/health" -TimeoutSec 3
+            if ($health.status -eq "ok") {
+                $healthOk = $true
+                break
+            }
+        }
+        catch {
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    if (-not $healthOk) {
+        $exitText = if ($process.HasExited) { "exited=$($process.ExitCode)" } else { "still-running" }
+        Fail "$Label health endpoint did not become ready: $exitText"
+    }
+
+    return [pscustomobject]@{
+        Label = $Label
+        Process = $process
+        Stdout = $stdoutPath
+        Stderr = $stderrPath
+        Base = $Base
+        ConfDir = $ConfDir
+    }
+}
+
+function Stop-E2eCasterServiceNode {
+    param([object]$Node)
+
+    if (-not $Node -or -not $Node.Process) {
+        return
+    }
+
+    try {
+        if (-not $Node.Process.HasExited) {
+            Stop-Process -Id $Node.Process.Id -Force
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    catch {
+        Write-Warning "failed to stop CasterService $($Node.Label): $($_.Exception.Message)"
+    }
+}
+
 function Open-NtripSourceForSeed {
     param(
         [pscustomobject]$Seed,
@@ -1352,6 +1506,151 @@ function Invoke-NtripAnonymousAuthSmoke {
         Close-NtripTcpConnection $sourceConnection
         if ($seed) {
             Remove-NtripAnonymousAuthSeed $seed
+        }
+    }
+}
+
+function Invoke-NtripAuthBroadcastSmoke {
+    param(
+        [string]$PrimaryBase,
+        [hashtable]$PrimaryHeaders,
+        [string]$NtripHost,
+        [int]$PrimaryNtripPort,
+        [int]$SecondaryHttpPort,
+        [int]$SecondaryNtripPort
+    )
+
+    $secondaryNode = $null
+    $secondaryConfRoot = $null
+    $sourceConnection = $null
+    $firstClient = $null
+    $secondClient = $null
+    $seed = $null
+
+    try {
+        $seed = New-NtripAuthSessionSeed -Label "nc022_broadcast" -ConnectionLimit 1
+        $script:ntripAuthSeed = $seed
+        Add-NtripAuthAccountSeed $seed
+
+        $secondaryConfRoot = Join-Path $env:TEMP ("navcaster-e2e-nc022-" + [guid]::NewGuid().ToString())
+        $secondaryConfDir = Join-Path $secondaryConfRoot "conf"
+        Copy-E2eServiceConfig `
+            -SourceConfDir $confDir `
+            -DestinationConfDir $secondaryConfDir `
+            -HttpPort $SecondaryHttpPort `
+            -NtripPort $SecondaryNtripPort `
+            -HttpBindAddr $HttpBindAddr `
+            -AdminUser $AdminUser `
+            -AdminPassword $AdminPassword `
+            -RedisHost $RedisHost `
+            -RedisPort $RedisPort `
+            -RedisPassword $RedisPassword `
+            -RoverOnlineProtection $false `
+            -RoverAnonymousLogin $false
+
+        $secondaryBase = "http://${HttpBindAddr}:${SecondaryHttpPort}"
+        $secondaryNode = Start-E2eCasterServiceNode "nc022-secondary" $serviceExe $releaseDir $secondaryConfDir $secondaryBase $StartupTimeoutSec
+
+        Say "logging in to secondary CasterService as $AdminUser"
+        $loginBody = @{ username = $AdminUser; password = $AdminPassword } | ConvertTo-Json -Compress
+        $secondaryLogin = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $loginBody -Uri "$secondaryBase/api/auth/login" -TimeoutSec 10
+        if (-not $secondaryLogin.token) {
+            Fail "secondary login did not return token"
+        }
+        $secondaryHeaders = @{ Authorization = "Bearer $($secondaryLogin.token)" }
+        $secondaryStatus = Invoke-RestMethod -Headers $secondaryHeaders -Uri "$secondaryBase/api/status" -TimeoutSec 10
+        if ($secondaryStatus.redis_auth_connected -ne $true -or $secondaryStatus.redis_caster_connected -ne $true) {
+            Fail "secondary status reports Redis disconnected: caster=$($secondaryStatus.redis_caster_connected) auth=$($secondaryStatus.redis_auth_connected)"
+        }
+
+        $sourceConnection = Open-NtripSourceForSeed $seed $NtripHost $PrimaryNtripPort "source-broadcast"
+        $script:ntripSourceConnection = $sourceConnection
+
+        $firstClient = Open-NtripClientForSeed $seed $NtripHost $PrimaryNtripPort "client-node-a"
+        $script:ntripClientConnection = $firstClient
+        $firstSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $firstSession.Field
+        Wait-NtripOnlineExactFields $seed @($firstSession.Field) $StartupTimeoutSec "broadcast node A first login" | Out-Null
+
+        $secondClient = Open-NtripClientForSeed $seed $NtripHost $SecondaryNtripPort "client-node-b"
+        $secondSession = $null
+        $deadline = (Get-Date).AddSeconds($StartupTimeoutSec)
+        do {
+            $sessionMap = Get-NtripSessionMap $seed
+            $fields = @($sessionMap.Records.Keys)
+            if ($fields.Count -eq 1 -and $fields[0] -ne $firstSession.Field) {
+                $secondSession = [pscustomobject]@{
+                    Key = $sessionMap.Key
+                    Field = $fields[0]
+                    Record = $sessionMap.Records[$fields[0]]
+                }
+                $seed.ExtraClientConnectKeys += $secondSession.Field
+                break
+            }
+            Start-Sleep -Milliseconds 500
+        } while ((Get-Date) -lt $deadline)
+
+        if (-not $secondSession) {
+            $raw = Format-DebugText (Invoke-RedisCommand HGETALL "ACT:SESSION:$($seed.Account)")
+            Fail "broadcast session state did not converge to the secondary client; raw=[$raw]"
+        }
+
+        Wait-NtripTcpConnectionClosed $firstClient 10 "broadcast evicted node A client"
+        Wait-NtripOnlineExactFields $seed @($secondSession.Field) $StartupTimeoutSec "broadcast node B final exact fields" | Out-Null
+        Wait-NtripOnlineFieldGone $seed $firstSession.Field $StartupTimeoutSec "broadcast node A field cleanup"
+
+        $primaryRest = Invoke-RestMethod -Headers $PrimaryHeaders -Uri "$PrimaryBase/api/accounts/active" -TimeoutSec 10
+        Assert-NtripOnlyActiveAccountPayload $primaryRest $seed $secondSession $firstSession.Field "primary REST /api/accounts/active broadcast"
+
+        $secondaryRest = Invoke-RestMethod -Headers $secondaryHeaders -Uri "$secondaryBase/api/accounts/active" -TimeoutSec 10
+        Assert-NtripOnlyActiveAccountPayload $secondaryRest $seed $secondSession $firstSession.Field "secondary REST /api/accounts/active broadcast"
+
+        Start-Sleep -Seconds 3
+        if (Get-NtripActiveSessionField $seed $firstSession.Field) {
+            Fail "broadcast old node A field was rewritten after eviction: $($firstSession.Field)"
+        }
+        Wait-NtripOnlineExactFields $seed @($secondSession.Field) $StartupTimeoutSec "broadcast post-renewal exact fields" | Out-Null
+
+        Close-NtripTcpConnection $secondClient
+        $secondClient = $null
+        Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "broadcast node B disconnect cleanup" | Out-Null
+
+        Close-NtripTcpConnection $firstClient
+        $firstClient = $null
+        $script:ntripClientConnection = $null
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        $script:ntripSourceConnection = $null
+
+        Remove-NtripAuthSessionSeed $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+
+        Stop-E2eCasterServiceNode $secondaryNode
+        $secondaryNode = $null
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            $secondaryConfRoot = $null
+        }
+
+        Say "PASS NTRIP Auth Broadcast cross-instance smoke"
+    }
+    finally {
+        Close-NtripTcpConnection $secondClient
+        Close-NtripTcpConnection $firstClient
+        Close-NtripTcpConnection $sourceConnection
+        if ($seed) {
+            Remove-NtripAuthSessionSeed $seed
+        }
+        Stop-E2eCasterServiceNode $secondaryNode
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            try {
+                Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove secondary service config: $($_.Exception.Message)"
+            }
         }
     }
 }
@@ -1945,7 +2244,7 @@ $activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast
 $ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
@@ -1956,6 +2255,15 @@ try {
 
     if ($IncludeNtripAnonymousAuth -and $ntripNeedsNamedRover) {
         Fail "NTRIP anonymous auth smoke must run in a separate service lifecycle from named-rover NTRIP smokes because Rover_Setting.Anonymous_Login is scenario-specific."
+    }
+    if ($IncludeNtripAuthBroadcast -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection)) {
+        Fail "NTRIP Auth Broadcast smoke must run in a separate service lifecycle because it starts a second local CasterService instance and requires Online_Protection=false."
+    }
+    if ($IncludeNtripAuthBroadcast -and $HttpPort -eq $NtripBroadcastHttpPort) {
+        Fail "NTRIP Auth Broadcast secondary HTTP port must differ from primary HTTP port."
+    }
+    if ($IncludeNtripAuthBroadcast -and $NtripPort -eq $NtripBroadcastNtripPort) {
+        Fail "NTRIP Auth Broadcast secondary NTRIP port must differ from primary NTRIP port."
     }
 
     if ($RedisMode -eq "Docker") {
@@ -2075,7 +2383,7 @@ try {
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Requirepass" $RedisPassword
     if ($ntripNeedsAuthFixture) {
-        $roverOnlineProtection = if ($NtripOnlineProtectionScenario -eq "RejectNew") { "true" } else { "false" }
+        $roverOnlineProtection = if ($IncludeNtripAuthBroadcast) { "false" } elseif ($NtripOnlineProtectionScenario -eq "RejectNew") { "true" } else { "false" }
         $roverAnonymousLogin = if ($IncludeNtripAnonymousAuth -and $NtripAnonymousScenario -eq "AllowAnonymous") { "true" } else { "false" }
         $authText = Set-YamlValueInSection $authText "Base_Setting" "Anonymous_Login" "true"
         $authText = Set-YamlValueInSection $authText "Rover_Setting" "Anonymous_Login" $roverAnonymousLogin
@@ -2159,6 +2467,10 @@ try {
 
     if ($IncludeNtripAnonymousAuth) {
         Invoke-NtripAnonymousAuthSmoke $base $headers $HttpBindAddr $NtripPort $NtripAnonymousScenario
+    }
+
+    if ($IncludeNtripAuthBroadcast) {
+        Invoke-NtripAuthBroadcastSmoke $base $headers $HttpBindAddr $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
     }
 
     Say "PASS health/login/status/cluster smoke"

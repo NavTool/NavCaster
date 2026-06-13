@@ -240,7 +240,11 @@ fixture 打开真实 NTRIP POST source 和实名 GET client，验证 Auth/Core �
 `-IncludeNtripAnonymousAuth` 会分别验证 `Rover_Setting.Anonymous_Login=true`
 时无 Basic Auth rover 写入并清理 `ACT:UND:<name>`、不进入 `ACT:SESSION:*`
 和 `/api/accounts/active`，以及 `false` 时无 Basic Auth rover 被拒绝且不残留
-`ACT:UND/ACT:SESSION/ACT:REC/USR:REC`。
+`ACT:UND/ACT:SESSION/ACT:REC/USR:REC`。NC-022 后，`-IncludeNtripAuthBroadcast`
+会在同一 Redis fixture 下启动两个本地 `CasterService` 进程，验证 Node B
+同账号新连接触发 `AUTH:BROADCAST` 关闭 Node A 旧连接，并确认
+`ACT:SESSION/ACT:REC/USR:REC` 和两实例 `/api/accounts/active` 最终只保留
+Node B connect_key。
 
 ## HTTP API
 
@@ -437,5 +441,24 @@ SSE：
   `/api/accounts/active`，断连后 `ACT:UND:<name>` field 被清理。
 - `RejectAnonymous` 覆盖无 Basic Auth rover 被拒绝/关闭，且
   `ACT:UND/ACT:SESSION/ACT:REC/USR:REC` 不残留该匿名连接。
-- 该 e2e 闭合单节点 NTRIP/Auth 匿名登录矩阵；多节点 `AUTH:BROADCAST`、
-  relay failover 和禁用账号矩阵仍是后续专项。
+- NC-022 已覆盖本地双实例 `AUTH:BROADCAST` 踢旧连接；NC-021 自身仍不覆盖
+  relay failover 和禁用账号矩阵。
+
+## 2026-06-14 NC-022 NTRIP Auth Broadcast 跨实例 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthBroadcast`，
+  可用 `-NtripBroadcastHttpPort` 和 `-NtripBroadcastNtripPort` 指定第二实例端口。
+- 该 smoke 在一个 Redis 8.6.3 Docker fixture 下启动两个本地 `CasterService`
+  进程，第二实例使用临时 conf 目录和 `-conf <dir>\` 启动。
+- 测试账号固定 `connection_limit=1`，两实例均设置 `Online_Protection=false`、
+  `Rover_Setting.Anonymous_Login=false`、`Update_Intv=1`，并复用真实 NTRIP
+  POST source 和实名 GET client。
+- 覆盖：Node A 先建立实名 client 并写入 `ACT:SESSION/ACT:REC/USR:REC`；
+  Node B 使用同账号建立新 client，触发 KickOld 和 `AUTH:BROADCAST`；Node A
+  旧 TCP client 被关闭。
+- 覆盖：`ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>`
+  最终只保留 Node B connect_key，Node A/Node B 两边 `/api/accounts/active`
+  均只展示 Node B 连接。
+- 覆盖：等待至少一个更新周期后再次确认 Node A 旧 connect_key 不会被重写。
+- 该 e2e 闭合本地双实例 `AUTH:BROADCAST` 踢线链路；真实多机器 node identity、
+  relay failover、禁用账号矩阵和 Redis 断线恢复仍需后续专项。
