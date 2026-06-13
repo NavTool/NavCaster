@@ -6,6 +6,8 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.21)
 option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
 option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 
+include(CTest)
+
 #版本14以下可能会导致abseil不支持
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

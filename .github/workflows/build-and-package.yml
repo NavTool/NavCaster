@@ -51,6 +51,14 @@ jobs:
           npm run build
           rm -rf node_modules
 
+      - name: Configure CMake
+        run: cmake -S . -B build/ci-${{ env.BUILD_TYPE }} -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Run schema smoke
+        run: |
+          cmake --build build/ci-${{ env.BUILD_TYPE }} --target schema_smoke --parallel
+          ctest --test-dir build/ci-${{ env.BUILD_TYPE }} --output-on-failure -R schema_smoke
+
       - name: Resolve package metadata
         id: meta
         shell: bash
@@ -116,6 +124,16 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      - name: Configure CMake
+        shell: pwsh
+        run: cmake -S . -B build\ci-${{ env.BUILD_TYPE }} -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl
+
+      - name: Run schema smoke
+        shell: pwsh
+        run: |
+          cmake --build build\ci-${{ env.BUILD_TYPE }} --target schema_smoke --config ${{ env.BUILD_TYPE }} --parallel
+          ctest --test-dir build\ci-${{ env.BUILD_TYPE }} --build-config ${{ env.BUILD_TYPE }} --output-on-failure -R schema_smoke
 
       - name: Resolve package metadata
         id: meta
