@@ -1,8 +1,13 @@
 #include "license_check.h"
 
 #ifdef _WIN32
-#include <iphlpapi.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
+#include <iphlpapi.h>
 #pragma comment(lib, "iphlpapi.lib")
 #else
 #include <ifaddrs.h>
