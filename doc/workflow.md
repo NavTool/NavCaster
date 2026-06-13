@@ -1,7 +1,7 @@
 # NavCaster 当前代码工作流程
 
 > 范围：基于当前 `team-dev` 工作树，覆盖 NTRIP 接入、CasterCore 数据分发、Redis 持久化、HTTP API、SSE 实时推送、Web 前端的端到端流程。
-> 基线：`03f15e3bfb6d731a6827915c8a1b7f4fd8f5fa91`
+> 本轮复核基线：NC-005 基于 `team-dev @ 8e725e1`
 > 复核时间：2026-06-13
 >
 > 说明：本文优先描述当前运行事实。若与旧计划文档或 `docs` 目录中的历史资料冲突，以源码和本文为准。
@@ -15,7 +15,7 @@
    └─ ntrip_caster::start()                        // 主线程
        ├─ event_base_new()       _base             // 主 base：NTRIP + Caster + Auth + Queue
        ├─ event_base_new()       _http_base        // 独立 base：HTTP API + SSE + sync_redis
-       ├─ evthread_use_pthreads()
+       ├─ evthread_use_windows_threads() / evthread_use_pthreads()
        ├─ evthread_make_base_notifiable(_base)
        ├─ evthread_make_base_notifiable(_http_base)
        ├─ AUTH::Init / QUEUE::Init / CASTER::Init   // 主线程组件
@@ -33,7 +33,7 @@
 主线程 `_base` 与 HTTP 线程 `_http_base` **完全隔离**：
 - 主线程持有 `_pub_context` / `_sub_context` 两个 hiredis async 上下文，用于 CasterCore 集群通信
 - HTTP 线程持有独立的 `sync_redis`（同步 hiredis）和 `redis_adapter`（异步 hiredis），互不干扰
-- HTTP gating 由 `Http_Gate_Callback`（5s 周期）控制：仅当本节点为 Master 或配置 `force_enable=true` 才创建 evhttp listener；一旦创建不再销毁
+- HTTP gating 由 `Http_Gate_Callback`（5s 周期）控制：仅当本节点为 Master 或配置 `force_enable=true` 才创建 evhttp listener；一旦创建不再销毁。部署入口策略见 `doc/http-deployment.md`
 
 ---
 

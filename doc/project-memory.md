@@ -103,8 +103,9 @@ BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.s
 HTTP 启动策略：
 
 - 默认只有 Redis 选出的主节点开启 HTTP API。
-- `Http_Api.Force_Enable` 如果在配置里设置为 true，则绕过主节点判断直接开启。
-- 当前配置模板没有显式写出 `Force_Enable`，但解析代码支持。
+- `HTTP_API_Setting.Force_Enable` 如果在配置里设置为 true，则绕过主节点判断直接开启。
+- 当前配置模板显式写出 `Force_Enable: false`。部署契约见 `doc/http-deployment.md`。
+- 当前 HTTP listener 一旦启动不会因后续 Master 丢失自动关闭。
 
 ## NTRIP 连接流
 

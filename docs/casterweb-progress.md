@@ -16,7 +16,7 @@
 - 实现 JWT 认证 (login/logout)
 - 实现全部 Redis HASH 资源的 RESTful CRUD API (13 个资源端点)
 - 实现 SSE (Server-Sent Events) 实时推送 (13 个通道，2 秒轮询 Redis)
-- 配置文件: `HTTP_API_Setting` (端口/CORS/Admin/Web_Root)
+- 配置文件: `HTTP_API_Setting` (端口/CORS/Force_Enable/Admin/Web_Root)
 
 ### Phase 2: CasterWeb 前端基础 (已完成)
 - 技术栈: React 18 + TypeScript + Ant Design 6 + Vite 5
