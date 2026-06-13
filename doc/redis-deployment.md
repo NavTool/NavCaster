@@ -2,7 +2,7 @@
 
 更新时间：2026-06-14
 
-基线：NC-020 基于 `team-dev @ 97b1340`。
+基线：NC-021 基于 `team-dev @ 713db4f`。
 
 ## 版本口径
 
@@ -157,6 +157,21 @@ seed `connection_limit=1` 的唯一实名账号，并验证：
 ```text
 RejectNew：Online_Protection=true，第二个同账号 client 被拒绝并关闭，ACT:SESSION/ACT:REC/USR:REC 只保留旧 connect_key。
 KickOld：Online_Protection=false，第二个同账号 client 登录成功，旧 socket 被关闭，ACT:SESSION/ACT:REC/USR:REC 只保留新 connect_key。
+```
+
+真实 NTRIP/Auth 匿名登录矩阵可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAnonymousAuth -NtripAnonymousScenario AllowAnonymous
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeNtripAnonymousAuth -NtripAnonymousScenario RejectAnonymous
+```
+
+`Rover_Setting.Anonymous_Login` 是启动时配置，两个场景应作为独立服务生命周期运行。
+脚本会打开真实 NTRIP POST source，并用无 Basic Auth 的 GET client 验证：
+
+```text
+AllowAnonymous：Anonymous_Login=true，无 Basic Auth client 成功连接，ACT:UND:<name> 写入且 HTTL 为正，不进入 ACT:SESSION:* 或 /api/accounts/active，断连后 ACT:UND field 清理。
+RejectAnonymous：Anonymous_Login=false，无 Basic Auth client 被拒绝并关闭，ACT:UND/ACT:SESSION/ACT:REC/USR:REC 不残留该匿名连接。
 ```
 
 当 Docker engine 或外部 Redis 不可用时，脚本会非零失败；这属于环境缺口，
