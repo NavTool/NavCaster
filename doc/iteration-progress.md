@@ -456,4 +456,7 @@
   - NC-016 收口了 NC-008B/NC-009 的读侧真实 Redis/SSE 自动化缺口；当时真实 NTRIP/Auth 写侧登录、续期、登出、踢线产生 `ACT:SESSION:*` 的 e2e 仍需后续任务。
   - NC-017 NTRIP/Auth 写侧 e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripAuthSession` 和 `-NtripPort`，用 Redis 8.6.3 Docker fixture 临时关闭 rover 匿名登录，seed `ACT:ACTIVE` 实名账号，建立真实 NTRIP POST source 和 GET client。
   - NC-017 覆盖真实 Basic Auth client 登录写入 `ACT:SESSION:<account>`、`/api/accounts/active` 读取该真实会话、输出不泄露密码材料，以及 client 断连后 `ACT:SESSION:<account>` 对应 `connect_key` 被 HDEL 清理。
-  - NC-017 后 Auth active session 的真实读写闭环已具备自动化 smoke；长时间续期、online protection 踢线矩阵、多节点和 relay failover 仍需后续专项覆盖。
+  - NC-017 后 Auth active session 的真实读写闭环已具备自动化 smoke；当时长时间续期、online protection 踢线矩阵、多节点和 relay failover 仍需后续专项覆盖。
+  - NC-018 NTRIP Online_Protection e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripOnlineProtection` 与 `-NtripOnlineProtectionScenario RejectNew|KickOld`，两种场景分别启动服务，避免启动时配置相互污染。
+  - NC-018 覆盖 `Online_Protection=true` + `connection_limit=1` 时第二个同账号 client 被拒绝并关闭、旧连接保留，以及 `Online_Protection=false` 时第二个 client 成功登录并踢掉旧连接。
+  - NC-018 同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>` 最终字段集合和 `/api/accounts/active` 读侧一致，收口单节点真实 NTRIP/Auth Online_Protection 踢线矩阵；长时间续期、多节点 `AUTH:BROADCAST`、匿名登录矩阵和 relay failover 仍需后续专项。

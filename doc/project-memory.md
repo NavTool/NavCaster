@@ -91,7 +91,9 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 ```
 
 活跃账号读侧可追加 `-IncludeActiveAccounts`；真实 NTRIP/Auth 写侧实名会话可追加
-`-IncludeNtripAuthSession`，必要时用 `-NtripPort` 避开本机端口冲突。
+`-IncludeNtripAuthSession`；`Online_Protection` 连接数矩阵可追加
+`-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`。
+必要时用 `-NtripPort` 避开本机端口冲突。
 
 ## 后端启动链路
 
@@ -224,7 +226,10 @@ NC-008A 开始，实名 Auth 登录生命周期额外维护展示会话桶：
 Windows `deploy/scripts/e2e_smoke.ps1 -IncludeNtripAuthSession` 还会用 Redis 8.6.3
 fixture 打开真实 NTRIP POST source 和实名 GET client，验证 Auth/Core 写入
 `ACT:SESSION:<account>`、`/api/accounts/active` 可读取，并在 client 断连后清理
-对应 `connect_key`。
+对应 `connect_key`。NC-018 后，`-IncludeNtripOnlineProtection` 会在独立服务
+生命周期中验证 `Online_Protection=true` 拒绝新同账号连接、`false` 踢掉旧同账号
+连接，并同时断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>`
+最终只保留预期 `connect_key`。
 
 ## HTTP API
 
@@ -366,4 +371,17 @@ SSE：
 - 覆盖：真实 Basic Auth client 登录、`ACT:SESSION:<account>` 写入、REST
   `/api/accounts/active` 读取真实会话、密码材料剥离，以及 client 断连后
   `ACT:SESSION:<account>` 对应 field 被清理。
-- 仍未覆盖多节点 online protection、踢线矩阵、长时间续期和 relay failover。
+- 仍未覆盖多节点 AUTH:BROADCAST、长时间续期、匿名登录矩阵和 relay failover。
+
+## 2026-06-14 NC-018 NTRIP Online_Protection e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeNtripOnlineProtection` 和
+  `-NtripOnlineProtectionScenario RejectNew|KickOld`。
+- 两种场景必须分别启动服务，因为 `Rover_Setting.Online_Protection` 是启动时配置。
+- `RejectNew` 覆盖 `Online_Protection=true`、`connection_limit=1` 时第二个同账号
+  client 被拒绝/关闭，旧 client 保留。
+- `KickOld` 覆盖 `Online_Protection=false`、`connection_limit=1` 时第二个同账号
+  client 成功登录，旧 client 被关闭。
+- 两种场景都断言 `ACT:SESSION:<account>`、`ACT:REC:<account>`、`USR:REC:<account>`
+  最终字段集合与预期 connect_key 一致，并验证 `/api/accounts/active` 不泄露密码材料。
+- 仍未覆盖多节点 AUTH:BROADCAST、长时间续期、匿名登录矩阵和 relay failover。
