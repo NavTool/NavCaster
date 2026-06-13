@@ -1,8 +1,12 @@
 # NavCaster 项目记忆
 
 生成时间：2026-06-12
+基线复核：2026-06-13
 
-代码快照：`main` @ `96dd728`
+当前团队基线：`team-dev` @ `03f15e3bfb6d731a6827915c8a1b7f4fd8f5fa91`
+
+说明：本文是当前项目入口记忆。若和源码、`doc/workflow.md` 或
+`doc/iteration-progress.md` 冲突，以源码和最近迭代记录为准。
 
 ## 项目定位
 

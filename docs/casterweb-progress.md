@@ -2,6 +2,10 @@
 
 > 生成日期: 2026-04-17
 > 背景: 从 Qt6/QML CasterMonitor 迁移到 React Web 架构，CasterMonitor 已完全移除。
+>
+> 可信度提示：本文是早期 Web 迁移历史。当前前端目录是 `web`，当前 API、
+> SSE 和页面结构以源码、`doc/project-memory.md`、`doc/api-reference.md`
+> 和当前任务卡为准。
 
 ---
 

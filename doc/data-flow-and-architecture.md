@@ -1,6 +1,11 @@
 # NavCaster 数据结构与工作流文档
 
 > 本文档描述 NavCaster 的内部数据结构、Redis 存储模型、数据流路径以及系统线程模型。
+>
+> 可信度提示：本文部分内容是早期架构说明，其中“单 event_base/单线程事件循环”
+> 描述已落后于当前源码。当前线程模型、HTTP/SSE 运行事实优先参考
+> `doc/workflow.md`、`doc/project-memory.md` 和源码。Redis/数据流章节仍可作为
+> 历史参考，但进入开发任务前必须交叉核对 `doc/redis-schema-v2.md` 和当前代码。
 
 ---
 
