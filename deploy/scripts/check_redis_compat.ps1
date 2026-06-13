@@ -1,5 +1,6 @@
 param(
     [string]$RedisCli = $env:REDIS_CLI,
+    [string]$DockerContainer = $env:REDIS_DOCKER_CONTAINER,
     [string]$HostName = $(if ($env:REDIS_HOST) { $env:REDIS_HOST } else { "127.0.0.1" }),
     [int]$Port = $(if ($env:REDIS_PORT) { [int]$env:REDIS_PORT } else { 6379 }),
     [string]$User = $env:REDIS_USER,
@@ -11,25 +12,54 @@ $ErrorActionPreference = "Stop"
 $MinimumRedisVersion = [version]"8.4.0"
 
 function Fail($Message) {
-    Write-Error "[redis-compat FAIL] $Message"
+    [Console]::Error.WriteLine("[redis-compat FAIL] $Message")
     exit 1
 }
 
-if (-not $RedisCli) {
+function Invoke-NativeCommand {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments
+    )
+
+    $oldErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $FilePath @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $oldErrorActionPreference
+    }
+
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = @($output | ForEach-Object { $_.ToString() })
+    }
+}
+
+if ($DockerContainer) {
+    $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+    if (-not $dockerCmd) {
+        Fail "missing docker; DockerContainer was provided"
+    }
+}
+
+if (-not $DockerContainer -and -not $RedisCli) {
     $cmd = Get-Command redis-cli -ErrorAction SilentlyContinue
     if ($cmd) {
         $RedisCli = $cmd.Source
     }
 }
 
-if ($RedisCli) {
+if (-not $DockerContainer -and $RedisCli) {
     $cmd = Get-Command $RedisCli -ErrorAction SilentlyContinue
     if ($cmd) {
         $RedisCli = $cmd.Source
     }
 }
 
-if (-not $RedisCli -or -not (Test-Path $RedisCli)) {
+if (-not $DockerContainer -and (-not $RedisCli -or -not (Test-Path $RedisCli))) {
     Fail "missing redis-cli; pass -RedisCli or set REDIS_CLI"
 }
 
@@ -44,11 +74,16 @@ if ($Password) {
 function Invoke-Redis {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArgs)
 
-    $output = & $RedisCli @BaseArgs @CommandArgs 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw ($output -join "`n")
+    if ($DockerContainer) {
+        $result = Invoke-NativeCommand "docker" (@("exec", $DockerContainer, "redis-cli") + $BaseArgs + $CommandArgs)
     }
-    return ($output -join "`n").Trim()
+    else {
+        $result = Invoke-NativeCommand $RedisCli ($BaseArgs + $CommandArgs)
+    }
+    if ($result.ExitCode -ne 0) {
+        throw ($result.Output -join "`n")
+    }
+    return ($result.Output -join "`n").Trim()
 }
 
 $suffix = "$PID-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
