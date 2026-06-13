@@ -78,7 +78,7 @@ Redis Open Source 8.4.0+。部署和命令校验见 `doc/redis-deployment.md`。
 | `ACT:REC:<account>` | HASH | connect_key | timestamp/session JSON | 在线 TTL | 已登录实名账号连接 |
 | `ACT:UND:<name>` | HASH | connect_key | timestamp/session JSON | 在线 TTL | 匿名登录连接 |
 | `ACT:UNNAMED` | HASH | name | timestamp | 可选 TTL/清理 | 匿名账号痕迹 |
-| `ACT:SESSION:<account>` | HASH | connect_key | `AccountActive` proto JSON | 在线 TTL | V2 建议新增，用于替代或补充 `STR:ACTIVE` |
+| `ACT:SESSION:<account>` | HASH | connect_key | `AccountActiveSession` JSON | 在线 TTL | NC-008A 起由 Auth 写侧维护，作为活跃账号 API 目标来源 |
 
 本轮迭代定稿语义：
 
@@ -88,15 +88,37 @@ Redis Open Source 8.4.0+。部署和命令校验见 `doc/redis-deployment.md`。
 - `ACT:REC:<account>` 是实名账号在线连接桶，用于连接数限制和踢下线广播。
 - `ACT:UND:<name>` 是匿名登录在线连接桶。
 - `ACT:UNNAMED` 是匿名账号痕迹表，仅在匿名模式注册临时名称。
+- `ACT:SESSION:<account>` 是实名账号展示会话桶；登录通过连接数限制后写入，续期时刷新，
+  登出、拒绝登录或连接数踢线时删除对应 `connect_key`。
 - Auth `Online_Protection=true` 表示已在线连接优先，实名连接数超过上限时拒绝新连接；
   `false` 表示允许新连接挤掉最早的旧实名连接。
-- `STR:ACTIVE` 是旧版在线账号展示表，当前 `/api/accounts/active` 仍兼容读取它；后续由 `ACT:SESSION:<account>` 或统一 session API 替换。
+- `STR:ACTIVE` 是旧版在线账号展示表，当前 `/api/accounts/active` 仍兼容读取它；后续读侧由 `ACT:SESSION:<account>` 聚合替换。
+
+`ACT:SESSION:<account>` 当前 JSON 字段：
+
+```json
+{
+  "uid": "<connect_key>",
+  "connect_key": "<connect_key>",
+  "account": "<account>",
+  "anonymous": false,
+  "auth_type": "client|server|source|unknown",
+  "online_time": 1710000000,
+  "update_time": 1710000005,
+  "addr": "",
+  "port": "",
+  "group_uid": "default"
+}
+```
+
+第一阶段 `addr`、`port` 为空字符串，因为 Auth 登录记录入口暂未接收远端地址。
 
 当前问题：
 
 - HTTP 账号管理写 `ACT:RECORD`。
 - NTRIP 鉴权读 `ACT:ACTIVE`。
 - 活跃账号 API 读 `STR:ACTIVE`。
+- Auth 写侧已开始维护 `ACT:SESSION:<account>`，但 `/api/accounts/active` 读侧尚未切换。
 - `ACT:RECORD` 到 `ACT:ACTIVE` 没有清晰同步链路。
 - `STR:ACTIVE` 没有在当前源码中发现明确写入点。
 
@@ -104,8 +126,8 @@ V2 建议：
 
 - `ACT:RECORD` 是唯一账号主表。
 - `ACT:ACTIVE` 是由 `ACT:RECORD` 派生的可登录索引。
-- `ACT:SESSION:<account>` 或 `ACT:REC:<account>` 是在线会话。
-- `STR:ACTIVE` 标记为 legacy，后续迁移到 `ACT:SESSION:*` 或重命名为 `ACT:SESSION`.
+- `ACT:SESSION:<account>` 是展示用在线会话；`ACT:REC:<account>` 只作为连接数控制桶。
+- `STR:ACTIVE` 标记为 legacy，后续迁移到 `ACT:SESSION:*` 聚合读。
 
 密码字段建议：
 

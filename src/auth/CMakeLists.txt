@@ -22,6 +22,7 @@ set(SOURCES
     include/Auth_Verify.h
     src/Auth_Verify.cpp
     src/auth_record_limit.h
+    src/auth_session_record.h
     src/auth_verify_internal.h
     src/auth_verify_internal.cpp
 )

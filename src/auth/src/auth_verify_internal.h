@@ -1,5 +1,6 @@
 #define __class__ "verify_internal"
 #include "Auth_Verify.h"
+#include <ctime>
 #include <string>
 #include <set>
 #include <hiredis.h>
@@ -132,6 +133,10 @@ class auth_cb_item
 public:
     std::string connect_key;
     std::string user_name;
+    AuthType type = AuthType::UNKNOWN;
+    std::time_t online_time = 0;
+    std::string group_uid;
+    bool active_session_enabled = false;
     VerifyCallback cb;
     void *arg;
 };
@@ -231,6 +236,8 @@ private:
     int upload_record_item(); // 将本地记录的所有连接、挂载点和用户更新到redis中(更新记录时间)
 
     int send_change_auth_status(const char *user_name, const char *connect_key, AuthReply type, const char *reason);
+    int remove_active_session(const char *user_name, const char *connect_key);
+    int update_active_session(const auth_cb_item &item, std::time_t update_time);
 
     int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
 
