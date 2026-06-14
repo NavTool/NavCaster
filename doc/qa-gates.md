@@ -272,6 +272,35 @@ Relay stop 回归不能只看 stop API 返回或本地日志中的 `relay_pull s
 继续显示 running；因此 stop/cleanup 必须同时断言 HTTP status、Redis `PULL:STAT`
 和 cluster pull count 均收敛。
 
+Relay Push start/stop deep smoke 使用同一个 Redis fixture 拉起两个本地
+`CasterService` 进程，并让主实例提供真实 NTRIP source mount，再推送到
+第二实例的独立 target mount：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeRelayPushStartStop -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该模式会为第二实例复制临时 conf 目录，并通过 `-conf <dir>\` 指向独立配置。
+第二实例会关闭 source 匿名登录，测试必须验证：
+
+```text
+1. Node A 和 Node B 均可 health/login/status，且 node_id 不同。
+2. Node A 的真实 source mount 已在线。
+3. Node A 通过 /api/relays/push 创建 enabled push record 成功。
+4. /api/relays/push/status 或 PUSH:STAT 收敛到 state=1、connect_key 非空、node_uid 等于 Node A。
+5. Node B 独立 target mount 出现在 MPT:LIST、MPT:REC:<target_mount>、MPT:STAT。
+6. Node A /api/monitor/cluster 中 push 计数相比基线增加。
+7. /api/relays/push/stop/<uid> 后 enabled=false，HTTP/Redis 均不再 running，Node B target source 被清理，push 计数回到基线。
+8. /api/relays/push/start/<uid> 后 enabled=true，PUSH:STAT 重新 running，Node B target source 重新在线。
+9. cleanup 后 push record/status、target source、source socket、临时 conf 和 fixture 容器均被清理。
+```
+
+`PUSH:STAT.connect_key` 属于发起侧 relay push 连接，Node B
+`MPT:REC:<target_mount>` 中的 target source connect_key 由目标实例本地生成；
+脚本必须断言 target source connect_key 既不同于 Node A 原始 source connect_key，
+也不同于 `PUSH:STAT.connect_key`。该检查覆盖本地真实 push relay 控制链路，不覆盖
+数据内容完整性、真实跨主机网络分区、反向代理或 master lease failover。
+
 NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
 
 ```powershell
