@@ -267,6 +267,11 @@ Relay Pull start/stop deep smoke 使用同一个 Redis fixture 拉起两个本�
 `relay_pull` NTRIP I/O、`PULL:STAT` 回写和 cluster pull count。它不覆盖 push relay、
 真实跨主机网络分区、反向代理/sticky session 或 master lease failover。
 
+Relay stop 回归不能只看 stop API 返回或本地日志中的 `relay_pull stopped`。如果
+本节点旧 `PULL:STAT state=1` 快照被同步回本地并再次续期，cluster pull count 会
+继续显示 running；因此 stop/cleanup 必须同时断言 HTTP status、Redis `PULL:STAT`
+和 cluster pull count 均收敛。
+
 NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
 
 ```powershell

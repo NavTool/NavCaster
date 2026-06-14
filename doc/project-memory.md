@@ -537,5 +537,12 @@ SSE：
 - 覆盖：`/api/relays/pull/stop/<uid>` 设置 `enabled=false` 后状态不再
   running，且 not-running 判定同时检查 HTTP status 和 Redis `PULL:STAT`；
   `/api/relays/pull/start/<uid>` 设置 `enabled=true` 后状态重新 running。
+- post-merge 验证曾暴露真实产品问题：stop 后连接已停，但旧的本节点
+  `PULL:STAT state=1` 快照会被周期同步/上报重新写回，导致 pull count
+  不回落。修复后 relay INACTIVE 按 uid 删除状态，周期上报只续期本节点
+  真实连接仍存在的 relay 状态，同步回调拒绝恢复本节点无真实连接的
+  running stale 状态。
+- team-dev @ d7e9a6a 已重新验证 `CasterService`、`schema_smoke`、contract、
+  默认 Docker e2e 和 `-IncludeRelayPullStartStop`。
 - 该 e2e 闭合本地真实 pull relay 控制链路；push relay、真实跨主机网络分区、
   反向代理/sticky session 和 master lease failover 仍需后续专项。

@@ -486,3 +486,5 @@
   - NC-026 覆盖主实例通过 `/api/relays/pull` 创建 pull record 后，RelayScheduler 通过 `NODE:<node_id>` 触发真实 `relay_pull` 连接第二实例目标 mount，并等待 `/api/relays/pull/status`/`PULL:STAT` 收敛到 `state=1`、`connect_key` 非空、`node_uid` 等于主实例 node_id。
   - NC-026 第二实例关闭 rover 匿名登录，断言 relay target 账号写入 `ACT:SESSION/ACT:REC/USR:REC` 且不出现 `ACT:UND` 匿名 rover 记录，避免目标认证 seed 被匿名路径绕过。
   - NC-026 覆盖 `/api/monitor/cluster` 中主实例 `pull` 计数相比基线增加并在 stop/cleanup 后回落；`/api/relays/pull/stop/<uid>` 验证 `enabled=false` 且 HTTP status 与 Redis `PULL:STAT` 均不再 running，`/api/relays/pull/start/<uid>` 验证 `enabled=true` 且状态重新 running；该 e2e 不覆盖 push relay、真实跨主机网络分区或 master lease failover。
+  - NC-026 post-merge 验证暴露产品缺口：stop API 返回且 `relay_pull` 已停止后，旧的 Redis `PULL:STAT state=1` 快照可能被本节点周期同步/上报复活，导致 cluster pull count 长时间保持 1。
+  - NC-026 修复 `caster_internal` relay 状态收敛：INACTIVE 回调后按 uid 删除状态；`upload_relay_status()` 只续期本节点真实持有的 relay 状态；同步 `PULL:STAT`/`PUSH:STAT` 时拒绝恢复本节点无真实连接的 running stale 状态。修复后 team-dev @ d7e9a6a 通过 CasterService、schema_smoke、contract、默认 e2e 和 `-IncludeRelayPullStartStop` post-merge 验证。
