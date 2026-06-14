@@ -61,7 +61,8 @@ HTTP_API_Setting:
 和部署说明。
 
 `Port` 仍参与 node_id 计算，因此同主机多实例需要使用不同 HTTP 端口，避免节点身份
-冲突。
+冲突。NC-025 已用本地双实例 smoke 验证两个不同 HTTP/NTRIP 端口的实例会得到不同
+`Node_XXXXX`，并能同时出现在两个 HTTP 入口的 `/api/monitor/cluster` 中。
 
 ## QA smoke
 

@@ -215,7 +215,31 @@ NTRIP/Auth Broadcast 跨实例 deep smoke 使用同一个 Redis fixture 拉起�
 ```
 
 该检查覆盖本地双进程 `AUTH:BROADCAST` 关闭旧会话链路；HTTP/API Redis 断线恢复
-由 NC-024 覆盖，真实多机器 node identity 和 relay failover 仍需专项任务覆盖。
+由 NC-024 覆盖，本地双实例 node identity/cluster 由 NC-025 覆盖；真实跨主机
+网络分区和 relay failover 仍需专项任务覆盖。
+
+本地双实例 Node Identity / Cluster deep smoke 使用同一个 Redis fixture 拉起两个
+本地 `CasterService` 进程：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeLocalDualNodeIdentity -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该模式会为第二实例复制临时 conf 目录，并通过 `-conf <dir>\` 指向独立配置。
+两个实例都使用 `Force_Enable=true` 和短 heartbeat 周期。必须验证：
+
+```text
+1. Node A 和 Node B 均可 health/login/status。
+2. Node A 与 Node B 的 /api/status.node_id 均匹配 Node_XXXXX。
+3. 两个 node_id 不同。
+4. 等待 heartbeat 后，两个 HTTP 入口的 /api/monitor/cluster 均包含两个 online node。
+5. cluster node payload 的 listen_port/http_port/process_id/hostname/http_enabled 与对应实例匹配。
+6. finally 清理第二实例进程、临时 conf、主服务配置和 Docker fixture。
+```
+
+该检查覆盖同主机多实例通过 `hostname:listen_port:http_port` 派生不同 node_id，
+以及 cluster monitor 双 HTTP 入口读侧一致性；真实跨主机网络分区、反向代理/sticky
+session 和 relay failover 仍需专项任务覆盖。
 
 NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
 
@@ -239,7 +263,8 @@ NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真
 
 该检查覆盖账号状态从 HTTP 写侧到 Auth 登录索引、真实 NTRIP 拒绝行为和
 active account 读侧清理的闭环；HTTP/API Redis 断线恢复由 NC-024 覆盖，
-relay failover 和真实多机器 node identity 仍需专项任务覆盖。
+本地双实例 node identity/cluster 由 NC-025 覆盖；真实跨主机网络分区和
+relay failover 仍需专项任务覆盖。
 
 HTTP/API Redis 断线/重连 deep smoke 使用 Docker Redis fixture 控制短断窗口：
 
@@ -259,7 +284,8 @@ HTTP/API Redis 断线/重连 deep smoke 使用 Docker Redis fixture 控制短断
 ```
 
 该检查覆盖 HTTP API async Redis adapter 与 blocking Redis client 在短断后的
-恢复路径；relay failover 和真实多机器 node identity 仍需专项任务覆盖。
+恢复路径；本地双实例 node identity/cluster 由 NC-025 覆盖；真实跨主机
+网络分区和 relay failover 仍需专项任务覆盖。
 
 如果测试机已有外部 Redis 8.4+，可跳过 Docker fixture：
 
@@ -326,8 +352,9 @@ NC-007 Auth Online_Protection
   已补 Online_Protection=true 拒新与 false 踢旧的真实 NTRIP 连接矩阵；NC-019
   已补真实连接存活期间 ACT:SESSION/ACT:REC/USR:REC 续期长跑；NC-021 已补
   单节点匿名登录允许/拒绝矩阵；NC-022 已补本地双实例 AUTH:BROADCAST 踢旧连接。
-  NC-023 已补禁用/失效账号矩阵；NC-024 已补 HTTP/API Redis 断线重连。真实多机器
-  node identity 和 relay failover 仍需后续专项补测。
+  NC-023 已补禁用/失效账号矩阵；NC-024 已补 HTTP/API Redis 断线重连；NC-025
+  已补本地双实例 node identity/cluster。真实跨主机网络分区和 relay failover 仍需
+  后续专项补测。
 
 NC-008B/NC-009 活跃账号 REST/SSE 读侧
   NC-016 已用 Docker Redis 8.6.3 fixture 自动验证 /api/accounts/active 与 SSE
@@ -338,8 +365,8 @@ NC-008B/NC-009 活跃账号 REST/SSE 读侧
   SSE 增量推送；NC-021 已补匿名 client 不进入 /api/accounts/active 的回归；
   NC-022 已补本地双实例 AUTH:BROADCAST 后两实例 /api/accounts/active 读侧一致。
   NC-023 已补禁用/失效账号拒绝后不进入 /api/accounts/active 的回归；NC-024 已补
-  HTTP API 短断后 Redis 连接状态恢复。真实多机器入口、反代/sticky session 和
-  relay failover 仍需专项覆盖。
+  HTTP API 短断后 Redis 连接状态恢复；NC-025 已补本地双实例 node identity/cluster。
+  真实跨主机入口、反代/sticky session 和 relay failover 仍需专项覆盖。
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。
