@@ -31,6 +31,7 @@ param(
     [string]$NtripAnonymousScenario = "AllowAnonymous",
     [switch]$IncludeNtripAuthBroadcast,
     [switch]$IncludeLocalDualNodeIdentity,
+    [switch]$IncludeMasterLeaseFailover,
     [switch]$IncludeRelayPullStartStop,
     [switch]$IncludeRelayPushStartStop,
     [switch]$IncludeRelayDataForwarding,
@@ -2769,6 +2770,132 @@ function Wait-LocalDualNodeCluster {
     Fail "local dual-node cluster view did not converge before timeout; last=[$last]"
 }
 
+function Get-E2eMasterNode {
+    $raw = Invoke-RedisCommand GET "CASTER:MASTER"
+    if ($null -eq $raw) {
+        return ""
+    }
+    return ([string]$raw).Trim()
+}
+
+function Wait-E2eMasterNodeInSet {
+    param(
+        [string[]]$ExpectedNodeIds,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $expected = @($ExpectedNodeIds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($expected.Count -eq 0) {
+        Fail "$Context master wait received no expected node ids"
+    }
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $masterNode = Get-E2eMasterNode
+            if ($expected -contains $masterNode) {
+                return $masterNode
+            }
+            $last = "master=[$masterNode]"
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $redisMaster = ""
+    $redisTtl = ""
+    try { $redisMaster = Get-E2eMasterNode } catch { $redisMaster = $_.Exception.Message }
+    try { $redisTtl = Invoke-RedisCommand TTL "CASTER:MASTER" } catch { $redisTtl = $_.Exception.Message }
+    Fail "$Context master lease did not point to expected nodes before timeout; expected=[$($expected -join ',')] last=[$last] redis_master=[$redisMaster] ttl=[$redisTtl]"
+}
+
+function Wait-E2eStatusMasterNode {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$ExpectedMasterNodeId,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $status = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/status" -TimeoutSec 10
+            if ($status.master_node -eq $ExpectedMasterNodeId) {
+                if ($status.redis_auth_connected -ne $true -or $status.redis_caster_connected -ne $true) {
+                    Fail "status reports Redis disconnected: caster=$($status.redis_caster_connected) auth=$($status.redis_auth_connected)"
+                }
+                return $status
+            }
+            $last = "status.master_node=[$($status.master_node)] node_id=[$($status.node_id)]"
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 1000
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context status endpoint did not converge to master_node=$ExpectedMasterNodeId before timeout; last=[$last]"
+}
+
+function Wait-E2eClusterMasterNode {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$ExpectedMasterNodeId,
+        [string]$RetiredNodeId,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $cluster = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/monitor/cluster" -TimeoutSec 10
+            if ($cluster.master_node -ne $ExpectedMasterNodeId) {
+                $last = "cluster.master_node=[$($cluster.master_node)]"
+            }
+            else {
+                $expectedNode = Get-ClusterNodeByUid $cluster $ExpectedMasterNodeId
+                if (-not $expectedNode) {
+                    $seen = @($cluster.nodes | ForEach-Object { $_.uid }) -join ","
+                    $last = "missing expected master node; seen=[$seen]"
+                }
+                elseif ($expectedNode.online -ne $true) {
+                    $last = "expected master node is not online"
+                }
+                elseif ($expectedNode.is_master -ne $true) {
+                    $last = "expected master node is not flagged is_master=true"
+                }
+                else {
+                    if (-not [string]::IsNullOrWhiteSpace($RetiredNodeId)) {
+                        $retiredNode = Get-ClusterNodeByUid $cluster $RetiredNodeId
+                        if ($retiredNode -and $retiredNode.is_master -eq $true) {
+                            $last = "retired node $RetiredNodeId is still flagged as master"
+                            Start-Sleep -Milliseconds 1000
+                            continue
+                        }
+                    }
+                    return $cluster
+                }
+            }
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 1000
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context cluster monitor did not converge to master_node=$ExpectedMasterNodeId before timeout; last=[$last]"
+}
+
 function Get-PullRelayStatusFromHttp {
     param(
         [string]$Base,
@@ -3420,6 +3547,149 @@ function Invoke-LocalDualNodeIdentitySmoke {
     }
 }
 
+function Invoke-MasterLeaseFailoverSmoke {
+    param(
+        [string]$PrimaryBase,
+        [hashtable]$PrimaryHeaders,
+        [int]$PrimaryNtripPort,
+        [int]$SecondaryHttpPort,
+        [int]$SecondaryNtripPort
+    )
+
+    $secondaryNode = $null
+    $secondaryConfRoot = $null
+
+    try {
+        $primaryStatus = Assert-E2eStatusAndCluster $PrimaryBase $PrimaryHeaders "master lease failover primary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $primaryStatus.node_id "master lease failover primary"
+
+        $secondaryConfRoot = Join-Path $env:TEMP ("navcaster-e2e-nc029-" + [guid]::NewGuid().ToString())
+        $secondaryConfDir = Join-Path $secondaryConfRoot "conf"
+        Copy-E2eServiceConfig `
+            -SourceConfDir $confDir `
+            -DestinationConfDir $secondaryConfDir `
+            -HttpPort $SecondaryHttpPort `
+            -NtripPort $SecondaryNtripPort `
+            -HttpBindAddr $HttpBindAddr `
+            -AdminUser $AdminUser `
+            -AdminPassword $AdminPassword `
+            -RedisHost $RedisHost `
+            -RedisPort $RedisPort `
+            -RedisPassword $RedisPassword `
+            -RoverOnlineProtection $false `
+            -RoverAnonymousLogin $false
+
+        $secondaryBase = "http://${HttpBindAddr}:${SecondaryHttpPort}"
+        $secondaryNode = Start-E2eCasterServiceNode "nc029-secondary" $serviceExe $releaseDir $secondaryConfDir $secondaryBase $StartupTimeoutSec
+        $secondarySession = Invoke-E2eLogin $secondaryBase
+        $secondaryHeaders = $secondarySession.Headers
+        $secondaryStatus = Assert-E2eStatusAndCluster $secondaryBase $secondaryHeaders "master lease failover secondary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $secondaryStatus.node_id "master lease failover secondary"
+
+        if ($primaryStatus.node_id -eq $secondaryStatus.node_id) {
+            Fail "master lease failover instances reported the same node_id: $($primaryStatus.node_id)"
+        }
+
+        Wait-LocalDualNodeCluster `
+            -PrimaryBase $PrimaryBase `
+            -PrimaryHeaders $PrimaryHeaders `
+            -PrimaryNodeId $primaryStatus.node_id `
+            -PrimaryHttpPort $HttpPort `
+            -PrimaryNtripPort $PrimaryNtripPort `
+            -PrimaryProcessId $serviceProcess.Id `
+            -SecondaryBase $secondaryBase `
+            -SecondaryHeaders $secondaryHeaders `
+            -SecondaryNodeId $secondaryStatus.node_id `
+            -SecondaryHttpPort $SecondaryHttpPort `
+            -SecondaryNtripPort $SecondaryNtripPort `
+            -SecondaryProcessId $secondaryNode.Process.Id `
+            -TimeoutSec $StartupTimeoutSec | Out-Null
+
+        $initialMaster = Wait-E2eMasterNodeInSet -ExpectedNodeIds @($primaryStatus.node_id, $secondaryStatus.node_id) -TimeoutSec ($StartupTimeoutSec + 5) -Context "master lease failover initial"
+        Say "master lease initial holder=$initialMaster"
+
+        $survivorBase = $null
+        $survivorHeaders = $null
+        $survivorNodeId = $null
+        $survivorLabel = $null
+        $retiredNodeId = $null
+
+        if ($initialMaster -eq $primaryStatus.node_id) {
+            $retiredNodeId = $primaryStatus.node_id
+            $survivorNodeId = $secondaryStatus.node_id
+            $survivorBase = $secondaryBase
+            $survivorHeaders = $secondaryHeaders
+            $survivorLabel = "secondary"
+
+            Say "stopping current master primary node_id=$retiredNodeId process_id=$($serviceProcess.Id)"
+            if (-not $serviceProcess -or $serviceProcess.HasExited) {
+                Fail "primary CasterService process was not running before master failover stop"
+            }
+            Stop-Process -Id $serviceProcess.Id -Force
+            if (-not $serviceProcess.WaitForExit(5000)) {
+                Write-Warning "primary CasterService did not exit within 5 seconds"
+            }
+        }
+        elseif ($initialMaster -eq $secondaryStatus.node_id) {
+            $retiredNodeId = $secondaryStatus.node_id
+            $survivorNodeId = $primaryStatus.node_id
+            $survivorBase = $PrimaryBase
+            $survivorHeaders = $PrimaryHeaders
+            $survivorLabel = "primary"
+
+            Say "stopping current master secondary node_id=$retiredNodeId process_id=$($secondaryNode.Process.Id)"
+            Stop-E2eCasterServiceNode $secondaryNode
+            $secondaryNode = $null
+        }
+        else {
+            Fail "unexpected initial master node id: $initialMaster"
+        }
+
+        $failoverTimeout = $StartupTimeoutSec + 20
+        $newMaster = Wait-E2eMasterNodeInSet -ExpectedNodeIds @($survivorNodeId) -TimeoutSec $failoverTimeout -Context "master lease failover after stopping $retiredNodeId"
+        if ($newMaster -ne $survivorNodeId) {
+            Fail "master lease failover selected unexpected node: expected=$survivorNodeId actual=$newMaster"
+        }
+
+        Assert-E2eHealth $survivorBase "master lease failover survivor $survivorLabel"
+        $survivorStatus = Wait-E2eStatusMasterNode $survivorBase $survivorHeaders $survivorNodeId $StartupTimeoutSec "master lease failover survivor $survivorLabel"
+        if ($survivorStatus.node_id -ne $survivorNodeId) {
+            Fail "master lease failover survivor status node_id mismatch: expected=$survivorNodeId actual=$($survivorStatus.node_id)"
+        }
+
+        $cluster = Wait-E2eClusterMasterNode $survivorBase $survivorHeaders $survivorNodeId $retiredNodeId $StartupTimeoutSec "master lease failover survivor $survivorLabel"
+        $retiredNode = Get-ClusterNodeByUid $cluster $retiredNodeId
+        if ($retiredNode -and $retiredNode.is_master -eq $true) {
+            Fail "master lease failover retired node $retiredNodeId is still marked as master"
+        }
+        if ($retiredNode -and $retiredNode.online -eq $true) {
+            Say "master lease retired node $retiredNodeId still appears online in cluster TTL grace, but master_node has moved to $survivorNodeId"
+        }
+
+        if ($secondaryNode) {
+            Stop-E2eCasterServiceNode $secondaryNode
+            $secondaryNode = $null
+        }
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            $secondaryConfRoot = $null
+        }
+
+        Say "PASS master lease failover smoke"
+    }
+    finally {
+        Stop-E2eCasterServiceNode $secondaryNode
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            try {
+                Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove master lease failover service config: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
 function Invoke-RelayPullStartStopSmoke {
     param(
         [string]$PrimaryBase,
@@ -3843,22 +4113,25 @@ try {
     if ($IncludeLocalDualNodeIdentity -and $IncludeNtripAuthBroadcast) {
         Fail "Local dual-node identity smoke must run separately from NTRIP Auth Broadcast because both scenarios start a second local CasterService instance."
     }
-    if ($IncludeRelayPullStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding)) {
+    if ($IncludeMasterLeaseFailover -and ($IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect)) {
+        Fail "Master lease failover smoke must run in a separate service lifecycle because it stops the current master CasterService instance."
+    }
+    if ($IncludeRelayPullStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding)) {
         Fail "Relay pull start/stop smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeRelayPushStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayDataForwarding)) {
+    if ($IncludeRelayPushStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeRelayDataForwarding)) {
         Fail "Relay push start/stop smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeRelayDataForwarding -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity)) {
+    if ($IncludeRelayDataForwarding -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover)) {
         Fail "Relay data forwarding smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding)) {
+    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeMasterLeaseFailover -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding)) {
         Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) -and $HttpPort -eq $NtripBroadcastHttpPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "secondary HTTP port must differ from primary HTTP port."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) -and $NtripPort -eq $NtripBroadcastNtripPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) -and $NtripPort -eq $NtripBroadcastNtripPort) {
         Fail "secondary NTRIP port must differ from primary NTRIP port."
     }
 
@@ -3966,7 +4239,7 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) {
+    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
     }
@@ -4056,6 +4329,10 @@ try {
 
     if ($IncludeLocalDualNodeIdentity) {
         Invoke-LocalDualNodeIdentitySmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+    }
+
+    if ($IncludeMasterLeaseFailover) {
+        Invoke-MasterLeaseFailoverSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
     }
 
     if ($IncludeRelayPullStartStop) {
