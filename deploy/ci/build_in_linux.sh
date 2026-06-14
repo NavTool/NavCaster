@@ -96,10 +96,12 @@ build_and_package_redis() {
 echo "[ci] build type: ${BUILD_TYPE}"
 echo "[ci] build dir : ${BUILD_DIR}"
 echo "[ci] package dir: ${PACKAGE_DIR}"
+echo "[ci] generator : Ninja"
+echo "[ci] jobs      : ${JOBS}"
 
 rm -rf "${BUILD_DIR}" "${PACKAGE_DIR}"
 
-cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+cmake -S "${ROOT_DIR}" -B "${BUILD_DIR}" -G Ninja -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
 cmake --build "${BUILD_DIR}" --parallel "${JOBS}"
 
 if [[ ! -d "${RUNTIME_DIR}/conf" ]]; then

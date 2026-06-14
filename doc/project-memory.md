@@ -42,8 +42,13 @@ NavCaster 是一个 C++ NTRIP Caster 服务，围绕 Redis 做集群状态、账
 后端构建：
 
 ```powershell
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
+.\deploy\scripts\build_ninja.ps1 -BuildType Release
+```
+
+Linux：
+
+```bash
+BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh
 ```
 
 Windows CI 打包：

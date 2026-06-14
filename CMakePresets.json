@@ -1,0 +1,54 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "ninja-release",
+      "displayName": "Ninja Release",
+      "description": "Configure a Release build with the Ninja generator.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ninja-Release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "ninja-debug",
+      "displayName": "Ninja Debug",
+      "description": "Configure a Debug build with the Ninja generator.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ninja-Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "ninja-release",
+      "displayName": "Ninja Release",
+      "description": "Build the Release Ninja tree. Pass --parallel <jobs> to use all processors explicitly.",
+      "configurePreset": "ninja-release"
+    },
+    {
+      "name": "ninja-debug",
+      "displayName": "Ninja Debug",
+      "description": "Build the Debug Ninja tree. Pass --parallel <jobs> to use all processors explicitly.",
+      "configurePreset": "ninja-debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "ninja-release",
+      "displayName": "Ninja Release Tests",
+      "configurePreset": "ninja-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
