@@ -479,3 +479,6 @@
   - NC-024 Redis reconnect e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeRedisReconnect`，在 Docker Redis 8.6.3 fixture 下启动服务后停止 Redis 容器，验证 `/api/status/health` 仍可响应且 `CasterService` 进程存活，再重启同一容器并等待 `/api/status` 中 caster/auth Redis 连接恢复。
   - NC-024 修复 HTTP API async `redis_adapter` 断开后不重连的问题：断开时在 HTTP event loop 上安排 1/2/4/8/10 秒退避重连，重连成功后恢复 `_connected=true` 并继续执行 pending command。
   - NC-024 同时验证重连后重新登录、`/api/status` 和 `/api/monitor/cluster` 可用；relay failover 和真实多机器 node identity 仍需后续专项。
+  - NC-025 本地双实例 Node Identity / Cluster e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeLocalDualNodeIdentity`，在同一 Redis 8.6.3 fixture 下启动两个本地 `CasterService` 进程，分别使用独立 conf、HTTP 端口和 NTRIP 端口。
+  - NC-025 覆盖两个实例 `/api/status.node_id` 均匹配 `Node_XXXXX` 且彼此不同，并等待心跳上传后从两个 HTTP 入口读取 `/api/monitor/cluster`，确认两个 node_id 都作为 online node 出现。
+  - NC-025 同时断言 cluster node payload 中 `listen_port`、`http_port`、`process_id`、`hostname` 和 `http_enabled` 与对应实例匹配；本地双实例 node identity 已有自动化 smoke，真实跨主机/网络分区和 relay start/stop failover 仍需后续专项。

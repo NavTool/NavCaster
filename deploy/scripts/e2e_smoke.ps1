@@ -30,6 +30,7 @@ param(
     [ValidateSet("AllowAnonymous", "RejectAnonymous")]
     [string]$NtripAnonymousScenario = "AllowAnonymous",
     [switch]$IncludeNtripAuthBroadcast,
+    [switch]$IncludeLocalDualNodeIdentity,
     [switch]$IncludeNtripDisabledAccount,
     [switch]$IncludeRedisReconnect
 )
@@ -2491,6 +2492,117 @@ function Assert-E2eStatusAndCluster {
     return $status
 }
 
+function Assert-E2eNodeIdFormat {
+    param(
+        [string]$NodeId,
+        [string]$Context
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NodeId) -or $NodeId -notmatch '^Node_[0-9A-F]{5}$') {
+        Fail "$Context returned invalid node_id: $NodeId"
+    }
+}
+
+function Get-ClusterNodeByUid {
+    param(
+        [object]$Cluster,
+        [string]$Uid
+    )
+
+    foreach ($node in @($Cluster.nodes)) {
+        if ($node.uid -eq $Uid) {
+            return $node
+        }
+    }
+
+    return $null
+}
+
+function Assert-ClusterNodeRuntime {
+    param(
+        [object]$Cluster,
+        [string]$Uid,
+        [int]$ExpectedListenPort,
+        [int]$ExpectedHttpPort,
+        [int]$ExpectedProcessId,
+        [string]$Context
+    )
+
+    $node = Get-ClusterNodeByUid $Cluster $Uid
+    if (-not $node) {
+        $seen = @($Cluster.nodes | ForEach-Object { $_.uid }) -join ","
+        Fail "$Context cluster missing node $Uid; seen=[$seen]"
+    }
+
+    if ($node.online -ne $true) {
+        Fail "$Context cluster node $Uid is not online"
+    }
+    if ([int]$node.listen_port -ne $ExpectedListenPort) {
+        Fail "$Context cluster node $Uid listen_port mismatch: expected=$ExpectedListenPort actual=$($node.listen_port)"
+    }
+    if ([int]$node.http_port -ne $ExpectedHttpPort) {
+        Fail "$Context cluster node $Uid http_port mismatch: expected=$ExpectedHttpPort actual=$($node.http_port)"
+    }
+    if ([int64]$node.process_id -ne [int64]$ExpectedProcessId) {
+        Fail "$Context cluster node $Uid process_id mismatch: expected=$ExpectedProcessId actual=$($node.process_id)"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$node.hostname)) {
+        Fail "$Context cluster node $Uid missing hostname"
+    }
+    if ($node.http_enabled -ne $true) {
+        Fail "$Context cluster node $Uid should report http_enabled=true"
+    }
+
+    return $node
+}
+
+function Wait-LocalDualNodeCluster {
+    param(
+        [string]$PrimaryBase,
+        [hashtable]$PrimaryHeaders,
+        [string]$PrimaryNodeId,
+        [int]$PrimaryHttpPort,
+        [int]$PrimaryNtripPort,
+        [int]$PrimaryProcessId,
+        [string]$SecondaryBase,
+        [hashtable]$SecondaryHeaders,
+        [string]$SecondaryNodeId,
+        [int]$SecondaryHttpPort,
+        [int]$SecondaryNtripPort,
+        [int]$SecondaryProcessId,
+        [int]$TimeoutSec
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        try {
+            $primaryCluster = Invoke-RestMethod -Headers $PrimaryHeaders -Uri "$PrimaryBase/api/monitor/cluster" -TimeoutSec 10
+            $secondaryCluster = Invoke-RestMethod -Headers $SecondaryHeaders -Uri "$SecondaryBase/api/monitor/cluster" -TimeoutSec 10
+
+            $primaryA = Assert-ClusterNodeRuntime $primaryCluster $PrimaryNodeId $PrimaryNtripPort $PrimaryHttpPort $PrimaryProcessId "primary HTTP view"
+            $primaryB = Assert-ClusterNodeRuntime $primaryCluster $SecondaryNodeId $SecondaryNtripPort $SecondaryHttpPort $SecondaryProcessId "primary HTTP view"
+            $secondaryA = Assert-ClusterNodeRuntime $secondaryCluster $PrimaryNodeId $PrimaryNtripPort $PrimaryHttpPort $PrimaryProcessId "secondary HTTP view"
+            $secondaryB = Assert-ClusterNodeRuntime $secondaryCluster $SecondaryNodeId $SecondaryNtripPort $SecondaryHttpPort $SecondaryProcessId "secondary HTTP view"
+
+            return [pscustomobject]@{
+                PrimaryCluster = $primaryCluster
+                SecondaryCluster = $secondaryCluster
+                PrimaryNodeFromPrimary = $primaryA
+                SecondaryNodeFromPrimary = $primaryB
+                PrimaryNodeFromSecondary = $secondaryA
+                SecondaryNodeFromSecondary = $secondaryB
+            }
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "local dual-node cluster view did not converge before timeout; last=[$last]"
+}
+
 function Wait-E2eRedisStatusConnected {
     param(
         [string]$Base,
@@ -2576,6 +2688,96 @@ function Invoke-RedisReconnectSmoke {
     Say "PASS Redis reconnect smoke"
 }
 
+function Invoke-LocalDualNodeIdentitySmoke {
+    param(
+        [string]$PrimaryBase,
+        [hashtable]$PrimaryHeaders,
+        [int]$PrimaryNtripPort,
+        [int]$SecondaryHttpPort,
+        [int]$SecondaryNtripPort
+    )
+
+    $secondaryNode = $null
+    $secondaryConfRoot = $null
+
+    try {
+        $primaryStatus = Assert-E2eStatusAndCluster $PrimaryBase $PrimaryHeaders "local dual-node primary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $primaryStatus.node_id "local dual-node primary"
+
+        $secondaryConfRoot = Join-Path $env:TEMP ("navcaster-e2e-nc025-" + [guid]::NewGuid().ToString())
+        $secondaryConfDir = Join-Path $secondaryConfRoot "conf"
+        Copy-E2eServiceConfig `
+            -SourceConfDir $confDir `
+            -DestinationConfDir $secondaryConfDir `
+            -HttpPort $SecondaryHttpPort `
+            -NtripPort $SecondaryNtripPort `
+            -HttpBindAddr $HttpBindAddr `
+            -AdminUser $AdminUser `
+            -AdminPassword $AdminPassword `
+            -RedisHost $RedisHost `
+            -RedisPort $RedisPort `
+            -RedisPassword $RedisPassword `
+            -RoverOnlineProtection $false `
+            -RoverAnonymousLogin $false
+
+        $secondaryBase = "http://${HttpBindAddr}:${SecondaryHttpPort}"
+        $secondaryNode = Start-E2eCasterServiceNode "nc025-secondary" $serviceExe $releaseDir $secondaryConfDir $secondaryBase $StartupTimeoutSec
+        $secondarySession = Invoke-E2eLogin $secondaryBase
+        $secondaryHeaders = $secondarySession.Headers
+        $secondaryStatus = Assert-E2eStatusAndCluster $secondaryBase $secondaryHeaders "local dual-node secondary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $secondaryStatus.node_id "local dual-node secondary"
+
+        if ($primaryStatus.node_id -eq $secondaryStatus.node_id) {
+            Fail "local dual-node instances reported the same node_id: $($primaryStatus.node_id)"
+        }
+
+        $cluster = Wait-LocalDualNodeCluster `
+            -PrimaryBase $PrimaryBase `
+            -PrimaryHeaders $PrimaryHeaders `
+            -PrimaryNodeId $primaryStatus.node_id `
+            -PrimaryHttpPort $HttpPort `
+            -PrimaryNtripPort $PrimaryNtripPort `
+            -PrimaryProcessId $serviceProcess.Id `
+            -SecondaryBase $secondaryBase `
+            -SecondaryHeaders $secondaryHeaders `
+            -SecondaryNodeId $secondaryStatus.node_id `
+            -SecondaryHttpPort $SecondaryHttpPort `
+            -SecondaryNtripPort $SecondaryNtripPort `
+            -SecondaryProcessId $secondaryNode.Process.Id `
+            -TimeoutSec $StartupTimeoutSec
+
+        if ([int]$cluster.PrimaryCluster.total_nodes -lt 2 -or [int]$cluster.PrimaryCluster.online_nodes -lt 2) {
+            Fail "primary HTTP cluster view did not report at least two online nodes: total=$($cluster.PrimaryCluster.total_nodes) online=$($cluster.PrimaryCluster.online_nodes)"
+        }
+        if ([int]$cluster.SecondaryCluster.total_nodes -lt 2 -or [int]$cluster.SecondaryCluster.online_nodes -lt 2) {
+            Fail "secondary HTTP cluster view did not report at least two online nodes: total=$($cluster.SecondaryCluster.total_nodes) online=$($cluster.SecondaryCluster.online_nodes)"
+        }
+        if ($cluster.PrimaryNodeFromPrimary.hostname -ne $cluster.SecondaryNodeFromPrimary.hostname) {
+            Fail "local dual-node instances should report the same hostname: primary=$($cluster.PrimaryNodeFromPrimary.hostname) secondary=$($cluster.SecondaryNodeFromPrimary.hostname)"
+        }
+
+        Stop-E2eCasterServiceNode $secondaryNode
+        $secondaryNode = $null
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            $secondaryConfRoot = $null
+        }
+
+        Say "PASS local dual-node identity/cluster smoke"
+    }
+    finally {
+        Stop-E2eCasterServiceNode $secondaryNode
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            try {
+                Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove local dual-node service config: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
 if (-not $RootPath) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $RootPath = Join-Path $scriptDir "..\.."
@@ -2620,14 +2822,17 @@ try {
     if ($IncludeNtripAuthBroadcast -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection)) {
         Fail "NTRIP Auth Broadcast smoke must run in a separate service lifecycle because it starts a second local CasterService instance and requires Online_Protection=false."
     }
+    if ($IncludeLocalDualNodeIdentity -and $IncludeNtripAuthBroadcast) {
+        Fail "Local dual-node identity smoke must run separately from NTRIP Auth Broadcast because both scenarios start a second local CasterService instance."
+    }
     if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast)) {
         Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
     }
-    if ($IncludeNtripAuthBroadcast -and $HttpPort -eq $NtripBroadcastHttpPort) {
-        Fail "NTRIP Auth Broadcast secondary HTTP port must differ from primary HTTP port."
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity) -and $HttpPort -eq $NtripBroadcastHttpPort) {
+        Fail "secondary HTTP port must differ from primary HTTP port."
     }
-    if ($IncludeNtripAuthBroadcast -and $NtripPort -eq $NtripBroadcastNtripPort) {
-        Fail "NTRIP Auth Broadcast secondary NTRIP port must differ from primary NTRIP port."
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity) -and $NtripPort -eq $NtripBroadcastNtripPort) {
+        Fail "secondary NTRIP port must differ from primary NTRIP port."
     }
 
     if ($RedisMode -eq "Docker") {
@@ -2734,9 +2939,11 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsAuthFixture) {
+    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
+    }
+    if ($ntripNeedsAuthFixture) {
         $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Enable_Mult" "true"
         $coreText = Set-YamlValueInSection $coreText "Rover_Setting" "Keep_Early" "false"
     }
@@ -2818,6 +3025,10 @@ try {
 
     if ($IncludeNtripAuthBroadcast) {
         Invoke-NtripAuthBroadcastSmoke $base $headers $HttpBindAddr $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+    }
+
+    if ($IncludeLocalDualNodeIdentity) {
+        Invoke-LocalDualNodeIdentitySmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
     }
 
     if ($IncludeNtripDisabledAccount) {

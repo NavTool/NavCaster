@@ -97,6 +97,8 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 `-IncludeNtripOnlineProtection -NtripOnlineProtectionScenario RejectNew|KickOld`；
 匿名登录矩阵可追加
 `-IncludeNtripAnonymousAuth -NtripAnonymousScenario AllowAnonymous|RejectAnonymous`；
+本地双实例 AUTH:BROADCAST 可追加 `-IncludeNtripAuthBroadcast`；本地双实例
+node identity / cluster 可追加 `-IncludeLocalDualNodeIdentity`；
 禁用/失效账号矩阵可追加 `-IncludeNtripDisabledAccount`；HTTP Redis 断线/重连
 可追加 `-IncludeRedisReconnect`。
 必要时用 `-NtripPort` 避开本机端口冲突。
@@ -501,3 +503,18 @@ SSE：
   随后重新登录并查询 `/api/status`、`/api/monitor/cluster` 成功。
 - 该 e2e 闭合 HTTP/API 层 Redis 短断重连缺口；relay failover 和真实多机器
   node identity 仍需后续专项。
+
+## 2026-06-14 NC-025 本地双实例 Node Identity / Cluster e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeLocalDualNodeIdentity`，
+  可用 `-NtripBroadcastHttpPort` 和 `-NtripBroadcastNtripPort` 指定第二实例端口。
+- 该 smoke 在一个 Redis 8.6.3 Docker fixture 下启动两个本地 `CasterService`
+  进程，第二实例使用临时 conf 目录和 `-conf <dir>\` 启动。
+- 覆盖：Node A 和 Node B 均可 health/login/status，两个 `/api/status.node_id`
+  均匹配 `Node_XXXXX` 且彼此不同。
+- 覆盖：等待 core heartbeat 后，Node A 和 Node B 的 `/api/monitor/cluster`
+  都能看到两个 online node。
+- 覆盖：cluster node payload 中 `listen_port`、`http_port`、`process_id`、
+  `hostname` 和 `http_enabled` 与两个本地实例匹配。
+- 该 e2e 闭合本地双实例 node identity / cluster monitor 自动化缺口；真实跨主机
+  网络分区、反向代理/sticky session 和 relay start/stop failover 仍需后续专项。

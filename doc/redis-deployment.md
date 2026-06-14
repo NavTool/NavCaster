@@ -191,6 +191,24 @@ Node A：旧 TCP client 被关闭，旧 connect_key 不再被重写。
 Redis/HTTP：ACT:SESSION/ACT:REC/USR:REC 和两实例 /api/accounts/active 均只保留 Node B connect_key。
 ```
 
+本地双实例 Node Identity / Cluster 可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeLocalDualNodeIdentity -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该检查在同一 Redis fixture 下启动两个本地 `CasterService` 进程，第二实例使用
+临时 conf 目录和 `-conf <dir>\`。脚本会验证：
+
+```text
+Node A/Node B：health/login/status 均可用，node_id 均匹配 Node_XXXXX 且彼此不同。
+Cluster：等待 heartbeat 后，两个 HTTP 入口的 /api/monitor/cluster 均包含两个 online node。
+Payload：listen_port/http_port/process_id/hostname/http_enabled 与对应实例匹配。
+```
+
+该检查覆盖同主机多实例 node identity 和 cluster monitor 读侧一致性；真实跨主机
+网络分区、反向代理/sticky session 和 relay failover 仍需专项验证。
+
 真实 NTRIP/Auth 禁用/失效账号矩阵可追加：
 
 ```powershell
