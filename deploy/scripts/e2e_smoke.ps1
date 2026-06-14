@@ -36,6 +36,11 @@ param(
     [switch]$IncludeDockerBridgeCluster,
     [string]$NavCasterImage = "navcaster:latest",
     [string]$DockerBridgeNetworkName = "navcaster-e2e-nc031-$PID",
+    [switch]$IncludeHttpIngressStrategy,
+    [string]$NginxImage = "nginx:latest",
+    [string]$HttpIngressNetworkName = "navcaster-e2e-nc032-$PID",
+    [int]$HttpIngressStickyPort = 18080,
+    [int]$HttpIngressRoundRobinPort = 18081,
     [switch]$IncludeRelayPullStartStop,
     [switch]$IncludeRelayPushStartStop,
     [switch]$IncludeRelayDataForwarding,
@@ -2611,20 +2616,46 @@ function Invoke-ActiveAccountSmoke {
     Say "PASS active account REST/SSE smoke"
 }
 
-function Invoke-E2eLogin {
-    param([string]$Base)
+function Copy-E2eHeaders {
+    param([hashtable]$Headers)
 
-    Say "logging in as $AdminUser"
+    $copy = @{}
+    if ($Headers) {
+        foreach ($key in $Headers.Keys) {
+            $copy[$key] = $Headers[$key]
+        }
+    }
+    return $copy
+}
+
+function Invoke-E2eLoginWithHeaders {
+    param(
+        [string]$Base,
+        [hashtable]$ExtraHeaders = @{},
+        [string]$Context = "login"
+    )
+
+    Say "logging in as $AdminUser ($Context)"
     $loginBody = @{ username = $AdminUser; password = $AdminPassword } | ConvertTo-Json -Compress
-    $login = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $loginBody -Uri "$Base/api/auth/login" -TimeoutSec 10
+    $requestHeaders = Copy-E2eHeaders $ExtraHeaders
+    $login = Invoke-RestMethod -Method Post -Headers $requestHeaders -ContentType "application/json" -Body $loginBody -Uri "$Base/api/auth/login" -TimeoutSec 10
     if (-not $login.token) {
         Fail "login did not return token"
     }
 
+    $headers = Copy-E2eHeaders $ExtraHeaders
+    $headers["Authorization"] = "Bearer $($login.token)"
+
     return [pscustomobject]@{
         Token = $login.token
-        Headers = @{ Authorization = "Bearer $($login.token)" }
+        Headers = $headers
     }
+}
+
+function Invoke-E2eLogin {
+    param([string]$Base)
+
+    return Invoke-E2eLoginWithHeaders -Base $Base -Context "default"
 }
 
 function Assert-E2eHealth {
@@ -3063,10 +3094,11 @@ function Set-YamlValueInSectionOrAppend {
 
 function Copy-DockerBridgeImageConfig {
     param(
-        [string]$DestinationRoot
+        [string]$DestinationRoot,
+        [string]$ContainerPrefix = $DockerBridgeNetworkName
     )
 
-    $copyContainer = "$DockerBridgeNetworkName-conf"
+    $copyContainer = "$ContainerPrefix-conf"
     $createResult = Invoke-NativeCommand "docker" @("create", "--name", $copyContainer, $NavCasterImage)
     if ($createResult.ExitCode -ne 0) {
         Fail "failed to create temporary config copy container: $($createResult.Output -join ' ')"
@@ -3576,6 +3608,455 @@ function Invoke-DockerBridgeClusterSmoke {
             }
             catch {
                 Write-Warning "failed to remove Docker bridge temporary config ${confRoot}: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Get-HttpStatusCodeFromError {
+    param([object]$ErrorRecord)
+
+    $response = $ErrorRecord.Exception.Response
+    if ($null -eq $response) {
+        return $null
+    }
+
+    try {
+        if ($null -ne $response.StatusCode) {
+            return [int]$response.StatusCode
+        }
+    }
+    catch {
+    }
+    try {
+        if ($null -ne $response.StatusCode.value__) {
+            return [int]$response.StatusCode.value__
+        }
+    }
+    catch {
+    }
+    try {
+        return [int]$response.StatusCode.GetHashCode()
+    }
+    catch {
+    }
+    return $null
+}
+
+function Invoke-HttpStatusCode {
+    param(
+        [string]$Uri,
+        [hashtable]$Headers = @{},
+        [string]$Method = "Get",
+        [string]$Body = $null,
+        [string]$ContentType = "application/json",
+        [int]$TimeoutSec = 10
+    )
+
+    $parameters = @{
+        Uri = $Uri
+        Method = $Method
+        Headers = $Headers
+        TimeoutSec = $TimeoutSec
+        UseBasicParsing = $true
+    }
+    if (-not [string]::IsNullOrEmpty($Body)) {
+        $parameters["Body"] = $Body
+        $parameters["ContentType"] = $ContentType
+    }
+
+    try {
+        $response = Invoke-WebRequest @parameters
+        return [int]$response.StatusCode
+    }
+    catch {
+        $code = Get-HttpStatusCodeFromError $_
+        if ($null -eq $code) {
+            throw
+        }
+        return $code
+    }
+}
+
+function Assert-HttpIngressUnauthorized {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Context
+    )
+
+    $code = Invoke-HttpStatusCode -Uri "$Base/api/status" -Headers $Headers -TimeoutSec 10
+    if ($code -ne 401 -and $code -ne 403) {
+        Fail "$Context expected cross-node token rejection, got HTTP $code"
+    }
+}
+
+function New-HttpIngressNginxConfig {
+    param(
+        [string]$NodeAContainer,
+        [string]$NodeBContainer
+    )
+
+    $template = @'
+upstream navcaster_sticky {
+    hash $http_x_navcaster_sticky consistent;
+    server __NODE_A__:8080;
+    server __NODE_B__:8080;
+}
+
+upstream navcaster_round_robin {
+    server __NODE_A__:8080;
+    server __NODE_B__:8080;
+}
+
+server {
+    listen 18080;
+
+    location / {
+        proxy_pass http://navcaster_sticky;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 18081;
+
+    location / {
+        proxy_pass http://navcaster_round_robin;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+'@
+
+    return $template.Replace("__NODE_A__", $NodeAContainer).Replace("__NODE_B__", $NodeBContainer)
+}
+
+function Start-DockerBridgeNginxContainer {
+    param(
+        [string]$ContainerName,
+        [string]$NetworkName,
+        [string]$ConfPath,
+        [int]$StickyPort,
+        [int]$RoundRobinPort
+    )
+
+    $result = Invoke-NativeCommand "docker" @(
+        "run", "-d",
+        "--name", $ContainerName,
+        "--network", $NetworkName,
+        "-p", "127.0.0.1:${StickyPort}:18080",
+        "-p", "127.0.0.1:${RoundRobinPort}:18081",
+        "-v", "${ConfPath}:/etc/nginx/conf.d/default.conf:ro",
+        $NginxImage
+    )
+    if ($result.ExitCode -ne 0) {
+        Fail "failed to start nginx ingress container ${ContainerName}: $($result.Output -join ' ')"
+    }
+}
+
+function Assert-HttpIngressRoundRobinTokenBoundary {
+    param([string]$Base)
+
+    $session = Invoke-E2eLoginWithHeaders -Base $Base -Context "round-robin ingress"
+    $codes = @()
+    for ($i = 0; $i -lt 8; $i++) {
+        $codes += Invoke-HttpStatusCode -Uri "$Base/api/status" -Headers $session.Headers -TimeoutSec 10
+        Start-Sleep -Milliseconds 150
+    }
+
+    $unauthorized = @($codes | Where-Object { $_ -eq 401 -or $_ -eq 403 })
+    if ($unauthorized.Count -eq 0) {
+        Fail "round-robin ingress did not expose process-local token boundary; status codes=[$($codes -join ',')]"
+    }
+    Say "round-robin ingress token boundary observed status_codes=[$($codes -join ',')]"
+}
+
+function New-HttpIngressAccount {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Account
+    )
+
+    $body = @{
+        account = $Account
+        password = "nc032-secret"
+        group = "default"
+        enabled = $true
+        state = 1
+        active = 1
+    } | ConvertTo-Json -Compress
+    $created = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $body -Uri "$Base/api/accounts" -TimeoutSec 10
+    if ($created.ok -ne $true -or $created.account -ne $Account) {
+        Fail "HTTP ingress account create returned unexpected payload: $(ConvertTo-CompactJson $created)"
+    }
+}
+
+function Remove-HttpIngressAccount {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Account
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Account)) {
+        return
+    }
+    try {
+        Invoke-RestMethod -Method Delete -Headers $Headers -Uri "$Base/api/accounts/$Account" -TimeoutSec 10 | Out-Null
+    }
+    catch {
+    }
+}
+
+function Wait-HttpIngressAccountExists {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Account,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $record = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/accounts/$Account" -TimeoutSec 10
+            $recordAccount = [string](Get-JsonProperty $record "account")
+            $recordUid = [string](Get-JsonProperty $record "uid")
+            if ($recordAccount -eq $Account -or $recordUid -eq $Account) {
+                return $record
+            }
+            $last = ConvertTo-CompactJson $record
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context did not observe account $Account before timeout; last=[$last]"
+}
+
+function Wait-HttpIngressAccountMissing {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Account,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $code = Invoke-HttpStatusCode -Uri "$Base/api/accounts/$Account" -Headers $Headers -TimeoutSec 10
+            if ($code -eq 404) {
+                return
+            }
+            $last = "HTTP $code"
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context still observed account $Account before timeout; last=[$last]"
+}
+
+function Invoke-HttpIngressStrategySmoke {
+    $networkName = $HttpIngressNetworkName
+    $redisContainer = "$networkName-redis"
+    $nodeAContainer = "$networkName-node-a"
+    $nodeBContainer = "$networkName-node-b"
+    $nginxContainer = "$networkName-nginx"
+    $nodeAHostname = "nc032-a-$PID"
+    $nodeBHostname = "nc032-b-$PID"
+    $nodeABase = "http://127.0.0.1:${HttpPort}"
+    $nodeBBase = "http://127.0.0.1:${NtripBroadcastHttpPort}"
+    $stickyBase = "http://127.0.0.1:${HttpIngressStickyPort}"
+    $roundRobinBase = "http://127.0.0.1:${HttpIngressRoundRobinPort}"
+    $confRoot = Join-Path $env:TEMP ("navcaster-e2e-nc032-conf-" + [guid]::NewGuid().ToString())
+    $templateRoot = Join-Path $confRoot "template"
+    $templateConfDir = Join-Path $templateRoot "conf"
+    $nodeAConfDir = Join-Path $confRoot "node-a-conf"
+    $nodeBConfDir = Join-Path $confRoot "node-b-conf"
+    $nginxConfPath = Join-Path $confRoot "nginx-default.conf"
+    $createdNetwork = $false
+    $createdAccount = $false
+    $account = "nc032_ingress_${PID}_$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+    $stickySession = $null
+
+    try {
+        Say "validating HTTP ingress images navcaster=$NavCasterImage redis=$RedisImage nginx=$NginxImage"
+        Assert-DockerImagePresent $NavCasterImage "HTTP ingress strategy smoke"
+        Assert-DockerImagePresent $RedisImage "HTTP ingress strategy smoke"
+        Assert-DockerImagePresent $NginxImage "HTTP ingress strategy smoke"
+        New-Item -ItemType Directory -Force -Path $confRoot | Out-Null
+        New-Item -ItemType Directory -Force -Path $templateRoot | Out-Null
+        Copy-DockerBridgeImageConfig $templateRoot $networkName
+        New-DockerBridgeCasterConfig $templateConfDir $nodeAConfDir
+        New-DockerBridgeCasterConfig $templateConfDir $nodeBConfDir
+        Write-TextFile $nginxConfPath (New-HttpIngressNginxConfig $nodeAContainer $nodeBContainer)
+
+        foreach ($container in @($redisContainer, $nodeAContainer, $nodeBContainer, $nginxContainer)) {
+            $existing = Invoke-NativeCommand "docker" @("ps", "-a", "--filter", "name=^/$container$", "--format", "{{.Names}}")
+            if (($existing.Output | Where-Object { $_ -eq $container } | Select-Object -First 1) -eq $container) {
+                Fail "container already exists: $container"
+            }
+        }
+        $existingNetwork = Invoke-NativeCommand "docker" @("network", "ls", "--filter", "name=^$networkName$", "--format", "{{.Name}}")
+        if (($existingNetwork.Output | Where-Object { $_ -eq $networkName } | Select-Object -First 1) -eq $networkName) {
+            Fail "Docker network already exists: $networkName"
+        }
+
+        Say "creating HTTP ingress Docker bridge network $networkName"
+        $networkResult = Invoke-NativeCommand "docker" @("network", "create", "--driver", "bridge", $networkName)
+        if ($networkResult.ExitCode -ne 0) {
+            Fail "failed to create HTTP ingress Docker bridge network: $($networkResult.Output -join ' ')"
+        }
+        $createdNetwork = $true
+
+        Say "starting HTTP ingress Redis container $redisContainer"
+        $redisRun = Invoke-NativeCommand "docker" @(
+            "run", "-d",
+            "--name", $redisContainer,
+            "--network", $networkName,
+            "--network-alias", "redis",
+            $RedisImage,
+            "redis-server", "--requirepass", $RedisPassword, "--save", "", "--appendonly", "no"
+        )
+        if ($redisRun.ExitCode -ne 0) {
+            Fail "failed to start HTTP ingress Redis container: $($redisRun.Output -join ' ')"
+        }
+        Wait-DockerBridgeRedisReady $redisContainer $StartupTimeoutSec "HTTP ingress strategy"
+
+        if (-not $SkipRedisCompat) {
+            Say "running Redis compatibility check through HTTP ingress bridge Redis container"
+            $compatResult = Invoke-NativeCommand "powershell" @(
+                "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $compatScript,
+                "-DockerContainer", $redisContainer,
+                "-HostName", "127.0.0.1",
+                "-Port", "6379",
+                "-Password", $RedisPassword
+            )
+            $compatResult.Output | ForEach-Object { Write-Host $_ }
+            if ($compatResult.ExitCode -ne 0) {
+                Fail "Redis compatibility check failed"
+            }
+        }
+
+        Say "starting HTTP ingress NavCaster node A container=$nodeAContainer host_http=$HttpPort"
+        Start-DockerBridgeCasterContainer $nodeAContainer $nodeAHostname $networkName $nodeAConfDir $HttpPort $NtripPort
+        Wait-DockerBridgeHttpReady $nodeABase $nodeAContainer $StartupTimeoutSec "HTTP ingress node A"
+
+        Say "starting HTTP ingress NavCaster node B container=$nodeBContainer host_http=$NtripBroadcastHttpPort"
+        Start-DockerBridgeCasterContainer $nodeBContainer $nodeBHostname $networkName $nodeBConfDir $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+        Wait-DockerBridgeHttpReady $nodeBBase $nodeBContainer $StartupTimeoutSec "HTTP ingress node B"
+
+        $nodeASession = Invoke-E2eLogin $nodeABase
+        $nodeBSession = Invoke-E2eLogin $nodeBBase
+        $nodeAStatus = Assert-E2eStatusAndCluster $nodeABase $nodeASession.Headers "HTTP ingress node A" -RequireRedisConnected
+        $nodeBStatus = Assert-E2eStatusAndCluster $nodeBBase $nodeBSession.Headers "HTTP ingress node B" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $nodeAStatus.node_id "HTTP ingress node A"
+        Assert-E2eNodeIdFormat $nodeBStatus.node_id "HTTP ingress node B"
+        if ($nodeAStatus.node_id -eq $nodeBStatus.node_id) {
+            Fail "HTTP ingress nodes reported the same node_id: $($nodeAStatus.node_id)"
+        }
+
+        Wait-DockerBridgeClusterConverged `
+            -NodeABase $nodeABase `
+            -NodeAHeaders $nodeASession.Headers `
+            -NodeAId $nodeAStatus.node_id `
+            -NodeAHostname $nodeAHostname `
+            -NodeBBase $nodeBBase `
+            -NodeBHeaders $nodeBSession.Headers `
+            -NodeBId $nodeBStatus.node_id `
+            -NodeBHostname $nodeBHostname `
+            -TimeoutSec $StartupTimeoutSec `
+            -Context "HTTP ingress initial" | Out-Null
+
+        $initialMaster = Wait-DockerBridgeMasterNodeInSet $redisContainer @($nodeAStatus.node_id, $nodeBStatus.node_id) ($StartupTimeoutSec + 5) "HTTP ingress initial"
+        Say "HTTP ingress cluster master=$initialMaster"
+
+        Say "starting nginx ingress container=$nginxContainer sticky_port=$HttpIngressStickyPort round_robin_port=$HttpIngressRoundRobinPort"
+        Start-DockerBridgeNginxContainer $nginxContainer $networkName $nginxConfPath $HttpIngressStickyPort $HttpIngressRoundRobinPort
+        Wait-DockerBridgeHttpReady $stickyBase $nginxContainer $StartupTimeoutSec "HTTP ingress sticky proxy"
+        Wait-DockerBridgeHttpReady $roundRobinBase $nginxContainer $StartupTimeoutSec "HTTP ingress round-robin proxy"
+
+        Assert-HttpIngressUnauthorized $nodeBBase $nodeASession.Headers "node A token on node B direct entry"
+        Assert-HttpIngressUnauthorized $nodeABase $nodeBSession.Headers "node B token on node A direct entry"
+        Assert-HttpIngressRoundRobinTokenBoundary $roundRobinBase
+
+        $stickyHeaders = @{ "X-NavCaster-Sticky" = "nc032-$PID" }
+        $stickySession = Invoke-E2eLoginWithHeaders -Base $stickyBase -ExtraHeaders $stickyHeaders -Context "sticky ingress"
+        $stickyStatus = Assert-E2eStatusAndCluster $stickyBase $stickySession.Headers "HTTP ingress sticky" -RequireRedisConnected
+        for ($i = 0; $i -lt 5; $i++) {
+            $nextStickyStatus = Assert-E2eStatusAndCluster $stickyBase $stickySession.Headers "HTTP ingress sticky repeat" -RequireRedisConnected
+            if ($nextStickyStatus.node_id -ne $stickyStatus.node_id) {
+                Fail "sticky ingress routed session to different node: first=$($stickyStatus.node_id) next=$($nextStickyStatus.node_id)"
+            }
+        }
+        Say "sticky ingress pinned authenticated session to node_id=$($stickyStatus.node_id)"
+
+        Say "creating shared account through sticky management ingress account=$account"
+        New-HttpIngressAccount $stickyBase $stickySession.Headers $account
+        $createdAccount = $true
+        Wait-HttpIngressAccountExists $nodeABase $nodeASession.Headers $account $StartupTimeoutSec "direct node A read after sticky create" | Out-Null
+        Wait-HttpIngressAccountExists $nodeBBase $nodeBSession.Headers $account $StartupTimeoutSec "direct node B read after sticky create" | Out-Null
+
+        Say "deleting shared account through sticky management ingress account=$account"
+        Remove-HttpIngressAccount $stickyBase $stickySession.Headers $account
+        $createdAccount = $false
+        Wait-HttpIngressAccountMissing $nodeABase $nodeASession.Headers $account $StartupTimeoutSec "direct node A read after sticky delete"
+        Wait-HttpIngressAccountMissing $nodeBBase $nodeBSession.Headers $account $StartupTimeoutSec "direct node B read after sticky delete"
+
+        Say "PASS HTTP ingress/sticky session/write routing strategy smoke"
+    }
+    finally {
+        if ($createdAccount -and $stickySession) {
+            try {
+                Remove-HttpIngressAccount $stickyBase $stickySession.Headers $account
+            }
+            catch {
+                Write-Warning "failed to remove HTTP ingress smoke account ${account}: $($_.Exception.Message)"
+            }
+        }
+        foreach ($container in @($nginxContainer, $nodeAContainer, $nodeBContainer, $redisContainer)) {
+            try {
+                Invoke-NativeCommand "docker" @("rm", "-f", $container) | Out-Null
+            }
+            catch {
+                Write-Warning "failed to remove HTTP ingress container ${container}: $($_.Exception.Message)"
+            }
+        }
+        if ($createdNetwork) {
+            try {
+                Invoke-NativeCommand "docker" @("network", "rm", $networkName) | Out-Null
+            }
+            catch {
+                Write-Warning "failed to remove HTTP ingress Docker network ${networkName}: $($_.Exception.Message)"
+            }
+        }
+        if ($confRoot -and (Test-Path -LiteralPath $confRoot)) {
+            try {
+                Remove-Item -LiteralPath $confRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove HTTP ingress temporary config ${confRoot}: $($_.Exception.Message)"
             }
         }
     }
@@ -4979,7 +5460,7 @@ $authConfig = Join-Path $confDir "Auth_Verify.yml"
 $compatScript = Join-Path $RootPath "deploy\scripts\check_redis_compat.ps1"
 
 $requiredPaths = @($compatScript)
-if (-not $IncludeDockerBridgeCluster) {
+if (-not ($IncludeDockerBridgeCluster -or $IncludeHttpIngressStrategy)) {
     $requiredPaths += @($serviceExe, $serviceConfig, $coreConfig, $authConfig)
 }
 foreach ($path in $requiredPaths) {
@@ -5007,7 +5488,7 @@ try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
 
     if ($IncludeDockerBridgeCluster) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
         if ($otherIncludes) {
             Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
         }
@@ -5031,6 +5512,39 @@ try {
         }
 
         Invoke-DockerBridgeClusterSmoke
+        Say "PASS health/login/status/cluster smoke"
+        return
+    }
+
+    if ($IncludeHttpIngressStrategy) {
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
+        if ($otherIncludes) {
+            Fail "HTTP ingress strategy smoke must run in a separate lifecycle because it creates its own Docker network, Redis, NavCaster containers, and nginx proxy."
+        }
+        if ($RedisMode -ne "Docker") {
+            Fail "HTTP ingress strategy smoke requires RedisMode Docker because it owns the Redis fixture container inside the bridge network."
+        }
+        if ($HttpPort -eq $NtripBroadcastHttpPort) {
+            Fail "HTTP ingress node B HTTP host port must differ from node A HTTP host port."
+        }
+        if ($NtripPort -eq $NtripBroadcastNtripPort) {
+            Fail "HTTP ingress node B NTRIP host port must differ from node A NTRIP host port."
+        }
+        $httpPorts = @($HttpPort, $NtripBroadcastHttpPort, $HttpIngressStickyPort, $HttpIngressRoundRobinPort)
+        if (($httpPorts | Sort-Object -Unique).Count -ne $httpPorts.Count) {
+            Fail "HTTP ingress direct and proxy host ports must be unique: [$($httpPorts -join ',')]"
+        }
+
+        $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+        if (-not $dockerCmd) {
+            Fail "missing docker. HTTP ingress strategy smoke requires Docker Engine and local runtime images."
+        }
+        $dockerInfo = Invoke-NativeCommand "docker" @("info")
+        if ($dockerInfo.ExitCode -ne 0) {
+            Fail ("docker engine is not available: " + (($dockerInfo.Output | Select-Object -First 6) -join " "))
+        }
+
+        Invoke-HttpIngressStrategySmoke
         Say "PASS health/login/status/cluster smoke"
         return
     }
