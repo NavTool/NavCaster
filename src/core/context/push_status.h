@@ -37,6 +37,7 @@ public:
 
     int state() const { return _state; }
     bool running() const { return _state == 1; }
+    const std::string &connect_key() const { return _connect_key; }
     const std::string &node_uid() const { return _node_uid; }
 
     int fromString(const std::string &str)

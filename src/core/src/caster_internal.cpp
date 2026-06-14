@@ -1059,13 +1059,12 @@ int caster_internal::relay_task_response(std::string req_str)
         }
         else if (req.operate == caster::core::BOARDCAST_OPERATR_INACTIVE)
         {
-            auto it = _pull_status_map.find(uid);
-            if (it == _pull_status_map.end())
+            if (_pull_status_map.find(uid) == _pull_status_map.end())
             {
                 return 3; // 不存在这个任务，忽略
             }
             _relay_cb(_relay_cb_arg, req);
-            _pull_status_map.erase(it);
+            _pull_status_map.erase(uid);
             redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", uid.c_str());
         }
         else if (req.operate == caster::core::BOARDCAST_OPERATE_UPDATE)
@@ -1095,13 +1094,12 @@ int caster_internal::relay_task_response(std::string req_str)
         }
         else if (req.operate == caster::core::BOARDCAST_OPERATR_INACTIVE)
         {
-            auto it = _push_status_map.find(uid);
-            if (it == _push_status_map.end())
+            if (_push_status_map.find(uid) == _push_status_map.end())
             {
                 return 3; // 不存在这个任务，忽略
             }
             _relay_cb(_relay_cb_arg, req);
-            _push_status_map.erase(it);
+            _push_status_map.erase(uid);
             redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", uid.c_str());
         }
         else if (req.operate == caster::core::BOARDCAST_OPERATE_UPDATE)
@@ -1120,13 +1118,39 @@ int caster_internal::relay_task_response(std::string req_str)
 
 int caster_internal::upload_relay_status()
 {
-    for (auto iter : _pull_status_map)
+    for (auto iter = _pull_status_map.begin(); iter != _pull_status_map.end();)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        if (iter->second.node_uid() != _node_ID)
+        {
+            ++iter;
+            continue;
+        }
+        if (iter->second.running() &&
+            _server_status_map.find(iter->second.connect_key()) == _server_status_map.end())
+        {
+            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", iter->first.c_str());
+            iter = _pull_status_map.erase(iter);
+            continue;
+        }
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter->first.c_str(), iter->second.toString().c_str());
+        ++iter;
     }
-    for (auto iter : _push_status_map)
+    for (auto iter = _push_status_map.begin(); iter != _push_status_map.end();)
     {
-        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter.first.c_str(), iter.second.toString().c_str());
+        if (iter->second.node_uid() != _node_ID)
+        {
+            ++iter;
+            continue;
+        }
+        if (iter->second.running() &&
+            _client_status_map.find(iter->second.connect_key()) == _client_status_map.end())
+        {
+            redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", iter->first.c_str());
+            iter = _push_status_map.erase(iter);
+            continue;
+        }
+        redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s", std::to_string(_key_expire_time).c_str(), iter->first.c_str(), iter->second.toString().c_str());
+        ++iter;
     }
     return 0;
 }
@@ -1352,6 +1376,12 @@ void caster_internal::Redis_SyncPullStat_Callback(redisAsyncContext *c, void *r,
         }
         if (item.running())
         {
+            if (item.node_uid() == svr->_node_ID &&
+                svr->_server_status_map.find(item.connect_key()) == svr->_server_status_map.end())
+            {
+                redisAsyncCommand(svr->_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", field);
+                continue;
+            }
             running_count++;
         }
         svr->_pull_status_map.insert(std::pair<std::string, pull_status>(field, item));
@@ -1442,6 +1472,12 @@ void caster_internal::Redis_SyncPushStat_Callback(redisAsyncContext *c, void *r,
         }
         if (item.running())
         {
+            if (item.node_uid() == svr->_node_ID &&
+                svr->_client_status_map.find(item.connect_key()) == svr->_client_status_map.end())
+            {
+                redisAsyncCommand(svr->_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", field);
+                continue;
+            }
             running_count++;
         }
         svr->_push_status_map.insert(std::pair<std::string, push_status>(field, item));
