@@ -100,7 +100,8 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 本地双实例 AUTH:BROADCAST 可追加 `-IncludeNtripAuthBroadcast`；本地双实例
 node identity / cluster 可追加 `-IncludeLocalDualNodeIdentity`；
 禁用/失效账号矩阵可追加 `-IncludeNtripDisabledAccount`；HTTP Redis 断线/重连
-可追加 `-IncludeRedisReconnect`。
+可追加 `-IncludeRedisReconnect`；本地真实 relay pull/push 控制链路可追加
+`-IncludeRelayPullStartStop` 或 `-IncludeRelayPushStartStop`。
 必要时用 `-NtripPort` 避开本机端口冲突。
 
 ## 后端启动链路
@@ -545,4 +546,29 @@ SSE：
 - team-dev @ d7e9a6a 已重新验证 `CasterService`、`schema_smoke`、contract、
   默认 Docker e2e 和 `-IncludeRelayPullStartStop`。
 - 该 e2e 闭合本地真实 pull relay 控制链路；push relay、真实跨主机网络分区、
+  反向代理/sticky session 和 master lease failover 仍需后续专项。
+
+## 2026-06-14 NC-027 Relay Push start/stop 本地真实 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeRelayPushStartStop`，可用
+  `-NtripBroadcastHttpPort` 和 `-NtripBroadcastNtripPort` 指定第二实例端口。
+- 该 smoke 在一个 Redis 8.6.3 Docker fixture 下启动两个本地 `CasterService`
+  进程，第二实例使用临时 conf 目录和 `-conf <dir>\`，主实例承载真实 NTRIP
+  source mount，并推送到第二实例的独立 target mount。
+- 覆盖：主实例通过 `/api/relays/push` 创建 enabled push record 后，真实
+  `relay_push` 连接第二实例 target mount，`/api/relays/push/status` 或
+  `PUSH:STAT` 收敛到 `state=1`、`connect_key` 非空、`node_uid` 等于主实例
+  node_id。
+- 覆盖：第二实例关闭 source 匿名登录，独立 target mount 出现在 `MPT:LIST`、
+  `MPT:REC:<target_mount>` 和 `MPT:STAT`，证明目标实例接受了 relay push source。
+- 覆盖：`/api/monitor/cluster` 中主实例 `push` 计数相比基线增加，并在
+  stop/cleanup 后回落到基线。
+- 覆盖：`/api/relays/push/stop/<uid>` 设置 `enabled=false` 后状态不再
+  running，且目标实例 source 被清理；`/api/relays/push/start/<uid>` 设置
+  `enabled=true` 后状态重新 running，目标实例 source 重新在线。
+- `PUSH:STAT.connect_key` 属于发起侧 relay push 连接，第二实例
+  `MPT:REC:<target_mount>` 中的 target source connect_key 由目标实例本地生成；
+  脚本断言 target source connect_key 不等于主实例原始 source connect_key，也不等于
+  `PUSH:STAT.connect_key`。
+- 该 e2e 闭合本地真实 push relay 控制链路；数据内容完整性、真实跨主机网络分区、
   反向代理/sticky session 和 master lease failover 仍需后续专项。
