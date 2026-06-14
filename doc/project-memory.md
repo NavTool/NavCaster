@@ -518,3 +518,24 @@ SSE：
   `hostname` 和 `http_enabled` 与两个本地实例匹配。
 - 该 e2e 闭合本地双实例 node identity / cluster monitor 自动化缺口；真实跨主机
   网络分区、反向代理/sticky session 和 relay start/stop failover 仍需后续专项。
+
+## 2026-06-14 NC-026 Relay Pull start/stop 本地真实 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeRelayPullStartStop`，可用
+  `-NtripBroadcastHttpPort` 和 `-NtripBroadcastNtripPort` 指定第二实例端口。
+- 该 smoke 在一个 Redis 8.6.3 Docker fixture 下启动两个本地 `CasterService`
+  进程，第二实例使用临时 conf 目录和 `-conf <dir>\`，并承载真实 NTRIP
+  source mount。
+- 覆盖：主实例通过 `/api/relays/pull` 创建 enabled pull record 后，真实
+  `relay_pull` 连接第二实例目标 mount，`/api/relays/pull/status` 或
+  `PULL:STAT` 收敛到 `state=1`、`connect_key` 非空、`node_uid` 等于主实例
+  node_id。
+- 覆盖：第二实例关闭 rover 匿名登录，relay target 账号必须进入
+  `ACT:SESSION/ACT:REC/USR:REC`，且不产生 `ACT:UND` 匿名 rover 记录。
+- 覆盖：`/api/monitor/cluster` 中主实例 `pull` 计数相比基线增加，并在
+  stop/cleanup 后回落到基线。
+- 覆盖：`/api/relays/pull/stop/<uid>` 设置 `enabled=false` 后状态不再
+  running，且 not-running 判定同时检查 HTTP status 和 Redis `PULL:STAT`；
+  `/api/relays/pull/start/<uid>` 设置 `enabled=true` 后状态重新 running。
+- 该 e2e 闭合本地真实 pull relay 控制链路；push relay、真实跨主机网络分区、
+  反向代理/sticky session 和 master lease failover 仍需后续专项。
