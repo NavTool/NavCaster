@@ -209,6 +209,27 @@ Payload：listen_port/http_port/process_id/hostname/http_enabled 与对应实例
 该检查覆盖同主机多实例 node identity 和 cluster monitor 读侧一致性；真实跨主机
 网络分区、反向代理/sticky session 和 relay failover 仍需专项验证。
 
+Relay Pull start/stop 本地真实链路可追加：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeRelayPullStartStop -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该检查在同一 Redis fixture 下启动两个本地 `CasterService` 进程，第二实例使用
+临时 conf 目录和 `-conf <dir>\`，并承载真实 NTRIP source mount。脚本会验证：
+
+```text
+Relay create：Node A 通过 /api/relays/pull 写入 enabled pull record。
+Relay running：/api/relays/pull/status 或 PULL:STAT 中该 uid state=1、connect_key 非空、node_uid=Node A。
+Auth：Node B 关闭 rover 匿名登录，relay target 账号写入 ACT:SESSION/ACT:REC/USR:REC，且不产生 ACT:UND 匿名 rover 记录。
+Cluster：/api/monitor/cluster 中 Node A pull count 相比基线增加，并在 stop/cleanup 后回落。
+Relay stop：/api/relays/pull/stop/<uid> 后 enabled=false 且 HTTP status/Redis PULL:STAT 均不再 running。
+Relay start：/api/relays/pull/start/<uid> 后 enabled=true 且状态重新 running。
+```
+
+该检查覆盖本地真实 pull relay 控制链路；push relay、真实跨主机网络分区、
+反向代理/sticky session 和 master lease failover 仍需专项验证。
+
 真实 NTRIP/Auth 禁用/失效账号矩阵可追加：
 
 ```powershell

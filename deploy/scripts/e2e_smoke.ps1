@@ -31,6 +31,7 @@ param(
     [string]$NtripAnonymousScenario = "AllowAnonymous",
     [switch]$IncludeNtripAuthBroadcast,
     [switch]$IncludeLocalDualNodeIdentity,
+    [switch]$IncludeRelayPullStartStop,
     [switch]$IncludeNtripDisabledAccount,
     [switch]$IncludeRedisReconnect
 )
@@ -1029,7 +1030,9 @@ function Stop-E2eCasterServiceNode {
     try {
         if (-not $Node.Process.HasExited) {
             Stop-Process -Id $Node.Process.Id -Force
-            Start-Sleep -Milliseconds 500
+            if (-not $Node.Process.WaitForExit(5000)) {
+                Write-Warning "CasterService $($Node.Label) did not exit within 5 seconds"
+            }
         }
     }
     catch {
@@ -2603,6 +2606,211 @@ function Wait-LocalDualNodeCluster {
     Fail "local dual-node cluster view did not converge before timeout; last=[$last]"
 }
 
+function Get-PullRelayStatusFromHttp {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Uid
+    )
+
+    $states = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/relays/pull/status" -TimeoutSec 10
+    return Get-JsonProperty $states $Uid
+}
+
+function Get-PullRelayRecordFromHttp {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Uid
+    )
+
+    return Invoke-RestMethod -Headers $Headers -Uri "$Base/api/relays/pull/$Uid" -TimeoutSec 10
+}
+
+function Get-PullRelayStatusFromRedis {
+    param([string]$Uid)
+
+    $raw = Invoke-RedisCommand HGET "PULL:STAT" $Uid
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return $null
+    }
+
+    try {
+        return $raw | ConvertFrom-Json
+    }
+    catch {
+        Fail "PULL:STAT $Uid is not valid JSON: $(Format-DebugText $raw)"
+    }
+}
+
+function Wait-PullRelayRunning {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Uid,
+        [string]$ExpectedNodeId,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        try {
+            $status = Get-PullRelayStatusFromHttp $Base $Headers $Uid
+            if ($null -eq $status) {
+                $status = Get-PullRelayStatusFromRedis $Uid
+            }
+            if ($null -ne $status -and [int]$status.state -eq 1) {
+                if ([string]::IsNullOrWhiteSpace([string]$status.connect_key)) {
+                    Fail "$Context PULL:STAT $Uid running without connect_key"
+                }
+                if ($status.node_uid -ne $ExpectedNodeId) {
+                    Fail "$Context PULL:STAT $Uid node_uid mismatch: expected=$ExpectedNodeId actual=$($status.node_uid)"
+                }
+                return $status
+            }
+            $last = ConvertTo-CompactJson $status
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL "PULL:STAT")
+    Fail "$Context pull relay $Uid did not become running before timeout; last=[$last], pull_stat=[$raw]"
+}
+
+function Wait-PullRelayNotRunning {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Uid,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        $httpStatus = $null
+        $redisStatus = $null
+        $httpError = $null
+        $redisError = $null
+        try {
+            $httpStatus = Get-PullRelayStatusFromHttp $Base $Headers $Uid
+        }
+        catch {
+            $httpError = $_.Exception.Message
+        }
+        try {
+            $redisStatus = Get-PullRelayStatusFromRedis $Uid
+        }
+        catch {
+            $redisError = $_.Exception.Message
+        }
+
+        if (-not $redisError) {
+            $httpRunning = $null -ne $httpStatus -and [int]$httpStatus.state -eq 1
+            $redisRunning = $null -ne $redisStatus -and [int]$redisStatus.state -eq 1
+            if (-not $httpRunning -and -not $redisRunning) {
+                return
+            }
+        }
+
+        $last = "http=$(ConvertTo-CompactJson $httpStatus); redis=$(ConvertTo-CompactJson $redisStatus); http_error=$httpError; redis_error=$redisError"
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL "PULL:STAT")
+    Fail "$Context pull relay $Uid remained running before timeout; last=[$last], pull_stat=[$raw]"
+}
+
+function Wait-ClusterPullCountAtLeast {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$NodeId,
+        [int]$ExpectedPullCount,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        try {
+            $cluster = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/monitor/cluster" -TimeoutSec 10
+            $node = Get-ClusterNodeByUid $cluster $NodeId
+            if ($node -and [int]$node.pull -ge $ExpectedPullCount) {
+                return $node
+            }
+            $last = if ($node) { "pull=$($node.pull)" } else { "missing node $NodeId" }
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context cluster pull count did not reach $ExpectedPullCount for node $NodeId; last=[$last]"
+}
+
+function Wait-ClusterPullCountAtMost {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$NodeId,
+        [int]$ExpectedPullCount,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        try {
+            $cluster = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/monitor/cluster" -TimeoutSec 10
+            $node = Get-ClusterNodeByUid $cluster $NodeId
+            if ($node -and [int]$node.pull -le $ExpectedPullCount) {
+                return $node
+            }
+            $last = if ($node) { "pull=$($node.pull)" } else { "missing node $NodeId" }
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context cluster pull count did not return to <= $ExpectedPullCount for node $NodeId; last=[$last]"
+}
+
+function Remove-PullRelayRecord {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Uid
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Uid)) {
+        return
+    }
+
+    try {
+        Invoke-RestMethod -Method Delete -Headers $Headers -Uri "$Base/api/relays/pull/$Uid" -TimeoutSec 10 | Out-Null
+    }
+    catch {
+    }
+    try {
+        Invoke-RedisCommand HDEL "PULL:RECORD" $Uid | Out-Null
+        Invoke-RedisCommand HDEL "PULL:STAT" $Uid | Out-Null
+    }
+    catch {
+    }
+}
+
 function Wait-E2eRedisStatusConnected {
     param(
         [string]$Base,
@@ -2778,6 +2986,171 @@ function Invoke-LocalDualNodeIdentitySmoke {
     }
 }
 
+function Invoke-RelayPullStartStopSmoke {
+    param(
+        [string]$PrimaryBase,
+        [hashtable]$PrimaryHeaders,
+        [int]$PrimaryNtripPort,
+        [int]$SecondaryHttpPort,
+        [int]$SecondaryNtripPort
+    )
+
+    $secondaryNode = $null
+    $secondaryConfRoot = $null
+    $sourceConnection = $null
+    $seed = $null
+    $pullUid = $null
+    $relaySession = $null
+
+    try {
+        $primaryStatus = Assert-E2eStatusAndCluster $PrimaryBase $PrimaryHeaders "relay pull primary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $primaryStatus.node_id "relay pull primary"
+
+        $secondaryConfRoot = Join-Path $env:TEMP ("navcaster-e2e-nc026-" + [guid]::NewGuid().ToString())
+        $secondaryConfDir = Join-Path $secondaryConfRoot "conf"
+        Copy-E2eServiceConfig `
+            -SourceConfDir $confDir `
+            -DestinationConfDir $secondaryConfDir `
+            -HttpPort $SecondaryHttpPort `
+            -NtripPort $SecondaryNtripPort `
+            -HttpBindAddr $HttpBindAddr `
+            -AdminUser $AdminUser `
+            -AdminPassword $AdminPassword `
+            -RedisHost $RedisHost `
+            -RedisPort $RedisPort `
+            -RedisPassword $RedisPassword `
+            -RoverOnlineProtection $false `
+            -RoverAnonymousLogin $false
+
+        $secondaryBase = "http://${HttpBindAddr}:${SecondaryHttpPort}"
+        $secondaryNode = Start-E2eCasterServiceNode "nc026-relay-target" $serviceExe $releaseDir $secondaryConfDir $secondaryBase $StartupTimeoutSec
+        $secondarySession = Invoke-E2eLogin $secondaryBase
+        $secondaryStatus = Assert-E2eStatusAndCluster $secondaryBase $secondarySession.Headers "relay pull secondary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $secondaryStatus.node_id "relay pull secondary"
+
+        if ($primaryStatus.node_id -eq $secondaryStatus.node_id) {
+            Fail "relay pull smoke requires distinct local node ids, both were $($primaryStatus.node_id)"
+        }
+
+        $baselineNode = Wait-ClusterPullCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id 0 $StartupTimeoutSec "relay pull baseline"
+        $baselinePull = [int]$baselineNode.pull
+
+        $seed = New-NtripAuthSessionSeed -Label "nc026_relay_pull" -ConnectionLimit 1
+        $script:ntripAuthSeed = $seed
+        Add-NtripAuthAccountSeed $seed
+        $sourceConnection = Open-NtripSourceForSeed $seed $HttpBindAddr $SecondaryNtripPort "relay-target-source"
+        $script:ntripSourceConnection = $sourceConnection
+
+        $pullUid = "$($seed.Prefix)_pull"
+        $pullBody = [ordered]@{
+            uid = $pullUid
+            login_mpt = $seed.Mount
+            type = 2
+            target_ip = $HttpBindAddr
+            target_port = $SecondaryNtripPort
+            target_mpt = $seed.Mount
+            target_account = $seed.Account
+            target_password = $seed.Password
+            enabled = $true
+        } | ConvertTo-Json -Compress
+
+        Say "creating pull relay uid=$pullUid target=$HttpBindAddr`:$SecondaryNtripPort mount=$($seed.Mount)"
+        $create = Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -ContentType "application/json" -Body $pullBody -Uri "$PrimaryBase/api/relays/pull" -TimeoutSec 10
+        if ($create.uid -ne $pullUid) {
+            Fail "create pull relay response uid mismatch: expected=$pullUid actual=$($create.uid)"
+        }
+
+        $running = Wait-PullRelayRunning $PrimaryBase $PrimaryHeaders $pullUid $primaryStatus.node_id $StartupTimeoutSec "relay pull create"
+        $relaySession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $relaySession.Field
+        Wait-NtripOnlineExactFields $seed @($relaySession.Field) $StartupTimeoutSec "relay pull target named auth" | Out-Null
+        $anonymousRecords = @(Get-NtripAnonymousClientRecords $seed)
+        if ($anonymousRecords.Count -ne 0) {
+            Fail "relay pull target unexpectedly used anonymous rover auth: $(Format-DebugText (Format-NtripAnonymousRecords $seed))"
+        }
+        Wait-ClusterPullCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id ($baselinePull + 1) $StartupTimeoutSec "relay pull create" | Out-Null
+
+        Say "stopping pull relay uid=$pullUid"
+        $stop = Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -Uri "$PrimaryBase/api/relays/pull/stop/$pullUid" -TimeoutSec 10
+        if ($stop.ok -ne $true) {
+            Fail "stop pull relay did not return ok"
+        }
+        $stoppedRecord = Get-PullRelayRecordFromHttp $PrimaryBase $PrimaryHeaders $pullUid
+        if ($stoppedRecord.enabled -ne $false) {
+            Fail "stop pull relay did not set enabled=false"
+        }
+        Wait-PullRelayNotRunning $PrimaryBase $PrimaryHeaders $pullUid $StartupTimeoutSec "relay pull stop"
+        Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "relay pull stop named auth cleanup" | Out-Null
+        Wait-ClusterPullCountAtMost $PrimaryBase $PrimaryHeaders $primaryStatus.node_id $baselinePull $StartupTimeoutSec "relay pull stop" | Out-Null
+        $relaySession = $null
+
+        Say "restarting pull relay uid=$pullUid"
+        $start = Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -Uri "$PrimaryBase/api/relays/pull/start/$pullUid" -TimeoutSec 10
+        if ($start.ok -ne $true) {
+            Fail "start pull relay did not return ok"
+        }
+        $startedRecord = Get-PullRelayRecordFromHttp $PrimaryBase $PrimaryHeaders $pullUid
+        if ($startedRecord.enabled -ne $true) {
+            Fail "start pull relay did not set enabled=true"
+        }
+        $restarted = Wait-PullRelayRunning $PrimaryBase $PrimaryHeaders $pullUid $primaryStatus.node_id $StartupTimeoutSec "relay pull restart"
+        if ($restarted.connect_key -eq $running.connect_key) {
+            Say "relay pull restart reused connect_key=$($restarted.connect_key)"
+        }
+        $relaySession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $relaySession.Field
+        Wait-NtripOnlineExactFields $seed @($relaySession.Field) $StartupTimeoutSec "relay pull restart target named auth" | Out-Null
+        Wait-ClusterPullCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id ($baselinePull + 1) $StartupTimeoutSec "relay pull restart" | Out-Null
+
+        Remove-PullRelayRecord $PrimaryBase $PrimaryHeaders $pullUid
+        Wait-PullRelayNotRunning $PrimaryBase $PrimaryHeaders $pullUid $StartupTimeoutSec "relay pull cleanup"
+        Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "relay pull cleanup named auth" | Out-Null
+        Wait-ClusterPullCountAtMost $PrimaryBase $PrimaryHeaders $primaryStatus.node_id $baselinePull $StartupTimeoutSec "relay pull cleanup" | Out-Null
+        $pullUid = $null
+        $relaySession = $null
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        $script:ntripSourceConnection = $null
+        Remove-NtripAuthSessionSeed $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+
+        Stop-E2eCasterServiceNode $secondaryNode
+        $secondaryNode = $null
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            $secondaryConfRoot = $null
+        }
+
+        Say "PASS relay pull start/stop smoke"
+    }
+    finally {
+        if ($pullUid) {
+            Remove-PullRelayRecord $PrimaryBase $PrimaryHeaders $pullUid
+        }
+        Close-NtripTcpConnection $sourceConnection
+        if ($script:ntripSourceConnection -eq $sourceConnection) {
+            $script:ntripSourceConnection = $null
+        }
+        if ($script:ntripAuthSeed -eq $seed) {
+            $script:ntripAuthSeed = $null
+        }
+        if ($seed) {
+            Remove-NtripAuthSessionSeed $seed
+        }
+        Stop-E2eCasterServiceNode $secondaryNode
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            try {
+                Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove relay pull service config: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
 if (-not $RootPath) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $RootPath = Join-Path $scriptDir "..\.."
@@ -2807,7 +3180,7 @@ $activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop
 $ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
@@ -2825,13 +3198,16 @@ try {
     if ($IncludeLocalDualNodeIdentity -and $IncludeNtripAuthBroadcast) {
         Fail "Local dual-node identity smoke must run separately from NTRIP Auth Broadcast because both scenarios start a second local CasterService instance."
     }
-    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast)) {
+    if ($IncludeRelayPullStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity)) {
+        Fail "Relay pull start/stop smoke must run separately from other local dual-instance smokes."
+    }
+    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeRelayPullStartStop)) {
         Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity) -and $HttpPort -eq $NtripBroadcastHttpPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop) -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "secondary HTTP port must differ from primary HTTP port."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity) -and $NtripPort -eq $NtripBroadcastNtripPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop) -and $NtripPort -eq $NtripBroadcastNtripPort) {
         Fail "secondary NTRIP port must differ from primary NTRIP port."
     }
 
@@ -2939,7 +3315,7 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity) {
+    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
     }
@@ -3031,6 +3407,10 @@ try {
         Invoke-LocalDualNodeIdentitySmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
     }
 
+    if ($IncludeRelayPullStartStop) {
+        Invoke-RelayPullStartStopSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+    }
+
     if ($IncludeNtripDisabledAccount) {
         Invoke-NtripDisabledAccountSmoke $base $headers $HttpBindAddr $NtripPort
     }
@@ -3105,7 +3485,9 @@ finally {
     try {
         if ($serviceProcess -and -not $serviceProcess.HasExited) {
             Stop-Process -Id $serviceProcess.Id -Force
-            Start-Sleep -Milliseconds 500
+            if (-not $serviceProcess.WaitForExit(5000)) {
+                Write-Warning "CasterService did not exit within 5 seconds"
+            }
         }
     }
     catch {

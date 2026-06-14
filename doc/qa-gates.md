@@ -241,6 +241,32 @@ NTRIP/Auth Broadcast 跨实例 deep smoke 使用同一个 Redis fixture 拉起�
 以及 cluster monitor 双 HTTP 入口读侧一致性；真实跨主机网络分区、反向代理/sticky
 session 和 relay failover 仍需专项任务覆盖。
 
+Relay Pull start/stop deep smoke 使用同一个 Redis fixture 拉起两个本地
+`CasterService` 进程，并让第二实例提供真实 NTRIP source mount：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeRelayPullStartStop -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该模式会为第二实例复制临时 conf 目录，并通过 `-conf <dir>\` 指向独立配置。
+测试必须验证：
+
+```text
+1. Node A 和 Node B 均可 health/login/status，且 node_id 不同。
+2. Node B 真实 NTRIP source mount 成功上线。
+3. Node A 通过 /api/relays/pull 创建 pull record 成功。
+4. /api/relays/pull/status 或 Redis PULL:STAT 对应 uid 收敛到 state=1、connect_key 非空、node_uid=Node A node_id。
+5. Node B 关闭 rover 匿名登录，relay target 账号写入 ACT:SESSION/ACT:REC/USR:REC，且不产生 ACT:UND 匿名 rover 记录。
+6. /api/monitor/cluster 中 Node A pull count 相比基线至少增加 1。
+7. POST /api/relays/pull/stop/<uid> 后 record.enabled=false，HTTP status 与 Redis PULL:STAT 均不再 running，Node A pull count 回落到基线。
+8. POST /api/relays/pull/start/<uid> 后 record.enabled=true，PULL:STAT 再次 state=1。
+9. finally 清理 pull record/status、NTRIP source、第二实例进程、临时 conf、主服务配置和 Docker fixture。
+```
+
+该检查覆盖本地真实 pull relay 控制链路：HTTP relay API、RelayScheduler 广播、
+`relay_pull` NTRIP I/O、`PULL:STAT` 回写和 cluster pull count。它不覆盖 push relay、
+真实跨主机网络分区、反向代理/sticky session 或 master lease failover。
+
 NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
 
 ```powershell
