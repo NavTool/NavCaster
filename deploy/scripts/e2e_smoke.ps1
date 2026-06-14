@@ -33,6 +33,7 @@ param(
     [switch]$IncludeLocalDualNodeIdentity,
     [switch]$IncludeRelayPullStartStop,
     [switch]$IncludeRelayPushStartStop,
+    [switch]$IncludeRelayDataForwarding,
     [switch]$IncludeNtripDisabledAccount,
     [switch]$IncludeRedisReconnect
 )
@@ -589,6 +590,93 @@ function Assert-NtripResponseOk {
     Fail "$Context NTRIP response was not successful: $(Format-DebugText $Response)"
 }
 
+function Find-ByteSequenceIndex {
+    param(
+        [byte[]]$Haystack,
+        [byte[]]$Needle
+    )
+
+    if ($null -eq $Haystack -or $null -eq $Needle -or $Needle.Length -eq 0 -or $Haystack.Length -lt $Needle.Length) {
+        return -1
+    }
+
+    for ($i = 0; $i -le ($Haystack.Length - $Needle.Length); $i++) {
+        $matched = $true
+        for ($j = 0; $j -lt $Needle.Length; $j++) {
+            if ($Haystack[$i + $j] -ne $Needle[$j]) {
+                $matched = $false
+                break
+            }
+        }
+        if ($matched) {
+            return $i
+        }
+    }
+
+    return -1
+}
+
+function Write-NtripPayload {
+    param(
+        [object]$Connection,
+        [string]$Payload,
+        [string]$Context
+    )
+
+    if (-not $Connection -or -not $Connection.Client -or -not $Connection.Client.Connected) {
+        Fail "$Context source connection is not open"
+    }
+
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes($Payload)
+    $stream = $Connection.Client.GetStream()
+    $stream.Write($bytes, 0, $bytes.Length)
+    $stream.Flush()
+    Say "$Context wrote payload bytes=$($bytes.Length)"
+}
+
+function Wait-NtripPayload {
+    param(
+        [object]$Connection,
+        [string]$ExpectedPayload,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    if (-not $Connection -or -not $Connection.Client -or -not $Connection.Client.Connected) {
+        Fail "$Context client connection is not open"
+    }
+
+    $expected = [System.Text.Encoding]::ASCII.GetBytes($ExpectedPayload)
+    $buffer = New-Object byte[] 4096
+    $received = New-Object System.Collections.Generic.List[byte]
+    $stream = $Connection.Client.GetStream()
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+
+    do {
+        while ($Connection.Client.Available -gt 0 -or $stream.DataAvailable) {
+            $available = $Connection.Client.Available
+            if ($available -le 0) {
+                $available = $buffer.Length
+            }
+            $read = $stream.Read($buffer, 0, [Math]::Min($buffer.Length, $available))
+            if ($read -le 0) {
+                break
+            }
+            for ($i = 0; $i -lt $read; $i++) {
+                $received.Add($buffer[$i])
+            }
+            if ((Find-ByteSequenceIndex ([byte[]]$received.ToArray()) $expected) -ge 0) {
+                Say "$Context received expected payload bytes=$($expected.Length)"
+                return
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    } while ((Get-Date) -lt $deadline)
+
+    $receivedText = [System.Text.Encoding]::ASCII.GetString([byte[]]$received.ToArray())
+    Fail "$Context did not receive expected payload before timeout; expected=[$ExpectedPayload] received=[$(Format-DebugText $receivedText)]"
+}
+
 function Wait-NtripSourceActive {
     param(
         [pscustomobject]$Seed,
@@ -1119,9 +1207,10 @@ function Open-NtripSourceForSeed {
     return $connection
 }
 
-function Open-NtripClientForSeed {
+function Open-NtripClientForMount {
     param(
         [pscustomobject]$Seed,
+        [string]$Mount,
         [string]$NtripHost,
         [int]$NtripPort,
         [string]$Label = "client",
@@ -1129,14 +1218,14 @@ function Open-NtripClientForSeed {
     )
 
     $clientAuth = ConvertTo-BasicAuthValue $Seed.Account $Seed.Password
-    $clientRequest = "GET /$($Seed.Mount) HTTP/1.1`r`n" +
+    $clientRequest = "GET /$Mount HTTP/1.1`r`n" +
         "Host: ${NtripHost}:$NtripPort`r`n" +
         "Ntrip-Version: Ntrip/2.0`r`n" +
         "Authorization: Basic $clientAuth`r`n" +
         "User-Agent: NTRIP NavCasterE2E/$($Seed.Prefix)`r`n" +
         "Connection: close`r`n`r`n"
 
-    Say "opening NTRIP client account=$($Seed.Account) label=$Label"
+    Say "opening NTRIP client account=$($Seed.Account) mount=$Mount label=$Label"
     $connection = Open-NtripTcpConnection $NtripHost $NtripPort $clientRequest $Label 10 -AllowEmptyResponse:$AllowRejected
     if (-not $AllowRejected) {
         Assert-NtripResponseOk $connection.Response $Label
@@ -1148,6 +1237,24 @@ function Open-NtripClientForSeed {
         }
     }
     return $connection
+}
+
+function Open-NtripClientForSeed {
+    param(
+        [pscustomobject]$Seed,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [string]$Label = "client",
+        [switch]$AllowRejected
+    )
+
+    return Open-NtripClientForMount `
+        -Seed $Seed `
+        -Mount $Seed.Mount `
+        -NtripHost $NtripHost `
+        -NtripPort $NtripPort `
+        -Label $Label `
+        -AllowRejected:$AllowRejected
 }
 
 function New-NtripAnonymousAuthSeed {
@@ -3319,12 +3426,14 @@ function Invoke-RelayPullStartStopSmoke {
         [hashtable]$PrimaryHeaders,
         [int]$PrimaryNtripPort,
         [int]$SecondaryHttpPort,
-        [int]$SecondaryNtripPort
+        [int]$SecondaryNtripPort,
+        [switch]$AssertDataForwarding
     )
 
     $secondaryNode = $null
     $secondaryConfRoot = $null
     $sourceConnection = $null
+    $forwardClientConnection = $null
     $seed = $null
     $pullUid = $null
     $relaySession = $null
@@ -3362,7 +3471,9 @@ function Invoke-RelayPullStartStopSmoke {
         $baselineNode = Wait-ClusterPullCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id 0 $StartupTimeoutSec "relay pull baseline"
         $baselinePull = [int]$baselineNode.pull
 
-        $seed = New-NtripAuthSessionSeed -Label "nc026_relay_pull" -ConnectionLimit 1
+        $pullConnectionLimit = if ($AssertDataForwarding) { 2 } else { 1 }
+        $pullLabel = if ($AssertDataForwarding) { "nc028_relay_pull_data" } else { "nc026_relay_pull" }
+        $seed = New-NtripAuthSessionSeed -Label $pullLabel -ConnectionLimit $pullConnectionLimit
         $script:ntripAuthSeed = $seed
         Add-NtripAuthAccountSeed $seed
         $sourceConnection = Open-NtripSourceForSeed $seed $HttpBindAddr $SecondaryNtripPort "relay-target-source"
@@ -3396,6 +3507,22 @@ function Invoke-RelayPullStartStopSmoke {
             Fail "relay pull target unexpectedly used anonymous rover auth: $(Format-DebugText (Format-NtripAnonymousRecords $seed))"
         }
         Wait-ClusterPullCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id ($baselinePull + 1) $StartupTimeoutSec "relay pull create" | Out-Null
+
+        if ($AssertDataForwarding) {
+            $forwardClientConnection = Open-NtripClientForSeed $seed $HttpBindAddr $PrimaryNtripPort "relay-pull-forward-client"
+            $payload = "NC028-PULL-DATA:$($seed.Prefix):0123456789"
+            Start-Sleep -Milliseconds 500
+            Write-NtripPayload $sourceConnection $payload "relay pull data forwarding"
+            Wait-NtripPayload $forwardClientConnection $payload $StartupTimeoutSec "relay pull data forwarding"
+            $forwardSessionMap = Get-NtripSessionMap $seed
+            $forwardFields = @($forwardSessionMap.Records.Keys | Where-Object { $_ -ne $relaySession.Field })
+            if ($forwardFields.Count -gt 0) {
+                $seed.ExtraClientConnectKeys += @($forwardFields)
+            }
+            Close-NtripTcpConnection $forwardClientConnection
+            $forwardClientConnection = $null
+            Wait-NtripOnlineExactFields $seed @($relaySession.Field) $StartupTimeoutSec "relay pull data client cleanup" | Out-Null
+        }
 
         Say "stopping pull relay uid=$pullUid"
         $stop = Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -Uri "$PrimaryBase/api/relays/pull/stop/$pullUid" -TimeoutSec 10
@@ -3456,6 +3583,7 @@ function Invoke-RelayPullStartStopSmoke {
         if ($pullUid) {
             Remove-PullRelayRecord $PrimaryBase $PrimaryHeaders $pullUid
         }
+        Close-NtripTcpConnection $forwardClientConnection
         Close-NtripTcpConnection $sourceConnection
         if ($script:ntripSourceConnection -eq $sourceConnection) {
             $script:ntripSourceConnection = $null
@@ -3484,12 +3612,14 @@ function Invoke-RelayPushStartStopSmoke {
         [hashtable]$PrimaryHeaders,
         [int]$PrimaryNtripPort,
         [int]$SecondaryHttpPort,
-        [int]$SecondaryNtripPort
+        [int]$SecondaryNtripPort,
+        [switch]$AssertDataForwarding
     )
 
     $secondaryNode = $null
     $secondaryConfRoot = $null
     $sourceConnection = $null
+    $forwardClientConnection = $null
     $seed = $null
     $pushUid = $null
     $runningStatus = $null
@@ -3530,7 +3660,8 @@ function Invoke-RelayPushStartStopSmoke {
         $baselineNode = Wait-ClusterPushCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id 0 $StartupTimeoutSec "relay push baseline"
         $baselinePush = [int]$baselineNode.push
 
-        $seed = New-NtripAuthSessionSeed -Label "nc027_relay_push"
+        $pushLabel = if ($AssertDataForwarding) { "nc028_relay_push_data" } else { "nc027_relay_push" }
+        $seed = New-NtripAuthSessionSeed -Label $pushLabel
         $script:ntripAuthSeed = $seed
         Add-NtripAuthAccountSeed $seed
         Add-NtripSourceAuthAccountSeed $seed
@@ -3563,6 +3694,24 @@ function Invoke-RelayPushStartStopSmoke {
         }
         $seed.TargetSourceConnectKey = $targetSource.ConnectKey
         Wait-ClusterPushCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id ($baselinePush + 1) $StartupTimeoutSec "relay push create" | Out-Null
+
+        if ($AssertDataForwarding) {
+            $forwardClientConnection = Open-NtripClientForMount `
+                -Seed $seed `
+                -Mount $seed.TargetMount `
+                -NtripHost $HttpBindAddr `
+                -NtripPort $SecondaryNtripPort `
+                -Label "relay-push-forward-client"
+            $forwardSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+            $seed.ClientConnectKey = $forwardSession.Field
+            $payload = "NC028-PUSH-DATA:$($seed.Prefix):9876543210"
+            Start-Sleep -Milliseconds 500
+            Write-NtripPayload $sourceConnection $payload "relay push data forwarding"
+            Wait-NtripPayload $forwardClientConnection $payload $StartupTimeoutSec "relay push data forwarding"
+            Close-NtripTcpConnection $forwardClientConnection
+            $forwardClientConnection = $null
+            Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "relay push data client cleanup" | Out-Null
+        }
 
         Say "stopping push relay uid=$pushUid"
         $stop = Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -Uri "$PrimaryBase/api/relays/push/stop/$pushUid" -TimeoutSec 10
@@ -3624,6 +3773,7 @@ function Invoke-RelayPushStartStopSmoke {
         if ($pushUid) {
             Remove-PushRelayRecord $PrimaryBase $PrimaryHeaders $pushUid
         }
+        Close-NtripTcpConnection $forwardClientConnection
         Close-NtripTcpConnection $sourceConnection
         if ($script:ntripSourceConnection -eq $sourceConnection) {
             $script:ntripSourceConnection = $null
@@ -3675,7 +3825,7 @@ $activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding
 $ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
@@ -3693,19 +3843,22 @@ try {
     if ($IncludeLocalDualNodeIdentity -and $IncludeNtripAuthBroadcast) {
         Fail "Local dual-node identity smoke must run separately from NTRIP Auth Broadcast because both scenarios start a second local CasterService instance."
     }
-    if ($IncludeRelayPullStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPushStartStop)) {
+    if ($IncludeRelayPullStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding)) {
         Fail "Relay pull start/stop smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeRelayPushStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity)) {
+    if ($IncludeRelayPushStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayDataForwarding)) {
         Fail "Relay push start/stop smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop)) {
+    if ($IncludeRelayDataForwarding -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity)) {
+        Fail "Relay data forwarding smoke must run separately from other local dual-instance smokes."
+    }
+    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding)) {
         Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop) -and $HttpPort -eq $NtripBroadcastHttpPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "secondary HTTP port must differ from primary HTTP port."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop) -and $NtripPort -eq $NtripBroadcastNtripPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) -and $NtripPort -eq $NtripBroadcastNtripPort) {
         Fail "secondary NTRIP port must differ from primary NTRIP port."
     }
 
@@ -3813,7 +3966,7 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop) {
+    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
     }
@@ -3911,6 +4064,11 @@ try {
 
     if ($IncludeRelayPushStartStop) {
         Invoke-RelayPushStartStopSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+    }
+
+    if ($IncludeRelayDataForwarding) {
+        Invoke-RelayPullStartStopSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort -AssertDataForwarding
+        Invoke-RelayPushStartStopSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort -AssertDataForwarding
     }
 
     if ($IncludeNtripDisabledAccount) {

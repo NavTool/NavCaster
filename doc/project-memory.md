@@ -572,3 +572,23 @@ SSE：
   `PUSH:STAT.connect_key`。
 - 该 e2e 闭合本地真实 push relay 控制链路；数据内容完整性、真实跨主机网络分区、
   反向代理/sticky session 和 master lease failover 仍需后续专项。
+
+## 2026-06-14 NC-028 Relay 数据转发本地真实 e2e
+
+- Windows `deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeRelayDataForwarding`，默认
+  关闭，复用 NC-026/NC-027 的本地双实例 relay start/stop fixture。
+- 该 smoke 在一个 Redis 8.6.3 Docker fixture 下顺序运行 pull 和 push 数据路径，
+  每个路径均启动第二个本地 `CasterService` 实例、使用临时 conf 目录和独立
+  HTTP/NTRIP 端口。
+- Pull 数据路径：Node B 提供真实 NTRIP source mount，Node A 通过
+  `/api/relays/pull` 创建 pull relay；Node A 下游 rover client 订阅本地 relay
+  mount 后，Node B source socket 写入 `NC028-PULL-DATA` payload，Node A client
+  收到完整 payload。
+- Push 数据路径：Node A 提供真实 NTRIP source mount，Node A 通过
+  `/api/relays/push` 创建 push relay 到 Node B 独立 target mount；Node B 下游
+  rover client 订阅 target mount 后，Node A source socket 写入 `NC028-PUSH-DATA`
+  payload，Node B client 收到完整 payload。
+- 数据断言不替代既有控制面断言：pull/push start/stop/status、cluster count、
+  target mount/source lifecycle 和 cleanup 仍沿用 NC-026/NC-027 路径。
+- 该 e2e 补齐本地真实 relay 数据内容转发证据；长时间大吞吐、丢包/乱序、真实跨主机
+  网络分区、反向代理/sticky session 和 master lease failover 仍需后续专项。
