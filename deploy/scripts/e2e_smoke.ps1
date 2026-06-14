@@ -33,6 +33,9 @@ param(
     [switch]$IncludeLocalDualNodeIdentity,
     [switch]$IncludeMasterLeaseFailover,
     [switch]$IncludeMasterLeaseStability,
+    [switch]$IncludeDockerBridgeCluster,
+    [string]$NavCasterImage = "navcaster:latest",
+    [string]$DockerBridgeNetworkName = "navcaster-e2e-nc031-$PID",
     [switch]$IncludeRelayPullStartStop,
     [switch]$IncludeRelayPushStartStop,
     [switch]$IncludeRelayDataForwarding,
@@ -2941,6 +2944,643 @@ function Assert-E2eMasterNodeStable {
     } while ((Get-Date) -lt $deadline)
 }
 
+function Assert-DockerImagePresent {
+    param(
+        [string]$Image,
+        [string]$Context
+    )
+
+    $result = Invoke-NativeCommand "docker" @("image", "inspect", $Image)
+    if ($result.ExitCode -ne 0) {
+        Fail "$Context requires local Docker image '$Image'. Build or load it before running this smoke; output=$($result.Output -join ' ')"
+    }
+}
+
+function Invoke-DockerBridgeRedisCommand {
+    param(
+        [string]$ContainerName,
+        [Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArgs
+    )
+
+    $baseArgs = @("exec", $ContainerName, "redis-cli", "-h", "127.0.0.1", "-p", "6379", "--raw")
+    if ($RedisPassword) {
+        $baseArgs += @("--no-auth-warning", "-a", $RedisPassword)
+    }
+    $result = Invoke-NativeCommand "docker" ($baseArgs + $CommandArgs)
+    if ($result.ExitCode -ne 0) {
+        throw ($result.Output -join "`n")
+    }
+    return ($result.Output -join "`n").Trim()
+}
+
+function Wait-DockerBridgeRedisReady {
+    param(
+        [string]$ContainerName,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 500
+        try {
+            $reply = Invoke-DockerBridgeRedisCommand $ContainerName PING
+            if ($reply -eq "PONG") {
+                return
+            }
+            $last = $reply
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context Redis container did not become ready before timeout; last=[$last]"
+}
+
+function Get-DockerLogsTail {
+    param(
+        [string]$ContainerName,
+        [int]$Tail = 80
+    )
+
+    $result = Invoke-NativeCommand "docker" @("logs", "--tail", ([string]$Tail), $ContainerName)
+    if ($result.ExitCode -ne 0) {
+        return ($result.Output -join "`n")
+    }
+    return ($result.Output -join "`n")
+}
+
+function Set-YamlValueInSectionOrAppend {
+    param(
+        [string]$Text,
+        [string]$Section,
+        [string]$Key,
+        [string]$Value
+    )
+
+    try {
+        return Set-YamlValueInSection $Text $Section $Key $Value
+    }
+    catch {
+        $lines = $Text -split "`r?`n"
+        $sectionLine = -1
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^\S[^:]*:\s*(?:#.*)?$') {
+                $name = ($lines[$i] -split ":", 2)[0].Trim()
+                if ($name -eq $Section) {
+                    $sectionLine = $i
+                    break
+                }
+            }
+        }
+        if ($sectionLine -lt 0) {
+            throw "section not found: $Section"
+        }
+
+        $insertAt = $sectionLine + 1
+        while ($insertAt -lt $lines.Count) {
+            $line = $lines[$insertAt]
+            if ($line -match '^\S[^:]*:\s*(?:#.*)?$') {
+                break
+            }
+            $insertAt++
+        }
+
+        $before = @()
+        if ($insertAt -gt 0) {
+            $before = @($lines[0..($insertAt - 1)])
+        }
+        $after = @()
+        if ($insertAt -lt $lines.Count) {
+            $after = @($lines[$insertAt..($lines.Count - 1)])
+        }
+
+        return (($before + @("  ${Key}: $Value") + $after) -join "`r`n")
+    }
+}
+
+function Copy-DockerBridgeImageConfig {
+    param(
+        [string]$DestinationRoot
+    )
+
+    $copyContainer = "$DockerBridgeNetworkName-conf"
+    $createResult = Invoke-NativeCommand "docker" @("create", "--name", $copyContainer, $NavCasterImage)
+    if ($createResult.ExitCode -ne 0) {
+        Fail "failed to create temporary config copy container: $($createResult.Output -join ' ')"
+    }
+    try {
+        $copyResult = Invoke-NativeCommand "docker" @("cp", "${copyContainer}:/app/conf", $DestinationRoot)
+        if ($copyResult.ExitCode -ne 0) {
+            Fail "failed to copy /app/conf from runtime image: $($copyResult.Output -join ' ')"
+        }
+    }
+    finally {
+        Invoke-NativeCommand "docker" @("rm", "-f", $copyContainer) | Out-Null
+    }
+}
+
+function New-DockerBridgeCasterConfig {
+    param(
+        [string]$TemplateConfDir,
+        [string]$DestinationConfDir
+    )
+
+    Copy-Item -LiteralPath $TemplateConfDir -Destination $DestinationConfDir -Recurse -Force
+
+    $servicePath = Join-Path $DestinationConfDir "Service_Setting.yml"
+    $corePath = Join-Path $DestinationConfDir "Caster_Core.yml"
+    $authPath = Join-Path $DestinationConfDir "Auth_Verify.yml"
+
+    foreach ($path in @($servicePath, $corePath, $authPath)) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            Fail "runtime image config is missing required file: $path"
+        }
+    }
+
+    $serviceText = Get-Content -LiteralPath $servicePath -Raw
+    $serviceText = Set-YamlValueInSection $serviceText "Ntrip_Listener_Setting" "Listen_Port" "4202"
+    $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Port" "8080"
+    $serviceText = Set-YamlValueInSection $serviceText "HTTP_API_Setting" "Bind_Addr" "`"0.0.0.0`""
+    $serviceText = Set-YamlValueInSectionOrAppend $serviceText "HTTP_API_Setting" "Force_Enable" "true"
+    $serviceText = Set-YamlValueInSectionOrAppend $serviceText "HTTP_API_Setting" "Admin_User" "`"$AdminUser`""
+    $serviceText = Set-YamlValueInSectionOrAppend $serviceText "HTTP_API_Setting" "Admin_Password" "`"$AdminPassword`""
+    Write-TextFile $servicePath $serviceText
+
+    $coreText = Get-Content -LiteralPath $corePath -Raw
+    $coreText = Set-YamlValueInSectionOrAppend $coreText "Caster_Setting" "Update_Intv" "1"
+    $coreText = Set-YamlValueInSectionOrAppend $coreText "Caster_Setting" "Key_Expire_Time" "10"
+    $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" "redis"
+    $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" "6379"
+    $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
+    Write-TextFile $corePath $coreText
+
+    $authText = Get-Content -LiteralPath $authPath -Raw
+    $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "IP" "redis"
+    $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Port" "6379"
+    $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Requirepass" $RedisPassword
+    Write-TextFile $authPath $authText
+}
+
+function Start-DockerBridgeCasterContainer {
+    param(
+        [string]$ContainerName,
+        [string]$Hostname,
+        [string]$NetworkName,
+        [string]$ConfDir,
+        [int]$HostHttpPort,
+        [int]$HostNtripPort
+    )
+
+    $result = Invoke-NativeCommand "docker" @(
+        "run", "-d",
+        "--name", $ContainerName,
+        "--hostname", $Hostname,
+        "--network", $NetworkName,
+        "-p", "127.0.0.1:${HostHttpPort}:8080",
+        "-p", "127.0.0.1:${HostNtripPort}:4202",
+        "-v", "${ConfDir}:/app/conf",
+        $NavCasterImage
+    )
+    if ($result.ExitCode -ne 0) {
+        Fail "failed to start NavCaster container ${ContainerName}: $($result.Output -join ' ')"
+    }
+}
+
+function Wait-DockerBridgeHttpReady {
+    param(
+        [string]$Base,
+        [string]$ContainerName,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 800
+        try {
+            $state = Invoke-NativeCommand "docker" @("inspect", "-f", "{{.State.Running}} {{.State.ExitCode}}", $ContainerName)
+            if ($state.ExitCode -eq 0 -and (($state.Output -join " ") -notmatch '^true\b')) {
+                $last = "container exited: $($state.Output -join ' ')"
+                break
+            }
+            $health = Invoke-RestMethod -Uri "$Base/api/status/health" -TimeoutSec 3
+            if ($health.status -eq "ok") {
+                return
+            }
+            $last = "health.status=$($health.status)"
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    $logs = Format-DebugText (Get-DockerLogsTail $ContainerName 80)
+    Fail "$Context HTTP health did not become ready before timeout; last=[$last], logs=[$logs]"
+}
+
+function Assert-DockerBridgeClusterNode {
+    param(
+        [object]$Cluster,
+        [string]$Uid,
+        [string]$ExpectedHostname,
+        [string]$Context
+    )
+
+    $node = Get-ClusterNodeByUid $Cluster $Uid
+    if (-not $node) {
+        $seen = @($Cluster.nodes | ForEach-Object { $_.uid }) -join ","
+        Fail "$Context cluster missing node $Uid; seen=[$seen]"
+    }
+    if ($node.online -ne $true) {
+        Fail "$Context cluster node $Uid is not online"
+    }
+    if ([int]$node.listen_port -ne 4202) {
+        Fail "$Context cluster node $Uid listen_port mismatch: expected=4202 actual=$($node.listen_port)"
+    }
+    if ([int]$node.http_port -ne 8080) {
+        Fail "$Context cluster node $Uid http_port mismatch: expected=8080 actual=$($node.http_port)"
+    }
+    if ([int64]$node.process_id -le 0) {
+        Fail "$Context cluster node $Uid process_id should be positive; actual=$($node.process_id)"
+    }
+    if ($node.hostname -ne $ExpectedHostname) {
+        Fail "$Context cluster node $Uid hostname mismatch: expected=$ExpectedHostname actual=$($node.hostname)"
+    }
+    if ($node.http_enabled -ne $true) {
+        Fail "$Context cluster node $Uid should report http_enabled=true"
+    }
+
+    return $node
+}
+
+function Wait-DockerBridgeClusterConverged {
+    param(
+        [string]$NodeABase,
+        [hashtable]$NodeAHeaders,
+        [string]$NodeAId,
+        [string]$NodeAHostname,
+        [string]$NodeBBase,
+        [hashtable]$NodeBHeaders,
+        [string]$NodeBId,
+        [string]$NodeBHostname,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        try {
+            $clusterA = Invoke-RestMethod -Headers $NodeAHeaders -Uri "$NodeABase/api/monitor/cluster" -TimeoutSec 10
+            $clusterB = Invoke-RestMethod -Headers $NodeBHeaders -Uri "$NodeBBase/api/monitor/cluster" -TimeoutSec 10
+
+            $nodeAFromA = Assert-DockerBridgeClusterNode $clusterA $NodeAId $NodeAHostname "$Context node A HTTP view"
+            $nodeBFromA = Assert-DockerBridgeClusterNode $clusterA $NodeBId $NodeBHostname "$Context node A HTTP view"
+            $nodeAFromB = Assert-DockerBridgeClusterNode $clusterB $NodeAId $NodeAHostname "$Context node B HTTP view"
+            $nodeBFromB = Assert-DockerBridgeClusterNode $clusterB $NodeBId $NodeBHostname "$Context node B HTTP view"
+
+            if ([int]$clusterA.total_nodes -lt 2 -or [int]$clusterA.online_nodes -lt 2) {
+                Fail "$Context node A HTTP cluster totals too small: total=$($clusterA.total_nodes) online=$($clusterA.online_nodes)"
+            }
+            if ([int]$clusterB.total_nodes -lt 2 -or [int]$clusterB.online_nodes -lt 2) {
+                Fail "$Context node B HTTP cluster totals too small: total=$($clusterB.total_nodes) online=$($clusterB.online_nodes)"
+            }
+
+            return [pscustomobject]@{
+                NodeACluster = $clusterA
+                NodeBCluster = $clusterB
+                NodeAFromA = $nodeAFromA
+                NodeBFromA = $nodeBFromA
+                NodeAFromB = $nodeAFromB
+                NodeBFromB = $nodeBFromB
+            }
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context Docker bridge cluster view did not converge before timeout; last=[$last]"
+}
+
+function Get-DockerBridgeMasterNode {
+    param([string]$RedisContainer)
+
+    $raw = Invoke-DockerBridgeRedisCommand $RedisContainer GET "CASTER:MASTER"
+    if ($null -eq $raw) {
+        return ""
+    }
+    return ([string]$raw).Trim()
+}
+
+function Wait-DockerBridgeMasterNodeInSet {
+    param(
+        [string]$RedisContainer,
+        [string[]]$ExpectedNodeIds,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $expected = @($ExpectedNodeIds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($expected.Count -eq 0) {
+        Fail "$Context master wait received no expected node ids"
+    }
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $masterNode = Get-DockerBridgeMasterNode $RedisContainer
+            if ($expected -contains $masterNode) {
+                return $masterNode
+            }
+            $last = "master=[$masterNode]"
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $redisMaster = ""
+    $redisTtl = ""
+    try { $redisMaster = Get-DockerBridgeMasterNode $RedisContainer } catch { $redisMaster = $_.Exception.Message }
+    try { $redisTtl = Invoke-DockerBridgeRedisCommand $RedisContainer TTL "CASTER:MASTER" } catch { $redisTtl = $_.Exception.Message }
+    Fail "$Context master lease did not point to expected nodes before timeout; expected=[$($expected -join ',')] last=[$last] redis_master=[$redisMaster] ttl=[$redisTtl]"
+}
+
+function Wait-DockerBridgeStatusMasterNode {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$ExpectedMasterNodeId,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $status = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/status" -TimeoutSec 10
+            if ($status.master_node -eq $ExpectedMasterNodeId) {
+                if ($status.redis_auth_connected -ne $true -or $status.redis_caster_connected -ne $true) {
+                    Fail "$Context status reports Redis disconnected: caster=$($status.redis_caster_connected) auth=$($status.redis_auth_connected)"
+                }
+                return $status
+            }
+            $last = "status.master_node=[$($status.master_node)] node_id=[$($status.node_id)]"
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 1000
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context status endpoint did not converge to master_node=$ExpectedMasterNodeId before timeout; last=[$last]"
+}
+
+function Wait-DockerBridgeClusterMasterNode {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$ExpectedMasterNodeId,
+        [string]$RetiredNodeId,
+        [int]$TimeoutSec,
+        [string]$Context,
+        [switch]$RequireRetiredOffline
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        try {
+            $cluster = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/monitor/cluster" -TimeoutSec 10
+            if ($cluster.master_node -ne $ExpectedMasterNodeId) {
+                $last = "cluster.master_node=[$($cluster.master_node)]"
+            }
+            else {
+                $expectedNode = Get-ClusterNodeByUid $cluster $ExpectedMasterNodeId
+                if (-not $expectedNode) {
+                    $seen = @($cluster.nodes | ForEach-Object { $_.uid }) -join ","
+                    $last = "missing expected master node; seen=[$seen]"
+                }
+                elseif ($expectedNode.online -ne $true) {
+                    $last = "expected master node is not online"
+                }
+                elseif ($expectedNode.is_master -ne $true) {
+                    $last = "expected master node is not flagged is_master=true"
+                }
+                else {
+                    if (-not [string]::IsNullOrWhiteSpace($RetiredNodeId)) {
+                        $retiredNode = Get-ClusterNodeByUid $cluster $RetiredNodeId
+                        if ($retiredNode -and $retiredNode.is_master -eq $true) {
+                            $last = "retired node $RetiredNodeId is still flagged as master"
+                            Start-Sleep -Milliseconds 1000
+                            continue
+                        }
+                        if ($RequireRetiredOffline -and $retiredNode -and $retiredNode.online -eq $true) {
+                            $last = "retired node $RetiredNodeId is still online"
+                            Start-Sleep -Milliseconds 1000
+                            continue
+                        }
+                    }
+                    return $cluster
+                }
+            }
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 1000
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "$Context cluster monitor did not converge to master_node=$ExpectedMasterNodeId before timeout; last=[$last]"
+}
+
+function Invoke-DockerBridgeClusterSmoke {
+    $redisContainer = $RedisContainerName
+    $nodeAContainer = "$DockerBridgeNetworkName-node-a"
+    $nodeBContainer = "$DockerBridgeNetworkName-node-b"
+    $nodeAHostname = "nc031-a-$PID"
+    $nodeBHostname = "nc031-b-$PID"
+    $nodeABase = "http://127.0.0.1:${HttpPort}"
+    $nodeBBase = "http://127.0.0.1:${NtripBroadcastHttpPort}"
+    $confRoot = Join-Path $env:TEMP ("navcaster-e2e-nc031-conf-" + [guid]::NewGuid().ToString())
+    $templateRoot = Join-Path $confRoot "template"
+    $templateConfDir = Join-Path $templateRoot "conf"
+    $nodeAConfDir = Join-Path $confRoot "node-a-conf"
+    $nodeBConfDir = Join-Path $confRoot "node-b-conf"
+    $createdNetwork = $false
+    $startedRedis = $false
+    $startedNodeA = $false
+    $startedNodeB = $false
+
+    try {
+        Say "validating Docker bridge cluster images navcaster=$NavCasterImage redis=$RedisImage"
+        Assert-DockerImagePresent $NavCasterImage "Docker bridge cluster smoke"
+        Assert-DockerImagePresent $RedisImage "Docker bridge cluster smoke"
+        New-Item -ItemType Directory -Force -Path $confRoot | Out-Null
+        New-Item -ItemType Directory -Force -Path $templateRoot | Out-Null
+        Copy-DockerBridgeImageConfig $templateRoot
+        New-DockerBridgeCasterConfig $templateConfDir $nodeAConfDir
+        New-DockerBridgeCasterConfig $templateConfDir $nodeBConfDir
+
+        foreach ($container in @($redisContainer, $nodeAContainer, $nodeBContainer)) {
+            $existing = Invoke-NativeCommand "docker" @("ps", "-a", "--filter", "name=^/$container$", "--format", "{{.Names}}")
+            if (($existing.Output | Where-Object { $_ -eq $container } | Select-Object -First 1) -eq $container) {
+                Fail "container already exists: $container"
+            }
+        }
+        $existingNetwork = Invoke-NativeCommand "docker" @("network", "ls", "--filter", "name=^$DockerBridgeNetworkName$", "--format", "{{.Name}}")
+        if (($existingNetwork.Output | Where-Object { $_ -eq $DockerBridgeNetworkName } | Select-Object -First 1) -eq $DockerBridgeNetworkName) {
+            Fail "Docker network already exists: $DockerBridgeNetworkName"
+        }
+
+        Say "creating Docker bridge network $DockerBridgeNetworkName"
+        $networkResult = Invoke-NativeCommand "docker" @("network", "create", "--driver", "bridge", $DockerBridgeNetworkName)
+        if ($networkResult.ExitCode -ne 0) {
+            Fail "failed to create Docker bridge network: $($networkResult.Output -join ' ')"
+        }
+        $createdNetwork = $true
+
+        Say "starting bridge Redis container $redisContainer"
+        $redisRun = Invoke-NativeCommand "docker" @(
+            "run", "-d",
+            "--name", $redisContainer,
+            "--network", $DockerBridgeNetworkName,
+            "--network-alias", "redis",
+            $RedisImage,
+            "redis-server", "--requirepass", $RedisPassword, "--save", "", "--appendonly", "no"
+        )
+        if ($redisRun.ExitCode -ne 0) {
+            Fail "failed to start bridge Redis container: $($redisRun.Output -join ' ')"
+        }
+        $startedRedis = $true
+        Wait-DockerBridgeRedisReady $redisContainer $StartupTimeoutSec "Docker bridge cluster"
+
+        if (-not $SkipRedisCompat) {
+            Say "running Redis compatibility check through bridge Redis container"
+            $compatResult = Invoke-NativeCommand "powershell" @(
+                "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $compatScript,
+                "-DockerContainer", $redisContainer,
+                "-HostName", "127.0.0.1",
+                "-Port", "6379",
+                "-Password", $RedisPassword
+            )
+            $compatResult.Output | ForEach-Object { Write-Host $_ }
+            if ($compatResult.ExitCode -ne 0) {
+                Fail "Redis compatibility check failed"
+            }
+        }
+
+        Say "starting Docker bridge NavCaster node A container=$nodeAContainer host_http=$HttpPort"
+        Start-DockerBridgeCasterContainer $nodeAContainer $nodeAHostname $DockerBridgeNetworkName $nodeAConfDir $HttpPort $NtripPort
+        $startedNodeA = $true
+        Wait-DockerBridgeHttpReady $nodeABase $nodeAContainer $StartupTimeoutSec "Docker bridge node A"
+
+        Say "starting Docker bridge NavCaster node B container=$nodeBContainer host_http=$NtripBroadcastHttpPort"
+        Start-DockerBridgeCasterContainer $nodeBContainer $nodeBHostname $DockerBridgeNetworkName $nodeBConfDir $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+        $startedNodeB = $true
+        Wait-DockerBridgeHttpReady $nodeBBase $nodeBContainer $StartupTimeoutSec "Docker bridge node B"
+
+        $nodeASession = Invoke-E2eLogin $nodeABase
+        $nodeBSession = Invoke-E2eLogin $nodeBBase
+        $nodeAStatus = Assert-E2eStatusAndCluster $nodeABase $nodeASession.Headers "Docker bridge node A" -RequireRedisConnected
+        $nodeBStatus = Assert-E2eStatusAndCluster $nodeBBase $nodeBSession.Headers "Docker bridge node B" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $nodeAStatus.node_id "Docker bridge node A"
+        Assert-E2eNodeIdFormat $nodeBStatus.node_id "Docker bridge node B"
+        if ($nodeAStatus.node_id -eq $nodeBStatus.node_id) {
+            Fail "Docker bridge nodes reported the same node_id: $($nodeAStatus.node_id)"
+        }
+
+        Wait-DockerBridgeClusterConverged `
+            -NodeABase $nodeABase `
+            -NodeAHeaders $nodeASession.Headers `
+            -NodeAId $nodeAStatus.node_id `
+            -NodeAHostname $nodeAHostname `
+            -NodeBBase $nodeBBase `
+            -NodeBHeaders $nodeBSession.Headers `
+            -NodeBId $nodeBStatus.node_id `
+            -NodeBHostname $nodeBHostname `
+            -TimeoutSec $StartupTimeoutSec `
+            -Context "Docker bridge initial" | Out-Null
+
+        $initialMaster = Wait-DockerBridgeMasterNodeInSet $redisContainer @($nodeAStatus.node_id, $nodeBStatus.node_id) ($StartupTimeoutSec + 5) "Docker bridge initial"
+        Say "Docker bridge initial master=$initialMaster"
+        Wait-DockerBridgeStatusMasterNode $nodeABase $nodeASession.Headers $initialMaster $StartupTimeoutSec "Docker bridge node A initial master" | Out-Null
+        Wait-DockerBridgeStatusMasterNode $nodeBBase $nodeBSession.Headers $initialMaster $StartupTimeoutSec "Docker bridge node B initial master" | Out-Null
+        Wait-DockerBridgeClusterMasterNode $nodeABase $nodeASession.Headers $initialMaster "" $StartupTimeoutSec "Docker bridge node A initial master" | Out-Null
+        Wait-DockerBridgeClusterMasterNode $nodeBBase $nodeBSession.Headers $initialMaster "" $StartupTimeoutSec "Docker bridge node B initial master" | Out-Null
+
+        if ($initialMaster -eq $nodeAStatus.node_id) {
+            $masterContainer = $nodeAContainer
+            $survivorContainer = $nodeBContainer
+            $survivorBase = $nodeBBase
+            $survivorHeaders = $nodeBSession.Headers
+            $survivorNodeId = $nodeBStatus.node_id
+            $retiredNodeId = $nodeAStatus.node_id
+        }
+        else {
+            $masterContainer = $nodeBContainer
+            $survivorContainer = $nodeAContainer
+            $survivorBase = $nodeABase
+            $survivorHeaders = $nodeASession.Headers
+            $survivorNodeId = $nodeAStatus.node_id
+            $retiredNodeId = $nodeBStatus.node_id
+        }
+
+        Say "stopping Docker bridge master container=$masterContainer node_id=$retiredNodeId"
+        $stopMaster = Invoke-NativeCommand "docker" @("stop", "-t", "1", $masterContainer)
+        if ($stopMaster.ExitCode -ne 0) {
+            Fail "failed to stop Docker bridge master container: $($stopMaster.Output -join ' ')"
+        }
+        if ($masterContainer -eq $nodeAContainer) { $startedNodeA = $false } else { $startedNodeB = $false }
+
+        Wait-DockerBridgeMasterNodeInSet $redisContainer @($survivorNodeId) ($StartupTimeoutSec + 20) "Docker bridge master stop" | Out-Null
+        Wait-DockerBridgeStatusMasterNode $survivorBase $survivorHeaders $survivorNodeId $StartupTimeoutSec "Docker bridge master stop" | Out-Null
+        Wait-DockerBridgeClusterMasterNode $survivorBase $survivorHeaders $survivorNodeId $retiredNodeId ($StartupTimeoutSec + 10) "Docker bridge master stop" -RequireRetiredOffline | Out-Null
+
+        $survivorInspect = Invoke-NativeCommand "docker" @("inspect", "-f", "{{.State.Running}}", $survivorContainer)
+        if ($survivorInspect.ExitCode -ne 0 -or (($survivorInspect.Output -join " ") -notmatch '^true$')) {
+            Fail "Docker bridge survivor container is not running: $($survivorInspect.Output -join ' ')"
+        }
+
+        Say "PASS Docker bridge cluster smoke"
+    }
+    finally {
+        foreach ($container in @($nodeAContainer, $nodeBContainer, $redisContainer)) {
+            try {
+                Invoke-NativeCommand "docker" @("rm", "-f", $container) | Out-Null
+            }
+            catch {
+                Write-Warning "failed to remove Docker bridge container ${container}: $($_.Exception.Message)"
+            }
+        }
+        if ($createdNetwork) {
+            try {
+                Invoke-NativeCommand "docker" @("network", "rm", $DockerBridgeNetworkName) | Out-Null
+            }
+            catch {
+                Write-Warning "failed to remove Docker bridge network ${DockerBridgeNetworkName}: $($_.Exception.Message)"
+            }
+        }
+        if ($confRoot -and (Test-Path -LiteralPath $confRoot)) {
+            try {
+                Remove-Item -LiteralPath $confRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove Docker bridge temporary config ${confRoot}: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
 function Get-PullRelayStatusFromHttp {
     param(
         [string]$Base,
@@ -4338,7 +4978,11 @@ $coreConfig = Join-Path $confDir "Caster_Core.yml"
 $authConfig = Join-Path $confDir "Auth_Verify.yml"
 $compatScript = Join-Path $RootPath "deploy\scripts\check_redis_compat.ps1"
 
-foreach ($path in @($serviceExe, $serviceConfig, $coreConfig, $authConfig, $compatScript)) {
+$requiredPaths = @($compatScript)
+if (-not $IncludeDockerBridgeCluster) {
+    $requiredPaths += @($serviceExe, $serviceConfig, $coreConfig, $authConfig)
+}
+foreach ($path in $requiredPaths) {
     if (-not (Test-Path -LiteralPath $path)) {
         Fail "missing required file: $path. Build CasterService before running e2e smoke."
     }
@@ -4361,6 +5005,35 @@ $scriptFailed = $false
 
 try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
+
+    if ($IncludeDockerBridgeCluster) {
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
+        if ($otherIncludes) {
+            Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
+        }
+        if ($RedisMode -ne "Docker") {
+            Fail "Docker bridge cluster smoke requires RedisMode Docker because it owns the Redis fixture container inside the bridge network."
+        }
+        if ($HttpPort -eq $NtripBroadcastHttpPort) {
+            Fail "Docker bridge node B HTTP host port must differ from node A HTTP host port."
+        }
+        if ($NtripPort -eq $NtripBroadcastNtripPort) {
+            Fail "Docker bridge node B NTRIP host port must differ from node A NTRIP host port."
+        }
+
+        $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+        if (-not $dockerCmd) {
+            Fail "missing docker. Docker bridge cluster smoke requires Docker Engine and local runtime images."
+        }
+        $dockerInfo = Invoke-NativeCommand "docker" @("info")
+        if ($dockerInfo.ExitCode -ne 0) {
+            Fail ("docker engine is not available: " + (($dockerInfo.Output | Select-Object -First 6) -join " "))
+        }
+
+        Invoke-DockerBridgeClusterSmoke
+        Say "PASS health/login/status/cluster smoke"
+        return
+    }
 
     if ($IncludeNtripAnonymousAuth -and $ntripNeedsNamedRover) {
         Fail "NTRIP anonymous auth smoke must run in a separate service lifecycle from named-rover NTRIP smokes because Rover_Setting.Anonymous_Login is scenario-specific."
