@@ -54,6 +54,23 @@ HTTP_API_Setting:
 不要在多个节点上同时设置 `Force_Enable: true` 后再用普通轮询负载均衡暴露给 Web。
 这样会增加管理操作落到非预期节点、状态判断不一致和故障排查复杂度。
 
+### 反向代理与 sticky session
+
+NC-032 增加了 Docker bridge + nginx smoke，用两个隔离网络内的 NavCaster 节点验证
+反向代理入口边界：
+
+- HTTP 登录 token 仍是进程内会话，不会通过 Redis 在多个节点间共享。
+- 普通 round-robin 入口会把登录后请求转到另一节点，导致 token 被 401/403 拒绝。
+- 使用稳定 sticky key 的反向代理入口可以把同一管理会话固定到同一节点，登录、
+  `/api/status` 和集群查询可以稳定工作。
+- 账号等 Redis 持久化业务数据可通过固定/sticky 管理入口写入，随后两个直接节点入口
+  都能读取到一致结果；删除后两个节点也都应读到 404。
+
+因此，当前推荐的多入口写操作策略仍是“单一固定管理入口”或“具备稳定 sticky session
+的管理入口”。不要把多个 HTTP 节点作为无状态 round-robin 写入口池；如需真正的无状态
+多入口管理 API，后续必须补充分布式 HTTP session、入口 master gating 或统一写 leader
+路由设计。
+
 ## 兼容性边界
 
 本契约不改变现有 HTTP API 路径、SSE 通道、Redis schema、NTRIP 监听端口、
@@ -97,3 +114,18 @@ BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.s
 该脚本覆盖登录、状态、集群、审计、ring log、Redis 历史和系统事件等关键 API。
 多节点默认策略下应保持 `Force_Enable: false`，并确保当前节点已经成为 Master 或
 反向代理已经指向有效入口。
+
+### 反向代理/sticky session smoke
+
+当本机已有 `navcaster:latest`、`redis:8.6.3` 和 `nginx:latest` 镜像时，可运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\e2e_smoke.ps1 `
+  -RootPath . `
+  -IncludeHttpIngressStrategy `
+  -StartupTimeoutSec 60
+```
+
+该 smoke 会创建独立 Docker bridge 网络、Redis、两个 NavCaster 容器和一个 nginx 容器；
+验证直连跨节点 token 拒绝、round-robin token 边界、sticky 管理入口稳定性，以及通过
+sticky 入口写入/删除账号后两个节点读取结果一致。脚本结束后会清理容器、网络和临时配置。
