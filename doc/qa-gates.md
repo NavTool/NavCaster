@@ -19,8 +19,8 @@ Web build
   npm run build
 
 schema smoke
-  cmake -S . -B build/ci-Release -DCMAKE_BUILD_TYPE=Release
-  cmake --build build/ci-Release --target schema_smoke --parallel
+  cmake -S . -B build/ci-Release -G Ninja -DCMAKE_BUILD_TYPE=Release
+  cmake --build build/ci-Release --target schema_smoke --parallel <全处理器数>
   ctest --test-dir build/ci-Release --output-on-failure -R schema_smoke
 
 package build
@@ -48,9 +48,8 @@ Windows：
 
 ```powershell
 node tools\contract_check\check_api_contracts.mjs
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target schema_smoke --config Release --parallel
-ctest --test-dir build --build-config Release --output-on-failure -R schema_smoke
+.\deploy\scripts\build_ninja.ps1 -BuildType Release -Target schema_smoke
+ctest --test-dir build\ninja-Release --output-on-failure -R schema_smoke
 
 cd web
 npm ci
@@ -62,9 +61,8 @@ Linux：
 
 ```bash
 node tools/contract_check/check_api_contracts.mjs
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target schema_smoke --parallel
-ctest --test-dir build --output-on-failure -R schema_smoke
+BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh --target schema_smoke
+ctest --test-dir build/ninja-Release --output-on-failure -R schema_smoke
 
 cd web
 npm ci
@@ -78,8 +76,7 @@ Windows HTTP e2e smoke 优先使用脚本自动编排 Redis fixture、临时配�
 `CasterService` 并清理现场：
 
 ```powershell
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target CasterService --config Release --parallel
+.\deploy\scripts\build_ninja.ps1 -BuildType Release -Target CasterService
 .\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
 ```
 
