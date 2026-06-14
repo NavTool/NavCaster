@@ -493,3 +493,7 @@
   - NC-027 第二实例关闭 source 匿名登录，断言独立 target mount 出现在 `MPT:LIST`、`MPT:REC:<target_mount>` 和 `MPT:STAT`，证明目标实例接受了 relay push source。
   - NC-027 覆盖 `/api/monitor/cluster` 中主实例 `push` 计数相比基线增加并在 stop/cleanup 后回落；`/api/relays/push/stop/<uid>` 验证 `enabled=false` 且 HTTP/Redis 均不再 running，`/api/relays/push/start/<uid>` 验证 `enabled=true` 且状态重新 running。
   - NC-027 明确 `PUSH:STAT.connect_key` 属于发起侧 relay push 连接，第二实例 `MPT:REC:<target_mount>` target source connect_key 由目标实例本地生成，并断言它不同于主实例原始 source connect_key 和 `PUSH:STAT.connect_key`；该 e2e 不覆盖数据内容完整性、真实跨主机网络分区或 master lease failover。
+  - NC-028 Relay data forwarding 本地真实 e2e：`deploy/scripts/e2e_smoke.ps1` 新增 `-IncludeRelayDataForwarding`，复用 NC-026/NC-027 双实例 relay fixture，在 running 状态下写入确定性 payload 并从下游 NTRIP client 读取完整 payload。
+  - NC-028 Pull 数据路径覆盖 Node B source -> Node A relay_pull -> Node A downstream rover client，验证 `NC028-PULL-DATA` payload 完整到达，同时保留 pull start/stop/status、named auth 和 cluster pull count 断言。
+  - NC-028 Push 数据路径覆盖 Node A source -> Node A relay_push -> Node B independent target mount -> Node B downstream rover client，验证 `NC028-PUSH-DATA` payload 完整到达，同时保留 push start/stop/status、target source lifecycle 和 cluster push count 断言。
+  - NC-028 闭合本地真实 relay 数据内容转发证据；长时间大吞吐、丢包/乱序、真实跨主机网络分区、反向代理/sticky session 和 master lease failover 仍需后续专项。

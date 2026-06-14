@@ -301,6 +301,29 @@ Relay Push start/stop deep smoke 使用同一个 Redis fixture 拉起两个本�
 也不同于 `PUSH:STAT.connect_key`。该检查覆盖本地真实 push relay 控制链路，不覆盖
 数据内容完整性、真实跨主机网络分区、反向代理或 master lease failover。
 
+Relay data forwarding deep smoke 复用 pull/push 本地双实例夹具，并在 relay
+running 后写入确定性 payload，验证下游 client 读取到完整字节内容：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeRelayDataForwarding -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该模式会顺序执行 pull 数据路径和 push 数据路径，不能与其他本地双实例 smoke
+并行使用同一个 Redis fixture 端口。测试必须验证：
+
+```text
+1. Pull 场景中 Node B 提供真实 source mount，Node A 创建 pull relay。
+2. Node A 下游 rover client 订阅 pull relay 的本地 mount。
+3. Node B source socket 写入 NC028-PULL-DATA payload 后，Node A client 收到完整 payload。
+4. Push 场景中 Node A 提供真实 source mount，Node A 创建 push relay 到 Node B 独立 target mount。
+5. Node B 下游 rover client 订阅独立 target mount。
+6. Node A source socket 写入 NC028-PUSH-DATA payload 后，Node B client 收到完整 payload。
+7. 数据断言不削弱既有 stop/start/status 断言，pull/push record、status、source/client socket、第二实例、临时 conf 和 Docker fixture 均被清理。
+```
+
+该检查补齐 relay 数据内容转发的本地真实证据；仍不覆盖长时间大吞吐、丢包/乱序、
+真实跨主机网络分区、反向代理/sticky session 或 master lease failover。
+
 NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
 
 ```powershell
