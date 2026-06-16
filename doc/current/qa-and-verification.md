@@ -1,0 +1,84 @@
+# QA 与验证体系当前说明
+
+更新时间：2026-06-16
+来源：NC-035 QA 文档审计、NC-034 Ninja 构建任务和 `qa/qa-gates.md`。
+
+## 当前默认构建口径
+
+C++ 本地构建默认使用 CMake + Ninja + 全处理器并行：
+
+```powershell
+.\deploy\scripts\build_ninja.ps1 -BuildType Release
+.\deploy\scripts\build_ninja.ps1 -BuildType Release -Target schema_smoke
+```
+
+Linux：
+
+```bash
+BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh
+BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh --target schema_smoke
+```
+
+`schema_smoke` 已注册为 CTest：
+
+```powershell
+ctest --test-dir build\ninja-Release --output-on-failure -R schema_smoke
+```
+
+## 契约检查
+
+```powershell
+node tools\contract_check\check_api_contracts.mjs
+```
+
+该命令比较 `proto/caster` 中关键 message/enum 与 `web/src/api/types.ts` 的同步状态。新增允许差异必须同步脚本 allowlist 和 `api/api-contract-sync.md`。
+
+## Web 验证
+
+```bash
+cd web
+npm ci
+npm run lint
+npm run build
+```
+
+当前 `npm run build` 是常规门槛。`npm run lint` 仍有既有基线债，前端任务必须运行并记录结果，但主 CI 还不能把 lint 当硬门槛。
+
+## 运行态 smoke
+
+Windows 深度 smoke 主入口：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
+```
+
+可选专项包括 active accounts、SSE delta、NTRIP/Auth、anonymous/auth broadcast、disabled account、Redis reconnect、local dual node、relay pull/push、relay data forwarding、Docker bridge cluster、HTTP ingress strategy、master lease 和 relay failover。
+
+Bash HTTP smoke 用于已有服务：
+
+```bash
+BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.sh
+```
+
+## 文档治理任务 QA 口径
+
+NC-035 这类文档治理任务不开发新功能、不修改产品源码逻辑、不新增 e2e 场景。最低检查：
+
+```powershell
+git status --short
+git diff --check
+git diff --name-status team-dev...HEAD
+git diff --stat team-dev...HEAD
+rg --files doc
+Test-Path docs
+rg -n "repo\\docs|repo/docs|docs\\" doc F:\Projects\NavCaster\_team F:\Projects\NavCaster\shared
+```
+
+通过条件：
+
+- `doc` 是唯一仓库文档入口；
+- `docs` 不存在；
+- `doc/README.md` 中列出的路径存在；
+- 历史、协议、草稿资料有明确分类和说明；
+- diff 不包含产品源码逻辑改动；
+- 未运行 C++/Web/e2e 的原因在 QA 记录中说明。
