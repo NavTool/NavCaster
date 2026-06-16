@@ -87,6 +87,28 @@ npm run build
 
 ## 手动或环境依赖门槛
 
+### Linux runtime image provenance
+
+Linux runtime image 任务必须从当前 commit 构建不可变 tag，并记录 image id、
+`org.opencontainers.image.revision` label 和对应 `team-dev` commit；不得使用
+`navcaster:latest` 作为 QA 证据。
+
+```bash
+bash deploy/scripts/build_runtime_image.sh
+docker image inspect navcaster:team-dev-<short12> \
+  --format 'image={{.Id}} revision={{index .Config.Labels "org.opencontainers.image.revision"}} version={{index .Config.Labels "org.opencontainers.image.version"}}'
+```
+
+Docker bridge cluster 与 HTTP ingress strategy smoke 必须显式传入当前 commit image：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RootPath . -IncludeDockerBridgeCluster -NavCasterImage navcaster:team-dev-<short12>
+.\deploy\scripts\e2e_smoke.ps1 -RootPath . -IncludeHttpIngressStrategy -NavCasterImage navcaster:team-dev-<short12>
+```
+
+若 Docker Engine、Linux builder 或镜像拉取不可用，QA 记录必须标为
+`QA_BLOCKED` 或列明降级证据，不得用旧 `navcaster:latest` 补位。
+
 ## 文档治理任务门槛
 
 纯文档治理任务不得新增运行态 e2e 场景，也不得把产品源码逻辑改动混入同一 diff。

@@ -116,14 +116,37 @@ BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.s
 
 ### 反向代理/sticky session smoke
 
-当本机已有 `navcaster:latest`、`redis:8.6.3` 和 `nginx:latest` 镜像时，可运行：
+先从当前 commit 构建带 provenance 的 Linux runtime image，并记录脚本输出的
+`NAVCASTER_IMAGE`：
+
+```bash
+bash deploy/scripts/build_runtime_image.sh
+```
+
+当本机已有 `navcaster:team-dev-<short12>`、`redis:8.6.3` 和 `nginx:latest`
+镜像时，可运行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\e2e_smoke.ps1 `
   -RootPath . `
   -IncludeHttpIngressStrategy `
+  -NavCasterImage navcaster:team-dev-<short12> `
   -StartupTimeoutSec 60
 ```
+
+Docker bridge cluster smoke 同样必须显式传入当前 commit image：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\scripts\e2e_smoke.ps1 `
+  -RootPath . `
+  -IncludeDockerBridgeCluster `
+  -NavCasterImage navcaster:team-dev-<short12> `
+  -StartupTimeoutSec 60
+```
+
+QA 记录应写明 runtime image tag、`docker image inspect` 的 image id、
+`org.opencontainers.image.revision` label 和对应 `team-dev` commit；不得使用
+`navcaster:latest` 作为本轮证据 tag。
 
 该 smoke 会创建独立 Docker bridge 网络、Redis、两个 NavCaster 容器和一个 nginx 容器；
 验证直连跨节点 token 拒绝、round-robin token 边界、sticky 管理入口稳定性，以及通过

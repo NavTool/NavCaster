@@ -1,17 +1,15 @@
 # NavCaster all-in-one runtime stack (Ubuntu 24.04 based).
 #
 # Prerequisites:
-#   1) Build a Linux package locally, e.g. from the repo root:
-#        BUILD_TYPE=Release \
-#        PACKAGE_NAME=NavCaster-local \
-#        bash deploy/ci/build_in_linux.sh
-#      This produces ./release/NavCaster-local with CasterService,
-#      conf/, web/, env/redis/ etc.
+#   1) Build the current commit runtime image from the repo root:
+#        bash deploy/scripts/build_runtime_image.sh
+#      The script prints NAVCASTER_IMAGE=navcaster:team-dev-<short12>.
 #
 #   2) From the repo root run:
+#        export NAVCASTER_IMAGE=navcaster:team-dev-<short12>
 #        docker compose -f deploy/docker/docker-compose.yml up -d
 #
-# Override the package directory (relative to repo root) via env:
+# Override the package directory (relative to repo root) only for rebuilds:
 #        NAVCASTER_PACKAGE=release/NavCaster-v1.2.3-ubuntu-24.04-amd64 \
 #          docker compose -f deploy/docker/docker-compose.yml up -d
 
@@ -23,7 +21,11 @@ services:
       args:
         BASE_IMAGE: ubuntu:24.04
         PACKAGE_DIR: ${NAVCASTER_PACKAGE:-release/NavCaster-local}
-    image: navcaster:latest
+        VCS_REF: ${NAVCASTER_VCS_REF:-unknown}
+        VERSION: ${NAVCASTER_VERSION:-local}
+        SOURCE: ${NAVCASTER_SOURCE:-https://github.com/NavTool/NavCaster}
+        CREATED: ${NAVCASTER_CREATED:-unknown}
+    image: "${NAVCASTER_IMAGE:?Set NAVCASTER_IMAGE to an immutable tag such as navcaster:team-dev-<short12>}"
     container_name: caster_container
     ports:
       - "4202:4202"   # Ntrip caster

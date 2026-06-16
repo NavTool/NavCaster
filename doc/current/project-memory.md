@@ -73,13 +73,24 @@ npm run build
 
 打包脚本要求 `web/dist/index.html` 已存在，然后把二进制、`conf/`、`web/`、`scripts/` 复制到 `release/<PackageName>`。Linux 打包脚本还会拉取并构建 Redis。
 
-Docker runtime：
+Docker runtime image：
 
 ```bash
+bash deploy/scripts/build_runtime_image.sh
+```
+
+runtime image tag 使用 `navcaster:team-dev-<short12>`，并写入
+`org.opencontainers.image.revision`、`version`、`source`、`created` 等 OCI
+labels。`docker-compose.yml` 不再默认使用 `navcaster:latest`；启动 compose 前需
+显式设置脚本输出的 `NAVCASTER_IMAGE`，例如：
+
+```bash
+export NAVCASTER_IMAGE=navcaster:team-dev-<short12>
 docker compose -f deploy/docker/docker-compose.yml up -d
 ```
 
-默认使用 `release/NavCaster-local` 作为容器 package，可通过 `NAVCASTER_PACKAGE` 覆盖。
+默认 package 仍可通过 `NAVCASTER_PACKAGE` 覆盖，但 QA 证据必须记录 image tag、
+image id 和 revision label。
 
 Smoke test：
 

@@ -34,7 +34,7 @@ param(
     [switch]$IncludeMasterLeaseFailover,
     [switch]$IncludeMasterLeaseStability,
     [switch]$IncludeDockerBridgeCluster,
-    [string]$NavCasterImage = "navcaster:latest",
+    [string]$NavCasterImage = "",
     [string]$DockerBridgeNetworkName = "navcaster-e2e-nc031-$PID",
     [switch]$IncludeHttpIngressStrategy,
     [string]$NginxImage = "nginx:latest",
@@ -2988,6 +2988,19 @@ function Assert-DockerImagePresent {
     }
 }
 
+function Assert-NavCasterRuntimeImageSpecified {
+    param(
+        [string]$Context
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NavCasterImage)) {
+        Fail "$Context requires -NavCasterImage navcaster:team-dev-<short12> or another immutable commit tag. Build it with deploy/scripts/build_runtime_image.sh."
+    }
+    if ($NavCasterImage -eq "navcaster:latest") {
+        Fail "$Context does not accept navcaster:latest as runtime evidence. Pass a commit-tagged image such as navcaster:team-dev-<short12>."
+    }
+}
+
 function Invoke-DockerBridgeRedisCommand {
     param(
         [string]$ContainerName,
@@ -5750,6 +5763,7 @@ try {
         if ($NtripPort -eq $NtripBroadcastNtripPort) {
             Fail "Docker bridge node B NTRIP host port must differ from node A NTRIP host port."
         }
+        Assert-NavCasterRuntimeImageSpecified "Docker bridge cluster smoke"
 
         $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
         if (-not $dockerCmd) {
@@ -5783,6 +5797,7 @@ try {
         if (($httpPorts | Sort-Object -Unique).Count -ne $httpPorts.Count) {
             Fail "HTTP ingress direct and proxy host ports must be unique: [$($httpPorts -join ',')]"
         }
+        Assert-NavCasterRuntimeImageSpecified "HTTP ingress strategy smoke"
 
         $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
         if (-not $dockerCmd) {
