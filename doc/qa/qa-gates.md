@@ -109,6 +109,10 @@ Docker bridge cluster 与 HTTP ingress strategy smoke 必须显式传入当前 c
 若 Docker Engine、Linux builder 或镜像拉取不可用，QA 记录必须标为
 `QA_BLOCKED` 或列明降级证据，不得用旧 `navcaster:latest` 补位。
 
+运维故障处理和证据模板见 `deployment/ops-runbook.md`。该入口把 master lease、
+cluster 节点视图、HTTP fixed/sticky 入口、relay failover、Redis TTL/key 监控、
+runtime image provenance 和运行态 smoke matrix 按值班场景串联。
+
 ## 文档治理任务门槛
 
 纯文档治理任务不得新增运行态 e2e 场景，也不得把产品源码逻辑改动混入同一 diff。
@@ -121,7 +125,7 @@ git diff --name-status team-dev...HEAD
 git diff --stat team-dev...HEAD
 rg --files doc
 Test-Path docs
-rg -n "repo\\docs|repo/docs|docs\\" doc F:\Projects\NavCaster\_team F:\Projects\NavCaster\shared
+rg -n "repo\\docs|repo/docs|docs\\|navcaster:latest" doc F:\Projects\NavCaster\_team F:\Projects\NavCaster\shared
 ```
 
 预期：

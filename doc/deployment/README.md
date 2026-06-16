@@ -4,6 +4,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
+| `ops-runbook.md` | Master lease、cluster、HTTP ingress、relay、Redis、runtime image 和 smoke 故障处理入口。 |
 | `http-ingress.md` | HTTP API/SSE 入口、Force_Enable、fixed/sticky 管理入口和 nginx smoke。 |
 | `redis.md` | Redis 8.4.0+ 最低版本、8.6.3 验证版本、命令兼容检查和 e2e fixture。 |
 
