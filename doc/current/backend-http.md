@@ -35,17 +35,25 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
 - 普通 round-robin 会让登录后的请求命中非签发节点并返回 401/403；
 - NC-032 已验证 sticky 入口可稳定固定到同一 node_id，账号 create/delete 后两个直接入口读取一致。
 
+NC-040 已把该口径升级为产品化设计决策：当前继续支持固定管理入口或稳定 sticky
+管理入口；不选择分布式 HTTP session/token、入口 master gating 或统一写 leader
+路由作为本轮方案。设计细节、未选方案理由、API/token/SSE/Web/部署影响、round-robin
+告警口径和后续拆分任务见 `design/http-multi-entry-productization.md`。
+
 ## 不要误用
 
 - 旧 `references/historical/frontend/casterweb-progress.md` 和 `archive/historical/architecture_and_optimization.md` 中的 JWT 说法是历史描述。
 - `/api/events/stream` 不是无需认证接口。
 - `/api/status/health` 不是 Redis/Master 健康证明。
 - fixed/sticky 管理入口不是最终分布式无状态 session 方案。
+- 登录后请求间歇性 401/403 且 upstream 在多个节点间漂移时，优先按普通
+  round-robin 写入口误配处理；不要把它当作受支持的 HA 写入口。
 
 ## 相关文档
 
 - `api/api-reference.md`
 - `api/api-contract-sync.md`
+- `design/http-multi-entry-productization.md`
 - `deployment/http-ingress.md`
 - `current/web-console.md`
 - `qa/qa-gates.md`

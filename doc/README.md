@@ -37,6 +37,9 @@ api/api-contract-sync.md
 deployment/http-ingress.md
   HTTP ingress、Force_Enable、fixed/sticky 管理入口和 smoke 口径。
 
+design/http-multi-entry-productization.md
+  HTTP 多入口产品化设计决策、round-robin 限制、后续任务和验证矩阵。
+
 deployment/redis.md
   Redis 最低版本、关键命令依赖、兼容检查和 Docker/CI 版本口径。
 
@@ -55,6 +58,10 @@ qa/qa-gates.md
   roadmap/architecture-v2.md、roadmap/refactor-plan-v2.md、
   shared/references/NC-002-architecture-optimization-plan.md。
   这些文档描述长期方向，不代表当前源码已经完全实现该分层。
+
+产品化设计决策
+  design/*。这些文档给出当前可承诺产品边界、未选方案理由和后续拆分任务；
+  实现事实仍需回到源码、current/*、deployment/* 和 qa/* 交叉核对。
 
 历史计划和迭代流水
   roadmap/development-plan*.md、roadmap/iteration-progress.md。
@@ -75,6 +82,7 @@ qa/qa-gates.md
 | --- | --- | --- |
 | `current/` | 当前实现事实和岗位模块说明 | 必须能追溯到源码或近期任务记录。 |
 | `api/` | HTTP API、SSE、Proto/API/Web 契约同步 | 接口变化必须同步 Web types 和契约检查。 |
+| `design/` | 产品化设计决策和方案取舍 | 不等于源码已实现，必须写明当前承诺边界。 |
 | `deployment/` | 构建、Redis、HTTP ingress、部署 smoke | 当前 C++ 默认使用 CMake + Ninja + 全处理器并行。 |
 | `qa/` | QA gate、smoke/e2e 矩阵、验证命令 | 文档任务不新增运行态测试矩阵。 |
 | `roadmap/` | 目标架构、未来方向、旧开发计划和迭代流水 | 不用旧计划 checkbox 判断当前完成状态。 |
@@ -89,6 +97,7 @@ qa/qa-gates.md
 | --- | --- |
 | 构建默认口径 | `deployment/redis.md`、`qa/qa-gates.md`、根目录 `CMakePresets.json`、`deploy/scripts/build_ninja.*` |
 | 部署和 HTTP ingress | `deployment/http-ingress.md` |
+| HTTP 多入口产品化决策 | `design/http-multi-entry-productization.md` |
 | Redis 版本与 key/schema | `deployment/redis.md`、`current/redis-schema.md`、`current/backend-core.md` |
 | HTTP API 和 SSE | `api/api-reference.md`、`current/backend-http.md` |
 | Relay / Cluster / Master lease | `current/backend-core.md`、`current/project-memory.md` |
@@ -105,6 +114,7 @@ qa/qa-gates.md
 HTTP 多节点入口策略
   当前已收口为固定管理入口或稳定 sticky session 管理入口。
   普通 round-robin 无状态写入口池不属于当前支持能力。
+  产品化取舍和后续任务见 design/http-multi-entry-productization.md。
 
 STR:ACTIVE legacy 去留
   当前 /api/accounts/active 仍兼容 STR:ACTIVE fallback。
