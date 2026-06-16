@@ -517,6 +517,9 @@
   - NC-033 停止当前 master/executor 后，等待 survivor 成为 Redis `CASTER:MASTER`、`/api/status.master_node` 和 `/api/monitor/cluster.master_node` 一致的 master；随后确认 retired node_uid 不再作为 running 证据，pull relay 在 survivor node_id 上以新的 connect_key 重新 running。
   - NC-033 删除 pull record 后验证 relay 状态、target auth session 和 cluster pull count 清理回落；默认 e2e、Relay data forwarding 和 Master lease stability 回归均通过。
   - NC-033 已合并 team-dev @ 5ce96d4；任务分支验证通过 AST parse、`git diff --check`、contract check、CMake+Ninja configure/build、`schema_smoke`、CTest、Web build、默认 Docker e2e、`-IncludeRelayFailover`、`-IncludeRelayDataForwarding` 和 `-IncludeMasterLeaseStability`；主干复验通过 AST parse、contract check、`schema_smoke.exe`、默认 Docker e2e、`-IncludeRelayFailover`、`-IncludeRelayDataForwarding` 和 `-IncludeMasterLeaseStability`。push relay failover、failover 后下游 client 自动恢复收包、长时间压力和真实跨物理主机网络异常仍是后续风险。
+  - NC-039 Relay push failover 深化：`deploy/scripts/e2e_smoke.ps1` 新增默认关闭的 `-IncludeRelayPushFailover`，复用本地双实例、Docker Redis 8.6.3 fixture、真实 source/client 和 push relay target mount。
+  - NC-039 覆盖 push relay 初始在当前 master/executor 上 `state=1`、`connect_key` 非空、`node_uid` 等于当前 master，并在 failover 前验证 `NC039-PUSH-FAILOVER-BEFORE` payload 完整到达 target client。
+  - NC-039 停止当前 master/executor 后，验证 survivor 成为 master、retired node_uid 不再作为 `PUSH:STAT` running 证据、同一 push relay 在 survivor 上以新 connect_key 恢复 running，并验证 `NC039-PUSH-FAILOVER-AFTER` payload 完整到达。
   - NC-034 Ninja 全核并行构建默认化：新增 `CMakePresets.json`，固化 `ninja-release`/`ninja-debug` preset；新增 `deploy/scripts/build_ninja.ps1` 和 `build_ninja.sh`，作为本地 C++ 默认构建入口。
   - NC-034 Windows `build_ninja.ps1` 可自动加载 Visual Studio 2022 x64 developer environment，并在 PATH 上 WinGet ninja shim 不可执行时退回 Visual Studio 自带 `ninja.exe`；Windows/Linux CI 和 package 脚本均显式使用 `-G Ninja` 和全处理器并行 job 数。
   - NC-034 同步 AGENTS、团队 WORKFLOW/QUALITY_GATES、岗位记忆、`doc/project-memory.md` 和 `doc/qa-gates.md`，后续 C++ 构建默认使用 CMake + Ninja + 全处理器并行。

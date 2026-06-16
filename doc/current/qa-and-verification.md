@@ -63,7 +63,7 @@ Windows 深度 smoke 主入口：
 .\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release
 ```
 
-可选专项包括 active accounts、SSE delta、NTRIP/Auth、anonymous/auth broadcast、disabled account、Redis reconnect、local dual node、relay pull/push、relay data forwarding、Docker bridge cluster、HTTP ingress strategy、master lease 和 relay failover。
+可选专项包括 active accounts、SSE delta、NTRIP/Auth、anonymous/auth broadcast、disabled account、Redis reconnect、local dual node、relay pull/push、relay data forwarding、relay push failover、Docker bridge cluster、HTTP ingress strategy、master lease 和 relay failover。
 
 Bash HTTP smoke 用于已有服务：
 

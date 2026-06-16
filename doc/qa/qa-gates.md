@@ -380,6 +380,30 @@ running 后写入确定性 payload，验证下游 client 读取到完整字节�
 该检查补齐 relay 数据内容转发的本地真实证据；仍不覆盖长时间大吞吐、丢包/乱序、
 真实跨主机网络分区、反向代理/sticky session 或 master lease failover。
 
+Relay push failover deep smoke 使用本地双实例夹具，在当前 master/executor 上创建
+push relay，停止该节点后验证 survivor 接管并恢复数据转发：
+
+```powershell
+.\deploy\scripts\e2e_smoke.ps1 -RedisMode Docker -Configuration Release -IncludeRelayPushFailover -NtripBroadcastHttpPort 8081 -NtripBroadcastNtripPort 4203
+```
+
+该模式必须单独运行，因为它会停止当前 relay executor/master 节点。测试必须验证：
+
+```text
+1. 两个本地节点均可 health/login/status/cluster，且 node_id 不同。
+2. 当前 master/executor 上创建 enabled push relay，PUSH:STAT state=1、connect_key 非空、node_uid 等于当前 master。
+3. survivor 节点 target mount 出现在 MPT:LIST、MPT:REC:<target_mount>、MPT:STAT，且 target source connect_key 不等于原始 source 或 PUSH:STAT connect_key。
+4. failover 前 Node A/Node B 路径可转发 NC039-PUSH-FAILOVER-BEFORE payload。
+5. 停止当前 master/executor 后，Redis CASTER:MASTER、/api/status.master_node 和 /api/monitor/cluster.master_node 收敛到 survivor。
+6. retired node_uid 不再作为 PUSH:STAT running 证据。
+7. survivor 上同一 push relay 重新 state=1，node_uid 等于 survivor，connect_key 不复用旧值，cluster push count 增加。
+8. failover 后重新打开 source/client，能够转发 NC039-PUSH-FAILOVER-AFTER payload。
+9. cleanup 后 push record/status、target source、source/client socket、第二实例、临时 conf 和 Docker fixture 均被清理。
+```
+
+该检查补齐 push relay failover 和 failover 后下游 client 恢复收包的本地真实证据。
+真实跨物理主机网络分区、丢包/乱序和长时间大吞吐仍由后续专项覆盖。
+
 NTRIP/Auth 禁用/失效账号矩阵 deep smoke 使用 HTTP 账号 API 驱动真实状态变化：
 
 ```powershell

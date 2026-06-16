@@ -45,6 +45,7 @@ param(
     [switch]$IncludeRelayPushStartStop,
     [switch]$IncludeRelayDataForwarding,
     [switch]$IncludeRelayFailover,
+    [switch]$IncludeRelayPushFailover,
     [switch]$IncludeNtripDisabledAccount,
     [switch]$IncludeRedisReconnect
 )
@@ -4446,6 +4447,50 @@ function Wait-PushRelayNotRunning {
     Fail "$Context push relay $Uid remained running before timeout; last=[$last], push_stat=[$raw]"
 }
 
+function Wait-PushRelayNotRunningOnNode {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Uid,
+        [string]$ForbiddenNodeId,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ForbiddenNodeId)) {
+        return
+    }
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        $status = $null
+        try {
+            $status = Get-PushRelayStatusFromHttp $Base $Headers $Uid
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+        if ($null -eq $status) {
+            try {
+                $status = Get-PushRelayStatusFromRedis $Uid
+            }
+            catch {
+                $last = $_.Exception.Message
+                continue
+            }
+        }
+        if ($null -eq $status -or [int]$status.state -ne 1 -or $status.node_uid -ne $ForbiddenNodeId) {
+            return
+        }
+        $last = ConvertTo-CompactJson $status
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL "PUSH:STAT")
+    Fail "$Context push relay $Uid remained running on retired node $ForbiddenNodeId before timeout; last=[$last], push_stat=[$raw]"
+}
+
 function Wait-ClusterPushCountAtLeast {
     param(
         [string]$Base,
@@ -5517,6 +5562,260 @@ function Invoke-RelayFailoverSmoke {
     }
 }
 
+function Invoke-RelayPushFailoverSmoke {
+    param(
+        [string]$PrimaryBase,
+        [hashtable]$PrimaryHeaders,
+        [int]$PrimaryNtripPort,
+        [int]$SecondaryHttpPort,
+        [int]$SecondaryNtripPort
+    )
+
+    $secondaryNode = $null
+    $secondaryConfRoot = $null
+    $sourceConnection = $null
+    $forwardClientConnection = $null
+    $seed = $null
+    $pushUid = $null
+    $targetSource = $null
+    $primaryNodeId = $null
+    $primaryHeaders = $PrimaryHeaders
+    $secondaryHeaders = $null
+    $secondaryBase = "http://${HttpBindAddr}:${SecondaryHttpPort}"
+
+    try {
+        $primaryStatus = Assert-E2eStatusAndCluster $PrimaryBase $primaryHeaders "relay push failover primary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $primaryStatus.node_id "relay push failover primary"
+        $primaryNodeId = $primaryStatus.node_id
+
+        $secondaryConfRoot = Join-Path $env:TEMP ("navcaster-e2e-nc039-" + [guid]::NewGuid().ToString())
+        $secondaryConfDir = Join-Path $secondaryConfRoot "conf"
+        Copy-E2eServiceConfig `
+            -SourceConfDir $confDir `
+            -DestinationConfDir $secondaryConfDir `
+            -HttpPort $SecondaryHttpPort `
+            -NtripPort $SecondaryNtripPort `
+            -HttpBindAddr $HttpBindAddr `
+            -AdminUser $AdminUser `
+            -AdminPassword $AdminPassword `
+            -RedisHost $RedisHost `
+            -RedisPort $RedisPort `
+            -RedisPassword $RedisPassword `
+            -RoverOnlineProtection $true `
+            -RoverAnonymousLogin $false `
+            -BaseAnonymousLogin $false `
+            -SourceAnonymousLogin $false
+
+        $secondaryNode = Start-E2eCasterServiceNode "nc039-relay-push-survivor" $serviceExe $releaseDir $secondaryConfDir $secondaryBase $StartupTimeoutSec
+        $secondarySession = Invoke-E2eLogin $secondaryBase
+        $secondaryHeaders = $secondarySession.Headers
+        $secondaryStatus = Assert-E2eStatusAndCluster $secondaryBase $secondaryHeaders "relay push failover secondary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $secondaryStatus.node_id "relay push failover secondary"
+        $secondaryNodeId = $secondaryStatus.node_id
+
+        if ($primaryNodeId -eq $secondaryNodeId) {
+            Fail "relay push failover smoke requires distinct local node ids, both were $primaryNodeId"
+        }
+
+        Wait-LocalDualNodeCluster `
+            -PrimaryBase $PrimaryBase `
+            -PrimaryHeaders $primaryHeaders `
+            -PrimaryNodeId $primaryNodeId `
+            -PrimaryHttpPort $HttpPort `
+            -PrimaryNtripPort $PrimaryNtripPort `
+            -PrimaryProcessId $serviceProcess.Id `
+            -SecondaryBase $secondaryBase `
+            -SecondaryHeaders $secondaryHeaders `
+            -SecondaryNodeId $secondaryNodeId `
+            -SecondaryHttpPort $SecondaryHttpPort `
+            -SecondaryNtripPort $SecondaryNtripPort `
+            -SecondaryProcessId $secondaryNode.Process.Id `
+            -TimeoutSec $StartupTimeoutSec | Out-Null
+
+        $initialMaster = Wait-E2eMasterNodeInSet -ExpectedNodeIds @($primaryNodeId, $secondaryNodeId) -TimeoutSec ($StartupTimeoutSec + 5) -Context "relay push failover initial"
+        Say "relay push failover initial master=$initialMaster"
+
+        if ($initialMaster -eq $primaryNodeId) {
+            $masterBase = $PrimaryBase
+            $masterHeaders = $primaryHeaders
+            $masterNodeId = $primaryNodeId
+            $masterNtripPort = $PrimaryNtripPort
+            $survivorBase = $secondaryBase
+            $survivorHeaders = $secondaryHeaders
+            $survivorNodeId = $secondaryNodeId
+            $survivorNtripPort = $SecondaryNtripPort
+        }
+        else {
+            $masterBase = $secondaryBase
+            $masterHeaders = $secondaryHeaders
+            $masterNodeId = $secondaryNodeId
+            $masterNtripPort = $SecondaryNtripPort
+            $survivorBase = $PrimaryBase
+            $survivorHeaders = $primaryHeaders
+            $survivorNodeId = $primaryNodeId
+            $survivorNtripPort = $PrimaryNtripPort
+        }
+
+        $baselineMasterNode = Wait-ClusterPushCountAtLeast $masterBase $masterHeaders $masterNodeId 0 $StartupTimeoutSec "relay push failover master baseline"
+        $baselineMasterPush = [int]$baselineMasterNode.push
+        $baselineSurvivorNode = Wait-ClusterPushCountAtLeast $survivorBase $survivorHeaders $survivorNodeId 0 $StartupTimeoutSec "relay push failover survivor baseline"
+        $baselineSurvivorPush = [int]$baselineSurvivorNode.push
+
+        $seed = New-NtripAuthSessionSeed -Label "nc039_relay_push_failover" -ConnectionLimit 2
+        $script:ntripAuthSeed = $seed
+        Add-NtripAuthAccountSeed $seed
+        Add-NtripSourceAuthAccountSeed $seed
+        $sourceConnection = Open-NtripSourceForSeed $seed $HttpBindAddr $masterNtripPort "relay-push-failover-source"
+        $script:ntripSourceConnection = $sourceConnection
+
+        $pushUid = "$($seed.Prefix)_push_failover"
+        $pushBody = [ordered]@{
+            uid = $pushUid
+            login_mpt = $seed.Mount
+            type = 2
+            target_ip = $HttpBindAddr
+            target_port = $survivorNtripPort
+            target_mpt = $seed.TargetMount
+            target_account = $seed.SourceUser
+            target_password = $seed.SourcePassword
+            enabled = $true
+        } | ConvertTo-Json -Compress
+
+        Say "creating relay push failover uid=$pushUid via master=$masterNodeId target_port=$survivorNtripPort source_mount=$($seed.Mount) target_mount=$($seed.TargetMount)"
+        $create = Invoke-RestMethod -Method Post -Headers $masterHeaders -ContentType "application/json" -Body $pushBody -Uri "$masterBase/api/relays/push" -TimeoutSec 10
+        if ($create.uid -ne $pushUid) {
+            Fail "relay push failover create response uid mismatch: expected=$pushUid actual=$($create.uid)"
+        }
+
+        $initialRunning = Wait-PushRelayRunning $masterBase $masterHeaders $pushUid $masterNodeId $StartupTimeoutSec "relay push failover initial running"
+        $targetSource = Wait-PushedSourceActive $seed $seed.TargetMount @($seed.SourceConnectKey, $initialRunning.connect_key) $StartupTimeoutSec "relay push failover initial target source"
+        if ($targetSource.ConnectKey -eq $seed.SourceConnectKey -or $targetSource.ConnectKey -eq $initialRunning.connect_key) {
+            Fail "relay push failover initial target source connect_key must be distinct from source/relay keys: target=$($targetSource.ConnectKey) source=$($seed.SourceConnectKey) relay=$($initialRunning.connect_key)"
+        }
+        $seed.TargetSourceConnectKey = $targetSource.ConnectKey
+        Wait-ClusterPushCountAtLeast $masterBase $masterHeaders $masterNodeId ($baselineMasterPush + 1) $StartupTimeoutSec "relay push failover initial cluster count" | Out-Null
+
+        $forwardClientConnection = Open-NtripClientForMount `
+            -Seed $seed `
+            -Mount $seed.TargetMount `
+            -NtripHost $HttpBindAddr `
+            -NtripPort $survivorNtripPort `
+            -Label "relay-push-failover-initial-client"
+        $initialForwardSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $initialForwardSession.Field
+        $initialPayload = "NC039-PUSH-FAILOVER-BEFORE:$($seed.Prefix):abcdef"
+        Start-Sleep -Milliseconds 500
+        Write-NtripPayload $sourceConnection $initialPayload "relay push failover initial data"
+        Wait-NtripPayload $forwardClientConnection $initialPayload $StartupTimeoutSec "relay push failover initial data"
+        Close-NtripTcpConnection $forwardClientConnection
+        $forwardClientConnection = $null
+        Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "relay push failover initial client cleanup" | Out-Null
+
+        Say "stopping relay push executor/master node=$masterNodeId for failover"
+        if ($masterNodeId -eq $primaryNodeId) {
+            Stop-Process -Id $serviceProcess.Id -Force
+            if (-not $serviceProcess.WaitForExit(5000)) {
+                Write-Warning "relay push failover primary CasterService did not exit within 5 seconds"
+            }
+        }
+        else {
+            Stop-E2eCasterServiceNode $secondaryNode
+            $secondaryNode = $null
+        }
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        $script:ntripSourceConnection = $null
+        $seed.SourceConnectKey = ""
+        $seed.TargetSourceConnectKey = ""
+        $seed.ClientConnectKey = ""
+        Start-Sleep -Seconds 2
+
+        Wait-E2eMasterNodeInSet -ExpectedNodeIds @($survivorNodeId) -TimeoutSec ($StartupTimeoutSec + 20) -Context "relay push failover master stop" | Out-Null
+        Wait-E2eStatusMasterNode $survivorBase $survivorHeaders $survivorNodeId $StartupTimeoutSec "relay push failover survivor master" | Out-Null
+        Wait-E2eClusterMasterNode $survivorBase $survivorHeaders $survivorNodeId $masterNodeId $StartupTimeoutSec "relay push failover survivor master" | Out-Null
+        $retiredTargetSourceConnectKey = $targetSource.ConnectKey
+        Wait-PushedSourceGone $seed $seed.TargetMount $retiredTargetSourceConnectKey ($StartupTimeoutSec + 15) "relay push failover retired target source"
+
+        $sourceConnection = Open-NtripSourceForSeed $seed $HttpBindAddr $survivorNtripPort "relay-push-failover-source-after-stop"
+        $script:ntripSourceConnection = $sourceConnection
+
+        Wait-PushRelayNotRunningOnNode $survivorBase $survivorHeaders $pushUid $masterNodeId ($StartupTimeoutSec + 15) "relay push failover retired executor"
+        $recovered = Wait-PushRelayRunning $survivorBase $survivorHeaders $pushUid $survivorNodeId ($StartupTimeoutSec + 30) "relay push failover recovered running"
+        if ($recovered.connect_key -eq $initialRunning.connect_key) {
+            Fail "relay push failover recovered relay reused old connect_key: $($recovered.connect_key)"
+        }
+        $targetSource = Wait-PushedSourceActive $seed $seed.TargetMount @($seed.SourceConnectKey, $recovered.connect_key, $retiredTargetSourceConnectKey) $StartupTimeoutSec "relay push failover recovered target source"
+        if ($targetSource.ConnectKey -eq $seed.SourceConnectKey -or $targetSource.ConnectKey -eq $recovered.connect_key) {
+            Fail "relay push failover recovered target source connect_key must be distinct from source/relay keys: target=$($targetSource.ConnectKey) source=$($seed.SourceConnectKey) relay=$($recovered.connect_key)"
+        }
+        $seed.TargetSourceConnectKey = $targetSource.ConnectKey
+        Wait-ClusterPushCountAtLeast $survivorBase $survivorHeaders $survivorNodeId ($baselineSurvivorPush + 1) $StartupTimeoutSec "relay push failover survivor cluster count" | Out-Null
+
+        $forwardClientConnection = Open-NtripClientForMount `
+            -Seed $seed `
+            -Mount $seed.TargetMount `
+            -NtripHost $HttpBindAddr `
+            -NtripPort $survivorNtripPort `
+            -Label "relay-push-failover-recovered-client"
+        $recoveredForwardSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $recoveredForwardSession.Field
+        $recoveredPayload = "NC039-PUSH-FAILOVER-AFTER:$($seed.Prefix):fedcba"
+        Start-Sleep -Milliseconds 500
+        Write-NtripPayload $sourceConnection $recoveredPayload "relay push failover recovered data"
+        Wait-NtripPayload $forwardClientConnection $recoveredPayload $StartupTimeoutSec "relay push failover recovered data"
+        Close-NtripTcpConnection $forwardClientConnection
+        $forwardClientConnection = $null
+        Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "relay push failover recovered client cleanup" | Out-Null
+
+        Remove-PushRelayRecord $survivorBase $survivorHeaders $pushUid
+        Wait-PushRelayNotRunning $survivorBase $survivorHeaders $pushUid $StartupTimeoutSec "relay push failover cleanup"
+        Wait-PushedSourceGone $seed $seed.TargetMount $targetSource.ConnectKey $StartupTimeoutSec "relay push failover cleanup target source"
+        Wait-ClusterPushCountAtMost $survivorBase $survivorHeaders $survivorNodeId $baselineSurvivorPush $StartupTimeoutSec "relay push failover cleanup cluster count" | Out-Null
+        $pushUid = $null
+        $seed.TargetSourceConnectKey = ""
+        $targetSource = $null
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        $script:ntripSourceConnection = $null
+        Remove-NtripAuthSessionSeed $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+
+        Say "PASS relay push failover smoke"
+    }
+    finally {
+        if ($pushUid) {
+            if ($survivorBase -and $survivorHeaders) {
+                Remove-PushRelayRecord $survivorBase $survivorHeaders $pushUid
+            }
+            elseif ($PrimaryBase -and $primaryHeaders) {
+                Remove-PushRelayRecord $PrimaryBase $primaryHeaders $pushUid
+            }
+        }
+        Close-NtripTcpConnection $forwardClientConnection
+        Close-NtripTcpConnection $sourceConnection
+        if ($script:ntripSourceConnection -eq $sourceConnection) {
+            $script:ntripSourceConnection = $null
+        }
+        if ($script:ntripAuthSeed -eq $seed) {
+            $script:ntripAuthSeed = $null
+        }
+        if ($seed) {
+            Remove-NtripAuthSessionSeed $seed
+        }
+        Stop-E2eCasterServiceNode $secondaryNode
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            try {
+                Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove relay push failover service config: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
 function Invoke-RelayPushStartStopSmoke {
     param(
         [string]$PrimaryBase,
@@ -5740,7 +6039,7 @@ $activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover
 $ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
@@ -5750,7 +6049,7 @@ try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
 
     if ($IncludeDockerBridgeCluster) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
         if ($otherIncludes) {
             Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
         }
@@ -5780,7 +6079,7 @@ try {
     }
 
     if ($IncludeHttpIngressStrategy) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
         if ($otherIncludes) {
             Fail "HTTP ingress strategy smoke must run in a separate lifecycle because it creates its own Docker network, Redis, NavCaster containers, and nginx proxy."
         }
@@ -5822,31 +6121,34 @@ try {
     if ($IncludeLocalDualNodeIdentity -and $IncludeNtripAuthBroadcast) {
         Fail "Local dual-node identity smoke must run separately from NTRIP Auth Broadcast because both scenarios start a second local CasterService instance."
     }
-    if ($IncludeMasterLeaseFailover -and ($IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect)) {
+    if ($IncludeMasterLeaseFailover -and ($IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect)) {
         Fail "Master lease failover smoke must run in a separate service lifecycle because it stops the current master CasterService instance."
     }
-    if ($IncludeMasterLeaseStability -and ($IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect)) {
+    if ($IncludeMasterLeaseStability -and ($IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect)) {
         Fail "Master lease stability smoke must run in a separate service lifecycle because it repeatedly stops and restarts local CasterService instances."
     }
-    if ($IncludeRelayPullStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover)) {
+    if ($IncludeRelayPullStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover)) {
         Fail "Relay pull start/stop smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeRelayPushStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayDataForwarding -or $IncludeRelayFailover)) {
+    if ($IncludeRelayPushStartStop -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover)) {
         Fail "Relay push start/stop smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeRelayDataForwarding -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayFailover)) {
+    if ($IncludeRelayDataForwarding -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayFailover -or $IncludeRelayPushFailover)) {
         Fail "Relay data forwarding smoke must run separately from other local dual-instance smokes."
     }
-    if ($IncludeRelayFailover -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding)) {
+    if ($IncludeRelayFailover -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayPushFailover)) {
         Fail "Relay failover smoke must run separately from other local dual-instance smokes because it stops the current relay executor/master node."
     }
-    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover)) {
+    if ($IncludeRelayPushFailover -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover)) {
+        Fail "Relay push failover smoke must run separately from other local dual-instance smokes because it stops the current relay executor/master node."
+    }
+    if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover)) {
         Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover) -and $HttpPort -eq $NtripBroadcastHttpPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "secondary HTTP port must differ from primary HTTP port."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover) -and $NtripPort -eq $NtripBroadcastNtripPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) -and $NtripPort -eq $NtripBroadcastNtripPort) {
         Fail "secondary NTRIP port must differ from primary NTRIP port."
     }
 
@@ -5954,7 +6256,7 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover) {
+    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
     }
@@ -6069,6 +6371,10 @@ try {
 
     if ($IncludeRelayFailover) {
         Invoke-RelayFailoverSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+    }
+
+    if ($IncludeRelayPushFailover) {
+        Invoke-RelayPushFailoverSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
     }
 
     if ($IncludeNtripDisabledAccount) {
