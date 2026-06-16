@@ -597,3 +597,13 @@ SSE：
   target mount/source lifecycle 和 cleanup 仍沿用 NC-026/NC-027 路径。
 - 该 e2e 补齐本地真实 relay 数据内容转发证据；长时间大吞吐、丢包/乱序、真实跨主机
   网络分区、反向代理/sticky session 和 master lease failover 仍需后续专项。
+
+## 2026-06-16 NC-034 Ninja 全核并行构建默认化
+
+- C++ 本地构建默认入口已收束为 CMake + Ninja + 全处理器并行。
+- `CMakePresets.json` 提供 `ninja-release` 和 `ninja-debug` preset。
+- Windows 使用 `deploy/scripts/build_ninja.ps1`，Linux 使用 `deploy/scripts/build_ninja.sh`。
+- Windows 脚本会自动加载 Visual Studio 2022 x64 developer environment，并优先选择可执行的 Ninja。
+- CI 和 package 脚本显式使用 `-G Ninja`，并显式传入处理器并行数。
+- NC-034 已验证 `schema_smoke` Ninja 构建、`schema_smoke.exe`、CTest `schema_smoke` 和 `CasterService` Ninja 构建。
+- 后续 C++ 任务卡、QA 和 Review 默认使用 Ninja 构建入口；若任务必须使用其他 generator，需要在任务卡或 QA 记录中说明原因。
