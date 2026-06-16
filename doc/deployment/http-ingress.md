@@ -4,6 +4,10 @@
 
 基线：NC-035 复核，覆盖 NC-005 与 NC-032 后的当前实现事实。
 
+产品化决策：NC-040 明确继续支持固定管理入口或稳定 sticky session 管理入口；
+普通 round-robin 写入口池不属于当前支持能力。详细取舍、未选方案、告警口径和
+后续拆分任务见 `doc/design/http-multi-entry-productization.md`。
+
 ## 当前实现事实
 
 HTTP API 与 SSE 运行在 `ntrip_caster` 的独立 `_http_base` 线程中，监听配置来自
@@ -70,6 +74,11 @@ NC-032 增加了 Docker bridge + nginx smoke，用两个隔离网络内的 NavCa
 的管理入口”。不要把多个 HTTP 节点作为无状态 round-robin 写入口池；如需真正的无状态
 多入口管理 API，后续必须补充分布式 HTTP session、入口 master gating 或统一写 leader
 路由设计。
+
+普通 round-robin 入口只作为负面验证或故障排查场景存在。生产告警可按如下口径处理：
+同一管理会话的登录后 REST/SSE 请求在多个 upstream 间漂移，并出现 200 与 401/403
+交替时，应判定为 HTTP ingress sticky/fixed 策略错误。代理层不得对 `POST`、`PUT`
+或 `DELETE` 写请求做跨节点透明重试。
 
 ## 兼容性边界
 

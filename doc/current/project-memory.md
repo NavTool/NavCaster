@@ -142,6 +142,9 @@ HTTP 启动策略：
 - `HTTP_API_Setting.Force_Enable` 如果在配置里设置为 true，则绕过主节点判断直接开启。
 - 当前配置模板显式写出 `Force_Enable: false`。部署契约见 `deployment/http-ingress.md`。
 - 当前 HTTP listener 一旦启动不会因后续 Master 丢失自动关闭。
+- NC-040 产品化决策继续支持固定管理入口或稳定 sticky session 管理入口；普通
+  round-robin 写入口池不属于当前支持能力，设计取舍见
+  `design/http-multi-entry-productization.md`。
 
 Redis 部署策略：
 
@@ -287,6 +290,8 @@ HTTP 层文件：
 - `GET /api/events/stream?token=...&channels=...`
 
 登录 token 是进程内 map，不是 JWT，也不会持久化；服务重启后前端 token 会失效。
+该 token 不跨节点共享，SSE 也使用同一认证边界；多入口部署必须使用固定或 sticky
+管理入口，不能把多个 HTTP 节点当作无状态 round-robin 写入口。
 
 主要 API 分组：
 
