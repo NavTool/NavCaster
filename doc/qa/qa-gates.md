@@ -47,15 +47,7 @@ schema_smoke
 Windows：
 
 ```powershell
-node tools\contract_check\check_api_contracts.mjs
-.\deploy\scripts\build_ninja.ps1 -BuildType Release -ConfigureOnly
-.\deploy\scripts\build_ninja.ps1 -BuildType Release -Target schema_smoke
-ctest --test-dir build\ninja-Release --output-on-failure -R schema_smoke
-
-cd web
-npm ci
-npm run lint
-npm run build
+.\deploy\scripts\admission_check.ps1 -BuildType Release
 ```
 
 Windows 普通 PowerShell 下，基线配置入口必须使用
@@ -63,6 +55,22 @@ Windows 普通 PowerShell 下，基线配置入口必须使用
 加载 Visual Studio x64 developer environment，并在 PATH 上的 WinGet `ninja.exe`
 shim 不可执行时退回 Visual Studio 自带 Ninja。裸 `cmake --preset ninja-release`
 只适用于当前 shell 已经能直接解析真实 `ninja`、C/C++ compiler 的开发者环境。
+
+`admission_check.ps1` 的强阻断项为：
+
+```text
+API contract check
+Ninja configure
+schema_smoke Ninja build
+schema_smoke executable
+CTest schema_smoke
+Web npm ci
+Web production build
+```
+
+`npm run lint` 暂为报告项，可用 `-IncludeLint` 手动纳入输出；在现有前端 lint
+基线债修复前，不升级为全仓库硬阻断。运行态 e2e matrix 依赖 Docker/Redis/端口/
+多进程生命周期，默认按任务风险触发并在 QA 记录中列明命令、结果和环境缺口。
 
 Linux：
 

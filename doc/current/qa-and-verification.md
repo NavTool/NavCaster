@@ -8,6 +8,7 @@
 C++ 本地构建默认使用 CMake + Ninja + 全处理器并行：
 
 ```powershell
+.\deploy\scripts\admission_check.ps1 -BuildType Release
 .\deploy\scripts\build_ninja.ps1 -BuildType Release -ConfigureOnly
 .\deploy\scripts\build_ninja.ps1 -BuildType Release
 .\deploy\scripts\build_ninja.ps1 -BuildType Release -Target schema_smoke
@@ -49,6 +50,10 @@ npm run build
 ```
 
 当前 `npm run build` 是常规门槛。`npm run lint` 仍有既有基线债，前端任务必须运行并记录结果，但主 CI 还不能把 lint 当硬门槛。
+
+`deploy/scripts/admission_check.ps1` 是 Windows 本地合并准入聚合入口。它把 API
+contract check、Ninja configure、`schema_smoke` 构建/执行、CTest 和 Web
+production build 作为强阻断项；lint 和 e2e matrix 保持报告项或任务触发项。
 
 ## 运行态 smoke
 
