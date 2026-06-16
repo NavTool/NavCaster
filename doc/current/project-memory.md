@@ -33,7 +33,7 @@ NavCaster 是一个 C++ NTRIP Caster 服务，围绕 Redis 做集群状态、账
 - `web`：Vite + React + TypeScript + Ant Design 管理台。
 - `tools`：NTRIP client/server 模拟器、`strsvr_mult`、`schema_smoke` 和 API 契约检查等联调/验证工具。
 - `deploy`：CI 打包、Docker runtime、systemd/supervisor/nssm 脚本和 smoke test。
-- `doc`：唯一仓库文档入口，按当前事实、API、部署、QA、目标方向、参考资料和历史归档分区。
+- `doc`：唯一仓库文档入口，按当前事实、API、部署、QA、目标方向、参考资料和历史归档分区；部署故障处理入口见 `deployment/ops-runbook.md`。
 - `third_party`：子模块形式的 abseil、protobuf、hiredis、libevent、yaml-cpp、rtklib、spdlog、json。
 
 ## 构建与打包
@@ -116,7 +116,9 @@ Windows 本地一体化 smoke 可自动启动 `redis:8.6.3` fixture、临时改�
 node identity / cluster 可追加 `-IncludeLocalDualNodeIdentity`；
 禁用/失效账号矩阵可追加 `-IncludeNtripDisabledAccount`；HTTP Redis 断线/重连
 可追加 `-IncludeRedisReconnect`；本地真实 relay pull/push 控制链路可追加
-`-IncludeRelayPullStartStop` 或 `-IncludeRelayPushStartStop`。
+`-IncludeRelayPullStartStop` 或 `-IncludeRelayPushStartStop`；master lease
+可追加 `-IncludeMasterLeaseFailover` 或 `-IncludeMasterLeaseStability`；Docker
+bridge cluster、HTTP ingress 和 relay failover smoke 见 `deployment/ops-runbook.md`。
 必要时用 `-NtripPort` 避开本机端口冲突。
 
 ## 后端启动链路

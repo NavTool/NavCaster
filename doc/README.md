@@ -40,6 +40,10 @@ deployment/http-ingress.md
 design/http-multi-entry-productization.md
   HTTP 多入口产品化设计决策、round-robin 限制、后续任务和验证矩阵。
 
+deployment/ops-runbook.md
+  Master lease、cluster 节点视图、relay failover、Redis 监控、runtime image
+  provenance 和运行态 smoke 的运维故障处理入口。
+
 deployment/redis.md
   Redis 最低版本、关键命令依赖、兼容检查和 Docker/CI 版本口径。
 
@@ -83,7 +87,7 @@ qa/qa-gates.md
 | `current/` | 当前实现事实和岗位模块说明 | 必须能追溯到源码或近期任务记录。 |
 | `api/` | HTTP API、SSE、Proto/API/Web 契约同步 | 接口变化必须同步 Web types 和契约检查。 |
 | `design/` | 产品化设计决策和方案取舍 | 不等于源码已实现，必须写明当前承诺边界。 |
-| `deployment/` | 构建、Redis、HTTP ingress、部署 smoke | 当前 C++ 默认使用 CMake + Ninja + 全处理器并行。 |
+| `deployment/` | 构建、Redis、HTTP ingress、运维 runbook、部署 smoke | 当前 C++ 默认使用 CMake + Ninja + 全处理器并行。 |
 | `qa/` | QA gate、smoke/e2e 矩阵、验证命令 | 文档任务不新增运行态测试矩阵。 |
 | `roadmap/` | 目标架构、未来方向、旧开发计划和迭代流水 | 不用旧计划 checkbox 判断当前完成状态。 |
 | `references/protocols/` | NTRIP、PROXY 等外部协议资料 | 协议原文不等于当前实现覆盖范围。 |
@@ -96,11 +100,11 @@ qa/qa-gates.md
 | 主题 | 当前应读 |
 | --- | --- |
 | 构建默认口径 | `deployment/redis.md`、`qa/qa-gates.md`、根目录 `CMakePresets.json`、`deploy/scripts/build_ninja.*` |
-| 部署和 HTTP ingress | `deployment/http-ingress.md` |
+| 部署和 HTTP ingress | `deployment/ops-runbook.md`、`deployment/http-ingress.md` |
 | HTTP 多入口产品化决策 | `design/http-multi-entry-productization.md` |
 | Redis 版本与 key/schema | `deployment/redis.md`、`current/redis-schema.md`、`current/backend-core.md` |
 | HTTP API 和 SSE | `api/api-reference.md`、`current/backend-http.md` |
-| Relay / Cluster / Master lease | `current/backend-core.md`、`current/project-memory.md` |
+| Relay / Cluster / Master lease | `deployment/ops-runbook.md`、`current/backend-core.md`、`current/project-memory.md` |
 | Web 管理台 | `current/web-console.md`、`api/api-contract-sync.md` |
 | QA gate 和 e2e 矩阵 | `qa/qa-gates.md`、`current/qa-and-verification.md` |
 | 目标架构方向 | `roadmap/architecture-v2.md`、`roadmap/refactor-plan-v2.md` |
