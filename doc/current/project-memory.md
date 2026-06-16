@@ -603,6 +603,10 @@ SSE：
 - `CMakePresets.json` 提供 `ninja-release` 和 `ninja-debug` preset。
 - Windows 使用 `deploy/scripts/build_ninja.ps1`，Linux 使用 `deploy/scripts/build_ninja.sh`。
 - Windows 脚本会自动加载 Visual Studio 2022 x64 developer environment，并优先选择可执行的 Ninja。
+- Windows 基线配置入口使用
+  `.\deploy\scripts\build_ninja.ps1 -BuildType Release -ConfigureOnly`。普通 PowerShell
+  下的裸 `cmake --preset ninja-release` 只适用于已准备好真实 Ninja 和 C/C++ compiler
+  PATH 的环境，不能单独作为团队准入命令。
 - CI 和 package 脚本显式使用 `-G Ninja`，并显式传入处理器并行数。
 - NC-034 已验证 `schema_smoke` Ninja 构建、`schema_smoke.exe`、CTest `schema_smoke` 和 `CasterService` Ninja 构建。
 - 后续 C++ 任务卡、QA 和 Review 默认使用 Ninja 构建入口；若任务必须使用其他 generator，需要在任务卡或 QA 记录中说明原因。

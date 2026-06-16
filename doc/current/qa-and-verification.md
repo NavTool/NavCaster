@@ -8,6 +8,7 @@
 C++ 本地构建默认使用 CMake + Ninja + 全处理器并行：
 
 ```powershell
+.\deploy\scripts\build_ninja.ps1 -BuildType Release -ConfigureOnly
 .\deploy\scripts\build_ninja.ps1 -BuildType Release
 .\deploy\scripts\build_ninja.ps1 -BuildType Release -Target schema_smoke
 ```
@@ -24,6 +25,11 @@ BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh --target schema_smoke
 ```powershell
 ctest --test-dir build\ninja-Release --output-on-failure -R schema_smoke
 ```
+
+Windows 基线配置不要在普通 PowerShell 中直接依赖裸 `cmake --preset ninja-release`。
+如果 PATH 上先命中不可执行的 WinGet `ninja.exe` shim，CMake 会在启用 C/C++
+语言前失败。`build_ninja.ps1 -ConfigureOnly` 是团队准入入口；裸 preset 只适用于
+已经进入 Visual Studio developer shell 或已手工设置真实 Ninja 与编译器 PATH 的环境。
 
 ## 契约检查
 

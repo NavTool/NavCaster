@@ -48,6 +48,7 @@ Windows：
 
 ```powershell
 node tools\contract_check\check_api_contracts.mjs
+.\deploy\scripts\build_ninja.ps1 -BuildType Release -ConfigureOnly
 .\deploy\scripts\build_ninja.ps1 -BuildType Release -Target schema_smoke
 ctest --test-dir build\ninja-Release --output-on-failure -R schema_smoke
 
@@ -56,6 +57,12 @@ npm ci
 npm run lint
 npm run build
 ```
+
+Windows 普通 PowerShell 下，基线配置入口必须使用
+`.\deploy\scripts\build_ninja.ps1 -BuildType Release -ConfigureOnly`。该脚本会自动
+加载 Visual Studio x64 developer environment，并在 PATH 上的 WinGet `ninja.exe`
+shim 不可执行时退回 Visual Studio 自带 Ninja。裸 `cmake --preset ninja-release`
+只适用于当前 shell 已经能直接解析真实 `ninja`、C/C++ compiler 的开发者环境。
 
 Linux：
 
