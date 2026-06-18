@@ -215,6 +215,12 @@ public:
     // 返回单例实例
     static verify_internal *getInstance();
 
+    bool server_anonymous_login() const { return _server_anonymous_login; }
+    bool client_anonymous_login() const { return _client_anonymous_login; }
+    bool source_anonymous_login() const { return _source_anonymous_login; }
+    bool server_online_protection() const { return _server_online_protection; }
+    bool client_online_protection() const { return _client_online_protection; }
+
     int init(AuthVerifyOpt opt, event_base *base);
 
     int start();

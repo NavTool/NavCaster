@@ -18,6 +18,7 @@
 #include "SysUsage.h"
 #include "access_policy_service.h"
 #include "channel_lifecycle_service.h"
+#include "core_callback_result.h"
 #include "core_result.h"
 #include "node_history_recorder.h"
 #include "relay_scheduler.h"

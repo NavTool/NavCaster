@@ -2,7 +2,7 @@
 #include <spdlog/spdlog.h>
 #include <cstring>
 
-#include "core_result.h"
+#include "core_callback_result.h"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN

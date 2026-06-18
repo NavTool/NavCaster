@@ -3,6 +3,7 @@
 #include "account_schema.h"
 #include "audit_log_service.h"
 #include "auth_session_service.h"
+#include "auth_login_service.h"
 #include "access_controller.h"
 #include "access_policy_service.h"
 #include "access_repository.h"
@@ -16,6 +17,7 @@
 #include "connection_history_repository.h"
 #include "connection_history_service.h"
 #include "channel_lifecycle_service.h"
+#include "core_callback_result.h"
 #include "core_result.h"
 #include "json_record.h"
 #include "mountpoint_subscriber_repository.h"
@@ -707,6 +709,77 @@ int main()
         decision = auth::plan_record_limit(same_second_records, "current", 0, false);
         expect_true(!decision.current_allowed, "auth online protection zero limit rejects current");
         expect_eq_int(static_cast<int>(decision.evicted_connect_keys.size()), 0, "auth online protection zero limit no eviction");
+    }
+
+    {
+        auth::AuthLoginOptions options;
+        options.server_anonymous_login = true;
+        options.client_anonymous_login = false;
+        options.source_anonymous_login = true;
+        options.server_online_protection = false;
+        options.client_online_protection = true;
+        expect_true(auth::AuthLoginService::anonymous_enabled(AuthType::SERVER, options), "auth login service server anonymous");
+        expect_true(!auth::AuthLoginService::anonymous_enabled(AuthType::CLIENT, options), "auth login service client named");
+        expect_true(auth::AuthLoginService::anonymous_enabled(AuthType::SOURCE, options), "auth login service source anonymous");
+        expect_true(auth::AuthLoginService::online_protection_enabled(AuthType::CLIENT, options), "auth login service client protection");
+        expect_true(!auth::AuthLoginService::online_protection_enabled(AuthType::SOURCE, options), "auth login service source no protection");
+        expect_eq(std::string(auth::AuthLoginService::stage_name(auth::AuthLoginStage::PasswordRejected)), "password_rejected", "auth login service stage name");
+
+        nlohmann::json active_account = {
+            {"account", "login-user"},
+            {"password_hash", account_schema::make_password_hash("secret", "abcd", 2)},
+            {"password_algo", account_schema::PASSWORD_ALGO_PBKDF2_SHA256},
+            {"password_salt", "abcd"},
+            {"password_iterations", 2},
+            {"state", 1},
+            {"active", 1},
+            {"connection_limit", 2},
+            {"group_uid", "ops"}
+        };
+        auto account_decision = auth::AuthLoginService::evaluate_account(active_account.dump(), "secret", AuthType::CLIENT, 1000);
+        expect_true(account_decision.result.ok(), "auth login service accepts hashed account");
+        expect_eq(std::string(auth::AuthLoginService::stage_name(account_decision.stage)), "accepted", "auth login service accept stage");
+        expect_eq(account_decision.group_uid, "ops", "auth login service group");
+        expect_eq_int(account_decision.connect_limit, 2, "auth login service connect limit");
+
+        auto missing_account = auth::AuthLoginService::account_not_found();
+        expect_true(!missing_account.result.ok(), "auth login service rejects missing account");
+        expect_eq(std::string(core::core_error_code_name(missing_account.result.code)), "not_found", "auth login service missing account code");
+        expect_eq(missing_account.result.message, "account_not_found", "auth login service missing account reason");
+        expect_eq(missing_account.legacy_reply, "User Not active or existed!", "auth login service missing account legacy reply");
+
+        auto wrong_password = auth::AuthLoginService::evaluate_account(active_account.dump(), "wrong", AuthType::CLIENT, 1000);
+        expect_true(!wrong_password.result.ok(), "auth login service rejects bad password");
+        expect_eq(std::string(core::core_error_code_name(wrong_password.result.code)), "permission_denied", "auth login service password code");
+        expect_eq(wrong_password.result.message, "password_mismatch", "auth login service password reason");
+        expect_eq(wrong_password.legacy_reply, "User Password Error!", "auth login service password legacy reply");
+
+        active_account["active"] = 2;
+        auto disabled = auth::AuthLoginService::evaluate_account(active_account.dump(), "secret", AuthType::CLIENT, 1000);
+        expect_true(!disabled.result.ok(), "auth login service rejects disabled account");
+        expect_eq(std::string(core::core_error_code_name(disabled.result.code)), "permission_denied", "auth login service disabled code");
+        expect_eq(disabled.result.message, "account_disabled", "auth login service disabled reason code");
+        expect_eq(disabled.legacy_reply, "account is not active", "auth login service disabled reason");
+
+        auto malformed = auth::AuthLoginService::evaluate_account("{broken-json", "secret", AuthType::CLIENT, 1000);
+        expect_true(!malformed.result.ok(), "auth login service rejects malformed account");
+        expect_eq(std::string(core::core_error_code_name(malformed.result.code)), "parse_error", "auth login service parse code");
+        expect_eq(malformed.legacy_reply, "User auth info invalid!", "auth login service parse legacy reply");
+
+        std::multimap<std::time_t, std::string> auth_records = {
+            {100, "old"},
+            {200, "current"}
+        };
+        auto limit_plan = auth::AuthLoginService::evaluate_record_limit(auth_records, "current", 1, false, "login-user");
+        expect_true(limit_plan.current_allowed, "auth login service kick-old allows current");
+        expect_eq_int(static_cast<int>(limit_plan.evicted_connect_keys.size()), 1, "auth login service kick-old evicts one");
+        expect_eq(limit_plan.evicted_connect_keys[0], "old", "auth login service kick-old evicts oldest");
+
+        limit_plan = auth::AuthLoginService::evaluate_record_limit(auth_records, "current", 1, true, "login-user");
+        expect_true(!limit_plan.current_allowed, "auth login service reject-new rejects current");
+        expect_eq(std::string(core::core_error_code_name(limit_plan.result.code)), "state_conflict", "auth login service record limit code");
+        expect_eq(limit_plan.result.message, "record_limit_exceeded", "auth login service record limit reason");
+        expect_eq(limit_plan.legacy_reply, "User Connects Upper Limit , kick out this Connect!", "auth login service record limit legacy reply");
     }
 
     {

@@ -1,4 +1,5 @@
 #include "auth_verify_internal.h"
+#include "auth_login_service.h"
 #include "auth_record_limit.h"
 #include "auth_session_record.h"
 #include "account_schema.h"
@@ -11,6 +12,17 @@ namespace
 std::string normalize_group_uid(const std::string &group_uid)
 {
     return group_uid.empty() ? "default" : group_uid;
+}
+
+navcaster::auth::AuthLoginOptions current_login_options(const verify_internal &svr)
+{
+    navcaster::auth::AuthLoginOptions options;
+    options.server_anonymous_login = svr.server_anonymous_login();
+    options.client_anonymous_login = svr.client_anonymous_login();
+    options.source_anonymous_login = svr.source_anonymous_login();
+    options.server_online_protection = svr.server_online_protection();
+    options.client_online_protection = svr.client_online_protection();
+    return options;
 }
 }
 
@@ -81,9 +93,7 @@ int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyC
     ctx->cb = cb;
     ctx->arg = arg;
 
-    if ((type == AuthType::SERVER && _server_anonymous_login) ||
-        (type == AuthType::CLIENT && _client_anonymous_login) ||
-        (type == AuthType::SOURCE && _source_anonymous_login))
+    if (navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this)))
     {
         //     如果是匿名模式，那么账户系统就完全失效，只会生效ACT:UNNAMED
         //     基站匿名登录 || 用户匿名登录
@@ -116,7 +126,7 @@ int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyC
 int verify_internal::add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type)
 {
 
-    if ((type == AuthType::SERVER && _server_anonymous_login) || (type == AuthType::CLIENT && _client_anonymous_login))
+    if (navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this)) && type != AuthType::SOURCE)
     {
         // 基站匿名登录 || 用户匿名登录
 
@@ -227,7 +237,7 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
 int verify_internal::add_logout_record(const char *user_name, const char *connect_key, AuthType type)
 {
 
-    if ((type == AuthType::SERVER && _server_anonymous_login) || (type == AuthType::CLIENT && _client_anonymous_login))
+    if (navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this)) && type != AuthType::SOURCE)
     {
         // 基站匿名登录 || 用户匿名登录
 
@@ -673,10 +683,12 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     }
     if (reply->type == REDIS_REPLY_NIL)
     {
+        const auto login_decision = navcaster::auth::AuthLoginService::account_not_found();
         auth_reply Reply;
         Reply.type = AuthReply::ERR; // AUTH_REPLY_ERR;
-        Reply.str = "User Not active or existed!";
+        Reply.str = login_decision.legacy_reply.c_str();
         ctx->cb(nullptr, ctx->arg, &Reply);
+        delete ctx;
         return;
     }
     if (reply->type != REDIS_REPLY_STRING)
@@ -703,35 +715,12 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
         return;
     }
 
-    navcaster::account_schema::AccountAuthView auth_view;
-    std::string auth_error;
-    json active_record;
-    try
+    const auto login_decision = navcaster::auth::AuthLoginService::evaluate_account(reply->str, ctx->user_pwd, ctx->type, util_get_time_stamp());
+    if (!login_decision.result.ok())
     {
-        active_record = json::parse(reply->str);
-    }
-    catch (const std::exception &e)
-    {
-        auth_error = e.what();
-    }
-    if (!auth_error.empty() ||
-        !navcaster::account_schema::parse_auth_view(reply->str, auth_view, &auth_error) ||
-        !navcaster::account_schema::is_login_enabled(active_record, util_get_time_stamp(), &auth_error))
-    {
-        const std::string reply_error = auth_error.empty() ? "User Not active or existed!" : auth_error;
         auth_reply Reply;
         Reply.type = AuthReply::ERR;
-        Reply.str = reply_error.c_str();
-        ctx->cb(nullptr, ctx->arg, &Reply);
-        delete ctx;
-        return;
-    }
-
-    if (!navcaster::account_schema::password_matches(auth_view, ctx->user_pwd))
-    {
-        auth_reply Reply;
-        Reply.type = AuthReply::ERR; // AUTH_REPLY_ERR;
-        Reply.str = "User Password Error!";
+        Reply.str = login_decision.legacy_reply.c_str();
         ctx->cb(nullptr, ctx->arg, &Reply);
         delete ctx;
         return;
@@ -749,7 +738,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     // 如果不存在，那么就不允许登录
     auth_reply Reply;
     Reply.type = AuthReply::OK; // AUTH_REPLY_ERR;
-    Reply.group_uid = normalize_group_uid(active_info._group);
+    Reply.group_uid = login_decision.group_uid;
     ctx->cb(nullptr, ctx->arg, &Reply);
 
     delete ctx;
@@ -791,14 +780,15 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
             throw std::logic_error("Can't Find User Active Info"); // 找不到用户的登录限制信息
         }
 
-        const bool online_protection =
-            (ctx->type == AuthType::SERVER && verify_internal::getInstance()->_server_online_protection) ||
-            (ctx->type == AuthType::CLIENT && verify_internal::getInstance()->_client_online_protection);
-        const auto decision = navcaster::auth::plan_record_limit(
+        const bool online_protection = navcaster::auth::AuthLoginService::online_protection_enabled(
+            ctx->type,
+            current_login_options(*verify_internal::getInstance()));
+        const auto decision = navcaster::auth::AuthLoginService::evaluate_record_limit(
             records,
             ctx->connect_key,
             limit_item->second._connect_limit,
-            online_protection);
+            online_protection,
+            ctx->user_name);
         _check = decision.current_allowed;
         for (const auto &evicted_connect_key : decision.evicted_connect_keys)
         {
@@ -817,7 +807,7 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
 
         if (!_check) // 本条记录被踢出 不需要再发送OK的回调，  通过send_change_auth_status这个链路会使得这个连接接收到一个ERR的回调
         {
-            throw std::logic_error("User Connects Upper Limit , kick out this Connect!"); // 在返回的记录中不包含本条记录
+            throw std::logic_error(decision.legacy_reply); // 在返回的记录中不包含本条记录
         }
 
         // else 有1个或者多个连接，但是允许多个记录
