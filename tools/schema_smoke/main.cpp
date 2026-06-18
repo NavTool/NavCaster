@@ -15,6 +15,7 @@
 #include "config_controller.h"
 #include "connection_history_repository.h"
 #include "connection_history_service.h"
+#include "channel_lifecycle_service.h"
 #include "core_result.h"
 #include "json_record.h"
 #include "mountpoint_subscriber_repository.h"
@@ -579,6 +580,46 @@ int main()
                                   .with_redis_key("MPT:BASE01");
         expect_eq(std::string(core::core_error_code_name(publish_failed.code)), "publish_failed", "core result publish failed name");
         expect_eq_int(core::to_legacy_int(publish_failed, -1), -1, "core result publish failed redis legacy int");
+    }
+
+    {
+        using Lifecycle = core::ChannelLifecycleService;
+        using CallbackMap = std::unordered_map<std::string, std::unordered_map<std::string, int>>;
+
+        CallbackMap callback_map;
+        expect_eq(Lifecycle::registration_bucket(core::ChannelEndpoint::Base, "BASE01", "ignored"), "BASE01", "channel lifecycle base bucket");
+        expect_eq(Lifecycle::registration_bucket(core::ChannelEndpoint::Rover, "MOUNT01", "user01"), "user01", "channel lifecycle rover bucket");
+        expect_eq(Lifecycle::subscription_bucket("BASE01"), "BASE01", "channel lifecycle subscription bucket");
+        expect_eq(Lifecycle::connection_redis_key(core::ChannelEndpoint::Base, "BASE01"), "MPT:REC:BASE01", "channel lifecycle base rec key");
+        expect_eq(Lifecycle::connection_redis_key(core::ChannelEndpoint::Rover, "user01"), "USR:REC:user01", "channel lifecycle rover rec key");
+        expect_eq(Lifecycle::subscription_redis_key(core::ChannelEndpoint::Base, "BASE01"), "MPT:SUB:BASE01", "channel lifecycle base sub key");
+        expect_eq(Lifecycle::publish_redis_key(core::ChannelEndpoint::Rover, "user01"), "USR:user01", "channel lifecycle rover publish key");
+
+        auto identity_missing = Lifecycle::require_channel_identity("sub_base_channel", "", "connect-1");
+        expect_true(!identity_missing.ok(), "channel lifecycle rejects empty channel");
+        expect_eq(std::string(core::core_error_code_name(identity_missing.code)), "invalid_argument", "channel lifecycle empty channel code");
+        expect_eq(identity_missing.subject, "channel", "channel lifecycle empty channel subject");
+
+        auto create_plan = Lifecycle::ensure_bucket(callback_map, "register_base_channel", "BASE01", Lifecycle::connection_redis_key(core::ChannelEndpoint::Base, "BASE01"));
+        expect_true(create_plan.created, "channel lifecycle creates bucket");
+        expect_eq(create_plan.bucket, "BASE01", "channel lifecycle create bucket name");
+        auto reuse_plan = Lifecycle::ensure_bucket(callback_map, "register_base_channel", "BASE01", Lifecycle::connection_redis_key(core::ChannelEndpoint::Base, "BASE01"));
+        expect_true(!reuse_plan.created, "channel lifecycle reuses bucket");
+
+        auto absent = Lifecycle::require_connect_absent(callback_map, "register_base_channel", "BASE01", "connect-1", "MPT:REC:BASE01");
+        expect_true(absent.ok(), "channel lifecycle connect absent ok");
+        callback_map["BASE01"]["connect-1"] = 1;
+        auto duplicate = Lifecycle::require_connect_absent(callback_map, "register_base_channel", "BASE01", "connect-1", "MPT:REC:BASE01");
+        expect_true(!duplicate.ok(), "channel lifecycle duplicate rejected");
+        expect_eq(std::string(core::core_error_code_name(duplicate.code)), "state_conflict", "channel lifecycle duplicate code");
+        expect_eq(duplicate.redis_key, "MPT:REC:BASE01", "channel lifecycle duplicate key");
+
+        auto present = Lifecycle::require_connect_present(callback_map, "withdraw_base_channel", "BASE01", "connect-1", "MPT:REC:BASE01");
+        expect_true(present.ok(), "channel lifecycle connect present ok");
+        auto missing_connect = Lifecycle::require_connect_present(callback_map, "withdraw_base_channel", "BASE01", "connect-2", "MPT:REC:BASE01");
+        expect_true(!missing_connect.ok(), "channel lifecycle missing connect rejected");
+        expect_eq(std::string(core::core_error_code_name(missing_connect.code)), "not_found", "channel lifecycle missing connect code");
+        expect_eq(missing_connect.subject, "connect-2", "channel lifecycle missing connect subject");
     }
 
     {

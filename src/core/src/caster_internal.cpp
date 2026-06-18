@@ -17,6 +17,7 @@
 #include "knt.h"
 #include "SysUsage.h"
 #include "access_policy_service.h"
+#include "channel_lifecycle_service.h"
 #include "core_result.h"
 #include "node_history_recorder.h"
 #include "relay_scheduler.h"
@@ -31,6 +32,8 @@ namespace
 using navcaster::core::normalize_access_group_uid;
 using navcaster::core::CoreErrorCode;
 using navcaster::core::CoreResult;
+using navcaster::core::ChannelEndpoint;
+using navcaster::core::ChannelLifecycleService;
 
 long long current_process_id()
 {
@@ -90,6 +93,13 @@ int finish_redis_publish_failure(const CoreResult &result)
 {
     spdlog::warn("[{}]: {}", __class__, result.summary());
     return navcaster::core::to_legacy_int(result, REDIS_ERR);
+}
+
+int finish_channel_lifecycle_failure(const CoreResult &result, CasterCallback cb = nullptr, void *arg = nullptr, int failure_value = 1)
+{
+    spdlog::warn("[{}]: {}", __class__, result.summary());
+    navcaster::core::invoke_caster_callback(cb, arg, result);
+    return navcaster::core::to_legacy_int(result, failure_value);
 }
 }
 
@@ -464,6 +474,9 @@ bool caster_internal::check_mount_nearby(const std::string &group_uid, const std
 
 int caster_internal::sub_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid, bool skip_access_check)
 {
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result, cb, arg);
+
     try
     {
         // 自动识别别名挂载点：如果 channel 是别名，委托给 sub_alias_channel 处理
@@ -491,18 +504,20 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
             return 1;
         }
 
-        auto find = _base_sub_map.find(channel);
-        if (find == _base_sub_map.end())
+        const std::string bucket = ChannelLifecycleService::subscription_bucket(channel);
+        auto plan = ChannelLifecycleService::ensure_bucket(_base_sub_map,
+                                                           __func__,
+                                                           bucket,
+                                                           ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Base, bucket));
+        if (plan.created)
         {
             // 还没有订阅频道，添加订阅
             redisAsyncCommand(_sub_context, Redis_SUB_Base_Callback, this, "SUBSCRIBE MPT:%s", channel);
-            std::unordered_map<std::string, caster_cb_item> channel_subs;
-            _base_sub_map.insert(std::pair<std::string, std::unordered_map<std::string, caster_cb_item>>(channel, channel_subs));
 
             // 由于该频道是此节点的第一次订阅，因此发送一次激活函数
             send_status_base_channel(channel, "", CasterReply::ACTIVE, "First subscribe in one Caster Node");
         }
-        find = _base_sub_map.find(channel);
+        auto find = _base_sub_map.find(bucket);
 
         // 更新订阅者列表
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " MPT_SUBSCRIBE_LIST ":%s EX %s FIELDS 1 %s %s",
@@ -666,22 +681,25 @@ int caster_internal::sub_alias_channel(const char *channel, const char *user_nam
 
 int caster_internal::unsub_base_channel(const char *channel, const char *connect_key)
 {
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result);
+
     if (_base_near_sub_map.find(connect_key) != _base_near_sub_map.end())
     {
         return unsub_near_channel(connect_key);
     }
 
-    auto channel_subs = _base_sub_map.find(channel);
-    if (channel_subs == _base_sub_map.end())
-    {
-        return 1;
-    }
+    const std::string bucket = ChannelLifecycleService::subscription_bucket(channel);
+    if (auto result = ChannelLifecycleService::require_connect_present(_base_sub_map,
+                                                                       __func__,
+                                                                       bucket,
+                                                                       connect_key,
+                                                                       ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Base, bucket));
+        !result.ok())
+        return finish_channel_lifecycle_failure(result);
 
+    auto channel_subs = _base_sub_map.find(bucket);
     auto item = channel_subs->second.find(connect_key);
-    if (item == channel_subs->second.end())
-    {
-        return 1;
-    }
     // 更新订阅者列表
     channel_subs->second.erase(item);
 
@@ -717,20 +735,25 @@ int caster_internal::unsub_near_channel(const char *connect_key)
 
 int caster_internal::sub_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result, cb, arg);
+
     try
     {
-        auto find = _rover_sub_map.find(channel);
-        if (find == _rover_sub_map.end())
+        const std::string bucket = ChannelLifecycleService::subscription_bucket(channel);
+        auto plan = ChannelLifecycleService::ensure_bucket(_rover_sub_map,
+                                                           __func__,
+                                                           bucket,
+                                                           ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Rover, bucket));
+        if (plan.created)
         {
             // 还没有订阅频道，添加订阅
             redisAsyncCommand(_sub_context, Redis_SUB_Rover_Callback, this, "SUBSCRIBE USR:%s", channel);
-            std::unordered_map<std::string, caster_cb_item> channel_subs;
-            _rover_sub_map.insert(std::pair<std::string, std::unordered_map<std::string, caster_cb_item>>(channel, channel_subs));
 
             // 由于该频道是此节点的第一次订阅，因此发送一次激活函数
             send_status_rover_channel(channel, "", CasterReply::ACTIVE, "First subscribe in one Caster Node");
         }
-        find = _rover_sub_map.find(channel);
+        auto find = _rover_sub_map.find(bucket);
 
         // 更新订阅者列表
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " USR_SUBSCRIBE_LIST ":%s EX %s FIELDS 1 %s %s",
@@ -765,17 +788,20 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
 
 int caster_internal::unsub_rover_channel(const char *channel, const char *connect_key)
 {
-    auto channel_subs = _rover_sub_map.find(channel);
-    if (channel_subs == _rover_sub_map.end())
-    {
-        return 1;
-    }
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result);
 
+    const std::string bucket = ChannelLifecycleService::subscription_bucket(channel);
+    if (auto result = ChannelLifecycleService::require_connect_present(_rover_sub_map,
+                                                                       __func__,
+                                                                       bucket,
+                                                                       connect_key,
+                                                                       ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Rover, bucket));
+        !result.ok())
+        return finish_channel_lifecycle_failure(result);
+
+    auto channel_subs = _rover_sub_map.find(bucket);
     auto item = channel_subs->second.find(connect_key);
-    if (item == channel_subs->second.end())
-    {
-        return 1;
-    }
     // 更新订阅者列表
     channel_subs->second.erase(item);
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_SUBSCRIBE_LIST ":%s %s", channel, connect_key);
@@ -1830,6 +1856,9 @@ int caster_internal::relay_register_callback(RelayCallback cb, void *arg)
 
 int caster_internal::register_base_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result, cb, arg);
+
     std::string deny_reason;
     if (!check_mount_access(normalize_access_group_uid(group_uid), channel, &deny_reason))
     {
@@ -1840,15 +1869,12 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         return 1;
     }
 
-    // 查询要注册的频道
-    auto find = _base_register_map.find(channel);
-    if (find == _base_register_map.end())
-    {
-        // 还没有该频道的注册记录
-        std::unordered_map<std::string, caster_cb_item> channel_cbs;
-        _base_register_map.insert(std::pair<std::string, std::unordered_map<std::string, caster_cb_item>>(channel, channel_cbs));
-    }
-    find = _base_register_map.find(channel);
+    const std::string bucket = ChannelLifecycleService::registration_bucket(ChannelEndpoint::Base, channel, user_name);
+    const std::string redis_key = ChannelLifecycleService::connection_redis_key(ChannelEndpoint::Base, bucket);
+    ChannelLifecycleService::ensure_bucket(_base_register_map, __func__, bucket, redis_key);
+    if (auto result = ChannelLifecycleService::require_connect_absent(_base_register_map, __func__, bucket, connect_key, redis_key); !result.ok())
+        return finish_channel_lifecycle_failure(result, cb, arg);
+    auto find = _base_register_map.find(bucket);
 
     try
     {
@@ -1902,10 +1928,6 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         cb_item.cb = cb;
         cb_item.arg = arg;
 
-        if (find->second.find(connect_key) != find->second.end())
-        {
-            throw std::invalid_argument("Connect_Key is already in the register map");
-        }
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性
@@ -1938,6 +1960,9 @@ int caster_internal::register_base_channel(const char *channel, const char *user
 
 int caster_internal::register_rover_channel(const char *channel, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result, cb, arg);
+
     std::string deny_reason;
     bool allowed = type == CasterRegisterType::NEAREST
                        ? check_nearest_mount_login(normalize_access_group_uid(group_uid), channel, &deny_reason)
@@ -1951,15 +1976,12 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
         return 1;
     }
 
-    // 查询要注册的频道
-    auto find = _rover_register_map.find(user_name);
-    if (find == _rover_register_map.end())
-    {
-        // 还没有该频道的注册记录
-        std::unordered_map<std::string, caster_cb_item> channel_cbs;
-        _rover_register_map.insert(std::pair<std::string, std::unordered_map<std::string, caster_cb_item>>(user_name, channel_cbs));
-    }
-    find = _rover_register_map.find(user_name);
+    const std::string bucket = ChannelLifecycleService::registration_bucket(ChannelEndpoint::Rover, channel, user_name);
+    const std::string redis_key = ChannelLifecycleService::connection_redis_key(ChannelEndpoint::Rover, bucket);
+    ChannelLifecycleService::ensure_bucket(_rover_register_map, __func__, bucket, redis_key);
+    if (auto result = ChannelLifecycleService::require_connect_absent(_rover_register_map, __func__, bucket, connect_key, redis_key); !result.ok())
+        return finish_channel_lifecycle_failure(result, cb, arg);
+    auto find = _rover_register_map.find(bucket);
 
     try
     {
@@ -2015,10 +2037,6 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
         cb_item.cb = cb;
         cb_item.arg = arg;
 
-        if (find->second.find(connect_key) != find->second.end())
-        {
-            throw std::invalid_argument("Connect_Key is already in the register map");
-        }
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
         _kick_map[connect_key] = cb_item;
 
@@ -2046,23 +2064,19 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
 int caster_internal::withdraw_base_channel(const char *channel, const char *user_name, const char *connect_key)
 {
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result);
+
     // 从该频道的HASH Map中删除指定Connect_Key记录
     // 删除成功
     // 从本地注册回调Map中删除指定的记录
 
-    // 查询要注册的频道
-    auto channel_registers = _base_register_map.find(channel);
-    if (channel_registers == _base_register_map.end())
-    {
-        // 错误：没有该频道的注册记录
-        return 1;
-    }
+    const std::string bucket = ChannelLifecycleService::registration_bucket(ChannelEndpoint::Base, channel, user_name);
+    const std::string redis_key = ChannelLifecycleService::connection_redis_key(ChannelEndpoint::Base, bucket);
+    if (auto result = ChannelLifecycleService::require_connect_present(_base_register_map, __func__, bucket, connect_key, redis_key); !result.ok())
+        return finish_channel_lifecycle_failure(result);
+    auto channel_registers = _base_register_map.find(bucket);
     auto item = channel_registers->second.find(connect_key);
-    if (item == channel_registers->second.end())
-    {
-        // 错误：没有该连接的注册记录
-        return 2;
-    }
 
     // 删除该条记录
     channel_registers->second.erase(item);
@@ -2118,19 +2132,15 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
 
 int caster_internal::withdraw_rover_channel(const char *channel, const char *user_name, const char *connect_key)
 {
-    // 查询要注册的频道
-    auto channel_registers = _rover_register_map.find(user_name);
-    if (channel_registers == _rover_register_map.end())
-    {
-        // 错误：没有该频道的注册记录
-        return 1;
-    }
+    if (auto result = ChannelLifecycleService::require_channel_identity(__func__, channel, connect_key); !result.ok())
+        return finish_channel_lifecycle_failure(result);
+
+    const std::string bucket = ChannelLifecycleService::registration_bucket(ChannelEndpoint::Rover, channel, user_name);
+    const std::string redis_key = ChannelLifecycleService::connection_redis_key(ChannelEndpoint::Rover, bucket);
+    if (auto result = ChannelLifecycleService::require_connect_present(_rover_register_map, __func__, bucket, connect_key, redis_key); !result.ok())
+        return finish_channel_lifecycle_failure(result);
+    auto channel_registers = _rover_register_map.find(bucket);
     auto item = channel_registers->second.find(connect_key);
-    if (item == channel_registers->second.end())
-    {
-        // 错误：没有该连接的注册记录
-        return 2;
-    }
 
     // 删除该条记录
     channel_registers->second.erase(item);
