@@ -2,6 +2,8 @@
 #include <spdlog/spdlog.h>
 #include <cstring>
 
+#include "core_result.h"
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -13,6 +15,99 @@
 
 // #include "caster_core_internal.h"
 #include "caster_internal.h"
+
+namespace
+{
+using navcaster::core::CoreErrorCode;
+using navcaster::core::CoreResult;
+
+bool missing_text(const char *value)
+{
+    return value == nullptr || value[0] == '\0';
+}
+
+const char *safe_group_uid(const char *group_uid)
+{
+    return missing_text(group_uid) ? "default" : group_uid;
+}
+
+const char *safe_optional_text(const char *value)
+{
+    return value ? value : "";
+}
+
+const char *caster_register_type_name(CasterRegisterType type)
+{
+    switch (type)
+    {
+    case CasterRegisterType::SERVER:
+        return "SERVER";
+    case CasterRegisterType::CLIENT:
+        return "CLIENT";
+    case CasterRegisterType::NEAREST:
+        return "NEAREST";
+    case CasterRegisterType::ALIAS:
+        return "ALIAS";
+    case CasterRegisterType::PULL:
+        return "PULL";
+    case CasterRegisterType::PUSH:
+        return "PUSH";
+    case CasterRegisterType::UNKNOWN:
+    default:
+        return "UNKNOWN";
+    }
+}
+
+CoreResult missing_argument_result(const char *operation, const char *subject)
+{
+    return CoreResult::failure(CoreErrorCode::InvalidArgument,
+                               operation,
+                               "missing required argument")
+        .with_subject(subject);
+}
+
+CoreResult unsupported_type_result(const char *operation, CasterRegisterType type)
+{
+    return CoreResult::failure(CoreErrorCode::InvalidArgument,
+                               operation,
+                               "unsupported register type")
+        .with_subject(caster_register_type_name(type));
+}
+
+int finish_core_facade_failure(const CoreResult &result, CasterCallback cb = nullptr, void *arg = nullptr, int failure_value = 1)
+{
+    spdlog::warn("[CASTER facade]: {}", result.summary());
+    navcaster::core::invoke_caster_callback(cb, arg, result);
+    return navcaster::core::to_legacy_int(result, failure_value);
+}
+
+CoreResult require_connect_key(const char *operation, const char *connect_key)
+{
+    if (missing_text(connect_key))
+    {
+        return missing_argument_result(operation, "connect_key");
+    }
+    return CoreResult::success(operation);
+}
+
+CoreResult require_mount_point(const char *operation, const char *mount_point)
+{
+    if (missing_text(mount_point))
+    {
+        return missing_argument_result(operation, "mount_point");
+    }
+    return CoreResult::success(operation);
+}
+
+CoreResult require_callback(const char *operation, CasterCallback cb)
+{
+    if (!cb)
+    {
+        return missing_argument_result(operation, "callback");
+    }
+    return CoreResult::success(operation);
+}
+} // namespace
 
 // redis_msg_internal *caster_svr = nullptr;
 
@@ -264,179 +359,267 @@ std::string CASTER::Get_Status()
 
 bool CASTER::Check_Nearest_Mpt(const char *mount_point)
 {
+    if (missing_text(mount_point))
+    {
+        return false;
+    }
     return caster_internal::getInstance()->is_nearest_mpt(mount_point);
 }
 
 bool CASTER::Check_Alias_Mpt(const char *mount_point)
 {
+    if (missing_text(mount_point))
+    {
+        return false;
+    }
     return caster_internal::getInstance()->is_alias_mpt(mount_point);
 }
 
 int CASTER::Register_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+
     switch (type)
     {
     case CasterRegisterType::SERVER:
     case CasterRegisterType::PULL:
-        Register_Base_Record(mount_point, user_name, connect_key, cb, arg, type, group_uid);
-        break;
+        return Register_Base_Record(mount_point, safe_optional_text(user_name), connect_key, cb, arg, type, safe_group_uid(group_uid));
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
-        Register_Rover_Record(mount_point, user_name, connect_key, cb, arg, type, group_uid);
-        break;
+        return Register_Rover_Record(mount_point, safe_optional_text(user_name), connect_key, cb, arg, type, safe_group_uid(group_uid));
     default:
-        break;
+        return finish_core_facade_failure(unsupported_type_result(__func__, type), cb, arg);
     }
-    return 0;
 }
 
 int CASTER::Withdraw_Record(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result);
+
     switch (type)
     {
     case CasterRegisterType::SERVER:
     case CasterRegisterType::PULL:
-        Withdraw_Base_Record(mount_point, user_name, connect_key);
-        break;
+        return Withdraw_Base_Record(mount_point, safe_optional_text(user_name), connect_key);
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
-        Withdraw_Rover_Record(mount_point, user_name, connect_key);
-        break;
+        return Withdraw_Rover_Record(mount_point, safe_optional_text(user_name), connect_key);
     default:
-        break;
+        return finish_core_facade_failure(unsupported_type_result(__func__, type));
     }
-    return 0;
 }
 
 int CASTER::Pub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, const char *data, size_t data_length, CasterRegisterType type)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    if (data_length > 0 && data == nullptr)
+        return finish_core_facade_failure(missing_argument_result(__func__, "data"));
+
     switch (type)
     {
     case CasterRegisterType::SERVER:
     case CasterRegisterType::PULL:
-        Pub_Base_Raw_Data(mount_point, connect_key, data, data_length);
-        break;
+        if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+            return finish_core_facade_failure(result);
+        return Pub_Base_Raw_Data(mount_point, connect_key, data, data_length);
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
-        Pub_Rover_Raw_Data(user_name, connect_key, data, data_length);
-        break;
+        return Pub_Rover_Raw_Data(safe_optional_text(user_name), connect_key, data, data_length);
     default:
-        break;
+        return finish_core_facade_failure(unsupported_type_result(__func__, type));
     }
-    return 0;
 }
 
 int CASTER::Sub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+
     switch (type)
     {
     case CasterRegisterType::SERVER:
     case CasterRegisterType::PULL:
-        Sub_Rover_Raw_Data(mount_point, user_name, connect_key, cb, arg, group_uid);
-        break;
+        return Sub_Rover_Raw_Data(mount_point, safe_optional_text(user_name), connect_key, cb, arg, safe_group_uid(group_uid));
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::NEAREST:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
-        Sub_Base_Raw_Data(mount_point, user_name, connect_key, cb, arg, group_uid);
-        break;
+        return Sub_Base_Raw_Data(mount_point, safe_optional_text(user_name), connect_key, cb, arg, safe_group_uid(group_uid));
     default:
-        break;
+        return finish_core_facade_failure(unsupported_type_result(__func__, type), cb, arg);
     }
-    return 0;
 }
 
 int CASTER::Unsub_Raw_Data(const char *connect_key, const char *mount_point, const char *user_name, CasterRegisterType type)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+
     switch (type)
     {
     case CasterRegisterType::SERVER:
     case CasterRegisterType::PULL:
-        Unsub_Rover_Raw_Data(user_name, connect_key);
-        break;
+        Unsub_Rover_Raw_Data(safe_optional_text(user_name), connect_key);
+        return 0;
     case CasterRegisterType::CLIENT:
     case CasterRegisterType::ALIAS:
     case CasterRegisterType::PUSH:
+        if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+            return finish_core_facade_failure(result);
         Unsub_Base_Raw_Data(mount_point, connect_key);
-        break;
+        return 0;
     case CasterRegisterType::NEAREST:
         Unsub_Near_Raw_Data(connect_key);
-        break;
+        return 0;
     default:
-        break;
+        return finish_core_facade_failure(unsupported_type_result(__func__, type));
     }
-    return 0;
 }
 
 int CASTER::Register_Base_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
-    return caster_internal::getInstance()->register_base_channel(mount_point, user_name, connect_key, cb, arg, type, group_uid);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->register_base_channel(mount_point, safe_optional_text(user_name), connect_key, cb, arg, type, safe_group_uid(group_uid));
 }
 
 int CASTER::Withdraw_Base_Record(const char *mount_point, const char *user_name, const char *connect_key)
 {
-    return caster_internal::getInstance()->withdraw_base_channel(mount_point, user_name, connect_key);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->withdraw_base_channel(mount_point, safe_optional_text(user_name), connect_key);
 }
 
 int CASTER::Pub_Base_Raw_Data(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result);
+    if (data_length > 0 && data == nullptr)
+        return finish_core_facade_failure(missing_argument_result(__func__, "data"));
     return caster_internal::getInstance()->pub_base_channel(mount_point, connect_key, data, data_length);
 }
 
 int CASTER::Sub_Base_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_base_channel(mount_point, user_name, connect_key, cb, arg, group_uid);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->sub_base_channel(mount_point, safe_optional_text(user_name), connect_key, cb, arg, safe_group_uid(group_uid));
 }
 
 int CASTER::Sub_Near_Raw_Data(const char *mount_point, double lat, double lon, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_near_channel(mount_point, user_name, lat, lon, connect_key, cb, arg, group_uid);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->sub_near_channel(mount_point, safe_optional_text(user_name), lat, lon, connect_key, cb, arg, safe_group_uid(group_uid));
 }
 
 int CASTER::Unsub_Near_Raw_Data(const char *connect_key)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
     return caster_internal::getInstance()->unsub_near_channel(connect_key);
 }
 
 int CASTER::Sub_Alias_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_alias_channel(mount_point, user_name, connect_key, cb, arg, group_uid);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->sub_alias_channel(mount_point, safe_optional_text(user_name), connect_key, cb, arg, safe_group_uid(group_uid));
 }
 
 int CASTER::Unsub_Base_Raw_Data(const char *mount_point, const char *connect_key)
 {
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result);
     return caster_internal::getInstance()->unsub_base_channel(mount_point, connect_key);
 }
 
 int CASTER::Register_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, CasterRegisterType type, const char *group_uid)
 {
-    return caster_internal::getInstance()->register_rover_channel(mount_point, user_name, connect_key, cb, arg, type, group_uid);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->register_rover_channel(mount_point, safe_optional_text(user_name), connect_key, cb, arg, type, safe_group_uid(group_uid));
 }
 
 int CASTER::Withdraw_Rover_Record(const char *mount_point, const char *user_name, const char *connect_key)
 {
-    return caster_internal::getInstance()->withdraw_rover_channel(mount_point, user_name, connect_key);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->withdraw_rover_channel(mount_point, safe_optional_text(user_name), connect_key);
 }
 
 int CASTER::Pub_Rover_Raw_Data(const char *user_name, const char *connect_key, const char *data, size_t data_length)
 {
-    return caster_internal::getInstance()->pub_rover_channel(user_name, connect_key, data, data_length);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    if (data_length > 0 && data == nullptr)
+        return finish_core_facade_failure(missing_argument_result(__func__, "data"));
+    return caster_internal::getInstance()->pub_rover_channel(safe_optional_text(user_name), connect_key, data, data_length);
 }
 
 int CASTER::Sub_Rover_Raw_Data(const char *mount_point, const char *user_name, const char *connect_key, CasterCallback cb, void *arg, const char *group_uid)
 {
-    return caster_internal::getInstance()->sub_rover_channel(mount_point, user_name, connect_key, cb, arg, group_uid);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_mount_point(__func__, mount_point); !result.ok())
+        return finish_core_facade_failure(result, cb, arg);
+    if (auto result = require_callback(__func__, cb); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->sub_rover_channel(mount_point, safe_optional_text(user_name), connect_key, cb, arg, safe_group_uid(group_uid));
 }
 
 int CASTER::Unsub_Rover_Raw_Data(const char *user_name, const char *connect_key)
 {
-    return caster_internal::getInstance()->unsub_rover_channel(user_name, connect_key);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->unsub_rover_channel(safe_optional_text(user_name), connect_key);
 }
 
 int CASTER::Set_Base_Source_Info(const char *mount_point, const char *connect_key, mount_info)
@@ -514,9 +697,11 @@ int CASTER::Set_Push_Rover_Info(const char *task_key, const char *alias_mpt, con
     return caster_internal::getInstance()->update_push_rover_info(task_key, alias_mpt, connect_key, state);
 }
 
-int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z,int Q, int sat, double diff)
+int CASTER::Set_Rover_Coord_Info(const char *user_name, const char *connect_key, double ecef_x, double ecef_y, double ecef_z, int Q, int sat, double diff)
 {
-    return caster_internal::getInstance()->set_rover_coord_info(user_name, connect_key, ecef_x, ecef_y, ecef_z, Q, sat, diff);
+    if (auto result = require_connect_key(__func__, connect_key); !result.ok())
+        return finish_core_facade_failure(result);
+    return caster_internal::getInstance()->set_rover_coord_info(safe_optional_text(user_name), connect_key, ecef_x, ecef_y, ecef_z, Q, sat, diff);
 }
 
 

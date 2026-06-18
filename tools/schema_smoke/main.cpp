@@ -15,6 +15,7 @@
 #include "config_controller.h"
 #include "connection_history_repository.h"
 #include "connection_history_service.h"
+#include "core_result.h"
 #include "json_record.h"
 #include "mountpoint_subscriber_repository.h"
 #include "mountpoint_subscriber_service.h"
@@ -546,6 +547,39 @@ int current_process_id()
 int main()
 {
     using namespace navcaster;
+
+    {
+        auto ok = core::CoreResult::success("schema_smoke");
+        expect_true(ok.ok(), "core result success ok");
+        expect_eq_int(core::to_legacy_int(ok), 0, "core result success legacy int");
+        expect_eq(std::string(core::core_error_code_name(core::CoreErrorCode::Ok)), "ok", "core result ok name");
+
+        auto invalid = core::CoreResult::failure(core::CoreErrorCode::InvalidArgument,
+                                                 "Register_Record",
+                                                 "missing required argument")
+                           .with_subject("connect_key")
+                           .with_redis_key("MPT:REC:BASE01");
+        expect_true(!invalid.ok(), "core result failure not ok");
+        expect_eq_int(core::to_legacy_int(invalid), 1, "core result failure legacy int");
+        expect_eq_int(core::to_legacy_int(invalid, -1), -1, "core result custom legacy int");
+        expect_eq(std::string(core::core_error_code_name(invalid.code)), "invalid_argument", "core result invalid name");
+        expect_true(invalid.summary().find("operation=Register_Record") != std::string::npos, "core result summary operation");
+        expect_true(invalid.summary().find("subject=connect_key") != std::string::npos, "core result summary subject");
+        expect_true(invalid.summary().find("redis_key=MPT:REC:BASE01") != std::string::npos, "core result summary redis key");
+
+        core::CoreCallbackReply callback_reply(invalid);
+        expect_true(callback_reply.reply.type == CasterReply::ERR, "core result callback error type");
+        expect_eq(std::string(callback_reply.reply.str), "missing required argument", "core result callback message");
+        expect_eq_int(static_cast<int>(callback_reply.reply.len), static_cast<int>(std::string("missing required argument").size()), "core result callback message length");
+
+        auto publish_failed = core::CoreResult::failure(core::CoreErrorCode::PublishFailed,
+                                                        "pub_base_channel",
+                                                        "Redis publish command failed")
+                                  .with_subject("connect-1")
+                                  .with_redis_key("MPT:BASE01");
+        expect_eq(std::string(core::core_error_code_name(publish_failed.code)), "publish_failed", "core result publish failed name");
+        expect_eq_int(core::to_legacy_int(publish_failed, -1), -1, "core result publish failed redis legacy int");
+    }
 
     {
         const auto auth_conf_path = std::filesystem::temp_directory_path() / ("navcaster_schema_auth_verify_" + std::to_string(current_process_id()) + ".yml");
