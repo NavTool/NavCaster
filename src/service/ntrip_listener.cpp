@@ -10,6 +10,8 @@
 #include <cmath>
 #include <cstdlib>
 
+#include "log_observability.h"
+
 #define __class__ "ntrip_listener"
 
 #include "nlohmann/json.hpp"
@@ -274,7 +276,12 @@ int ntrip_listener::process_bev_request(bufferevent *bev, std::string connect_ke
             throw std::runtime_error("invalid header");
         }
 
-        spdlog::info("[{}]: receive request header: [{}], from: [ip: {} port: {}]", __class__, header, ip, port);
+        spdlog::info("[{}]: event=ntrip_request request=\"{}\" connect_key={} ip={} port={}",
+                     __class__,
+                     navcaster::observability::summarize_ntrip_request_line(header),
+                     connect_key,
+                     ip,
+                     port);
 
         char ele[4][256] = {'\0'};
         sscanf(header, "%[^ |\n] %[^ |\n] %[^ |\n] %[^ |\n]", ele[0], ele[1], ele[2], ele[3]);
@@ -394,7 +401,13 @@ int ntrip_listener::create_request(auth_reply *reply, ConnectInfo req)
     }
     else
     {
-        spdlog::warn("[{}:{}]: Auth Verify Failed: {}", __class__, __func__, reply->str); // 验证失败，关闭连接
+        spdlog::warn("[{}:{}]: event=auth_callback_rejected connect_key={} mountpoint={} account={} reason={}",
+                     __class__,
+                     __func__,
+                     req.connect_key(),
+                     req.mount_point(),
+                     req.user_name(),
+                     reply->str ? reply->str : "");
         // 验证失败，关闭当前连接
         std::string connect_key = req.connect_key();
         // 从connect_map中删除该连接
@@ -627,7 +640,7 @@ ConnectInfo ntrip_listener::decode_bufferevent_req(bufferevent *bev, std::string
             break;
         }
         std::string key_value = header;
-        spdlog::debug("[{}:{}]: header line info: {}", __class__, __func__, key_value);
+        spdlog::debug("[{}:{}]: header line info: {}", __class__, __func__, navcaster::observability::redact_header_line(key_value));
 
         if (key_value.size() == 0)
         {
@@ -687,7 +700,7 @@ ConnectInfo ntrip_listener::decode_bufferevent_req(bufferevent *bev, std::string
         int x = decodeID.find(":");
         if (x == decodeID.npos)
         {
-            spdlog::warn("[{}:{}]: decode Authorization value illegal ,decode base64:", __class__, __func__, decodeID);
+            spdlog::warn("[{}:{}]: decode Authorization value illegal, value=***", __class__, __func__);
         }
         else
         {
