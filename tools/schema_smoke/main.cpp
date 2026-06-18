@@ -20,6 +20,7 @@
 #include "core_callback_result.h"
 #include "core_result.h"
 #include "json_record.h"
+#include "log_observability.h"
 #include "mountpoint_subscriber_repository.h"
 #include "mountpoint_subscriber_service.h"
 #include "node_history_repository.h"
@@ -582,6 +583,21 @@ int main()
                                   .with_redis_key("MPT:BASE01");
         expect_eq(std::string(core::core_error_code_name(publish_failed.code)), "publish_failed", "core result publish failed name");
         expect_eq_int(core::to_legacy_int(publish_failed, -1), -1, "core result publish failed redis legacy int");
+    }
+
+    {
+        expect_eq(navcaster::observability::redact_header_line("Authorization: Basic abc"),
+                  "Authorization: ***",
+                  "observability redacts authorization header");
+        expect_eq(navcaster::observability::redact_header_line("X-Trace: ok"),
+                  "X-Trace: ok",
+                  "observability keeps non-sensitive header");
+        const auto source_summary = navcaster::observability::summarize_ntrip_request_line("SOURCE secret MOUNT1 HTTP/1.1");
+        expect_true(source_summary.find("secret") == std::string::npos, "observability redacts SOURCE credential");
+        expect_true(source_summary.find("mountpoint=MOUNT1") != std::string::npos, "observability keeps SOURCE mount");
+        expect_eq(navcaster::observability::summarize_ntrip_request_line("GET /MOUNT2 HTTP/1.1"),
+                  "method=GET target=/MOUNT2 version=HTTP/1.1",
+                  "observability summarizes GET request line");
     }
 
     {

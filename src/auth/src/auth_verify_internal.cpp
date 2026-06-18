@@ -3,6 +3,7 @@
 #include "auth_record_limit.h"
 #include "auth_session_record.h"
 #include "account_schema.h"
+#include "log_observability.h"
 #include <list>
 #include <spdlog/spdlog.h>
 #include "knt.h"
@@ -23,6 +24,30 @@ navcaster::auth::AuthLoginOptions current_login_options(const verify_internal &s
     options.server_online_protection = svr.server_online_protection();
     options.client_online_protection = svr.client_online_protection();
     return options;
+}
+
+const char *auth_reply_name(AuthReply reply)
+{
+    switch (reply)
+    {
+    case AuthReply::ERR:
+        return "err";
+    case AuthReply::OK:
+        return "ok";
+    case AuthReply::ACTIVE:
+        return "active";
+    case AuthReply::INACTIVE:
+        return "inactive";
+    case AuthReply::STRING:
+        return "string";
+    case AuthReply::INTEGER:
+        return "integer";
+    case AuthReply::DOUBLE:
+        return "double";
+    case AuthReply::NIL:
+        return "nil";
+    }
+    return "unknown";
 }
 }
 
@@ -93,7 +118,12 @@ int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyC
     ctx->cb = cb;
     ctx->arg = arg;
 
-    if (navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this)))
+    const bool anonymous_login = navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this));
+    spdlog::info("[auth]: event=verify_request auth_type={} account={} anonymous={}",
+                 navcaster::auth::AuthLoginService::auth_type_name(type),
+                 user_name,
+                 anonymous_login ? "true" : "false");
+    if (anonymous_login)
     {
         //     如果是匿名模式，那么账户系统就完全失效，只会生效ACT:UNNAMED
         //     基站匿名登录 || 用户匿名登录
@@ -423,7 +453,20 @@ int verify_internal::send_change_auth_status(const char *user_name, const char *
     item.status = status;
     item.reason = reason;
 
-    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH AUTH:BROADCAST %s", item.toString().c_str());
+    spdlog::warn("[auth]: event=auth_broadcast_publish operation=send_change_auth_status account={} connect_key={} status={} reason={}",
+                 user_name ? user_name : "",
+                 connect_key ? connect_key : "",
+                 auth_reply_name(status),
+                 reason ? reason : "");
+
+    const int ret = redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH AUTH:BROADCAST %s", item.toString().c_str());
+    if (ret != REDIS_OK)
+    {
+        spdlog::error("[auth]: event=redis_command_failed operation=send_change_auth_status redis_key=AUTH:BROADCAST account={} connect_key={} reason=publish_failed",
+                      user_name ? user_name : "",
+                      connect_key ? connect_key : "");
+    }
+    return ret;
 
     return 0;
 }
@@ -432,23 +475,59 @@ int verify_internal::remove_active_session(const char *user_name, const char *co
 {
     if (!_pub_context || !_is_pub_connected)
     {
+        spdlog::warn("[auth]: event=active_session_remove_skipped operation=remove_active_session redis_key={} account={} connect_key={} reason=redis_not_connected",
+                     navcaster::auth::active_session_key(user_name ? user_name : ""),
+                     user_name ? user_name : "",
+                     connect_key ? connect_key : "");
         return REDIS_ERR;
     }
-    return redisAsyncCommand(_pub_context, NULL, NULL, "HDEL %s %s", navcaster::auth::active_session_key(user_name).c_str(), connect_key);
+    const auto redis_key = navcaster::auth::active_session_key(user_name ? user_name : "");
+    spdlog::info("[auth]: event=active_session_remove operation=remove_active_session redis_key={} account={} connect_key={}",
+                 redis_key,
+                 user_name ? user_name : "",
+                 connect_key ? connect_key : "");
+    const int ret = redisAsyncCommand(_pub_context, NULL, NULL, "HDEL %s %s", redis_key.c_str(), connect_key);
+    if (ret != REDIS_OK)
+    {
+        spdlog::error("[auth]: event=redis_command_failed operation=remove_active_session redis_key={} account={} connect_key={} reason=hdel_failed",
+                      redis_key,
+                      user_name ? user_name : "",
+                      connect_key ? connect_key : "");
+    }
+    return ret;
 }
 
 int verify_internal::update_active_session(const auth_cb_item &item, std::time_t update_time)
 {
     if (!_pub_context || !_is_pub_connected)
     {
+        spdlog::warn("[auth]: event=active_session_update_skipped operation=update_active_session redis_key={} account={} connect_key={} reason=redis_not_connected",
+                     navcaster::auth::active_session_key(item.user_name),
+                     item.user_name,
+                     item.connect_key);
         return REDIS_ERR;
     }
     const auto online_time = item.online_time > 0 ? item.online_time : update_time;
-    return redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX %s EX %s FIELDS 1 %s %s",
-                             navcaster::auth::active_session_key(item.user_name).c_str(),
+    const auto redis_key = navcaster::auth::active_session_key(item.user_name);
+    spdlog::debug("[auth]: event=active_session_update operation=update_active_session redis_key={} account={} connect_key={} auth_type={} group_uid={}",
+                  redis_key,
+                  item.user_name,
+                  item.connect_key,
+                  navcaster::auth::AuthLoginService::auth_type_name(item.type),
+                  item.group_uid);
+    const int ret = redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX %s EX %s FIELDS 1 %s %s",
+                             redis_key.c_str(),
                              std::to_string(_key_expire_time).c_str(),
                              item.connect_key.c_str(),
                              navcaster::auth::build_active_session_record_json(item.user_name, item.connect_key, item.type, online_time, update_time, item.group_uid).c_str());
+    if (ret != REDIS_OK)
+    {
+        spdlog::error("[auth]: event=redis_command_failed operation=update_active_session redis_key={} account={} connect_key={} reason=hsetex_failed",
+                      redis_key,
+                      item.user_name,
+                      item.connect_key);
+    }
+    return ret;
 }
 
 int verify_internal::broadcast_response(std::string req_str)
@@ -457,6 +536,7 @@ int verify_internal::broadcast_response(std::string req_str)
     auth_broadcast_item req;
     if (req.fromString(req_str))
     {
+        spdlog::warn("[auth]: event=auth_broadcast_decode_failed operation=broadcast_response reason=parse_error");
         return 1; // 解析失败
     }
 
@@ -472,12 +552,19 @@ int verify_internal::broadcast_response(std::string req_str)
     }
     else
     {
+        spdlog::warn("[auth]: event=auth_broadcast_ignored operation=broadcast_response account={} connect_key={} reason=unsupported_type",
+                     req.channel,
+                     req.connect_key);
         return 1; // 不支持的广播类型
     }
     // 收到拉取激活源的请求
     auto item = item_map->find(req.channel);
     if (item == item_map->end())
     {
+        spdlog::debug("[auth]: event=auth_broadcast_no_local_record operation=broadcast_response account={} connect_key={} status={} reason=no_channel",
+                      req.channel,
+                      req.connect_key,
+                      auth_reply_name(req.status));
         return 2; // 本地没有该频道的注册记录
     }
 
@@ -492,6 +579,10 @@ int verify_internal::broadcast_response(std::string req_str)
 
     if (req.connect_key.size() == 0) // 没有指定特定的连接，则对所有的连接都发送一次回复（针对允许同名频道都在线的情况）
     {
+        spdlog::warn("[auth]: event=auth_broadcast_apply operation=broadcast_response account={} connect_key=* status={} reason={}",
+                     req.channel,
+                     auth_reply_name(req.status),
+                     req.reason);
         for (auto &iter : item->second)
         {
             if (disable_active_session)
@@ -510,8 +601,18 @@ int verify_internal::broadcast_response(std::string req_str)
         auto target = item->second.find(req.connect_key);
         if (target == item->second.end())
         {
+            spdlog::debug("[auth]: event=auth_broadcast_no_local_record operation=broadcast_response account={} connect_key={} status={} reason=no_connect_key",
+                          req.channel,
+                          req.connect_key,
+                          auth_reply_name(req.status));
             return 3; // 本地没有该连接的注册记录
         }
+
+        spdlog::warn("[auth]: event=auth_broadcast_apply operation=broadcast_response account={} connect_key={} status={} reason={}",
+                     req.channel,
+                     req.connect_key,
+                     auth_reply_name(req.status),
+                     req.reason);
 
         if (disable_active_session)
         {
@@ -684,6 +785,12 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     if (reply->type == REDIS_REPLY_NIL)
     {
         const auto login_decision = navcaster::auth::AuthLoginService::account_not_found();
+        spdlog::warn("[auth]: event=login_rejected operation=verify_account auth_type={} account={} stage={} code={} reason={}",
+                     navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                     ctx->user_name,
+                     navcaster::auth::AuthLoginService::stage_name(login_decision.stage),
+                     navcaster::core::core_error_code_name(login_decision.result.code),
+                     login_decision.result.message);
         auth_reply Reply;
         Reply.type = AuthReply::ERR; // AUTH_REPLY_ERR;
         Reply.str = login_decision.legacy_reply.c_str();
@@ -693,6 +800,9 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     }
     if (reply->type != REDIS_REPLY_STRING)
     {
+        spdlog::warn("[auth]: event=login_rejected operation=verify_account auth_type={} account={} stage=account_lookup code=redis_error reason=unexpected_reply_type",
+                     navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                     ctx->user_name);
         return;
     }
 
@@ -707,6 +817,9 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     auth_limit active_info;
     if (active_info.fromString(reply->str) != 0)
     {
+        spdlog::warn("[auth]: event=login_rejected operation=verify_account auth_type={} account={} stage=account_rejected code=parse_error reason=auth_limit_parse_failed",
+                     navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                     ctx->user_name);
         auth_reply Reply;
         Reply.type = AuthReply::ERR;
         Reply.str = "User auth info invalid!";
@@ -718,6 +831,12 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     const auto login_decision = navcaster::auth::AuthLoginService::evaluate_account(reply->str, ctx->user_pwd, ctx->type, util_get_time_stamp());
     if (!login_decision.result.ok())
     {
+        spdlog::warn("[auth]: event=login_rejected operation=verify_account auth_type={} account={} stage={} code={} reason={}",
+                     navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                     ctx->user_name,
+                     navcaster::auth::AuthLoginService::stage_name(login_decision.stage),
+                     navcaster::core::core_error_code_name(login_decision.result.code),
+                     login_decision.result.message);
         auth_reply Reply;
         Reply.type = AuthReply::ERR;
         Reply.str = login_decision.legacy_reply.c_str();
@@ -739,6 +858,11 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
     auth_reply Reply;
     Reply.type = AuthReply::OK; // AUTH_REPLY_ERR;
     Reply.group_uid = login_decision.group_uid;
+    spdlog::info("[auth]: event=login_accepted operation=verify_account auth_type={} account={} group_uid={} stage={}",
+                 navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                 ctx->user_name,
+                 login_decision.group_uid,
+                 navcaster::auth::AuthLoginService::stage_name(login_decision.stage));
     ctx->cb(nullptr, ctx->arg, &Reply);
 
     delete ctx;
@@ -790,8 +914,21 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
             online_protection,
             ctx->user_name);
         _check = decision.current_allowed;
+        spdlog::info("[auth]: event=record_limit_evaluated operation=add_login_record auth_type={} account={} connect_key={} online_protection={} current_allowed={} evicted_count={} code={} reason={}",
+                     navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                     ctx->user_name,
+                     ctx->connect_key,
+                     online_protection ? "true" : "false",
+                     decision.current_allowed ? "true" : "false",
+                     decision.evicted_connect_keys.size(),
+                     navcaster::core::core_error_code_name(decision.result.code),
+                     decision.result.message);
         for (const auto &evicted_connect_key : decision.evicted_connect_keys)
         {
+            spdlog::warn("[auth]: event=online_protection_evict operation=add_login_record account={} connect_key={} evicted_connect_key={} reason=record_limit_exceeded",
+                         ctx->user_name,
+                         ctx->connect_key,
+                         evicted_connect_key);
             auto register_item = verify_internal::getInstance()->_register_map.find(ctx->user_name);
             if (register_item != verify_internal::getInstance()->_register_map.end())
             {
@@ -821,6 +958,10 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
                 cb_item->second.group_uid = normalize_group_uid(limit_item->second._group);
                 verify_internal::getInstance()->update_active_session(cb_item->second, util_get_time_stamp());
                 cb_item->second.active_session_enabled = true;
+                spdlog::info("[auth]: event=login_record_accepted operation=add_login_record account={} connect_key={} group_uid={}",
+                             ctx->user_name,
+                             ctx->connect_key,
+                             cb_item->second.group_uid);
             }
         }
 
@@ -832,6 +973,10 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
     }
     catch (const std::exception &e)
     {
+        spdlog::warn("[auth]: event=login_record_rejected operation=add_login_record account={} connect_key={} reason={}",
+                     ctx->user_name,
+                     ctx->connect_key,
+                     e.what());
         auto register_item = verify_internal::getInstance()->_register_map.find(ctx->user_name);
         if (register_item != verify_internal::getInstance()->_register_map.end())
         {
@@ -929,7 +1074,7 @@ int auth_broadcast_item::fromString(const std::string &str)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[auth_broadcast_item:{}]: decode field: {} ,what: {}", __func__, str, e.what());
+        spdlog::warn("[auth_broadcast_item:{}]: decode field failed, bytes={} what={}", __func__, str.size(), e.what());
         return 1;
     }
 
@@ -956,7 +1101,7 @@ int auth_limit::fromString(const std::string &str)
     std::string error;
     if (!navcaster::account_schema::parse_auth_view(str, view, &error))
     {
-        spdlog::warn("[auth_limit:{}]: decode field: {} ,what: {}", __func__, str, error);
+        spdlog::warn("[auth_limit:{}]: decode field failed, bytes={} what={}", __func__, str.size(), error);
         return 1;
     }
 
@@ -976,7 +1121,7 @@ int auth_limit::fromString(const std::string &str)
     }
     catch (const std::exception &e)
     {
-        spdlog::warn("[auth_limit:{}]: decode field: {} ,what: {}", __func__, str, e.what());
+        spdlog::warn("[auth_limit:{}]: decode field failed, bytes={} what={}", __func__, str.size(), e.what());
         return 1;
     }
     return 0;

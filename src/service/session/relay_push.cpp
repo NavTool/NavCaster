@@ -60,7 +60,8 @@ int relay_push::stop()
     cleanup_connection();
     _state = State::Idle;
 
-    spdlog::info("[{}]: stopped, mount [{}], addr:[{}:{}]", __class__, _mount_point, _info.addr(), _info.port());
+    spdlog::info("[{}]: event=relay_session_stop relay_kind=push relay_uid={} mountpoint={} connect_key={} addr={}:{}",
+                 __class__, _task_key, _mount_point, _connect_key, _info.addr(), _info.port());
     return 0;
 }
 
@@ -148,7 +149,8 @@ int relay_push::running()
     connect_bev::getInstance()->set_bev(_connect_key, nullptr, nullptr, EventCallback, this);
     CASTER::Set_Push_Rover_Info(_task_key.c_str(), _mount_point.c_str(), _connect_key.c_str(), 1);
 
-    spdlog::info("[{}]: running, mount [{}], addr:[{}:{}]", __class__, _mount_point, _info.addr(), _info.port());
+    spdlog::info("[{}]: event=relay_session_running relay_kind=push relay_uid={} mountpoint={} connect_key={} addr={}:{}",
+                 __class__, _task_key, _mount_point, _connect_key, _info.addr(), _info.port());
     return 0;
 }
 
@@ -185,7 +187,8 @@ int relay_push::schedule_retry(const std::string &reason)
         return 0;
     }
 
-    spdlog::warn("[{}]: {}, retry in {}s, mount [{}], addr:[{}:{}]", __class__, reason, _retry_delay, _mount_point, _info.addr(), _info.port());
+    spdlog::warn("[{}]: event=relay_session_retry relay_kind=push relay_uid={} mountpoint={} connect_key={} reason={} retry_delay={} addr={}:{}",
+                 __class__, _task_key, _mount_point, _connect_key, reason, _retry_delay, _info.addr(), _info.port());
     cleanup_connection();
     CASTER::Set_Push_Rover_Info(_task_key.c_str(), _mount_point.c_str(), "", 0);
     _state = State::WaitingRetry;
@@ -227,8 +230,10 @@ void relay_push::ReadCallback(bufferevent *bev, void *arg)
 void relay_push::EventCallback(bufferevent *bev, short events, void *arg)
 {
     auto *session = static_cast<relay_push *>(arg);
-    spdlog::info("[{}:{}]: {}{}{}{}{}{}, mount [{}], addr:[{}:{}]",
+    spdlog::info("[{}:{}]: event=relay_session_event relay_kind=push relay_uid={} connect_key={} flags={}{}{}{}{}{} mountpoint={} addr={}:{}",
                  session->__class__, __func__,
+                 session->_task_key,
+                 session->_connect_key,
                  (events & BEV_EVENT_READING) ? "read" : "-",
                  (events & BEV_EVENT_WRITING) ? "write" : "-",
                  (events & BEV_EVENT_EOF) ? "eof" : "-",

@@ -98,9 +98,46 @@ int finish_redis_publish_failure(const CoreResult &result)
 
 int finish_channel_lifecycle_failure(const CoreResult &result, CasterCallback cb = nullptr, void *arg = nullptr, int failure_value = 1)
 {
-    spdlog::warn("[{}]: {}", __class__, result.summary());
+    spdlog::warn("[{}]: event=channel_lifecycle_failed {}", __class__, result.summary());
     navcaster::core::invoke_caster_callback(cb, arg, result);
     return navcaster::core::to_legacy_int(result, failure_value);
+}
+
+const char *register_type_name(CasterRegisterType type)
+{
+    switch (type)
+    {
+    case CasterRegisterType::SERVER:
+        return "server";
+    case CasterRegisterType::CLIENT:
+        return "client";
+    case CasterRegisterType::NEAREST:
+        return "nearest";
+    case CasterRegisterType::ALIAS:
+        return "alias";
+    case CasterRegisterType::PULL:
+        return "pull";
+    case CasterRegisterType::PUSH:
+        return "push";
+    case CasterRegisterType::UNKNOWN:
+    default:
+        return "unknown";
+    }
+}
+
+const char *broadcast_operate_name(caster::core::BroadcastOperateType operate)
+{
+    switch (operate)
+    {
+    case caster::core::BOARDCAST_OPERATR_ACTIVE:
+        return "active";
+    case caster::core::BOARDCAST_OPERATR_INACTIVE:
+        return "inactive";
+    case caster::core::BOARDCAST_OPERATE_UPDATE:
+        return "update";
+    default:
+        return "unknown";
+    }
 }
 }
 
@@ -535,6 +572,14 @@ int caster_internal::sub_base_channel(const char *channel, const char *user_name
         cb_item.cb = cb;
         cb_item.arg = arg;
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
+        spdlog::info("[{}]: event=channel_subscribe operation=sub_base_channel endpoint=base node_id={} mountpoint={} account={} connect_key={} group_uid={} redis_key={}",
+                     __class__,
+                     _node_ID,
+                     channel,
+                     user_name,
+                     connect_key,
+                     normalize_access_group_uid(group_uid),
+                     ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Base, bucket));
 
         // 更新用户订阅的挂载点信息
         auto item = _client_status_map.find(connect_key);
@@ -705,6 +750,12 @@ int caster_internal::unsub_base_channel(const char *channel, const char *connect
     channel_subs->second.erase(item);
 
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_SUBSCRIBE_LIST ":%s %s", channel, connect_key);
+    spdlog::info("[{}]: event=channel_unsubscribe operation=unsub_base_channel endpoint=base node_id={} mountpoint={} connect_key={} redis_key={}",
+                 __class__,
+                 _node_ID,
+                 channel,
+                 connect_key,
+                 ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Base, bucket));
 
     return 0;
 }
@@ -771,6 +822,14 @@ int caster_internal::sub_rover_channel(const char *channel, const char *user_nam
         cb_item.cb = cb;
         cb_item.arg = arg;
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
+        spdlog::info("[{}]: event=channel_subscribe operation=sub_rover_channel endpoint=rover node_id={} mountpoint={} account={} connect_key={} group_uid={} redis_key={}",
+                     __class__,
+                     _node_ID,
+                     channel,
+                     user_name,
+                     connect_key,
+                     normalize_access_group_uid(group_uid),
+                     ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Rover, bucket));
 
         caster_reply Reply;
         Reply.type = CasterReply::OK;
@@ -806,6 +865,12 @@ int caster_internal::unsub_rover_channel(const char *channel, const char *connec
     // 更新订阅者列表
     channel_subs->second.erase(item);
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_SUBSCRIBE_LIST ":%s %s", channel, connect_key);
+    spdlog::info("[{}]: event=channel_unsubscribe operation=unsub_rover_channel endpoint=rover node_id={} account={} connect_key={} redis_key={}",
+                 __class__,
+                 _node_ID,
+                 channel,
+                 connect_key,
+                 ChannelLifecycleService::subscription_redis_key(ChannelEndpoint::Rover, bucket));
 
     return 0;
 }
@@ -920,9 +985,9 @@ int caster_internal::check_redis_connection()
         return 0;
     }
 
-    if (_sub_ping_fail_count > 2)
+        if (_sub_ping_fail_count > 2)
     {
-        spdlog::error("[{}] Redis SUB connection lost, try to reconnect...", __class__);
+        spdlog::error("[{}]: event=redis_reconnect operation=check_redis_connection redis_role=sub reason=ping_timeout retry_delay=immediate", __class__);
 
         _is_sub_connected = false;
         subAttemptReconnect();
@@ -931,7 +996,7 @@ int caster_internal::check_redis_connection()
 
     if (_pub_ping_fail_count > 2)
     {
-        spdlog::error("[{}] Redis PUB connection lost, try to reconnect...", __class__);
+        spdlog::error("[{}]: event=redis_reconnect operation=check_redis_connection redis_role=pub reason=ping_timeout retry_delay=immediate", __class__);
         _is_pub_connected = false;
         pubAttemptReconnect();
         _pub_ping_fail_count = 0;
@@ -969,6 +1034,8 @@ int caster_internal::update_pull_base_info(const char *task_key, const char *ali
         auto status_json = pull_item->second.toString();
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PULL_STREAM_STATUS " EX %s FIELDS 1 %s %s",
                           std::to_string(_key_expire_time).c_str(), task_key, status_json.c_str());
+        spdlog::info("[{}]: event=relay_status_update operation=update_pull_base_info relay_kind=pull relay_uid={} mountpoint={} connect_key={} state={} node_id={}",
+                     __class__, task_key, alias_mpt, connect_key, state, _node_ID);
     }
     return 0;
 }
@@ -988,6 +1055,8 @@ int caster_internal::update_push_rover_info(const char *task_key, const char *al
         auto status_json = push_item->second.toString();
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX " PUSH_STREAM_STATUS " EX %s FIELDS 1 %s %s",
                           std::to_string(_key_expire_time).c_str(), task_key, status_json.c_str());
+        spdlog::info("[{}]: event=relay_status_update operation=update_push_rover_info relay_kind=push relay_uid={} mountpoint={} connect_key={} state={} node_id={}",
+                     __class__, task_key, alias_mpt, connect_key, state, _node_ID);
     }
     return 0;
 }
@@ -1071,6 +1140,12 @@ int caster_internal::relay_push_task_distribution()
     for (const auto &action : actions)
     {
         const auto payload = action.message.toString();
+        spdlog::info("[{}]: event=relay_schedule operation=relay_push_task_distribution relay_kind=push relay_uid={} operate={} node_id={} reason={}",
+                     __class__,
+                     action.message.target,
+                     broadcast_operate_name(action.message.operate),
+                     _node_ID,
+                     action.message.reason_str);
         redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), payload.c_str());
         navcaster::core::RelayScheduler::apply_distributed_mutation(action, _push_record_distributed);
     }
@@ -1086,6 +1161,12 @@ int caster_internal::relay_pull_task_distribution()
     for (const auto &action : actions)
     {
         const auto payload = action.message.toString();
+        spdlog::info("[{}]: event=relay_schedule operation=relay_pull_task_distribution relay_kind=pull relay_uid={} operate={} node_id={} reason={}",
+                     __class__,
+                     action.message.target,
+                     broadcast_operate_name(action.message.operate),
+                     _node_ID,
+                     action.message.reason_str);
         redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH NODE:%s %s", _node_ID.c_str(), payload.c_str());
         navcaster::core::RelayScheduler::apply_distributed_mutation(action, _pull_record_distributed);
     }
@@ -1099,6 +1180,7 @@ int caster_internal::relay_task_response(std::string req_str)
     broadcast_msg req;
     if (req.fromString(req_str))
     {
+        spdlog::warn("[{}]: event=relay_broadcast_decode_failed operation=relay_task_response node_id={} reason=parse_error", __class__, _node_ID);
         return 1; // 解析失败
     }
 
@@ -1110,6 +1192,7 @@ int caster_internal::relay_task_response(std::string req_str)
         {
             if (_pull_status_map.count(uid))
             {
+                spdlog::debug("[{}]: event=relay_broadcast_ignored operation=relay_task_response relay_kind=pull relay_uid={} operate=active node_id={} reason=already_exists", __class__, uid, _node_ID);
                 return 2; // 已经存在这个任务，说明是重复的广播，忽略
             }
 
@@ -1117,14 +1200,19 @@ int caster_internal::relay_task_response(std::string req_str)
             stat.set_node_info(_node_ID, _node_name);
             stat.update_state("", 0);
             _pull_status_map.insert({uid, stat});
+            spdlog::info("[{}]: event=relay_broadcast_apply operation=relay_task_response relay_kind=pull relay_uid={} operate=active node_id={} reason={}",
+                         __class__, uid, _node_ID, req.reason_str);
             _relay_cb(_relay_cb_arg, req);
         }
         else if (req.operate == caster::core::BOARDCAST_OPERATR_INACTIVE)
         {
             if (_pull_status_map.find(uid) == _pull_status_map.end())
             {
+                spdlog::debug("[{}]: event=relay_broadcast_ignored operation=relay_task_response relay_kind=pull relay_uid={} operate=inactive node_id={} reason=missing_status", __class__, uid, _node_ID);
                 return 3; // 不存在这个任务，忽略
             }
+            spdlog::info("[{}]: event=relay_broadcast_apply operation=relay_task_response relay_kind=pull relay_uid={} operate=inactive node_id={} reason={}",
+                         __class__, uid, _node_ID, req.reason_str);
             _relay_cb(_relay_cb_arg, req);
             _pull_status_map.erase(uid);
             redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", uid.c_str());
@@ -1134,8 +1222,11 @@ int caster_internal::relay_task_response(std::string req_str)
             auto it = _pull_status_map.find(uid);
             if (it == _pull_status_map.end())
             {
+                spdlog::debug("[{}]: event=relay_broadcast_ignored operation=relay_task_response relay_kind=pull relay_uid={} operate=update node_id={} reason=missing_status", __class__, uid, _node_ID);
                 return 3; // 不存在这个任务，忽略
             }
+            spdlog::info("[{}]: event=relay_broadcast_apply operation=relay_task_response relay_kind=pull relay_uid={} operate=update node_id={} reason={}",
+                         __class__, uid, _node_ID, req.reason_str);
             _relay_cb(_relay_cb_arg, req);
         }
     }
@@ -1145,6 +1236,7 @@ int caster_internal::relay_task_response(std::string req_str)
         {
             if (_push_status_map.count(uid))
             {
+                spdlog::debug("[{}]: event=relay_broadcast_ignored operation=relay_task_response relay_kind=push relay_uid={} operate=active node_id={} reason=already_exists", __class__, uid, _node_ID);
                 return 2; // 已经存在这个任务，说明是重复的广播，忽略
             }
 
@@ -1152,14 +1244,19 @@ int caster_internal::relay_task_response(std::string req_str)
             stat.set_node_info(_node_ID, _node_name);
             stat.update_state("", 0);
             _push_status_map.insert({uid, stat});
+            spdlog::info("[{}]: event=relay_broadcast_apply operation=relay_task_response relay_kind=push relay_uid={} operate=active node_id={} reason={}",
+                         __class__, uid, _node_ID, req.reason_str);
             _relay_cb(_relay_cb_arg, req);
         }
         else if (req.operate == caster::core::BOARDCAST_OPERATR_INACTIVE)
         {
             if (_push_status_map.find(uid) == _push_status_map.end())
             {
+                spdlog::debug("[{}]: event=relay_broadcast_ignored operation=relay_task_response relay_kind=push relay_uid={} operate=inactive node_id={} reason=missing_status", __class__, uid, _node_ID);
                 return 3; // 不存在这个任务，忽略
             }
+            spdlog::info("[{}]: event=relay_broadcast_apply operation=relay_task_response relay_kind=push relay_uid={} operate=inactive node_id={} reason={}",
+                         __class__, uid, _node_ID, req.reason_str);
             _relay_cb(_relay_cb_arg, req);
             _push_status_map.erase(uid);
             redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", uid.c_str());
@@ -1169,8 +1266,11 @@ int caster_internal::relay_task_response(std::string req_str)
             auto it = _push_status_map.find(uid);
             if (it == _push_status_map.end())
             {
+                spdlog::debug("[{}]: event=relay_broadcast_ignored operation=relay_task_response relay_kind=push relay_uid={} operate=update node_id={} reason=missing_status", __class__, uid, _node_ID);
                 return 3; // 不存在这个任务，忽略
             }
+            spdlog::info("[{}]: event=relay_broadcast_apply operation=relay_task_response relay_kind=push relay_uid={} operate=update node_id={} reason={}",
+                         __class__, uid, _node_ID, req.reason_str);
             _relay_cb(_relay_cb_arg, req);
         }
     }
@@ -1190,6 +1290,8 @@ int caster_internal::upload_relay_status()
         if (iter->second.running() &&
             _server_status_map.find(iter->second.connect_key()) == _server_status_map.end())
         {
+            spdlog::warn("[{}]: event=relay_status_cleanup operation=upload_relay_status relay_kind=pull relay_uid={} connect_key={} node_id={} reason=missing_local_server_status",
+                         __class__, iter->first, iter->second.connect_key(), _node_ID);
             redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PULL_STREAM_STATUS " %s", iter->first.c_str());
             iter = _pull_status_map.erase(iter);
             continue;
@@ -1207,6 +1309,8 @@ int caster_internal::upload_relay_status()
         if (iter->second.running() &&
             _client_status_map.find(iter->second.connect_key()) == _client_status_map.end())
         {
+            spdlog::warn("[{}]: event=relay_status_cleanup operation=upload_relay_status relay_kind=push relay_uid={} connect_key={} node_id={} reason=missing_local_client_status",
+                         __class__, iter->first, iter->second.connect_key(), _node_ID);
             redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " PUSH_STREAM_STATUS " %s", iter->first.c_str());
             iter = _push_status_map.erase(iter);
             continue;
@@ -1240,11 +1344,15 @@ void caster_internal::Redis_SetMaster_Callback(redisAsyncContext *c, void *r, vo
             svr->_current_master_id = observed.current_master_id;
             if (observed.is_self)
             {
-                spdlog::info("[caster_internal]: This node ({}) became MASTER", svr->_node_ID);
+                spdlog::info("[caster_internal]: event=master_observed operation=Redis_SetMaster_Callback node_id={} master_node={} role=self",
+                             svr->_node_ID,
+                             observed.current_master_id);
             }
             else
             {
-                spdlog::info("[caster_internal]: Master node changed to {}", observed.current_master_id);
+                spdlog::info("[caster_internal]: event=master_observed operation=Redis_SetMaster_Callback node_id={} master_node={} role=standby",
+                             svr->_node_ID,
+                             observed.current_master_id);
             }
         }
     }
@@ -1274,13 +1382,18 @@ void caster_internal::Redis_KeepMaster_Callback(redisAsyncContext *c, void *r, v
     if (plan.event == navcaster::core::MasterLeaseEventType::Acquired)
     {
         svr->_is_master = plan.is_master;
-        spdlog::info("[caster_internal]: Node {} confirmed as MASTER (TTL={}s)", svr->_node_ID, svr->_master_expire_time);
+        spdlog::info("[caster_internal]: event=master_acquired operation=Redis_KeepMaster_Callback node_id={} master_node={} ttl={} reason=keepalive_ok",
+                     svr->_node_ID,
+                     svr->_node_ID,
+                     svr->_master_expire_time);
         redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", plan.log_key.c_str(), plan.log_field.c_str(), plan.payload.dump().c_str());
     }
     else if (plan.event == navcaster::core::MasterLeaseEventType::Lost)
     {
         svr->_is_master = plan.is_master;
-        spdlog::warn("[caster_internal]: Node {} lost MASTER role", svr->_node_ID);
+        spdlog::warn("[caster_internal]: event=master_lost operation=Redis_KeepMaster_Callback node_id={} master_node={} reason=keepalive_failed",
+                     svr->_node_ID,
+                     svr->_current_master_id);
         redisAsyncCommand(svr->_pub_context, NULL, NULL, "HSET %s %s %s", plan.log_key.c_str(), plan.log_field.c_str(), plan.payload.dump().c_str());
     }
 
@@ -1930,6 +2043,15 @@ int caster_internal::register_base_channel(const char *channel, const char *user
         cb_item.arg = arg;
 
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
+        spdlog::info("[{}]: event=channel_register operation=register_base_channel endpoint=base node_id={} mountpoint={} account={} connect_key={} register_type={} group_uid={} redis_key={}",
+                     __class__,
+                     _node_ID,
+                     channel,
+                     user_name,
+                     connect_key,
+                     register_type_name(type),
+                     normalize_access_group_uid(group_uid),
+                     redis_key);
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性
         // 即：查询到的结果已经包含当前记录，因此避免查询-插入后还需要再进行一步检测的步骤
@@ -2040,6 +2162,15 @@ int caster_internal::register_rover_channel(const char *channel, const char *use
 
         find->second.insert(std::pair<std::string, caster_cb_item>(connect_key, cb_item));
         _kick_map[connect_key] = cb_item;
+        spdlog::info("[{}]: event=channel_register operation=register_rover_channel endpoint=rover node_id={} mountpoint={} account={} connect_key={} register_type={} group_uid={} redis_key={}",
+                     __class__,
+                     _node_ID,
+                     channel,
+                     user_name,
+                     connect_key,
+                     register_type_name(type),
+                     normalize_access_group_uid(group_uid),
+                     redis_key);
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性，即：查询到的结果已经包含当前记录，因此避免查询-插入-再查询的时候
         // 向云端插入记录
@@ -2084,6 +2215,13 @@ int caster_internal::withdraw_base_channel(const char *channel, const char *user
     _kick_map.erase(connect_key);
     // 删除Redis记录
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " MPT_CONNECTION_LIST ":%s %s", channel, connect_key);
+    spdlog::info("[{}]: event=channel_withdraw operation=withdraw_base_channel endpoint=base node_id={} mountpoint={} account={} connect_key={} redis_key={}",
+                 __class__,
+                 _node_ID,
+                 channel,
+                 user_name,
+                 connect_key,
+                 redis_key);
 
     // 删除status记录
     auto str = _server_status_map.find(connect_key);
@@ -2148,6 +2286,13 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
     _kick_map.erase(connect_key);
     // 删除Redis记录
     redisAsyncCommand(_pub_context, NULL, NULL, "HDEL " USR_CONNECTION_LIST ":%s %s", user_name, connect_key);
+    spdlog::info("[{}]: event=channel_withdraw operation=withdraw_rover_channel endpoint=rover node_id={} mountpoint={} account={} connect_key={} redis_key={}",
+                 __class__,
+                 _node_ID,
+                 channel,
+                 user_name,
+                 connect_key,
+                 redis_key);
 
     // 删除status记录
     auto str = _client_status_map.find(connect_key);
