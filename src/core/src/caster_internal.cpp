@@ -17,6 +17,7 @@
 #include "knt.h"
 #include "SysUsage.h"
 #include "access_policy_service.h"
+#include "core_result.h"
 #include "node_history_recorder.h"
 #include "relay_scheduler.h"
 #include "master_lease_service.h"
@@ -28,6 +29,8 @@
 namespace
 {
 using navcaster::core::normalize_access_group_uid;
+using navcaster::core::CoreErrorCode;
+using navcaster::core::CoreResult;
 
 long long current_process_id()
 {
@@ -55,6 +58,38 @@ size_t count_running_relay_statuses(const StatusMap &statuses, const std::string
         count++;
     }
     return count;
+}
+
+CoreResult require_publish_context(redisAsyncContext *context, const char *operation, const std::string &redis_key, const std::string &subject = {})
+{
+    if (context == nullptr)
+    {
+        return CoreResult::failure(CoreErrorCode::RedisDisconnected,
+                                   operation,
+                                   "Redis publish context is not connected")
+            .with_redis_key(redis_key)
+            .with_subject(subject);
+    }
+    if (context->err)
+    {
+        return CoreResult::failure(CoreErrorCode::RedisError,
+                                   operation,
+                                   "Redis publish context has an error")
+            .with_redis_key(redis_key)
+            .with_subject(subject);
+    }
+    return CoreResult::success(operation);
+}
+
+const char *safe_cstr(const char *value)
+{
+    return value ? value : "";
+}
+
+int finish_redis_publish_failure(const CoreResult &result)
+{
+    spdlog::warn("[{}]: {}", __class__, result.summary());
+    return navcaster::core::to_legacy_int(result, REDIS_ERR);
 }
 }
 
@@ -2152,19 +2187,47 @@ int caster_internal::withdraw_rover_channel(const char *channel, const char *use
 
 int caster_internal::send_status_base_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
+    if (auto result = require_publish_context(_pub_context, __func__, "CASTER:BROADCAST", safe_cstr(connect_key)); !result.ok())
+    {
+        return finish_redis_publish_failure(result);
+    }
+
     // 向redis发布广播
     broadcast_msg item;
     item.type = caster::core::BOARDCAST_TYPE_SERVER_OPERATE;
     item.operate = broadcast_msg::ReplyToOperate(status);
-    item.target = connect_key;
-    item.msg_str = channel;       // 状态变更时msg_str填充channel
-    item.reason_str = reason;
+    item.target = safe_cstr(connect_key);
+    item.msg_str = safe_cstr(channel); // 状态变更时msg_str填充channel
+    item.reason_str = safe_cstr(reason);
 
-    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
+    int ret = redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
+    if (ret != REDIS_OK)
+    {
+        return finish_redis_publish_failure(CoreResult::failure(CoreErrorCode::PublishFailed,
+                                                                __func__,
+                                                                "Redis publish command failed")
+                                                .with_redis_key("CASTER:BROADCAST")
+                                                .with_subject(safe_cstr(connect_key)));
+    }
+    return REDIS_OK;
 }
 
 int caster_internal::pub_base_channel(const char *mount_point, const char *connect_key, const char *data, size_t data_length)
 {
+    const std::string redis_key = std::string("MPT:") + safe_cstr(mount_point);
+    if (auto result = require_publish_context(_pub_context, __func__, redis_key, safe_cstr(connect_key)); !result.ok())
+    {
+        return finish_redis_publish_failure(result);
+    }
+    if (data_length > 0 && data == nullptr)
+    {
+        return finish_redis_publish_failure(CoreResult::failure(CoreErrorCode::InvalidArgument,
+                                                                __func__,
+                                                                "missing required argument")
+                                                .with_subject("data")
+                                                .with_redis_key(redis_key));
+    }
+
     auto str = _stream_status_map.find(connect_key);
     if (str != _stream_status_map.end())
     {
@@ -2193,24 +2256,61 @@ int caster_internal::pub_base_channel(const char *mount_point, const char *conne
         }
     }
 
-    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH MPT:%s %b", mount_point, data, data_length);
+    int ret = redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH MPT:%s %b", safe_cstr(mount_point), data, data_length);
+    if (ret != REDIS_OK)
+    {
+        return finish_redis_publish_failure(CoreResult::failure(CoreErrorCode::PublishFailed,
+                                                                __func__,
+                                                                "Redis publish command failed")
+                                                .with_redis_key(redis_key)
+                                                .with_subject(safe_cstr(connect_key)));
+    }
+    return REDIS_OK;
 }
 
 int caster_internal::send_status_rover_channel(const char *channel, const char *connect_key, CasterReply status, const char *reason)
 {
+    if (auto result = require_publish_context(_pub_context, __func__, "CASTER:BROADCAST", safe_cstr(connect_key)); !result.ok())
+    {
+        return finish_redis_publish_failure(result);
+    }
+
     // 向redis发布广播
     broadcast_msg item;
     item.type = caster::core::BOARDCAST_TYPE_CLIENT_OPERATE;
     item.operate = broadcast_msg::ReplyToOperate(status);
-    item.target = connect_key;
-    item.msg_str = channel;       // 状态变更时msg_str填充channel
-    item.reason_str = reason;
+    item.target = safe_cstr(connect_key);
+    item.msg_str = safe_cstr(channel); // 状态变更时msg_str填充channel
+    item.reason_str = safe_cstr(reason);
 
-    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
+    int ret = redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH CASTER:BROADCAST %s", item.toString().c_str());
+    if (ret != REDIS_OK)
+    {
+        return finish_redis_publish_failure(CoreResult::failure(CoreErrorCode::PublishFailed,
+                                                                __func__,
+                                                                "Redis publish command failed")
+                                                .with_redis_key("CASTER:BROADCAST")
+                                                .with_subject(safe_cstr(connect_key)));
+    }
+    return REDIS_OK;
 }
 
 int caster_internal::pub_rover_channel(const char *user_name, const char *connect_key, const char *data, size_t data_length)
 {
+    const std::string redis_key = std::string("USR:") + safe_cstr(user_name);
+    if (auto result = require_publish_context(_pub_context, __func__, redis_key, safe_cstr(connect_key)); !result.ok())
+    {
+        return finish_redis_publish_failure(result);
+    }
+    if (data_length > 0 && data == nullptr)
+    {
+        return finish_redis_publish_failure(CoreResult::failure(CoreErrorCode::InvalidArgument,
+                                                                __func__,
+                                                                "missing required argument")
+                                                .with_subject("data")
+                                                .with_redis_key(redis_key));
+    }
+
     auto str = _stream_status_map.find(connect_key);
     if (str != _stream_status_map.end())
     {
@@ -2276,7 +2376,16 @@ int caster_internal::pub_rover_channel(const char *user_name, const char *connec
         }
     }
 
-    return redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH USR:%s %b", user_name, data, data_length);
+    int ret = redisAsyncCommand(_pub_context, NULL, NULL, "PUBLISH USR:%s %b", safe_cstr(user_name), data, data_length);
+    if (ret != REDIS_OK)
+    {
+        return finish_redis_publish_failure(CoreResult::failure(CoreErrorCode::PublishFailed,
+                                                                __func__,
+                                                                "Redis publish command failed")
+                                                .with_redis_key(redis_key)
+                                                .with_subject(safe_cstr(connect_key)));
+    }
+    return REDIS_OK;
 }
 
 void caster_internal::Redis_Pub_ReconnectCallback(evutil_socket_t fd, short events, void *arg)
