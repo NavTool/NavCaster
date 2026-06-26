@@ -23,6 +23,7 @@ std::string acc_balance_ledger(const std::string &period) { return append(ACC_BA
 std::string aacc_owner(const std::string &account_id) { return append(AACC_OWNER_PREFIX, account_id); }
 std::string mpgrp_member(const std::string &group_id) { return append(MPGRP_MEMBER_PREFIX, group_id); }
 std::string sub_account(const std::string &account_id) { return append(SUB_ACCOUNT_PREFIX, account_id); }
+std::string redeem_account(const std::string &account_id) { return append(REDEEM_ACCOUNT_PREFIX, account_id); }
 std::string online_session(const std::string &account_id) { return append(ONLINE_SESSION_PREFIX, account_id); }
 std::string bill_entry(const std::string &period) { return append(BILL_ENTRY_PREFIX, period); }
 std::string bill_account(const std::string &account_id, const std::string &period) { return append(BILL_ACCOUNT_PREFIX, account_id) + ":" + period; }

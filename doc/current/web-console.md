@@ -1,7 +1,7 @@
 # Web 管理台当前实现说明
 
-更新时间：2026-06-26
-来源：NC-035 frontend 文档审计、NC-056 Web 三角色改造、`web` 源码和近期任务记录。
+更新时间：2026-06-27
+来源：NC-035 frontend 文档审计、NC-056 Web 三角色改造、NC-060 订阅兑换运营、`web` 源码和近期任务记录。
 
 ## 当前事实
 
@@ -31,11 +31,11 @@ NC-056 后 Web 路由按三角色分区：
 ```text
 /admin/*
   仅 role=admin 可访问。默认 /admin/dashboard。
-  覆盖运营总览、Account、AccessAccount、MountPointGroup、MountPoint、Station、Usage、SupplyUsage。
+  覆盖运营总览、Account、AccessAccount、MountPointGroup、MountPoint、Subscription、RedeemCode、Station、Usage、SupplyUsage。
 
 /me/*
   role=user 或 role=admin 可访问。默认 /me/dashboard。
-  覆盖用户资料、用户接入账号 CRUD、授权分组、可用挂载点和计费用量。
+  覆盖用户资料、用户接入账号 CRUD、授权分组、可用挂载点、订阅、兑换记录和计费用量。
 
 /supplier/*
   role=supplier 或 role=admin 可访问。默认 /supplier/dashboard。
@@ -82,6 +82,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/mount-point-groups
 /api/v1/admin/mount-points
 /api/v1/admin/subscriptions
+/api/v1/admin/redeem-codes
 /api/v1/admin/stations
 /api/v1/admin/usage
 /api/v1/admin/data-push-usage
@@ -91,8 +92,10 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/me/allowed-groups
 /api/v1/me/mount-points
 /api/v1/me/access-accounts
+/api/v1/me/subscriptions
 /api/v1/me/usage
 /api/v1/me/data-push
+/api/v1/me/redeem-redemptions
 /api/v1/supplier/profile
 /api/v1/supplier/dashboard
 /api/v1/supplier/access-accounts
@@ -109,6 +112,11 @@ session 推导 owner 和 kind。
 NC-057 起运营台增加 `/admin/data-push-usage`，用户自助台增加 `/me/data-push`。
 两个页面按当前 `yyyyMM` 展示 `DATA:PUSH:<period>` 事实；用户页只展示当前
 session Account，管理员页展示全局记录并在总览中汇总数据推送扣费。
+
+NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
+管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加
+`/me/subscriptions` 和 `/me/redeem-redemptions`，只展示当前 session Account 的
+订阅权益和兑换记录。
 
 ## API Types 和契约
 

@@ -483,6 +483,38 @@ ControllerResponse SelfServiceController::usage(const AuthSessionSubject &subjec
     return json_response(200, filter_billing_usage(subject.account_id, period));
 }
 
+nlohmann::json SelfServiceController::owner_subscriptions(const std::string &account_id) const
+{
+    const auto all = _redis.hgetall(redis_keys::sub_account(account_id).c_str());
+    return all.is_object() ? all : nlohmann::json::object();
+}
+
+nlohmann::json SelfServiceController::owner_redeem_redemptions(const std::string &account_id) const
+{
+    const auto all = _redis.hgetall(redis_keys::redeem_account(account_id).c_str());
+    return all.is_object() ? all : nlohmann::json::object();
+}
+
+ControllerResponse SelfServiceController::subscriptions(const AuthSessionSubject &subject)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    return json_response(200, owner_subscriptions(subject.account_id));
+}
+
+ControllerResponse SelfServiceController::redeem_redemptions(const AuthSessionSubject &subject)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    return json_response(200, owner_redeem_redemptions(subject.account_id));
+}
+
 ControllerResponse SelfServiceController::data_push_usage(const AuthSessionSubject &subject, const std::string &period)
 {
     auto guard = subject_error(subject, "me");

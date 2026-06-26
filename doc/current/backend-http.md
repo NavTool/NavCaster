@@ -1,7 +1,7 @@
 # Backend HTTP 当前实现说明
 
-更新时间：2026-06-26
-来源：NC-035 backend-http 文档审计、`src/http` 源码、NC-032/NC-034/NC-053/NC-057 任务记录。
+更新时间：2026-06-27
+来源：NC-035 backend-http 文档审计、`src/http` 源码、NC-032/NC-034/NC-053/NC-057/NC-060 任务记录。
 
 ## 负责范围
 
@@ -42,6 +42,17 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   session Account。POST 会覆盖请求体 `account_id`，按 `actual_debit_cents`
   写 `ACC:BALANCE:LEDGER:<yyyyMM>` 并同步 `ACC:RECORD.balance_cents`；余额不足
   返回 409 且不留下半写事实。
+- NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
+  `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
+  /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和
+  `POST /api/v1/admin/redeem-codes/{code}/redeem`。订阅更新会同步 `SUB:RECORD`
+  与 `SUB:ACCOUNT:<account_id>`，删除订阅会删除 account index 以触发运行时
+  subscription revoke；兑换成功会写 `REDEEM:ACCOUNT:<account_id>` 和余额
+  ledger，并更新 `ACC:RECORD.balance_cents`。
+- NC-060 起 `POST /api/v1/admin/accounts/{account_id}/balance-adjustments` 不再只写
+  ledger，还会按 `delta_cents` 同步更新 `ACC:RECORD.balance_cents` 并刷新 owner
+  下 AccessAccount 运行时余额快照。`GET /api/v1/me/subscriptions` 和
+  `GET /api/v1/me/redeem-redemptions` 返回当前用户自己的订阅和兑换记录。
 
 ## HTTP ingress 口径
 

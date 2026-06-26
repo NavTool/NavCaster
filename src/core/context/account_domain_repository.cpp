@@ -648,6 +648,271 @@ AccountDomainResult AccountDomainRepository::create_subscription(nlohmann::json 
     return result;
 }
 
+AccountDomainResult AccountDomainRepository::get_subscription(const std::string &subscription_id)
+{
+    const auto record = get_hash_record(redis_keys::SUB_RECORD, subscription_id);
+    if (record.is_null())
+    {
+        return make_result(RepositoryStatus::NotFound, subscription_id, "Subscription not found");
+    }
+    AccountDomainResult result;
+    result.id = subscription_id;
+    result.record = record;
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_subscription(const std::string &subscription_id, nlohmann::json record, std::int64_t now)
+{
+    auto current = get_hash_record(redis_keys::SUB_RECORD, subscription_id);
+    if (!current.is_object() || current.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, subscription_id, "Subscription not found");
+    }
+    record["subscription_id"] = subscription_id;
+    if (!record.contains("account_id"))
+    {
+        record["account_id"] = current.value("account_id", std::string{});
+    }
+    if (!record.contains("group_ids") && current.contains("group_ids"))
+    {
+        record["group_ids"] = current["group_ids"];
+    }
+    if (!record.contains("start_time") && current.contains("start_time"))
+    {
+        record["start_time"] = current["start_time"];
+    }
+    if (!record.contains("expire_time") && current.contains("expire_time"))
+    {
+        record["expire_time"] = current["expire_time"];
+    }
+    if (!record.contains("status") && current.contains("status"))
+    {
+        record["status"] = current["status"];
+    }
+    if (!record.contains("create_time") && current.contains("create_time"))
+    {
+        record["create_time"] = current["create_time"];
+    }
+
+    std::string error;
+    if (!account_domain::normalize_subscription(record, now, &error))
+    {
+        return invalid(error);
+    }
+    const std::string account_id = record.value("account_id", std::string{});
+    if (!account_domain::is_active_status(get_hash_record(redis_keys::ACC_RECORD, account_id)))
+    {
+        return make_result(RepositoryStatus::NotFound, account_id, "Account not found or inactive");
+    }
+    for (const auto &group_id : record["group_ids"])
+    {
+        if (!group_id.is_string() || !group_is_active(group_id.get<std::string>()))
+        {
+            return make_result(RepositoryStatus::Invalid, subscription_id, "Subscription references unknown group");
+        }
+    }
+
+    const std::string previous_account_id = current.value("account_id", std::string{});
+    if (!hset_json(redis_keys::SUB_RECORD, subscription_id, record))
+    {
+        return redis_error(subscription_id, "Failed to update Subscription");
+    }
+    if (!previous_account_id.empty() && previous_account_id != account_id)
+    {
+        const std::string previous_key = redis_keys::sub_account(previous_account_id);
+        _redis.hdel(previous_key.c_str(), subscription_id.c_str());
+    }
+    const std::string account_key = redis_keys::sub_account(account_id);
+    hset_json(account_key.c_str(), subscription_id, record);
+
+    AccountDomainResult result;
+    result.id = subscription_id;
+    result.record = std::move(record);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::delete_subscription(const std::string &subscription_id, std::int64_t now)
+{
+    auto current = get_hash_record(redis_keys::SUB_RECORD, subscription_id);
+    if (!current.is_object() || current.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, subscription_id, "Subscription not found");
+    }
+    current["status"] = account_domain::STATUS_DELETED;
+    current["delete_time"] = now;
+    current["update_time"] = now;
+    if (!hset_json(redis_keys::SUB_RECORD, subscription_id, current))
+    {
+        return redis_error(subscription_id, "Failed to tombstone Subscription");
+    }
+    const std::string account_key = redis_keys::sub_account(current.value("account_id", std::string{}));
+    _redis.hdel(account_key.c_str(), subscription_id.c_str());
+
+    AccountDomainResult result;
+    result.id = subscription_id;
+    result.record = std::move(current);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::create_redeem_code(nlohmann::json record, std::int64_t now)
+{
+    std::string error;
+    if (!account_domain::normalize_redeem_code(record, now, &error))
+    {
+        return invalid(error);
+    }
+    const std::string code = record.value("code", std::string{});
+    if (!hsetnx_json(redis_keys::REDEEM_CODE, code, record))
+    {
+        return make_result(RepositoryStatus::Conflict, code, "RedeemCode already exists");
+    }
+    AccountDomainResult result;
+    result.id = code;
+    result.record = std::move(record);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::redeem_code(const std::string &code,
+                                                         const std::string &account_id,
+                                                         nlohmann::json request,
+                                                         const std::string &period,
+                                                         std::int64_t now)
+{
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+
+    auto code_record = get_hash_record(redis_keys::REDEEM_CODE, code);
+    if (!code_record.is_object())
+    {
+        return make_result(RepositoryStatus::NotFound, code, "RedeemCode not found");
+    }
+    if (!account_domain::is_active_status(code_record))
+    {
+        return make_result(RepositoryStatus::Conflict, code, "RedeemCode is not active");
+    }
+    const std::int64_t expire_time = json_record::as_i64(code_record.value("expire_time", 0), 0);
+    if (expire_time > 0 && now > expire_time)
+    {
+        return make_result(RepositoryStatus::Conflict, code, "RedeemCode expired");
+    }
+    const std::int64_t amount_cents = json_record::as_i64(code_record.value("amount_cents", 0), 0);
+    const std::int64_t redeemed_count = json_record::as_i64(code_record.value("redeemed_count", 0), 0);
+    const std::int64_t max_redemptions = json_record::as_i64(code_record.value("max_redemptions", 1), 1);
+    if (amount_cents <= 0 || (max_redemptions > 0 && redeemed_count >= max_redemptions))
+    {
+        return make_result(RepositoryStatus::Conflict, code, "RedeemCode redemption limit reached");
+    }
+
+    auto account = get_hash_record(redis_keys::ACC_RECORD, account_id);
+    if (!account.is_object() || !account_domain::is_active_status(account))
+    {
+        return make_result(RepositoryStatus::NotFound, account_id, "Account not found or inactive");
+    }
+    const std::string redemption_id = request.value("redemption_id", std::string("redeem:") + code + ":" + account_id);
+    const std::string ledger_id = request.value("ledger_id", std::string("ledger:redeem:") + code + ":" + account_id);
+    const std::int64_t balance_cents = json_record::as_i64(account.value("balance_cents", 0), 0);
+    const std::int64_t balance_after_cents = balance_cents + amount_cents;
+    const std::string account_key = redis_keys::redeem_account(account_id);
+    if (!_redis.hget(account_key.c_str(), redemption_id.c_str()).is_null())
+    {
+        return make_result(RepositoryStatus::Conflict, redemption_id, "RedeemCode already redeemed by account");
+    }
+    const auto account_redemptions = _redis.hgetall(account_key.c_str());
+    if (account_redemptions.is_object())
+    {
+        for (const auto &redemption : account_redemptions)
+        {
+            if (redemption.is_object() && redemption.value("code", std::string{}) == code)
+            {
+                return make_result(RepositoryStatus::Conflict, code, "RedeemCode already redeemed by account");
+            }
+        }
+    }
+    const std::string ledger_key = redis_keys::acc_balance_ledger(period);
+    if (!_redis.hget(ledger_key.c_str(), ledger_id.c_str()).is_null())
+    {
+        return make_result(RepositoryStatus::Conflict, ledger_id, "Balance ledger entry already exists");
+    }
+
+    std::string error;
+    nlohmann::json redemption = {
+        {"redemption_id", redemption_id},
+        {"code", code},
+        {"account_id", account_id},
+        {"amount_cents", amount_cents},
+        {"balance_after_cents", balance_after_cents},
+        {"ledger_id", ledger_id},
+        {"source", "redeem_code"},
+    };
+    if (request.contains("operator_note"))
+    {
+        redemption["operator_note"] = request["operator_note"];
+    }
+    if (code_record.contains("batch_id"))
+    {
+        redemption["batch_id"] = code_record["batch_id"];
+    }
+    if (!account_domain::normalize_redeem_redemption(redemption, now, &error))
+    {
+        return invalid(error);
+    }
+    nlohmann::json ledger = {
+        {"ledger_id", ledger_id},
+        {"account_id", account_id},
+        {"delta_cents", amount_cents},
+        {"balance_after_cents", balance_after_cents},
+        {"source", "redeem_code"},
+        {"redeem_code", code},
+        {"redemption_id", redemption_id},
+    };
+    if (request.contains("operator_note"))
+    {
+        ledger["operator_note"] = request["operator_note"];
+    }
+    if (!account_domain::normalize_balance_ledger_entry(ledger, now, &error))
+    {
+        return invalid(error);
+    }
+
+    if (!hsetnx_json(account_key.c_str(), redemption_id, redemption))
+    {
+        return make_result(RepositoryStatus::Conflict, redemption_id, "RedeemCode already redeemed by account");
+    }
+    if (!hsetnx_json(ledger_key.c_str(), ledger_id, ledger))
+    {
+        _redis.hdel(account_key.c_str(), redemption_id.c_str());
+        return make_result(RepositoryStatus::Conflict, ledger_id, "Balance ledger entry already exists");
+    }
+
+    auto updated_account = account;
+    updated_account["balance_cents"] = balance_after_cents;
+    updated_account["update_time"] = now;
+    if (!hset_json(redis_keys::ACC_RECORD, account_id, updated_account))
+    {
+        _redis.hdel(account_key.c_str(), redemption_id.c_str());
+        _redis.hdel(ledger_key.c_str(), ledger_id.c_str());
+        return redis_error(account_id, "Failed to update account balance");
+    }
+
+    auto updated_code = code_record;
+    updated_code["redeemed_count"] = redeemed_count + 1;
+    updated_code["last_redeemed_account_id"] = account_id;
+    updated_code["last_redeemed_time"] = now;
+    updated_code["update_time"] = now;
+    if (!hset_json(redis_keys::REDEEM_CODE, code, updated_code))
+    {
+        return redis_error(code, "Failed to update RedeemCode");
+    }
+    refresh_owner_access_indexes(updated_account, now);
+
+    AccountDomainResult result;
+    result.id = redemption_id;
+    result.record = std::move(redemption);
+    return result;
+}
+
 AccountDomainResult AccountDomainRepository::upsert_station_record(nlohmann::json record, std::int64_t now)
 {
     const std::string requested_mountpoint = record.value("mountpoint", std::string{});
@@ -717,6 +982,57 @@ AccountDomainResult AccountDomainRepository::append_balance_ledger(nlohmann::jso
     {
         return make_result(RepositoryStatus::Conflict, ledger_id, "Balance ledger entry already exists");
     }
+    AccountDomainResult result;
+    result.id = ledger_id;
+    result.record = std::move(entry);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::apply_balance_adjustment(const std::string &account_id,
+                                                                      nlohmann::json entry,
+                                                                      const std::string &period,
+                                                                      std::int64_t now)
+{
+    auto account = get_hash_record(redis_keys::ACC_RECORD, account_id);
+    if (!account.is_object() || !account_domain::is_active_status(account))
+    {
+        return make_result(RepositoryStatus::NotFound, account_id, "Account not found or inactive");
+    }
+    if (!entry.contains("ledger_id"))
+    {
+        return invalid("ledger_id is required");
+    }
+    entry["account_id"] = account_id;
+    const std::int64_t delta_cents = json_record::as_i64(entry.value("delta_cents", 0), 0);
+    const std::int64_t balance_cents = json_record::as_i64(account.value("balance_cents", 0), 0);
+    const std::int64_t credit_limit_cents = json_record::as_i64(account.value("credit_limit_cents", 0), 0);
+    const std::int64_t balance_after_cents = balance_cents + delta_cents;
+    if (balance_after_cents + credit_limit_cents < 0)
+    {
+        return make_result(RepositoryStatus::Conflict, account_id, "Balance insufficient");
+    }
+    entry["balance_after_cents"] = balance_after_cents;
+    std::string error;
+    if (!account_domain::normalize_balance_ledger_entry(entry, now, &error))
+    {
+        return invalid(error);
+    }
+    const std::string ledger_id = entry.value("ledger_id", std::string{});
+    const std::string key = redis_keys::acc_balance_ledger(period);
+    if (!hsetnx_json(key.c_str(), ledger_id, entry))
+    {
+        return make_result(RepositoryStatus::Conflict, ledger_id, "Balance ledger entry already exists");
+    }
+    auto updated_account = account;
+    updated_account["balance_cents"] = balance_after_cents;
+    updated_account["update_time"] = now;
+    if (!hset_json(redis_keys::ACC_RECORD, account_id, updated_account))
+    {
+        _redis.hdel(key.c_str(), ledger_id.c_str());
+        return redis_error(account_id, "Failed to update account balance");
+    }
+    refresh_owner_access_indexes(updated_account, now);
+
     AccountDomainResult result;
     result.id = ledger_id;
     result.record = std::move(entry);

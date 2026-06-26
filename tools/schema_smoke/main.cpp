@@ -2102,6 +2102,28 @@ int main()
             {"expire_time", 7000},
         }, 5040).status == navcaster::storage::RepositoryStatus::Ok, "domain subscription create");
         expect_true(domain_redis.hget(navcaster::redis_keys::sub_account("acc-user").c_str(), "sub-user-1").is_object(), "domain subscription account index");
+        expect_true(domain_repo.update_subscription("sub-user-1", {
+            {"group_ids", nlohmann::json::array({"mpg-basic"})},
+            {"status", "disabled"},
+            {"expire_time", 7100},
+        }, 5041).status == navcaster::storage::RepositoryStatus::Ok, "domain subscription update");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::sub_account("acc-user").c_str(), "sub-user-1").value("status", std::string{}), "disabled", "domain subscription account index updates");
+        expect_true(domain_repo.delete_subscription("sub-user-1", 5042).status == navcaster::storage::RepositoryStatus::Ok, "domain subscription delete");
+        expect_true(domain_redis.hget(navcaster::redis_keys::sub_account("acc-user").c_str(), "sub-user-1").is_null(), "domain subscription delete removes account index");
+
+        expect_true(domain_repo.create_redeem_code({
+            {"code", "RC-DOMAIN"},
+            {"amount_cents", 500},
+            {"max_redemptions", 2},
+        }, 5043).status == navcaster::storage::RepositoryStatus::Ok, "domain redeem code create");
+        expect_true(domain_repo.redeem_code("RC-DOMAIN", "acc-user", {
+            {"period", "202606"},
+            {"operator_note", "domain redeem"},
+        }, "202606", 5044).status == navcaster::storage::RepositoryStatus::Ok, "domain redeem code applies balance");
+        expect_eq_int(domain_redis.hget(navcaster::redis_keys::ACC_RECORD, "acc-user").value("balance_cents", 0), 10500, "domain redeem updates balance");
+        expect_true(domain_redis.hget(navcaster::redis_keys::redeem_account("acc-user").c_str(), "redeem:RC-DOMAIN:acc-user").is_object(), "domain redeem account index");
+        expect_true(domain_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:redeem:RC-DOMAIN:acc-user").is_object(), "domain redeem writes ledger");
+        expect_true(domain_repo.redeem_code("RC-DOMAIN", "acc-user", {}, "202606", 5045).status == navcaster::storage::RepositoryStatus::Conflict, "domain redeem rejects duplicate account redemption");
 
         domain_result = domain_repo.upsert_station_record({
             {"mountpoint", "BASE01"},
@@ -2174,7 +2196,7 @@ int main()
             {"stat_cost_cents", 5},
             {"actual_debit_cents", 5},
         }, "202606", 5080).status == navcaster::storage::RepositoryStatus::Ok, "domain data push append debits balance");
-        expect_eq_int(domain_redis.hget(navcaster::redis_keys::ACC_RECORD, "acc-user").value("balance_cents", 0), 9995, "domain data push updates account balance");
+        expect_eq_int(domain_redis.hget(navcaster::redis_keys::ACC_RECORD, "acc-user").value("balance_cents", 0), 10495, "domain data push updates account balance");
         expect_true(domain_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:push-usage-billed").is_object(), "domain data push writes balance ledger");
         expect_true(domain_repo.append_data_push_usage_with_balance({
             {"usage_id", "push-usage-over-balance"},
@@ -2256,12 +2278,22 @@ int main()
         expect_true(response_body.contains("op-aacc"), "operations access account read-only list");
 
         expect_eq_int(operations.create_subscription(R"({"subscription_id":"op-sub","account_id":"op-user","group_ids":["op-group"],"expire_time":9000})").status_code, 201, "operations create subscription");
+        expect_eq_int(operations.update_subscription("op-sub", R"({"group_ids":["op-group"],"status":"disabled","expire_time":9100})").status_code, 200, "operations update subscription");
+        expect_eq(operations_redis.hget(navcaster::redis_keys::sub_account("op-user").c_str(), "op-sub").value("status", std::string{}), "disabled", "operations subscription account index sync");
         response = operations.list_subscriptions();
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("op-sub"), "operations list subscriptions");
 
         expect_eq_int(operations.append_balance_adjustment("op-user", R"({"ledger_id":"op-ledger","period":"202606","delta_cents":1000,"balance_after_cents":8000,"source":"manual_adjustment"})").status_code, 201, "operations balance adjustment");
         expect_true(operations_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "op-ledger").is_object(), "operations balance ledger key");
+        expect_eq_int(operations_redis.hget(navcaster::redis_keys::ACC_RECORD, "op-user").value("balance_cents", 0), 8000, "operations balance adjustment updates account");
+        expect_eq_int(operations.create_redeem_code(R"({"code":"RC-OP","amount_cents":250,"max_redemptions":1})").status_code, 201, "operations create redeem code");
+        expect_eq_int(operations.redeem_code("RC-OP", "op-user", R"({"period":"202606","operator_note":"topup"})").status_code, 201, "operations redeem code");
+        expect_eq_int(operations_redis.hget(navcaster::redis_keys::ACC_RECORD, "op-user").value("balance_cents", 0), 8250, "operations redeem updates account balance");
+        expect_eq_int(operations.redeem_code("RC-OP", "op-user", R"({"period":"202606"})").status_code, 409, "operations redeem duplicate rejected");
+        response = operations.list_redeem_codes();
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("RC-OP"), "operations list redeem codes");
 
         expect_eq_int(domain_repo.upsert_station_record({{"mountpoint", "OPBASE"}, {"station_id", "station-op"}}, 6020).status == navcaster::storage::RepositoryStatus::Ok ? 200 : 500, 200, "operations fixture station");
         response = operations.list_stations();
@@ -2439,14 +2471,27 @@ int main()
         response = self_service.usage(user_subject, "202606");
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("self-bill"), "self service user usage filtered");
+        expect_true(domain_repo.create_subscription({
+            {"subscription_id", "self-sub"},
+            {"account_id", "self-user"},
+            {"group_ids", nlohmann::json::array({"self-group"})},
+        }, 7021).status == navcaster::storage::RepositoryStatus::Ok, "self service subscription fixture");
+        response = self_service.subscriptions(user_subject);
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-sub"), "self service user subscriptions filtered");
+        expect_true(domain_repo.create_redeem_code({{"code", "RC-SELF"}, {"amount_cents", 50}}, 7022).status == navcaster::storage::RepositoryStatus::Ok, "self service redeem fixture");
+        expect_true(domain_repo.redeem_code("RC-SELF", "self-user", {}, "202606", 7023).status == navcaster::storage::RepositoryStatus::Ok, "self service redeem redemption fixture");
+        response = self_service.redeem_redemptions(user_subject);
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("redeem:RC-SELF:self-user"), "self service user redeem redemptions filtered");
 
         response = self_service.append_data_push_usage(user_subject, R"({"usage_id":"self-data-push","account_id":"self-supplier","target_mountpoint":"SELFBASE","used_seconds":20,"stat_cost_cents":7,"actual_debit_cents":7,"period":"202606","ledger_id":"client-ledger","balance_after_cents":999999})");
         expect_eq_int(response.status_code, 201, "self service data push append");
         response_body = nlohmann::json::parse(response.body);
         expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service data push overrides account id");
         expect_eq(response_body.value("ledger_id", std::string{}), "ledger:data_push:self-data-push", "self service data push overrides ledger id");
-        expect_eq_int(response_body.value("balance_after_cents", 0), 93, "self service data push response balance");
-        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 93, "self service data push debits account");
+        expect_eq_int(response_body.value("balance_after_cents", 0), 143, "self service data push response balance");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 143, "self service data push debits account");
         expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "self-data-push").is_object(), "self service data push writes usage");
         expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:self-data-push").is_object(), "self service data push writes ledger");
         expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "client-ledger").is_null(), "self service data push ignores client ledger id");

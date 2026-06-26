@@ -11,6 +11,8 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  RedeemCodeRecord,
+  RedeemRedemptionRecord,
   RoleDashboard,
   StationRecord,
   SubscriptionRecord,
@@ -71,6 +73,26 @@ export const adminApi = {
   async subscriptions(): Promise<HashRecord<SubscriptionRecord>> {
     const { data } = await api.get('/api/v1/admin/subscriptions');
     return data;
+  },
+  async createSubscription(body: Partial<SubscriptionRecord> & { subscription_id: string; account_id: string; group_ids: string[] }) {
+    const { data } = await api.post('/api/v1/admin/subscriptions', body);
+    return data as SubscriptionRecord;
+  },
+  async updateSubscription(subscriptionId: string, body: Partial<SubscriptionRecord>) {
+    const { data } = await api.put(`/api/v1/admin/subscriptions/${encodeURIComponent(subscriptionId)}`, body);
+    return data as SubscriptionRecord;
+  },
+  async redeemCodes(): Promise<HashRecord<RedeemCodeRecord>> {
+    const { data } = await api.get('/api/v1/admin/redeem-codes');
+    return data;
+  },
+  async createRedeemCode(body: Partial<RedeemCodeRecord> & { code: string; amount_cents: number }) {
+    const { data } = await api.post('/api/v1/admin/redeem-codes', body);
+    return data as RedeemCodeRecord;
+  },
+  async redeemCode(code: string, body: { account_id: string; period?: string; operator_note?: string }) {
+    const { data } = await api.post(`/api/v1/admin/redeem-codes/${encodeURIComponent(code)}/redeem`, body);
+    return data as RedeemRedemptionRecord;
   },
   async stations(): Promise<HashRecord<StationRecord>> {
     const { data } = await api.get('/api/v1/admin/stations');
@@ -136,6 +158,14 @@ export const meApi = {
   },
   async usage(period?: string): Promise<HashRecord<BillingUsageEntry>> {
     const { data } = await api.get('/api/v1/me/usage', { params: period ? { period } : undefined });
+    return data;
+  },
+  async subscriptions(): Promise<HashRecord<SubscriptionRecord>> {
+    const { data } = await api.get('/api/v1/me/subscriptions');
+    return data;
+  },
+  async redeemRedemptions(): Promise<HashRecord<RedeemRedemptionRecord>> {
+    const { data } = await api.get('/api/v1/me/redeem-redemptions');
     return data;
   },
   async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {

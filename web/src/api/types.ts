@@ -463,6 +463,34 @@ export interface SubscriptionRecord {
   update_time?: number;
 }
 
+export interface RedeemCodeRecord {
+  code: string;
+  amount_cents: number;
+  status: ResourceStatus;
+  redeemed_count?: number;
+  max_redemptions?: number;
+  expire_time?: number;
+  batch_id?: string;
+  note?: string;
+  last_redeemed_account_id?: string;
+  last_redeemed_time?: number;
+  create_time?: number;
+  update_time?: number;
+}
+
+export interface RedeemRedemptionRecord {
+  redemption_id: string;
+  code: string;
+  account_id: string;
+  amount_cents: number;
+  balance_after_cents: number;
+  ledger_id: string;
+  source?: string;
+  batch_id?: string;
+  operator_note?: string;
+  create_time?: number;
+}
+
 export interface BillingUsageEntry {
   billing_id: string;
   account_id: string;

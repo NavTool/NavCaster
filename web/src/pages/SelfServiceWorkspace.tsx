@@ -37,15 +37,17 @@ import type {
   HashRecord,
   MountPointRecord,
   OperationsAccount,
+  RedeemRedemptionRecord,
   RoleDashboard,
   StationRecord,
+  SubscriptionRecord,
   SupplierEarningsSummary,
   SupplierSupplyUsage,
 } from '../api/types';
 import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../utils/format';
 
 type SelfScope = 'me' | 'supplier';
-type UserView = 'dashboard' | 'profile' | 'access-accounts' | 'groups' | 'mount-points' | 'usage' | 'data-push';
+type UserView = 'dashboard' | 'profile' | 'access-accounts' | 'groups' | 'mount-points' | 'usage' | 'subscriptions' | 'redeem-redemptions' | 'data-push';
 type SupplierView = 'dashboard' | 'profile' | 'access-accounts' | 'stations' | 'supply-usage' | 'earnings';
 
 interface SelfServiceWorkspaceProps {
@@ -85,6 +87,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const groupsQuery = usePolling(() => meApi.allowedGroups(), 5000, scope === 'me' && (view === 'dashboard' || view === 'groups' || view === 'access-accounts'));
   const mountsQuery = usePolling(() => meApi.mountPoints(), 5000, scope === 'me' && (view === 'dashboard' || view === 'mount-points'));
   const usageQuery = usePolling(() => meApi.usage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'usage'));
+  const subscriptionQuery = usePolling(() => meApi.subscriptions(), 5000, scope === 'me' && (view === 'dashboard' || view === 'subscriptions'));
+  const redemptionQuery = usePolling(() => meApi.redeemRedemptions(), 5000, scope === 'me' && (view === 'dashboard' || view === 'redeem-redemptions'));
   const dataPushQuery = usePolling(() => meApi.dataPushUsage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'data-push'));
   const stationsQuery = usePolling(() => supplierApi.stations(), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'stations'));
   const supplyQuery = usePolling(() => supplierApi.supplyUsage(currentPeriod()), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'supply-usage' || view === 'earnings'));
@@ -94,6 +98,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const groupRows = useMemo(() => rowsFromHash(groupsQuery.data), [groupsQuery.data]);
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
+  const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
+  const redemptionRows = useMemo(() => rowsFromHash(redemptionQuery.data), [redemptionQuery.data]);
   const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
@@ -223,6 +229,24 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const subscriptionColumns: ColumnsType<SubscriptionRecord & { key: string }> = [
+    { title: 'Subscription ID', dataIndex: 'subscription_id', key: 'subscription_id', width: 210 },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '分组', key: 'group_ids', width: 220, render: (_, row) => (row.group_ids || []).join(', ') || '-' },
+    { title: '开始', key: 'start_time', width: 170, render: (_, row) => row.start_time ? getLocalTime(row.start_time) : '立即' },
+    { title: '过期', key: 'expire_time', width: 170, render: (_, row) => row.expire_time ? getLocalTime(row.expire_time) : '长期' },
+    { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
+  ];
+
+  const redemptionColumns: ColumnsType<RedeemRedemptionRecord & { key: string }> = [
+    { title: 'Redemption ID', dataIndex: 'redemption_id', key: 'redemption_id', width: 240 },
+    { title: 'Code', dataIndex: 'code', key: 'code', width: 160 },
+    { title: '金额', key: 'amount_cents', width: 120, render: (_, row) => formatCents(row.amount_cents) },
+    { title: '入账后余额', key: 'balance_after_cents', width: 140, render: (_, row) => formatCents(row.balance_after_cents) },
+    { title: '账本', dataIndex: 'ledger_id', key: 'ledger_id', width: 220 },
+    { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+  ];
+
   const dataPushColumns: ColumnsType<DataPushUsage & { key: string }> = [
     { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
@@ -292,6 +316,12 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     if (scope === 'me' && view === 'usage') {
       return <Table columns={usageColumns} dataSource={usageRows} loading={usageQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
     }
+    if (scope === 'me' && view === 'subscriptions') {
+      return <Table columns={subscriptionColumns} dataSource={subscriptionRows} loading={subscriptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
+    }
+    if (scope === 'me' && view === 'redeem-redemptions') {
+      return <Table columns={redemptionColumns} dataSource={redemptionRows} loading={redemptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
+    }
     if (scope === 'me' && view === 'data-push') {
       return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
     }
@@ -330,6 +360,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     if (view === 'groups') return '授权分组';
     if (view === 'mount-points') return '可用挂载点';
     if (view === 'usage') return '计费用量';
+    if (view === 'subscriptions') return '订阅';
+    if (view === 'redeem-redemptions') return '兑换记录';
     if (view === 'data-push') return '数据推送';
     if (view === 'stations') return '供应站点';
     if (view === 'supply-usage') return '供应时长';

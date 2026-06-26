@@ -68,6 +68,9 @@ private:
     void handle_v1_admin_mount_points(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_access_accounts(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_subscriptions(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_subscription(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_redeem_codes(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_redeem_code(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_stations(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_usage(const HttpRequest &req, HttpResponse &resp);
@@ -81,6 +84,8 @@ private:
     void handle_v1_me_access_accounts(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_access_account(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_subscriptions(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_redeem_redemptions(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_data_push(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_supplier_profile(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_supplier_dashboard(const HttpRequest &req, HttpResponse &resp);

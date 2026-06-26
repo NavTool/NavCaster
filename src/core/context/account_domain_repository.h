@@ -40,10 +40,16 @@ public:
     AccountDomainResult delete_access_account(const std::string &access_account_id, std::int64_t now);
 
     AccountDomainResult create_subscription(nlohmann::json record, std::int64_t now);
+    AccountDomainResult get_subscription(const std::string &subscription_id);
+    AccountDomainResult update_subscription(const std::string &subscription_id, nlohmann::json record, std::int64_t now);
+    AccountDomainResult delete_subscription(const std::string &subscription_id, std::int64_t now);
+    AccountDomainResult create_redeem_code(nlohmann::json record, std::int64_t now);
+    AccountDomainResult redeem_code(const std::string &code, const std::string &account_id, nlohmann::json request, const std::string &period, std::int64_t now);
     AccountDomainResult upsert_station_record(nlohmann::json record, std::int64_t now);
     AccountDomainResult append_station_event(nlohmann::json event, std::int64_t now);
 
     AccountDomainResult append_balance_ledger(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult apply_balance_adjustment(const std::string &account_id, nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_billing_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_data_push_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_data_push_usage_with_balance(nlohmann::json entry, const std::string &period, std::int64_t now);

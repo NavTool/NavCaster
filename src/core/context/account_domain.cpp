@@ -300,6 +300,54 @@ bool normalize_subscription(nlohmann::json &record, std::int64_t now, std::strin
     return true;
 }
 
+bool normalize_redeem_code(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    if (!require_string(record, "code", error))
+    {
+        return false;
+    }
+    default_status(record);
+    if (!validate_status(record, error))
+    {
+        return false;
+    }
+    record["amount_cents"] = record.value("amount_cents", 0);
+    record["redeemed_count"] = record.value("redeemed_count", 0);
+    record["max_redemptions"] = record.value("max_redemptions", 1);
+    record["expire_time"] = record.value("expire_time", 0);
+    if (!is_nonnegative_number(record["amount_cents"]) ||
+        !is_nonnegative_number(record["redeemed_count"]) ||
+        !is_nonnegative_number(record["max_redemptions"]) ||
+        !is_nonnegative_number(record["expire_time"]))
+    {
+        return fail(error, "redeem code numeric fields must be non-negative");
+    }
+    if (json_record::as_i64(record["amount_cents"], 0) <= 0)
+    {
+        return fail(error, "amount_cents must be positive");
+    }
+    touch(record, now);
+    return true;
+}
+
+bool normalize_redeem_redemption(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    if (!normalize_append_fact(record, "redemption_id", now, error) ||
+        !require_string(record, "code", error) ||
+        !require_string(record, "account_id", error) ||
+        !require_string(record, "ledger_id", error))
+    {
+        return false;
+    }
+    record["amount_cents"] = record.value("amount_cents", 0);
+    record["balance_after_cents"] = record.value("balance_after_cents", 0);
+    if (!is_nonnegative_number(record["amount_cents"]) || !is_nonnegative_number(record["balance_after_cents"]))
+    {
+        return fail(error, "redeem redemption numeric fields must be non-negative");
+    }
+    return true;
+}
+
 bool normalize_station_record(nlohmann::json &record, std::int64_t now, std::string *error)
 {
     if (!require_string(record, "mountpoint", error))
