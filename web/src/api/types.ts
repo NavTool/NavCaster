@@ -687,6 +687,114 @@ export interface SupplierEarningsSummary {
   settlement_count?: number;
 }
 
+export interface OperationsMonitorAlert {
+  severity: 'critical' | 'warning' | 'info' | string;
+  code: string;
+  count?: number;
+  message?: string;
+}
+
+export interface OperationsMonitorRiskAccount {
+  account_id: string;
+  username?: string;
+  role?: AccountRole | string;
+  status?: ResourceStatus;
+  balance_cents?: number;
+  expire_time?: number;
+  risks?: string[];
+}
+
+export interface OperationsMonitorDataPushJob {
+  job_id: string;
+  period?: string;
+  account_id?: string;
+  config_id?: string;
+  target_mountpoint?: string;
+  execution_mode?: 'ledger_only' | 'relay_push' | string;
+  relay_uid?: string;
+  relay_status?: string;
+  status?: string;
+  failure_reason?: string;
+  failure_time?: number;
+  runtime_maintenance_time?: number;
+  update_time?: number;
+  create_time?: number;
+}
+
+export interface OperationsMonitor {
+  period: string;
+  generated_time?: number;
+  accounts: {
+    total_count: number;
+    admin_count?: number;
+    user_count?: number;
+    supplier_count?: number;
+    active_count?: number;
+    disabled_count?: number;
+    frozen_count?: number;
+    expired_count?: number;
+    deleted_count?: number;
+    negative_balance_count?: number;
+    low_balance_count?: number;
+    low_balance_threshold_cents?: number;
+    total_balance_cents?: number;
+    risk_accounts?: OperationsMonitorRiskAccount[];
+  };
+  subscriptions: {
+    total_count: number;
+    active_count?: number;
+    disabled_count?: number;
+    expired_count?: number;
+    deleted_count?: number;
+  };
+  redeem_codes: {
+    total_count: number;
+    active_count?: number;
+    disabled_count?: number;
+    expired_count?: number;
+    available_count?: number;
+  };
+  data_push: {
+    period: string;
+    usage_count?: number;
+    total_used_seconds?: number;
+    total_debit_cents?: number;
+    job_count?: number;
+    relay_push_count?: number;
+    ledger_only_count?: number;
+    status_counts?: Record<string, number>;
+    failed_count?: number;
+    running_count?: number;
+    queued_count?: number;
+    maintenance?: DataPushMaintenanceConfig & { error?: string };
+    recent_failed_jobs?: OperationsMonitorDataPushJob[];
+  };
+  supply: {
+    period: string;
+    usage_count?: number;
+    pending_usage_count?: number;
+    settled_usage_count?: number;
+    total_supply_seconds?: number;
+    total_earning_cents?: number;
+    pending_earning_cents?: number;
+    settled_earning_cents?: number;
+    settlements?: {
+      count?: number;
+      pending_payment_count?: number;
+      paid_count?: number;
+      payment_failed_count?: number;
+      cancelled_count?: number;
+      other_count?: number;
+      pending_payment_cents?: number;
+      paid_cents?: number;
+      failed_payment_cents?: number;
+      cancelled_payment_cents?: number;
+      other_cents?: number;
+    };
+  };
+  alerts: OperationsMonitorAlert[];
+}
+
 export interface AccessAccountCreateInput {
   access_account_id: string;
   username: string;

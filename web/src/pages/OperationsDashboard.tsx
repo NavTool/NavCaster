@@ -43,6 +43,9 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  OperationsMonitorAlert,
+  OperationsMonitorDataPushJob,
+  OperationsMonitorRiskAccount,
   RedeemCodeRecord,
   StationRecord,
   SubscriptionRecord,
@@ -54,6 +57,7 @@ import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../uti
 
 type AdminView =
   | 'dashboard'
+  | 'operations-monitor'
   | 'accounts'
   | 'access-accounts'
   | 'mount-point-groups'
@@ -121,6 +125,11 @@ function dataPushJobStatusTag(status?: string) {
   return <Tag color={color}>{status || '-'}</Tag>;
 }
 
+function monitorSeverityTag(severity?: string) {
+  const color = severity === 'critical' ? 'red' : severity === 'warning' ? 'gold' : severity === 'info' ? 'blue' : 'default';
+  return <Tag color={color}>{severity || '-'}</Tag>;
+}
+
 function recordCount<T extends object>(records: HashRecord<T> | null): number {
   return Object.keys(records ?? {}).length;
 }
@@ -150,6 +159,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'payment_failed' | 'cancelled'>('paid');
 
   const accountsQuery = usePolling(() => adminApi.accounts(), 5000, view === 'dashboard' || view === 'accounts');
+  const monitorQuery = usePolling(() => adminApi.operationsMonitor(currentPeriod()), 5000, view === 'dashboard' || view === 'operations-monitor');
   const accessAccountsQuery = usePolling(() => adminApi.accessAccounts(), 5000, view === 'dashboard' || view === 'access-accounts');
   const groupsQuery = usePolling(() => adminApi.mountPointGroups(), 5000, view === 'dashboard' || view === 'mount-point-groups');
   const mountsQuery = usePolling(() => adminApi.mountPoints(), 5000, view === 'dashboard' || view === 'mount-points');
@@ -177,6 +187,19 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
   const settlementRows = useMemo(() => rowsFromHash(settlementQuery.data), [settlementQuery.data]);
+  const monitor = monitorQuery.data;
+  const monitorAlerts = useMemo(
+    () => (monitor?.alerts ?? []).map((item, index) => ({ key: `${item.code}-${index}`, ...item })),
+    [monitor?.alerts],
+  );
+  const monitorRiskAccounts = useMemo(
+    () => (monitor?.accounts?.risk_accounts ?? []).map((item) => ({ key: item.account_id, ...item })),
+    [monitor?.accounts?.risk_accounts],
+  );
+  const monitorFailedJobs = useMemo(
+    () => (monitor?.data_push?.recent_failed_jobs ?? []).map((item) => ({ key: item.job_id, ...item })),
+    [monitor?.data_push?.recent_failed_jobs],
+  );
 
   const totalBalance = accountRows.reduce((sum, account) => sum + Number(account.balance_cents ?? 0), 0);
   const totalSupplySeconds = supplyRows.reduce((sum, usage) => sum + Number(usage.used_seconds ?? 0), 0);
@@ -671,7 +694,121 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     },
   ];
 
+  const monitorAlertColumns: ColumnsType<OperationsMonitorAlert & { key: string }> = [
+    { title: '级别', dataIndex: 'severity', key: 'severity', width: 110, render: (value) => monitorSeverityTag(value) },
+    { title: 'Code', dataIndex: 'code', key: 'code', width: 210 },
+    { title: '数量', dataIndex: 'count', key: 'count', width: 100, render: (value) => value ?? 0 },
+    { title: '说明', dataIndex: 'message', key: 'message', render: (value) => value || '-' },
+  ];
+
+  const monitorRiskAccountColumns: ColumnsType<OperationsMonitorRiskAccount & { key: string }> = [
+    { title: 'Account ID', dataIndex: 'account_id', key: 'account_id', width: 190 },
+    { title: '用户名', dataIndex: 'username', key: 'username', width: 140, render: (value) => value || '-' },
+    { title: '角色', key: 'role', width: 100, render: (_, row) => roleTag(row.role) },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '余额', key: 'balance_cents', width: 120, render: (_, row) => formatCents(row.balance_cents) },
+    { title: '过期时间', key: 'expire_time', width: 170, render: (_, row) => row.expire_time ? getLocalTime(row.expire_time) : '长期' },
+    { title: '风险', key: 'risks', render: (_, row) => (row.risks || []).map((risk) => <Tag key={risk} color={risk === 'negative_balance' ? 'red' : 'gold'}>{risk}</Tag>) },
+  ];
+
+  const monitorFailedJobColumns: ColumnsType<OperationsMonitorDataPushJob & { key: string }> = [
+    { title: 'Job ID', dataIndex: 'job_id', key: 'job_id', width: 250 },
+    { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 180, render: (value) => value || '-' },
+    { title: '配置', dataIndex: 'config_id', key: 'config_id', width: 160, render: (value) => value || '-' },
+    { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 150, render: (value) => value || '-' },
+    { title: '执行模式', key: 'execution_mode', width: 130, render: (_, row) => dataPushExecutionTag(row.execution_mode) },
+    { title: 'Relay 状态', dataIndex: 'relay_status', key: 'relay_status', width: 120, render: (value) => <Tag color={value === 'running' ? 'blue' : value === 'stopped' ? 'default' : 'gold'}>{value || '-'}</Tag> },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => dataPushJobStatusTag(value) },
+    { title: '失败原因', dataIndex: 'failure_reason', key: 'failure_reason', width: 190, render: (value) => value || '-' },
+    { title: '失败时间', key: 'failure_time', width: 170, render: (_, row) => row.failure_time ? getLocalTime(row.failure_time) : '-' },
+    { title: '维护时间', key: 'runtime_maintenance_time', width: 170, render: (_, row) => row.runtime_maintenance_time ? getLocalTime(row.runtime_maintenance_time) : '-' },
+  ];
+
+  const renderOperationsMonitor = () => {
+    const maintenance = monitor?.data_push?.maintenance;
+    const settlements = monitor?.supply?.settlements;
+    const statusCounts = monitor?.data_push?.status_counts;
+    return (
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={12} md={6}>
+            <MetricCard title="负余额账号" value={monitor?.accounts?.negative_balance_count ?? 0} prefix={<WalletOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="低余额账号" value={monitor?.accounts?.low_balance_count ?? 0} suffix={`低于 ${formatCents(monitor?.accounts?.low_balance_threshold_cents)}`} prefix={<WalletOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="过期账号" value={monitor?.accounts?.expired_count ?? 0} prefix={<TeamOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="冻结/禁用" value={(monitor?.accounts?.frozen_count ?? 0) + (monitor?.accounts?.disabled_count ?? 0)} prefix={<StopOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="DataPush 失败" value={monitor?.data_push?.failed_count ?? 0} prefix={<SwapOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="DataPush 运行中" value={monitor?.data_push?.running_count ?? statusCounts?.running ?? 0} suffix={`排队 ${monitor?.data_push?.queued_count ?? statusCounts?.queued ?? 0}`} prefix={<SyncOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="推送扣费" value={formatCents(monitor?.data_push?.total_debit_cents)} suffix={formatDuration(monitor?.data_push?.total_used_seconds ?? 0)} prefix={<WalletOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="维护状态" value={maintenance?.enabled === false ? '关闭' : '开启'} suffix={`${maintenance?.interval_seconds ?? 60}s / ${maintenance?.unhealthy_after_seconds ?? 300}s`} prefix={<SyncOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="供应待结算" value={monitor?.supply?.pending_usage_count ?? 0} suffix={formatCents(monitor?.supply?.pending_earning_cents)} prefix={<BranchesOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="供应时长" value={formatDuration(monitor?.supply?.total_supply_seconds ?? 0)} prefix={<BranchesOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="待付款结算" value={settlements?.pending_payment_count ?? 0} suffix={formatCents(settlements?.pending_payment_cents)} prefix={<WalletOutlined />} />
+          </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="已付款收益" value={formatCents(settlements?.paid_cents)} suffix={`${settlements?.paid_count ?? 0} 批`} prefix={<CheckCircleOutlined />} />
+          </Col>
+        </Row>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} xl={12}>
+            <Table
+              columns={monitorAlertColumns}
+              dataSource={monitorAlerts}
+              loading={monitorQuery.loading}
+              rowKey="key"
+              size="small"
+              pagination={false}
+              scroll={{ x: 720 }}
+            />
+          </Col>
+          <Col xs={24} xl={12}>
+            <Table
+              columns={monitorRiskAccountColumns}
+              dataSource={monitorRiskAccounts}
+              loading={monitorQuery.loading}
+              rowKey="key"
+              size="small"
+              pagination={false}
+              scroll={{ x: 980 }}
+            />
+          </Col>
+        </Row>
+        <Table
+          columns={monitorFailedJobColumns}
+          dataSource={monitorFailedJobs}
+          loading={monitorQuery.loading}
+          rowKey="key"
+          size="small"
+          pagination={false}
+          scroll={{ x: 1550 }}
+        />
+      </Space>
+    );
+  };
+
   const table = (() => {
+    if (view === 'operations-monitor') {
+      return renderOperationsMonitor();
+    }
     if (view === 'accounts') {
       return (
         <Table
@@ -730,6 +867,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
 
   const titleMap: Record<AdminView, string> = {
     dashboard: '运营总览',
+    'operations-monitor': '运行监控',
     accounts: '账号',
     'access-accounts': '接入账号',
     'mount-point-groups': '挂载点分组',

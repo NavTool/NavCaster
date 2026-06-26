@@ -44,6 +44,7 @@ public:
     ControllerResponse redeem_code(const std::string &code, const std::string &account_id, const std::string &body_text);
 
     ControllerResponse list_stations();
+    ControllerResponse operations_monitor(const std::string &period);
     ControllerResponse list_usage(const std::string &period);
     ControllerResponse list_data_push_configs();
     ControllerResponse get_data_push_config(const std::string &config_id);

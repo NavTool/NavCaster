@@ -15,6 +15,7 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  OperationsMonitor,
   RedeemCodeRecord,
   RedeemRedemptionRecord,
   RoleDashboard,
@@ -31,6 +32,10 @@ export async function getSession(): Promise<AuthSessionSubject> {
 }
 
 export const adminApi = {
+  async operationsMonitor(period?: string): Promise<OperationsMonitor> {
+    const { data } = await api.get('/api/v1/admin/operations-monitor', { params: period ? { period } : undefined });
+    return data as OperationsMonitor;
+  },
   async accounts(): Promise<HashRecord<OperationsAccount>> {
     const { data } = await api.get('/api/v1/admin/accounts');
     return data;

@@ -79,6 +79,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/auth/session
 /api/v1/admin/accounts
 /api/v1/admin/access-accounts
+/api/v1/admin/operations-monitor
 /api/v1/admin/mount-point-groups
 /api/v1/admin/mount-points
 /api/v1/admin/subscriptions
@@ -143,6 +144,12 @@ NC-068 起管理员数据推送任务页增加 runtime maintenance 配置控件�
 切换自动维护、调整执行周期和失败阈值，并可对当前账期立即执行一次维护；操作分别调用
 `GET/PUT /api/v1/admin/data-push-maintenance` 和
 `POST /api/v1/admin/data-push-maintenance?action=run&period=<yyyyMM>`。
+
+NC-069 起运营台增加 `/admin/operations-monitor`。该页面调用
+`GET /api/v1/admin/operations-monitor?period=<yyyyMM>`，展示账号余额/状态风险、
+DataPush 失败/运行/维护状态、供应待结算和待付款收益，并提供告警、风险账号和最近失败
+DataPush 任务表。它使用后端聚合快照，不替代旧 `/admin/legacy/monitor` 的节点/Redis
+系统监控。
 
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加
