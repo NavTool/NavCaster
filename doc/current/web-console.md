@@ -134,6 +134,10 @@ NC-065 起管理员数据推送任务表增加完成、失败、重试、取消�
 NC-066 起管理员和用户数据推送任务表增加运行态同步操作，并展示最近同步节点和同步时间，
 便于运营追踪 relay_push 任务当前执行快照。
 
+NC-067 起管理员和用户数据推送任务表展示自动维护时间、异常持续时间和失败原因。
+当后台 runtime maintenance 将 relay_push 任务标记为 failed 时，运营台可直接看到
+失败原因和最近维护时间。
+
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加
 `/me/subscriptions` 和 `/me/redeem-redemptions`，只展示当前 session Account 的

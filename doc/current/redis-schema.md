@@ -289,6 +289,21 @@ running；终态任务只更新运行态审计快照，不会被重新打开。
 relay_push 任务。
 ```
 
+NC-067 DataPush 自动运行态维护：
+
+```text
+HTTP 服务每 60s 对当前 yyyyMM 账期执行一次 runtime maintenance。维护动作复用
+PUSH:STAT[relay_uid] -> DATA:PUSH:JOB:<yyyyMM>[job_id] 的运行态沉淀路径，
+runtime_reconcile_action=auto_reconcile，并额外写 runtime_maintenance_time。
+
+queued/running relay_push 任务在 PUSH:STAT 缺失或 state!=1 时写
+runtime_unhealthy_since、runtime_unhealthy_elapsed_seconds 和
+runtime_unhealthy_after_seconds。连续异常超过默认 300s 后，任务 status=failed，
+写 failure_reason、failure_time、runtime_failure_after_seconds，并禁用受管
+PUSH:RECORD[relay_uid].enabled=false。cancelled/failed/completed 终态任务只更新
+运行态审计快照，不会被重新打开或重复失败。
+```
+
 `ONLINE:SESSION:<account_id>` 当前 JSON 字段：
 
 ```json

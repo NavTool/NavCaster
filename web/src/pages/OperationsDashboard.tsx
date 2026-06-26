@@ -532,11 +532,14 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: 'Relay 状态', dataIndex: 'relay_status', key: 'relay_status', width: 120, render: (value) => <Tag color={value === 'running' ? 'blue' : value === 'stopped' ? 'default' : 'gold'}>{value || '-'}</Tag> },
     { title: '执行节点', key: 'relay_node_uid', width: 170, render: (_, row) => row.relay_node_name || row.relay_node_uid || '-' },
     { title: '同步时间', key: 'runtime_reconcile_time', width: 170, render: (_, row) => row.runtime_reconcile_time ? getLocalTime(row.runtime_reconcile_time) : '-' },
+    { title: '维护时间', key: 'runtime_maintenance_time', width: 170, render: (_, row) => row.runtime_maintenance_time ? getLocalTime(row.runtime_maintenance_time) : '-' },
+    { title: '异常持续', key: 'runtime_unhealthy_elapsed_seconds', width: 120, render: (_, row) => row.runtime_unhealthy_elapsed_seconds ? formatDuration(row.runtime_unhealthy_elapsed_seconds) : '-' },
     { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
     { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
     { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
     { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => dataPushJobStatusTag(value) },
+    { title: '失败原因', dataIndex: 'failure_reason', key: 'failure_reason', width: 180, render: (value) => value || '-' },
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
     {
       title: '操作',
@@ -630,7 +633,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       return <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
     }
     if (view === 'data-push-jobs') {
-      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2520 }} />;
+      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2990 }} />;
     }
     if (view === 'data-push-usage') {
       return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
