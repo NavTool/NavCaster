@@ -85,6 +85,8 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/redeem-codes
 /api/v1/admin/stations
 /api/v1/admin/usage
+/api/v1/admin/data-push-configs
+/api/v1/admin/data-push-jobs
 /api/v1/admin/data-push-usage
 /api/v1/admin/supply-usage
 /api/v1/admin/supplier-settlements
@@ -95,6 +97,8 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/me/access-accounts
 /api/v1/me/subscriptions
 /api/v1/me/usage
+/api/v1/me/data-push/configs
+/api/v1/me/data-push/jobs
 /api/v1/me/data-push
 /api/v1/me/redeem-redemptions
 /api/v1/supplier/profile
@@ -114,6 +118,10 @@ session 推导 owner 和 kind。
 NC-057 起运营台增加 `/admin/data-push-usage`，用户自助台增加 `/me/data-push`。
 两个页面按当前 `yyyyMM` 展示 `DATA:PUSH:<period>` 事实；用户页只展示当前
 session Account，管理员页展示全局记录并在总览中汇总数据推送扣费。
+
+NC-062 起运营台增加 `/admin/data-push-configs` 和 `/admin/data-push-jobs`。
+管理员可创建/删除推送配置并查看全局任务；用户 `/me/data-push` 扩展为数据推送工作区，
+同时展示可用配置、自己的任务和扣费用量，并可创建按配置计价的推送任务。
 
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加

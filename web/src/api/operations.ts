@@ -5,6 +5,8 @@ import type {
   AccessAccountUpdateInput,
   AccountGroupGrant,
   AuthSessionSubject,
+  DataPushConfig,
+  DataPushJob,
   BillingUsageEntry,
   DataPushUsage,
   HashRecord,
@@ -103,6 +105,26 @@ export const adminApi = {
     const { data } = await api.get('/api/v1/admin/usage', { params: period ? { period } : undefined });
     return data;
   },
+  async dataPushConfigs(): Promise<HashRecord<DataPushConfig>> {
+    const { data } = await api.get('/api/v1/admin/data-push-configs');
+    return data;
+  },
+  async createDataPushConfig(body: Partial<DataPushConfig> & { config_id: string; name: string; target_mountpoint: string }) {
+    const { data } = await api.post('/api/v1/admin/data-push-configs', body);
+    return data as DataPushConfig;
+  },
+  async updateDataPushConfig(configId: string, body: Partial<DataPushConfig>) {
+    const { data } = await api.put(`/api/v1/admin/data-push-configs/${encodeURIComponent(configId)}`, body);
+    return data as DataPushConfig;
+  },
+  async deleteDataPushConfig(configId: string) {
+    const { data } = await api.delete(`/api/v1/admin/data-push-configs/${encodeURIComponent(configId)}`);
+    return data as DataPushConfig;
+  },
+  async dataPushJobs(period?: string): Promise<HashRecord<DataPushJob>> {
+    const { data } = await api.get('/api/v1/admin/data-push-jobs', { params: period ? { period } : undefined });
+    return data;
+  },
   async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {
     const { data } = await api.get('/api/v1/admin/data-push-usage', { params: period ? { period } : undefined });
     return data;
@@ -192,6 +214,18 @@ export const meApi = {
   async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {
     const { data } = await api.get('/api/v1/me/data-push', { params: period ? { period } : undefined });
     return data;
+  },
+  async dataPushConfigs(): Promise<HashRecord<DataPushConfig>> {
+    const { data } = await api.get('/api/v1/me/data-push/configs');
+    return data;
+  },
+  async dataPushJobs(period?: string): Promise<HashRecord<DataPushJob>> {
+    const { data } = await api.get('/api/v1/me/data-push/jobs', { params: period ? { period } : undefined });
+    return data;
+  },
+  async createDataPushJob(body: { config_id: string; used_seconds: number; period?: string; operator_note?: string }) {
+    const { data } = await api.post('/api/v1/me/data-push/jobs', body);
+    return data as DataPushJob;
   },
 };
 

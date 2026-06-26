@@ -339,6 +339,59 @@ ControllerResponse OperationsController::list_usage(const std::string &period)
     return list_limited_hash(key.c_str());
 }
 
+ControllerResponse OperationsController::list_data_push_configs()
+{
+    return empty_or_records(redis_keys::DATA_PUSH_CONFIG);
+}
+
+ControllerResponse OperationsController::get_data_push_config(const std::string &config_id)
+{
+    if (config_id.empty())
+    {
+        return error_response(400, "config_id is required");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.get_data_push_config(config_id);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::create_data_push_config(const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.create_data_push_config(std::move(body), _now);
+    return repository_result(201, result);
+}
+
+ControllerResponse OperationsController::update_data_push_config(const std::string &config_id, const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_data_push_config(config_id, std::move(body), _now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::delete_data_push_config(const std::string &config_id)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.delete_data_push_config(config_id, _now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::list_data_push_jobs(const std::string &period)
+{
+    const std::string key = redis_keys::data_push_job(request_period(period));
+    return list_limited_hash(key.c_str());
+}
+
 ControllerResponse OperationsController::list_data_push_usage(const std::string &period)
 {
     const std::string key = redis_keys::data_push(request_period(period));

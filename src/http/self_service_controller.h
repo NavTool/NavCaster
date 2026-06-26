@@ -35,6 +35,9 @@ public:
     ControllerResponse usage(const AuthSessionSubject &subject, const std::string &period);
     ControllerResponse subscriptions(const AuthSessionSubject &subject);
     ControllerResponse redeem_redemptions(const AuthSessionSubject &subject);
+    ControllerResponse data_push_configs(const AuthSessionSubject &subject);
+    ControllerResponse data_push_jobs(const AuthSessionSubject &subject, const std::string &period);
+    ControllerResponse create_data_push_job(const AuthSessionSubject &subject, const std::string &body_text);
     ControllerResponse data_push_usage(const AuthSessionSubject &subject, const std::string &period);
     ControllerResponse append_data_push_usage(const AuthSessionSubject &subject, const std::string &body_text);
     ControllerResponse supplier_stations(const AuthSessionSubject &subject);
@@ -56,6 +59,8 @@ private:
     nlohmann::json filter_billing_usage(const std::string &account_id, const std::string &period) const;
     nlohmann::json owner_subscriptions(const std::string &account_id) const;
     nlohmann::json owner_redeem_redemptions(const std::string &account_id) const;
+    nlohmann::json active_data_push_configs() const;
+    nlohmann::json filter_data_push_jobs(const std::string &account_id, const std::string &period) const;
     nlohmann::json filter_data_push_usage(const std::string &account_id, const std::string &period) const;
     nlohmann::json filter_supply_usage(const std::string &account_id, const std::string &period) const;
     nlohmann::json supplier_settlement_records(const std::string &account_id, const std::string &period) const;

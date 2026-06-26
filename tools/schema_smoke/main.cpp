@@ -2205,6 +2205,33 @@ int main()
             {"actual_debit_cents", 20000},
         }, "202606", 5080).status == navcaster::storage::RepositoryStatus::Conflict, "domain data push rejects insufficient balance");
         expect_true(domain_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "push-usage-over-balance").is_null(), "domain data push insufficient has no usage half write");
+        expect_true(domain_repo.create_data_push_config({
+            {"config_id", "domain-push-cfg"},
+            {"name", "Domain Push"},
+            {"target_mountpoint", "BASE01"},
+            {"fixed_hourly_price_cents", 120},
+        }, 5081).status == navcaster::storage::RepositoryStatus::Ok, "domain data push config create");
+        domain_result = domain_repo.create_data_push_job({
+            {"job_id", "domain-push-job"},
+            {"account_id", "acc-user"},
+            {"config_id", "domain-push-cfg"},
+            {"used_seconds", 3600},
+            {"period", "202606"},
+        }, "202606", 5082);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain data push job create");
+        expect_eq_int(domain_result.record.value("actual_debit_cents", 0), 120, "domain data push job cost");
+        expect_eq_int(domain_redis.hget(navcaster::redis_keys::ACC_RECORD, "acc-user").value("balance_cents", 0), 10375, "domain data push job debits account");
+        expect_true(domain_redis.hget(navcaster::redis_keys::data_push_job("202606").c_str(), "domain-push-job").is_object(), "domain data push job key");
+        expect_true(domain_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "usage:data_push:domain-push-job").is_object(), "domain data push job writes usage");
+        expect_true(domain_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:usage:data_push:domain-push-job").is_object(), "domain data push job writes ledger");
+        expect_true(domain_repo.create_data_push_job({
+            {"job_id", "domain-push-overdraw"},
+            {"account_id", "acc-user"},
+            {"config_id", "domain-push-cfg"},
+            {"used_seconds", 400000},
+            {"period", "202606"},
+        }, "202606", 5083).status == navcaster::storage::RepositoryStatus::Conflict, "domain data push job rejects insufficient balance");
+        expect_true(domain_redis.hget(navcaster::redis_keys::data_push_job("202606").c_str(), "domain-push-overdraw").is_null(), "domain data push job insufficient no job write");
         expect_true(domain_repo.append_supplier_supply_usage({
             {"usage_id", "supply-1"},
             {"supplier_account_id", "acc-supplier"},
@@ -2347,6 +2374,29 @@ int main()
         response = operations.list_data_push_usage("202606");
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("op-data-push"), "operations list data push usage");
+        response = operations.create_data_push_config(R"({"config_id":"op-push-cfg","name":"OP Push","target_mountpoint":"OPBASE","fixed_hourly_price_cents":60})");
+        expect_eq_int(response.status_code, 201, "operations create data push config");
+        response = operations.get_data_push_config("op-push-cfg");
+        expect_eq_int(response.status_code, 200, "operations get data push config");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("target_mountpoint", std::string{}), "OPBASE", "operations data push config target");
+        response = operations.list_data_push_configs();
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-push-cfg"), "operations list data push configs");
+        expect_true(domain_repo.create_data_push_job({
+            {"job_id", "op-push-job"},
+            {"account_id", "op-user"},
+            {"config_id", "op-push-cfg"},
+            {"used_seconds", 3600},
+            {"period", "202606"},
+        }, "202606", 6036).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture data push job");
+        response = operations.list_data_push_jobs("202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-push-job"), "operations list data push jobs");
+        response = operations.delete_data_push_config("op-push-cfg");
+        expect_eq_int(response.status_code, 200, "operations delete data push config");
+        response = operations.get_data_push_config("op-push-cfg");
+        expect_eq_int(response.status_code, 404, "operations get deleted data push config");
 
         expect_true(domain_repo.append_supplier_supply_usage({
             {"usage_id", "op-supply"},
@@ -2540,11 +2590,42 @@ int main()
         response = self_service.data_push_usage(user_subject, "202606");
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("self-data-push"), "self service data push filtered");
+        expect_true(domain_repo.create_data_push_config({
+            {"config_id", "self-push-cfg"},
+            {"name", "Self Push"},
+            {"target_mountpoint", "SELFBASE"},
+            {"fixed_hourly_price_cents", 30},
+        }, 7024).status == navcaster::storage::RepositoryStatus::Ok, "self service data push config fixture");
+        expect_true(domain_repo.create_data_push_config({
+            {"config_id", "self-disabled-push-cfg"},
+            {"name", "Self Disabled Push"},
+            {"target_mountpoint", "SELFBASE"},
+            {"fixed_hourly_price_cents", 30},
+            {"status", "disabled"},
+        }, 7025).status == navcaster::storage::RepositoryStatus::Ok, "self service disabled data push config fixture");
+        response = self_service.data_push_configs(user_subject);
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-push-cfg"), "self service data push configs active");
+        expect_true(!response_body.contains("self-disabled-push-cfg"), "self service data push configs hide disabled");
+        response = self_service.create_data_push_job(user_subject, R"({"job_id":"self-push-job","account_id":"self-supplier","config_id":"self-push-cfg","used_seconds":3600,"period":"202606","usage_id":"client-usage","ledger_id":"client-ledger"})");
+        expect_eq_int(response.status_code, 201, "self service create data push job");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service data push job overrides account id");
+        expect_eq(response_body.value("usage_id", std::string{}), "usage:data_push:self-push-job", "self service data push job owns usage id");
+        expect_eq_int(response_body.value("actual_debit_cents", 0), 30, "self service data push job cost");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 113, "self service data push job debits account");
+        response = self_service.data_push_jobs(user_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-push-job"), "self service data push jobs filtered");
+        expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "usage:data_push:self-push-job").is_object(), "self service data push job writes usage");
+        expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:usage:data_push:self-push-job").is_object(), "self service data push job writes ledger");
         response = self_service.append_data_push_usage(user_subject, R"({"usage_id":"self-overdraw","target_mountpoint":"SELFBASE","actual_debit_cents":200,"period":"202606"})");
         expect_eq_int(response.status_code, 409, "self service data push rejects insufficient balance");
         expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "self-overdraw").is_null(), "self service data push insufficient no usage write");
         response = self_service.append_data_push_usage(supplier_subject, R"({"usage_id":"supplier-data-push","target_mountpoint":"SELFBASE","actual_debit_cents":1,"period":"202606"})");
         expect_eq_int(response.status_code, 403, "self service supplier cannot use me data push");
+        response = self_service.create_data_push_job(supplier_subject, R"({"config_id":"self-push-cfg","used_seconds":1,"period":"202606"})");
+        expect_eq_int(response.status_code, 403, "self service supplier cannot create me data push job");
 
         expect_true(domain_repo.upsert_station_record({
             {"mountpoint", "SELFBASE"},

@@ -513,7 +513,10 @@ export interface BillingUsageEntry {
 export interface DataPushUsage {
   usage_id: string;
   account_id: string;
+  config_id?: string;
+  job_id?: string;
   target_mountpoint: string;
+  group_id?: string;
   used_seconds?: number;
   stat_cost_cents?: number;
   actual_debit_cents?: number;
@@ -523,6 +526,38 @@ export interface DataPushUsage {
   create_time?: number;
   start_time?: number;
   end_time?: number;
+}
+
+export interface DataPushConfig {
+  config_id: string;
+  name: string;
+  target_mountpoint: string;
+  group_id?: string;
+  status: ResourceStatus;
+  fixed_hourly_price_cents?: number;
+  description?: string;
+  create_time?: number;
+  update_time?: number;
+  delete_time?: number;
+}
+
+export interface DataPushJob {
+  job_id: string;
+  account_id: string;
+  config_id: string;
+  target_mountpoint: string;
+  group_id?: string;
+  usage_id: string;
+  period?: string;
+  used_seconds?: number;
+  stat_cost_cents?: number;
+  actual_debit_cents?: number;
+  balance_after_cents?: number;
+  ledger_id?: string;
+  status?: string;
+  operator_note?: string;
+  create_time?: number;
+  update_time?: number;
 }
 
 export interface StationRecord {

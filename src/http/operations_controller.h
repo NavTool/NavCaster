@@ -45,6 +45,12 @@ public:
 
     ControllerResponse list_stations();
     ControllerResponse list_usage(const std::string &period);
+    ControllerResponse list_data_push_configs();
+    ControllerResponse get_data_push_config(const std::string &config_id);
+    ControllerResponse create_data_push_config(const std::string &body_text);
+    ControllerResponse update_data_push_config(const std::string &config_id, const std::string &body_text);
+    ControllerResponse delete_data_push_config(const std::string &config_id);
+    ControllerResponse list_data_push_jobs(const std::string &period);
     ControllerResponse list_data_push_usage(const std::string &period);
     ControllerResponse list_supply_usage(const std::string &period);
     ControllerResponse list_supplier_settlements(const std::string &period, const std::string &supplier_account_id);
