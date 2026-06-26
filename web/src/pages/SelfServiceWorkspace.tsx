@@ -68,6 +68,17 @@ function statusTag(status?: string) {
   return <Tag color={color}>{status || '-'}</Tag>;
 }
 
+function settlementStatusTag(status?: string) {
+  const color = status === 'paid' || status === 'settled'
+    ? 'green'
+    : status === 'pending_payment'
+      ? 'gold'
+      : status === 'payment_failed'
+        ? 'red'
+        : 'default';
+  return <Tag color={color}>{status || 'pending_payment'}</Tag>;
+}
+
 function kindLabel(scope: SelfScope): string {
   return scope === 'supplier' ? 'supplier_station' : 'user_client';
 }
@@ -340,7 +351,10 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: '用量数', dataIndex: 'usage_count', key: 'usage_count', width: 90 },
     { title: '供应时长', key: 'total_supply_seconds', width: 120, render: (_, row) => formatDuration(row.total_supply_seconds ?? 0) },
     { title: '结算收益', key: 'total_earning_cents', width: 120, render: (_, row) => formatCents(row.total_earning_cents) },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'settled' ? 'green' : 'default'}>{value || '-'}</Tag> },
+    { title: '付款状态', dataIndex: 'status', key: 'status', width: 130, render: (value) => settlementStatusTag(value) },
+    { title: '付款方式', dataIndex: 'payment_method', key: 'payment_method', width: 120, render: (value) => value || '-' },
+    { title: '付款流水', dataIndex: 'payment_ref', key: 'payment_ref', width: 160, render: (value) => value || '-' },
+    { title: '付款时间', key: 'paid_time', width: 170, render: (_, row) => row.paid_time ? getLocalTime(row.paid_time) : '-' },
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
     { title: '备注', dataIndex: 'operator_note', key: 'operator_note', ellipsis: true, render: (value) => value || '-' },
   ];
@@ -424,7 +438,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
       return <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
     }
     if (scope === 'supplier' && view === 'settlements') {
-      return <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1180 }} />;
+      return <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1500 }} />;
     }
     if (scope === 'supplier' && view === 'earnings') {
       return renderEarnings(earnings);
@@ -436,11 +450,13 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     <Row gutter={[16, 16]}>
       <Col xs={12} md={6}><MetricCard title="供应时长" value={formatDuration(summary?.total_supply_seconds ?? 0)} prefix={<CloudServerOutlined />} /></Col>
       <Col xs={12} md={6}><MetricCard title="待结算" value={formatCents(summary?.pending_earning_cents)} prefix={<WalletOutlined />} /></Col>
-      <Col xs={12} md={6}><MetricCard title="已结算" value={formatCents(summary?.settled_earning_cents)} prefix={<WalletOutlined />} /></Col>
+      <Col xs={12} md={6}><MetricCard title="待付款" value={formatCents(summary?.pending_payment_cents)} prefix={<WalletOutlined />} /></Col>
+      <Col xs={12} md={6}><MetricCard title="已付款" value={formatCents(summary?.paid_earning_cents ?? summary?.settled_earning_cents)} prefix={<WalletOutlined />} /></Col>
+      <Col xs={12} md={6}><MetricCard title="付款失败" value={formatCents(summary?.failed_payment_cents)} prefix={<WalletOutlined />} /></Col>
       <Col xs={12} md={6}><MetricCard title="累计收益" value={formatCents(summary?.total_earning_cents)} prefix={<WalletOutlined />} /></Col>
       <Col xs={12} md={6}><MetricCard title="结算批次" value={summary?.settlement_count ?? settlementRows.length} prefix={<BranchesOutlined />} /></Col>
       <Col span={24}>
-        <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1180 }} />
+        <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1500 }} />
       </Col>
       <Col span={24}>
         <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />

@@ -153,6 +153,10 @@ export const adminApi = {
     const { data } = await api.get(`/api/v1/admin/supplier-settlements/${encodeURIComponent(settlementId)}`, { params: Object.keys(params).length ? params : undefined });
     return data as SupplierSettlementRecord;
   },
+  async updateSupplierSettlementPayment(settlementId: string, body: { supplier_account_id: string; period: string; status: 'paid' | 'payment_failed' | 'cancelled'; payment_method?: string; payment_ref?: string; payment_note?: string; operator_note?: string }) {
+    const { data } = await api.post(`/api/v1/admin/supplier-settlements/${encodeURIComponent(settlementId)}/payment`, body);
+    return data as SupplierSettlementRecord;
+  },
 };
 
 function accessApi(scope: 'me' | 'supplier') {

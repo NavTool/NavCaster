@@ -197,15 +197,19 @@ Auth 周期续期会重读 SUB:ACCOUNT:<owner_account_id>[subscription_id]，过
 supplier_station 断开时 SUPPLY:USAGE:<yyyyMM> 写 earning_cents 和 earning_rule_snapshot。
 ```
 
-NC-061 供应商结算：
+NC-061 / NC-063 供应商结算和付款状态：
 
 ```text
 管理员创建结算时读取 SUPPLY:USAGE:<yyyyMM> 中指定供应商的 pending 供应事实。
 结算成功写 SUPPLY:EARNING:<account_id>:<yyyyMM>[settlement_id]，字段包含 usage_ids、
 usage_count、total_supply_seconds、total_earning_cents、status、create_time、update_time。
 被纳入结算的 SUPPLY:USAGE 记录会更新 status=settled、settlement_id、settlement_time。
-供应商自助收益摘要以 SUPPLY:USAGE.status 区分 pending_earning_cents 和 settled_earning_cents，
-并从 SUPPLY:EARNING 统计 settlement_count。
+结算批次默认 status=pending_payment；管理员可更新为 paid、payment_failed 或 cancelled。
+付款更新可写 payment_method、payment_ref、payment_note、paid_time、payment_failed_time、
+payment_update_time。历史 status=settled 按 paid 兼容处理。
+供应商自助收益摘要以 SUPPLY:USAGE.status 统计 pending_earning_cents，并从
+SUPPLY:EARNING 拆分 pending_payment_cents、paid_earning_cents、failed_payment_cents
+和 settlement_count；settled_earning_cents 保留为 paid + pending_payment 的兼容字段。
 ```
 
 NC-060 订阅运营和兑换入账：

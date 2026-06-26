@@ -15,10 +15,12 @@ import {
 } from 'antd';
 import {
   BranchesOutlined,
+  CheckCircleOutlined,
   CloudServerOutlined,
   DatabaseOutlined,
   LockOutlined,
   PlusOutlined,
+  StopOutlined,
   SwapOutlined,
   TeamOutlined,
   WalletOutlined,
@@ -85,6 +87,19 @@ function kindTag(kind?: string) {
   return <Tag color={kind === 'supplier_station' ? 'blue' : 'green'}>{kind || '-'}</Tag>;
 }
 
+function settlementStatusTag(status?: string) {
+  const color = status === 'paid' || status === 'settled'
+    ? 'green'
+    : status === 'pending_payment'
+      ? 'gold'
+      : status === 'payment_failed'
+        ? 'red'
+        : status === 'cancelled' || status === 'void'
+          ? 'default'
+          : 'blue';
+  return <Tag color={color}>{status || 'pending_payment'}</Tag>;
+}
+
 function recordCount<T extends object>(records: HashRecord<T> | null): number {
   return Object.keys(records ?? {}).length;
 }
@@ -99,6 +114,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [redeemApplyForm] = Form.useForm();
   const [dataPushConfigForm] = Form.useForm();
   const [settlementForm] = Form.useForm();
+  const [paymentForm] = Form.useForm();
   const [accountOpen, setAccountOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
   const [memberGroupId, setMemberGroupId] = useState<string | null>(null);
@@ -108,6 +124,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [redeemApplyCode, setRedeemApplyCode] = useState<string | null>(null);
   const [dataPushConfigOpen, setDataPushConfigOpen] = useState(false);
   const [settlementOpen, setSettlementOpen] = useState(false);
+  const [paymentTarget, setPaymentTarget] = useState<SupplierSettlementRecord | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'payment_failed' | 'cancelled'>('paid');
 
   const accountsQuery = usePolling(() => adminApi.accounts(), 5000, view === 'dashboard' || view === 'accounts');
   const accessAccountsQuery = usePolling(() => adminApi.accessAccounts(), 5000, view === 'dashboard' || view === 'access-accounts');
@@ -141,6 +159,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const totalSupplySeconds = supplyRows.reduce((sum, usage) => sum + Number(usage.used_seconds ?? 0), 0);
   const totalEarnings = supplyRows.reduce((sum, usage) => sum + Number(usage.earning_cents ?? 0), 0);
   const settledEarnings = settlementRows.reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
+  const pendingPaymentEarnings = settlementRows
+    .filter((settlement) => !settlement.status || settlement.status === 'pending_payment')
+    .reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
+  const paidEarnings = settlementRows
+    .filter((settlement) => settlement.status === 'paid' || settlement.status === 'settled')
+    .reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
   const currentUsageCost = usageRows.reduce((sum, usage) => sum + Number(usage.stat_cost_cents ?? 0), 0);
   const currentDataPushDebit = dataPushRows.reduce((sum, usage) => sum + Number(usage.actual_debit_cents ?? 0), 0);
 
@@ -310,6 +334,33 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     supplyQuery.refresh();
   };
 
+  const openSettlementPayment = (record: SupplierSettlementRecord, status: 'paid' | 'payment_failed' | 'cancelled') => {
+    setPaymentTarget(record);
+    setPaymentStatus(status);
+    paymentForm.resetFields();
+    paymentForm.setFieldsValue({
+      supplier_account_id: record.supplier_account_id,
+      period: record.period || currentPeriod(),
+      payment_method: record.payment_method || 'manual',
+      payment_ref: record.payment_ref,
+      payment_note: record.payment_note,
+    });
+  };
+
+  const submitSettlementPayment = async () => {
+    if (!paymentTarget) return;
+    const values = await paymentForm.validateFields();
+    await adminApi.updateSupplierSettlementPayment(paymentTarget.settlement_id, {
+      ...values,
+      supplier_account_id: paymentTarget.supplier_account_id,
+      period: paymentTarget.period || currentPeriod(),
+      status: paymentStatus,
+    });
+    message.success(paymentStatus === 'paid' ? '结算已标记付款' : paymentStatus === 'payment_failed' ? '结算已标记失败' : '结算已取消');
+    setPaymentTarget(null);
+    settlementQuery.refresh();
+  };
+
   const accountColumns: ColumnsType<OperationsAccount & { key: string }> = [
     { title: 'Account ID', dataIndex: 'account_id', key: 'account_id', width: 190 },
     { title: '用户名', dataIndex: 'username', key: 'username', width: 140 },
@@ -459,9 +510,24 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '用量数', dataIndex: 'usage_count', key: 'usage_count', width: 90 },
     { title: '供应时长', key: 'total_supply_seconds', width: 120, render: (_, row) => formatDuration(row.total_supply_seconds ?? 0) },
     { title: '结算收益', key: 'total_earning_cents', width: 120, render: (_, row) => formatCents(row.total_earning_cents) },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'settled' ? 'green' : 'default'}>{value || '-'}</Tag> },
+    { title: '付款状态', dataIndex: 'status', key: 'status', width: 130, render: (value) => settlementStatusTag(value) },
+    { title: '付款方式', dataIndex: 'payment_method', key: 'payment_method', width: 120, render: (value) => value || '-' },
+    { title: '付款流水', dataIndex: 'payment_ref', key: 'payment_ref', width: 160, render: (value) => value || '-' },
+    { title: '付款时间', key: 'paid_time', width: 170, render: (_, row) => row.paid_time ? getLocalTime(row.paid_time) : '-' },
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
     { title: '备注', dataIndex: 'operator_note', key: 'operator_note', ellipsis: true, render: (value) => value || '-' },
+    {
+      title: '操作',
+      key: 'action',
+      width: 180,
+      fixed: 'right',
+      render: (_, row) => (
+        <Space size="small">
+          <Button size="small" icon={<CheckCircleOutlined />} disabled={row.status === 'paid' || row.status === 'settled'} onClick={() => openSettlementPayment(row, 'paid')}>付款</Button>
+          <Button size="small" danger icon={<StopOutlined />} disabled={row.status === 'paid' || row.status === 'settled'} onClick={() => openSettlementPayment(row, 'payment_failed')}>失败</Button>
+        </Space>
+      ),
+    },
   ];
 
   const table = (() => {
@@ -511,7 +577,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       return <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
     if (view === 'supplier-settlements') {
-      return <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1400 }} />;
+      return <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1800 }} />;
     }
     return null;
   })();
@@ -585,6 +651,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="已结算收益" value={formatCents(settledEarnings)} prefix={<WalletOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="待付款收益" value={formatCents(pendingPaymentEarnings)} prefix={<WalletOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="已付款收益" value={formatCents(paidEarnings)} prefix={<WalletOutlined />} />
             </Col>
           </Row>
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
@@ -772,6 +844,39 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             <Input />
           </Form.Item>
           <Form.Item name="operator_note" label="备注">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="更新付款状态" open={!!paymentTarget} onOk={submitSettlementPayment} onCancel={() => setPaymentTarget(null)} width={560}>
+        <Form form={paymentForm} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="supplier_account_id" label="Supplier Account ID" rules={[{ required: true }]}>
+                <Input disabled />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="period" label="账期" rules={[{ required: true }]}>
+                <Input disabled />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="目标状态">
+                <Input value={paymentStatus} disabled />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="payment_method" label="付款方式">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="payment_ref" label="付款流水 / 外部单号">
+            <Input />
+          </Form.Item>
+          <Form.Item name="payment_note" label="付款备注">
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

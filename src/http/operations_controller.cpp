@@ -503,4 +503,25 @@ ControllerResponse OperationsController::create_supplier_settlement(const std::s
     return repository_result(201, result);
 }
 
+ControllerResponse OperationsController::update_supplier_settlement_payment(const std::string &settlement_id,
+                                                                            const std::string &period,
+                                                                            const std::string &supplier_account_id,
+                                                                            const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    const std::string resolved_period = request_period(body.value("period", period));
+    const std::string resolved_supplier = body.value("supplier_account_id", supplier_account_id);
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_supplier_settlement_payment(settlement_id,
+                                                          resolved_supplier,
+                                                          resolved_period,
+                                                          std::move(body),
+                                                          _now);
+    return repository_result(200, result);
+}
+
 } // namespace navcaster::http_api
