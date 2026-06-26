@@ -2215,6 +2215,20 @@ int main()
         }, "202606", 5081).status == navcaster::storage::RepositoryStatus::Ok, "domain supplier supply append");
         expect_true(domain_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "push-usage-1").is_object(), "domain data push key");
         expect_true(domain_redis.hget(navcaster::redis_keys::supply_usage("202606").c_str(), "supply-1").is_object(), "domain supply key");
+        domain_result = domain_repo.create_supplier_settlement({
+            {"supplier_account_id", "acc-supplier"},
+            {"period", "202606"},
+            {"operator_note", "domain settlement"},
+        }, "202606", 5082);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain supplier settlement create");
+        expect_eq(domain_result.record.value("supplier_account_id", std::string{}), "acc-supplier", "domain supplier settlement account");
+        expect_eq_int(domain_result.record.value("usage_count", 0), 1, "domain supplier settlement usage count");
+        expect_eq_int(domain_result.record.value("total_supply_seconds", 0), 120, "domain supplier settlement seconds");
+        expect_eq_int(domain_result.record.value("total_earning_cents", 0), 5, "domain supplier settlement cents");
+        expect_true(domain_redis.hget(navcaster::redis_keys::supply_earning("acc-supplier", "202606").c_str(), domain_result.id.c_str()).is_object(), "domain supplier settlement key");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::supply_usage("202606").c_str(), "supply-1").value("status", std::string{}), "settled", "domain supplier usage marked settled");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::supply_usage("202606").c_str(), "supply-1").value("settlement_id", std::string{}), domain_result.id, "domain supplier usage settlement id");
+        expect_true(domain_repo.create_supplier_settlement({{"supplier_account_id", "acc-supplier"}, {"period", "202606"}}, "202606", 5083).status == navcaster::storage::RepositoryStatus::Conflict, "domain supplier settlement no pending usage rejected");
 
         expect_true(domain_repo.delete_account("acc-user", 5090).status == navcaster::storage::RepositoryStatus::Ok, "domain account delete tombstones");
         expect_eq(domain_redis.hget(navcaster::redis_keys::ACC_USERNAME, "customer-a").value("status", std::string{}), "deleted", "domain account username tombstone");
@@ -2256,11 +2270,14 @@ int main()
         expect_eq_int(response.status_code, 200, "operations update account");
         response_body = nlohmann::json::parse(response.body);
         expect_eq_int(response_body.value("balance_cents", 0), 7000, "operations account update balance");
+        response = operations.create_account(R"({"account_id":"op-supplier","username":"op-supplier","role":"supplier","concurrency_limit":2})");
+        expect_eq_int(response.status_code, 201, "operations create supplier account");
 
         expect_eq_int(operations.create_mount_point_group(R"({"group_id":"op-group","name":"Operations Group"})").status_code, 201, "operations create group");
         expect_eq_int(operations.create_mount_point(R"({"mountpoint":"OPBASE","hourly_price_cents":120})").status_code, 201, "operations create mount point");
         expect_eq_int(operations.add_mount_point_group_member("op-group", R"({"mountpoint":"OPBASE"})").status_code, 201, "operations add group member");
         expect_eq_int(operations.grant_account_group("op-user", R"({"group_id":"op-group"})").status_code, 201, "operations grant account group");
+        expect_eq_int(operations.grant_account_group("op-supplier", R"({"group_id":"op-group"})").status_code, 201, "operations grant supplier group");
         expect_true(operations_redis.hget(navcaster::redis_keys::acc_group("op-user").c_str(), "op-group").is_object(), "operations grant writes ACC:GROUP");
 
         navcaster::storage::AccountDomainRepository domain_repo(operations_redis);
@@ -2272,6 +2289,14 @@ int main()
             {"password", "op-rover-pass"},
             {"mount_point_group_id", "op-group"},
         }, 6010).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture access account");
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "op-station"},
+            {"owner_account_id", "op-supplier"},
+            {"username", "op-station"},
+            {"kind", "supplier_station"},
+            {"password", "op-station-pass"},
+            {"mount_point_group_id", "op-group"},
+        }, 6011).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture supplier access account");
         response = operations.list_access_accounts();
         expect_eq_int(response.status_code, 200, "operations list access accounts");
         response_body = nlohmann::json::parse(response.body);
@@ -2325,13 +2350,30 @@ int main()
 
         expect_true(domain_repo.append_supplier_supply_usage({
             {"usage_id", "op-supply"},
-            {"supplier_account_id", "op-user"},
-            {"access_account_id", "op-aacc"},
+            {"supplier_account_id", "op-supplier"},
+            {"access_account_id", "op-station"},
             {"mountpoint", "OPBASE"},
+            {"used_seconds", 90},
+            {"earning_cents", 15},
         }, "202606", 6040).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture supply usage");
         response = operations.list_supply_usage("202606");
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("op-supply"), "operations list supply usage");
+        response = operations.create_supplier_settlement(R"({"supplier_account_id":"op-supplier","period":"202606","operator_note":"op settlement"})");
+        expect_eq_int(response.status_code, 201, "operations create supplier settlement");
+        response_body = nlohmann::json::parse(response.body);
+        const std::string op_settlement_id = response_body.value("settlement_id", std::string{});
+        expect_eq_int(response_body.value("usage_count", 0), 1, "operations supplier settlement usage count");
+        expect_eq_int(response_body.value("total_earning_cents", 0), 15, "operations supplier settlement cents");
+        expect_eq(operations_redis.hget(navcaster::redis_keys::supply_usage("202606").c_str(), "op-supply").value("status", std::string{}), "settled", "operations supplier usage settled");
+        response = operations.list_supplier_settlements("202606", "op-supplier");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains(op_settlement_id), "operations list supplier settlements by supplier");
+        response = operations.get_supplier_settlement(op_settlement_id, "202606", "op-supplier");
+        expect_eq_int(response.status_code, 200, "operations get supplier settlement");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("settlement_id", std::string{}), op_settlement_id, "operations get supplier settlement id");
+        expect_eq_int(operations.create_supplier_settlement(R"({"supplier_account_id":"op-supplier","period":"202606"})").status_code, 409, "operations supplier settlement no pending usage rejected");
 
         expect_eq_int(operations.delete_account("op-user").status_code, 200, "operations delete account");
         expect_true(operations.create_account(R"({"account_id":"op-reuse","username":"op-customer","role":"user"})").status_code == 409, "operations deleted username cannot be reused");
@@ -2527,6 +2569,26 @@ int main()
         response_body = nlohmann::json::parse(response.body);
         expect_eq_int(response_body.value("total_earning_cents", 0), 25, "self service supplier earnings total");
         expect_eq_int(response_body.value("total_supply_seconds", 0), 120, "self service supplier earnings seconds");
+        expect_eq_int(response_body.value("pending_earning_cents", 0), 25, "self service supplier earnings pending before settlement");
+        expect_eq_int(response_body.value("settled_earning_cents", 0), 0, "self service supplier earnings settled before settlement");
+        expect_eq_int(response_body.value("settlement_count", 0), 0, "self service supplier earnings settlement count before settlement");
+        auto self_settlement = domain_repo.create_supplier_settlement({
+            {"supplier_account_id", "self-supplier"},
+            {"period", "202606"},
+            {"operator_note", "self settlement"},
+        }, "202606", 7032);
+        expect_true(self_settlement.status == navcaster::storage::RepositoryStatus::Ok, "self service fixture supplier settlement");
+        response = self_service.supplier_settlements(supplier_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains(self_settlement.id), "self service supplier settlements filtered");
+        response = self_service.supplier_supply_usage(supplier_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body["self-supply"].value("status", std::string{}), "settled", "self service supplier usage settled after settlement");
+        response = self_service.supplier_earnings(supplier_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body.value("pending_earning_cents", 0), 0, "self service supplier earnings pending after settlement");
+        expect_eq_int(response_body.value("settled_earning_cents", 0), 25, "self service supplier earnings settled after settlement");
+        expect_eq_int(response_body.value("settlement_count", 0), 1, "self service supplier earnings settlement count after settlement");
 
         response = self_service.delete_access_account(user_subject, "me", "self-aacc");
         expect_eq_int(response.status_code, 200, "self service delete own access account");

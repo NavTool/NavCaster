@@ -38,6 +38,7 @@ import type {
   RedeemCodeRecord,
   StationRecord,
   SubscriptionRecord,
+  SupplierSettlementRecord,
   SupplierSupplyUsage,
 } from '../api/types';
 import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../utils/format';
@@ -53,7 +54,8 @@ type AdminView =
   | 'subscriptions'
   | 'redeem-codes'
   | 'data-push-usage'
-  | 'supply-usage';
+  | 'supply-usage'
+  | 'supplier-settlements';
 
 interface OperationsDashboardProps {
   scope: 'admin';
@@ -90,6 +92,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [subscriptionForm] = Form.useForm();
   const [redeemForm] = Form.useForm();
   const [redeemApplyForm] = Form.useForm();
+  const [settlementForm] = Form.useForm();
   const [accountOpen, setAccountOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
   const [memberGroupId, setMemberGroupId] = useState<string | null>(null);
@@ -97,6 +100,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemApplyCode, setRedeemApplyCode] = useState<string | null>(null);
+  const [settlementOpen, setSettlementOpen] = useState(false);
 
   const accountsQuery = usePolling(() => adminApi.accounts(), 5000, view === 'dashboard' || view === 'accounts');
   const accessAccountsQuery = usePolling(() => adminApi.accessAccounts(), 5000, view === 'dashboard' || view === 'access-accounts');
@@ -108,6 +112,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const redeemQuery = usePolling(() => adminApi.redeemCodes(), 5000, view === 'dashboard' || view === 'redeem-codes');
   const dataPushQuery = usePolling(() => adminApi.dataPushUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-usage');
   const supplyQuery = usePolling(() => adminApi.supplyUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'supply-usage');
+  const settlementQuery = usePolling(() => adminApi.supplierSettlements(currentPeriod()), 5000, view === 'dashboard' || view === 'supplier-settlements');
 
   const accountRows = useMemo(() => rowsFromHash(accountsQuery.data), [accountsQuery.data]);
   const accessRows = useMemo(() => rowsFromHash(accessAccountsQuery.data), [accessAccountsQuery.data]);
@@ -119,10 +124,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const redeemRows = useMemo(() => rowsFromHash(redeemQuery.data), [redeemQuery.data]);
   const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
+  const settlementRows = useMemo(() => rowsFromHash(settlementQuery.data), [settlementQuery.data]);
 
   const totalBalance = accountRows.reduce((sum, account) => sum + Number(account.balance_cents ?? 0), 0);
   const totalSupplySeconds = supplyRows.reduce((sum, usage) => sum + Number(usage.used_seconds ?? 0), 0);
   const totalEarnings = supplyRows.reduce((sum, usage) => sum + Number(usage.earning_cents ?? 0), 0);
+  const settledEarnings = settlementRows.reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
   const currentUsageCost = usageRows.reduce((sum, usage) => sum + Number(usage.stat_cost_cents ?? 0), 0);
   const currentDataPushDebit = dataPushRows.reduce((sum, usage) => sum + Number(usage.actual_debit_cents ?? 0), 0);
 
@@ -253,6 +260,21 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     accountsQuery.refresh();
   };
 
+  const openSupplierSettlement = () => {
+    settlementForm.resetFields();
+    settlementForm.setFieldsValue({ period: currentPeriod() });
+    setSettlementOpen(true);
+  };
+
+  const submitSupplierSettlement = async () => {
+    const values = await settlementForm.validateFields();
+    await adminApi.createSupplierSettlement(values);
+    message.success('供应商结算已生成');
+    setSettlementOpen(false);
+    settlementQuery.refresh();
+    supplyQuery.refresh();
+  };
+
   const accountColumns: ColumnsType<OperationsAccount & { key: string }> = [
     { title: 'Account ID', dataIndex: 'account_id', key: 'account_id', width: 190 },
     { title: '用户名', dataIndex: 'username', key: 'username', width: 140 },
@@ -363,6 +385,18 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const settlementColumns: ColumnsType<SupplierSettlementRecord & { key: string }> = [
+    { title: 'Settlement ID', dataIndex: 'settlement_id', key: 'settlement_id', width: 260 },
+    { title: '供应商', dataIndex: 'supplier_account_id', key: 'supplier_account_id', width: 190 },
+    { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
+    { title: '用量数', dataIndex: 'usage_count', key: 'usage_count', width: 90 },
+    { title: '供应时长', key: 'total_supply_seconds', width: 120, render: (_, row) => formatDuration(row.total_supply_seconds ?? 0) },
+    { title: '结算收益', key: 'total_earning_cents', width: 120, render: (_, row) => formatCents(row.total_earning_cents) },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'settled' ? 'green' : 'default'}>{value || '-'}</Tag> },
+    { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+    { title: '备注', dataIndex: 'operator_note', key: 'operator_note', ellipsis: true, render: (value) => value || '-' },
+  ];
+
   const table = (() => {
     if (view === 'accounts') {
       return (
@@ -403,6 +437,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     if (view === 'supply-usage') {
       return <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
+    if (view === 'supplier-settlements') {
+      return <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1400 }} />;
+    }
     return null;
   })();
 
@@ -418,6 +455,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     'redeem-codes': '兑换码',
     'data-push-usage': '数据推送用量',
     'supply-usage': '供应事实',
+    'supplier-settlements': '供应商结算',
   };
 
   const extra = (
@@ -427,6 +465,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       {view === 'mount-points' && <Button type="primary" icon={<PlusOutlined />} onClick={openMountPoint}>挂载点</Button>}
       {view === 'subscriptions' && <Button type="primary" icon={<PlusOutlined />} onClick={openSubscription}>订阅</Button>}
       {view === 'redeem-codes' && <Button type="primary" icon={<PlusOutlined />} onClick={openRedeemCode}>兑换码</Button>}
+      {view === 'supplier-settlements' && <Button type="primary" icon={<PlusOutlined />} onClick={openSupplierSettlement}>结算</Button>}
     </Space>
   );
 
@@ -461,6 +500,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="供应收益" value={formatCents(totalEarnings)} prefix={<WalletOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="已结算收益" value={formatCents(settledEarnings)} prefix={<WalletOutlined />} />
             </Col>
           </Row>
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
@@ -613,6 +655,29 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
           <Form.Item name="account_id" label="Account ID" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="period" label="账期"><Input /></Form.Item>
           <Form.Item name="operator_note" label="备注"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="创建供应商结算" open={settlementOpen} onOk={submitSupplierSettlement} onCancel={() => setSettlementOpen(false)} width={560}>
+        <Form form={settlementForm} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="supplier_account_id" label="Supplier Account ID" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="period" label="账期" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="external_ref" label="外部参考号">
+            <Input />
+          </Form.Item>
+          <Form.Item name="operator_note" label="备注">
+            <Input.TextArea rows={2} />
+          </Form.Item>
         </Form>
       </Modal>
     </PageContainer>

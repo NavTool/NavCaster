@@ -180,6 +180,9 @@
 | `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
 | `GET` | `/api/v1/admin/data-push-usage?period=yyyyMM` | `DATA:PUSH:{period}` | 列出数据推送用量和扣费事实 |
 | `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
+| `GET` | `/api/v1/admin/supplier-settlements?period=yyyyMM&supplier_account_id=...` | `SUPPLY:EARNING:{account_id}:{period}` | 列出供应商结算批次；未传 supplier 时扫描供应商/admin 账号当期结算 |
+| `POST` | `/api/v1/admin/supplier-settlements` | `SUPPLY:EARNING:{account_id}:{period}` / `SUPPLY:USAGE:{period}` | 创建供应商结算并标记供应事实 settled |
+| `GET` | `/api/v1/admin/supplier-settlements/{settlement_id}?period=yyyyMM&supplier_account_id=...` | `SUPPLY:EARNING:{account_id}:{period}` | 查询结算批次 |
 
 ### Self-Service APIs
 
@@ -214,7 +217,8 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `DELETE` | `/api/v1/supplier/access-accounts/{id}` | `AACC:*` | 软删除自己的供应接入账号 |
 | `GET` | `/api/v1/supplier/stations` | `STATION:RECORD` | 当前供应商最近供应过的站点 |
 | `GET` | `/api/v1/supplier/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 当前供应商供应事实 |
-| `GET` | `/api/v1/supplier/earnings?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 当前供应商收益摘要 |
+| `GET` | `/api/v1/supplier/settlements?period=yyyyMM` | `SUPPLY:EARNING:{account_id}:{period}` | 当前供应商结算批次 |
+| `GET` | `/api/v1/supplier/earnings?period=yyyyMM` | `SUPPLY:USAGE:{period}` / `SUPPLY:EARNING:{account_id}:{period}` | 当前供应商收益摘要 |
 
 `POST /api/v1/me/data-push` 请求体至少包含 `usage_id`。服务端从 Bearer session
 推导 `account_id`，会忽略请求体中的 `account_id`；`period` 缺省为当前 `yyyyMM`。
@@ -224,6 +228,11 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 `POST /api/v1/admin/redeem-codes/{code}/redeem` 可通过 query 参数或 JSON body 传入
 `account_id`。兑换成功会生成兑换记录和余额 ledger，增加 Account 余额；同一 Account 对
 同一 code 只能兑换一次，禁用、过期或超过 `max_redemptions` 的兑换码返回 `409`。
+
+`POST /api/v1/admin/supplier-settlements` 请求体至少包含 `supplier_account_id`，
+`period` 缺省为 `current`。服务端会选取该供应商该账期所有未结算 `SUPPLY:USAGE`
+记录，汇总 `used_seconds` 和 `earning_cents`，写入结算批次并把这些供应事实标记为
+`settled`。没有待结算用量时返回 `409`。
 
 通用错误：
 

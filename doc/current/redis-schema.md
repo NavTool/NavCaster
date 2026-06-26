@@ -151,6 +151,7 @@ NC-051 在 Core 层新增 AccountDomainRepository，用于账户/接入账号/�
 | `DATA:PUSH:<yyyyMM>` | HASH | usage_id | DataPushUsage JSON | 持久 | AccountDomainRepository |
 | `SUPPLY:USAGE:<yyyyMM>` | HASH | usage_id | SupplierSupplyUsage JSON | 持久 | AccountDomainRepository |
 | `SUPPLY:ACCOUNT:<account_id>:<yyyyMM>` | LIST | usage_id | usage_id | 持久或后续归档 | AccountDomainRepository |
+| `SUPPLY:EARNING:<account_id>:<yyyyMM>` | HASH | settlement_id | SupplierSettlement JSON | 持久 | AccountDomainRepository |
 | `STATION:RECORD` | HASH | mountpoint | StationRecord JSON | 持久 | AccountDomainRepository |
 | `STATION:EVENT:<mountpoint>` | LIST | event JSON | StationEvent JSON | 持久或后续归档 | AccountDomainRepository |
 
@@ -192,6 +193,17 @@ user_client 登录时读取 SUB:ACCOUNT:<owner_account_id>，选择覆盖 mount_
 subscription 模式保留 stat_cost_cents，但 actual_debit_cents=0，不写 ACC:BALANCE:LEDGER。
 Auth 周期续期会重读 SUB:ACCOUNT:<owner_account_id>[subscription_id]，过期断连 reason=subscription_expired，禁用/不覆盖 group 断连 reason=subscription_revoked。
 supplier_station 断开时 SUPPLY:USAGE:<yyyyMM> 写 earning_cents 和 earning_rule_snapshot。
+```
+
+NC-061 供应商结算：
+
+```text
+管理员创建结算时读取 SUPPLY:USAGE:<yyyyMM> 中指定供应商的 pending 供应事实。
+结算成功写 SUPPLY:EARNING:<account_id>:<yyyyMM>[settlement_id]，字段包含 usage_ids、
+usage_count、total_supply_seconds、total_earning_cents、status、create_time、update_time。
+被纳入结算的 SUPPLY:USAGE 记录会更新 status=settled、settlement_id、settlement_time。
+供应商自助收益摘要以 SUPPLY:USAGE.status 区分 pending_earning_cents 和 settled_earning_cents，
+并从 SUPPLY:EARNING 统计 settlement_count。
 ```
 
 NC-060 订阅运营和兑换入账：

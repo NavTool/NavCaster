@@ -44,6 +44,7 @@ const adminMenuItems = [
       { key: '/admin/redeem-codes', icon: <WalletOutlined />, label: '兑换码' },
       { key: '/admin/data-push-usage', icon: <SwapOutlined />, label: '数据推送' },
       { key: '/admin/supply-usage', icon: <WalletOutlined />, label: '供应事实' },
+      { key: '/admin/supplier-settlements', icon: <WalletOutlined />, label: '供应结算' },
     ],
   },
   {
@@ -109,6 +110,7 @@ const supplierMenuItems = [
       { key: '/supplier/access-accounts', icon: <LockOutlined />, label: '接入账号' },
       { key: '/supplier/stations', icon: <CloudServerOutlined />, label: '供应站点' },
       { key: '/supplier/supply-usage', icon: <BarChartOutlined />, label: '供应时长' },
+      { key: '/supplier/settlements', icon: <WalletOutlined />, label: '结算' },
       { key: '/supplier/earnings', icon: <WalletOutlined />, label: '收益' },
       { key: '/supplier/profile', icon: <ProfileOutlined />, label: '资料' },
     ],

@@ -17,6 +17,7 @@ import type {
   StationRecord,
   SubscriptionRecord,
   SupplierEarningsSummary,
+  SupplierSettlementRecord,
   SupplierSupplyUsage,
 } from './types';
 
@@ -110,6 +111,26 @@ export const adminApi = {
     const { data } = await api.get('/api/v1/admin/supply-usage', { params: period ? { period } : undefined });
     return data;
   },
+  async supplierSettlements(period?: string, supplierAccountId?: string): Promise<HashRecord<SupplierSettlementRecord>> {
+    const params = {
+      ...(period ? { period } : {}),
+      ...(supplierAccountId ? { supplier_account_id: supplierAccountId } : {}),
+    };
+    const { data } = await api.get('/api/v1/admin/supplier-settlements', { params: Object.keys(params).length ? params : undefined });
+    return data;
+  },
+  async createSupplierSettlement(body: { supplier_account_id: string; period?: string; usage_ids?: string[]; operator_note?: string; external_ref?: string }) {
+    const { data } = await api.post('/api/v1/admin/supplier-settlements', body);
+    return data as SupplierSettlementRecord;
+  },
+  async supplierSettlement(settlementId: string, period?: string, supplierAccountId?: string) {
+    const params = {
+      ...(period ? { period } : {}),
+      ...(supplierAccountId ? { supplier_account_id: supplierAccountId } : {}),
+    };
+    const { data } = await api.get(`/api/v1/admin/supplier-settlements/${encodeURIComponent(settlementId)}`, { params: Object.keys(params).length ? params : undefined });
+    return data as SupplierSettlementRecord;
+  },
 };
 
 function accessApi(scope: 'me' | 'supplier') {
@@ -186,6 +207,10 @@ export const supplierApi = {
   },
   async earnings(period?: string): Promise<SupplierEarningsSummary> {
     const { data } = await api.get('/api/v1/supplier/earnings', { params: period ? { period } : undefined });
+    return data;
+  },
+  async settlements(period?: string): Promise<HashRecord<SupplierSettlementRecord>> {
+    const { data } = await api.get('/api/v1/supplier/settlements', { params: period ? { period } : undefined });
     return data;
   },
 };

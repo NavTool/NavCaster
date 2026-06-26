@@ -54,6 +54,7 @@ public:
     AccountDomainResult append_data_push_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_data_push_usage_with_balance(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_supplier_supply_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult create_supplier_settlement(nlohmann::json request, const std::string &period, std::int64_t now);
 
 private:
     AccountDomainResult make_result(RepositoryStatus status, std::string id, std::string error) const;

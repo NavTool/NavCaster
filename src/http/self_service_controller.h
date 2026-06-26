@@ -39,6 +39,7 @@ public:
     ControllerResponse append_data_push_usage(const AuthSessionSubject &subject, const std::string &body_text);
     ControllerResponse supplier_stations(const AuthSessionSubject &subject);
     ControllerResponse supplier_supply_usage(const AuthSessionSubject &subject, const std::string &period);
+    ControllerResponse supplier_settlements(const AuthSessionSubject &subject, const std::string &period);
     ControllerResponse supplier_earnings(const AuthSessionSubject &subject, const std::string &period);
 
 private:
@@ -57,6 +58,7 @@ private:
     nlohmann::json owner_redeem_redemptions(const std::string &account_id) const;
     nlohmann::json filter_data_push_usage(const std::string &account_id, const std::string &period) const;
     nlohmann::json filter_supply_usage(const std::string &account_id, const std::string &period) const;
+    nlohmann::json supplier_settlement_records(const std::string &account_id, const std::string &period) const;
 
     storage::RedisHashClient &_redis;
     std::int64_t _now = 0;

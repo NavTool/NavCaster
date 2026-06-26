@@ -41,6 +41,7 @@ bool normalize_balance_ledger_entry(nlohmann::json &record, std::int64_t now, st
 bool normalize_billing_usage_entry(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_data_push_usage(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_supplier_supply_usage(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
+bool normalize_supplier_settlement(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 
 nlohmann::json username_index_record(const std::string &id, const std::string &status, std::int64_t now);
 nlohmann::json access_account_owner_summary(const nlohmann::json &record);

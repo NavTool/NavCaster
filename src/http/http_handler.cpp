@@ -154,6 +154,12 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_data_push_usage(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supply-usage", [this](auto &req, auto &resp)
                   { handle_v1_admin_supply_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supplier-settlements", [this](auto &req, auto &resp)
+                  { handle_v1_admin_supplier_settlements(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/supplier-settlements", [this](auto &req, auto &resp)
+                  { handle_v1_admin_supplier_settlements(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supplier-settlements/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_supplier_settlement(req, resp); });
 
     // ==================== V1 Self-Service Domain ====================
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/profile", [this](auto &req, auto &resp)
@@ -202,6 +208,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_supplier_stations(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/supply-usage", [this](auto &req, auto &resp)
                   { handle_v1_supplier_supply_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/settlements", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_settlements(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/earnings", [this](auto &req, auto &resp)
                   { handle_v1_supplier_earnings(req, resp); });
 
@@ -749,6 +757,38 @@ void http_handler::handle_v1_admin_supply_usage(const HttpRequest &req, HttpResp
     resp.body = std::move(result.body);
 }
 
+void http_handler::handle_v1_admin_supplier_settlements(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_POST)
+    {
+        result = controller.create_supplier_settlement(req.body);
+    }
+    else
+    {
+        auto period = req.query_params.find("period");
+        auto supplier = req.query_params.find("supplier_account_id");
+        result = controller.list_supplier_settlements(period == req.query_params.end() ? std::string{} : period->second,
+                                                      supplier == req.query_params.end() ? std::string{} : supplier->second);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_supplier_settlement(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    const std::string settlement_id = get_path_segment(req, 4);
+    auto period = req.query_params.find("period");
+    auto supplier = req.query_params.find("supplier_account_id");
+    auto result = controller.get_supplier_settlement(settlement_id,
+                                                     period == req.query_params.end() ? std::string{} : period->second,
+                                                     supplier == req.query_params.end() ? std::string{} : supplier->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
 void http_handler::handle_v1_me_profile(const HttpRequest &req, HttpResponse &resp)
 {
     auto it = req.headers.find("Authorization");
@@ -968,6 +1008,17 @@ void http_handler::handle_v1_supplier_supply_usage(const HttpRequest &req, HttpR
     navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
     auto period = req.query_params.find("period");
     auto result = controller.supplier_supply_usage(_auth_sessions.lookup_subject(token), period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_settlements(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.supplier_settlements(_auth_sessions.lookup_subject(token), period == req.query_params.end() ? std::string{} : period->second);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

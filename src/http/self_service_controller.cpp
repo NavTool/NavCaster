@@ -600,6 +600,12 @@ nlohmann::json SelfServiceController::filter_supply_usage(const std::string &acc
     return records;
 }
 
+nlohmann::json SelfServiceController::supplier_settlement_records(const std::string &account_id, const std::string &period) const
+{
+    const auto records = _redis.hgetall(redis_keys::supply_earning(account_id, request_period(period)).c_str());
+    return records.is_object() ? records : nlohmann::json::object();
+}
+
 ControllerResponse SelfServiceController::supplier_supply_usage(const AuthSessionSubject &subject, const std::string &period)
 {
     auto guard = subject_error(subject, "supplier");
@@ -608,6 +614,16 @@ ControllerResponse SelfServiceController::supplier_supply_usage(const AuthSessio
         return guard;
     }
     return json_response(200, filter_supply_usage(subject.account_id, period));
+}
+
+ControllerResponse SelfServiceController::supplier_settlements(const AuthSessionSubject &subject, const std::string &period)
+{
+    auto guard = subject_error(subject, "supplier");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    return json_response(200, supplier_settlement_records(subject.account_id, period));
 }
 
 ControllerResponse SelfServiceController::supplier_earnings(const AuthSessionSubject &subject, const std::string &period)
@@ -638,6 +654,7 @@ ControllerResponse SelfServiceController::supplier_earnings(const AuthSessionSub
             pending_cents += earning;
         }
     }
+    const auto settlements = supplier_settlement_records(subject.account_id, period);
     return json_response(200, {
         {"account_id", subject.account_id},
         {"period", request_period(period)},
@@ -645,6 +662,7 @@ ControllerResponse SelfServiceController::supplier_earnings(const AuthSessionSub
         {"pending_earning_cents", pending_cents},
         {"settled_earning_cents", settled_cents},
         {"total_earning_cents", pending_cents + settled_cents},
+        {"settlement_count", settlements.is_object() ? static_cast<int>(settlements.size()) : 0},
     });
 }
 
