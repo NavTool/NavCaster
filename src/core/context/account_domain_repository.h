@@ -1,0 +1,65 @@
+#pragma once
+
+#include "redis_hash_client.h"
+#include "repository_status.h"
+
+#include <cstdint>
+#include <string>
+
+#include <nlohmann/json.hpp>
+
+namespace navcaster::storage
+{
+
+struct AccountDomainResult
+{
+    RepositoryStatus status = RepositoryStatus::Ok;
+    std::string id;
+    std::string error;
+    nlohmann::json record;
+};
+
+class AccountDomainRepository
+{
+public:
+    explicit AccountDomainRepository(RedisHashClient &redis);
+
+    AccountDomainResult create_account(nlohmann::json record, std::int64_t now);
+    AccountDomainResult get_account(const std::string &account_id);
+    AccountDomainResult update_account(const std::string &account_id, nlohmann::json record, std::int64_t now);
+    AccountDomainResult delete_account(const std::string &account_id, std::int64_t now);
+
+    AccountDomainResult create_mount_point_group(nlohmann::json record, std::int64_t now);
+    AccountDomainResult add_mount_point_group_member(const std::string &group_id, nlohmann::json member, std::int64_t now);
+    AccountDomainResult grant_account_group(const std::string &account_id, nlohmann::json grant, std::int64_t now);
+    AccountDomainResult create_mount_point(nlohmann::json record, std::int64_t now);
+
+    AccountDomainResult create_access_account(nlohmann::json record, std::int64_t now);
+    AccountDomainResult get_access_account(const std::string &access_account_id);
+    AccountDomainResult delete_access_account(const std::string &access_account_id, std::int64_t now);
+
+    AccountDomainResult create_subscription(nlohmann::json record, std::int64_t now);
+    AccountDomainResult upsert_station_record(nlohmann::json record, std::int64_t now);
+    AccountDomainResult append_station_event(nlohmann::json event, std::int64_t now);
+
+    AccountDomainResult append_balance_ledger(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult append_billing_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult append_data_push_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult append_supplier_supply_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
+
+private:
+    AccountDomainResult make_result(RepositoryStatus status, std::string id, std::string error) const;
+    AccountDomainResult invalid(const std::string &message) const;
+    AccountDomainResult redis_error(const std::string &id, const std::string &message) const;
+
+    nlohmann::json get_hash_record(const char *key, const std::string &field);
+    bool hset_json(const char *key, const std::string &field, const nlohmann::json &record);
+    bool hsetnx_json(const char *key, const std::string &field, const nlohmann::json &record);
+
+    bool account_has_group(const std::string &account_id, const std::string &group_id);
+    bool group_is_active(const std::string &group_id);
+
+    RedisHashClient &_redis;
+};
+
+} // namespace navcaster::storage

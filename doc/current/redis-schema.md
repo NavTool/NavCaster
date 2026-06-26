@@ -121,6 +121,49 @@ Redis Open Source 8.4.0+。部署和命令校验见 `deployment/redis.md`。
 - Auth 写侧维护 `ACT:SESSION:<account>`；NC-016 至 NC-023 已覆盖读侧、真实 NTRIP 写入、续期、连接数、匿名、广播踢线和禁用账号矩阵。
 - `STR:ACTIVE` 当前仅作为 legacy fallback；当前源码未发现新的写入路径。
 
+NC-051 运营域分阶段新增：
+
+```text
+NC-051 在 Core 层新增 AccountDomainRepository，用于账户/接入账号/挂载点分组/站点/订阅/用量事实的
+新 Redis 边界。该切片不接入 Auth 登录链路，不替换现有 /api/accounts，也不迁移旧 ACT:* 数据。
+```
+
+| Key | Type | Field/Index | Value | 生命周期 | 当前写入者 |
+| --- | --- | --- | --- | --- | --- |
+| `ACC:RECORD` | HASH | account_id | Account JSON | 持久 | AccountDomainRepository |
+| `ACC:USERNAME` | HASH | username | account_id 索引或 tombstone JSON | 持久 | AccountDomainRepository |
+| `ACC:GROUP:<account_id>` | HASH | group_id | group grant JSON | 持久 | AccountDomainRepository |
+| `ACC:BALANCE:LEDGER:<yyyyMM>` | HASH | ledger_id | BalanceLedgerEntry JSON | 持久 | AccountDomainRepository |
+| `AACC:RECORD` | HASH | access_account_id | AccessAccount JSON | 持久 | AccountDomainRepository |
+| `AACC:USERNAME` | HASH | username | access_account_id 索引或 tombstone JSON | 持久 | AccountDomainRepository |
+| `AACC:ACTIVE` | HASH | username | AccessAccountAuthIndex JSON | 持久 | AccountDomainRepository，NC-054 后 Auth 读取 |
+| `AACC:OWNER:<account_id>` | HASH | access_account_id | owner summary JSON | 持久 | AccountDomainRepository |
+| `MPGRP:RECORD` | HASH | group_id | MountPointGroup JSON | 持久 | AccountDomainRepository |
+| `MPGRP:MEMBER:<group_id>` | HASH | mountpoint | member JSON | 持久 | AccountDomainRepository |
+| `MOUNT:RECORD` | HASH | mountpoint | MountPoint JSON | 持久 | AccountDomainRepository |
+| `SUB:RECORD` | HASH | subscription_id | Subscription JSON | 持久 | AccountDomainRepository |
+| `SUB:ACCOUNT:<account_id>` | HASH | subscription_id | Subscription JSON summary | 持久 | AccountDomainRepository |
+| `BILL:ENTRY:<yyyyMM>` | HASH | billing_id | BillingUsageEntry JSON | 持久 | AccountDomainRepository |
+| `BILL:ACCOUNT:<account_id>:<yyyyMM>` | LIST | billing_id | billing_id | 持久或后续归档 | AccountDomainRepository |
+| `BILL:IDEMPOTENT` | HASH | billing_id | fingerprint JSON | 持久或后续归档 | AccountDomainRepository |
+| `DATA:PUSH:<yyyyMM>` | HASH | usage_id | DataPushUsage JSON | 持久 | AccountDomainRepository |
+| `SUPPLY:USAGE:<yyyyMM>` | HASH | usage_id | SupplierSupplyUsage JSON | 持久 | AccountDomainRepository |
+| `SUPPLY:ACCOUNT:<account_id>:<yyyyMM>` | LIST | usage_id | usage_id | 持久或后续归档 | AccountDomainRepository |
+| `STATION:RECORD` | HASH | mountpoint | StationRecord JSON | 持久 | AccountDomainRepository |
+| `STATION:EVENT:<mountpoint>` | LIST | event JSON | StationEvent JSON | 持久或后续归档 | AccountDomainRepository |
+
+NC-051 约束：
+
+- `role` 仅允许 `admin`、`user`、`supplier`；管理员超集只保存 `role=admin`，不使用多角色数组。
+- `AccessAccount.kind` 仅允许 `user_client`、`supplier_station`。
+- `user` owner 只能创建 `user_client`，`supplier` owner 只能创建 `supplier_station`，`admin` 可为自身创建两类。
+- `AccessAccount.username` 全局唯一，删除后在 `AACC:USERNAME` 保留 tombstone，不可复用。
+- `Account.username` 本轮同样在 `ACC:USERNAME` 保留 tombstone，不可复用。
+- `MPGRP:*` 是新 MountPointGroup 语义，不复用 `ACCESS:GROUP` 的 inside/outside/nearby 策略。
+- `STATION:*` 是站点历史资产，不等同于 `MPT:RECORD` 或 `MPT:SOURCE`。
+- usage、ledger、supply、station event 均为只追加事实；主状态不能从这些日志反推。
+- `BILL:IDEMPOTENT` 使用 `billing_id + fingerprint` 防止 tick 重放重复扣费。
+
 V2 建议：
 
 - `ACT:RECORD` 是唯一账号主表。
