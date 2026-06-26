@@ -777,6 +777,91 @@ AccountDomainResult AccountDomainRepository::append_data_push_usage(nlohmann::js
     return result;
 }
 
+AccountDomainResult AccountDomainRepository::append_data_push_usage_with_balance(nlohmann::json entry, const std::string &period, std::int64_t now)
+{
+    std::string error;
+    if (!account_domain::normalize_data_push_usage(entry, now, &error))
+    {
+        return invalid(error);
+    }
+
+    const std::string usage_id = entry.value("usage_id", std::string{});
+    const std::string account_id = entry.value("account_id", std::string{});
+    const std::int64_t actual_debit_cents = json_record::as_i64(entry.value("actual_debit_cents", 0), 0);
+    const auto account = get_hash_record(redis_keys::ACC_RECORD, account_id);
+    if (!account.is_object() || !account_domain::is_active_status(account))
+    {
+        return make_result(RepositoryStatus::NotFound, account_id, "Account not found or inactive");
+    }
+    const std::int64_t balance_cents = json_record::as_i64(account.value("balance_cents", 0), 0);
+    const std::int64_t credit_limit_cents = json_record::as_i64(account.value("credit_limit_cents", 0), 0);
+    if (actual_debit_cents < 0)
+    {
+        return invalid("actual_debit_cents must be non-negative");
+    }
+    if (actual_debit_cents > balance_cents + credit_limit_cents)
+    {
+        return make_result(RepositoryStatus::Conflict, account_id, "Balance insufficient");
+    }
+    const std::string ledger_id = "ledger:data_push:" + usage_id;
+    if (actual_debit_cents > 0)
+    {
+        entry["ledger_id"] = ledger_id;
+        entry["balance_after_cents"] = balance_cents - actual_debit_cents;
+    }
+
+    const std::string usage_key = redis_keys::data_push(period);
+    if (!hsetnx_json(usage_key.c_str(), usage_id, entry))
+    {
+        return make_result(RepositoryStatus::Conflict, usage_id, "DataPushUsage already exists");
+    }
+
+    if (actual_debit_cents > 0)
+    {
+        const std::int64_t balance_after_cents = balance_cents - actual_debit_cents;
+        nlohmann::json ledger = {
+            {"ledger_id", ledger_id},
+            {"account_id", account_id},
+            {"delta_cents", -actual_debit_cents},
+            {"balance_after_cents", balance_after_cents},
+            {"source", "data_push_usage"},
+            {"usage_id", usage_id},
+            {"target_mountpoint", entry.value("target_mountpoint", std::string{})},
+        };
+        if (entry.contains("operator_note"))
+        {
+            ledger["operator_note"] = entry["operator_note"];
+        }
+        if (!account_domain::normalize_balance_ledger_entry(ledger, now, &error))
+        {
+            _redis.hdel(usage_key.c_str(), usage_id.c_str());
+            return invalid(error);
+        }
+        const std::string ledger_key = redis_keys::acc_balance_ledger(period);
+        if (!hsetnx_json(ledger_key.c_str(), ledger_id, ledger))
+        {
+            _redis.hdel(usage_key.c_str(), usage_id.c_str());
+            return make_result(RepositoryStatus::Conflict, ledger_id, "Balance ledger entry already exists");
+        }
+
+        auto updated_account = account;
+        updated_account["balance_cents"] = balance_after_cents;
+        updated_account["update_time"] = now;
+        if (!hset_json(redis_keys::ACC_RECORD, account_id, updated_account))
+        {
+            _redis.hdel(usage_key.c_str(), usage_id.c_str());
+            _redis.hdel(ledger_key.c_str(), ledger_id.c_str());
+            return redis_error(account_id, "Failed to update account balance");
+        }
+        refresh_owner_access_indexes(updated_account, now);
+    }
+
+    AccountDomainResult result;
+    result.id = usage_id;
+    result.record = std::move(entry);
+    return result;
+}
+
 AccountDomainResult AccountDomainRepository::append_supplier_supply_usage(nlohmann::json entry, const std::string &period, std::int64_t now)
 {
     std::string error;

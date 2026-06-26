@@ -33,6 +33,7 @@ import type {
   AccessAccountRecord,
   AccountGroupGrant,
   BillingUsageEntry,
+  DataPushUsage,
   HashRecord,
   MountPointRecord,
   OperationsAccount,
@@ -44,7 +45,7 @@ import type {
 import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../utils/format';
 
 type SelfScope = 'me' | 'supplier';
-type UserView = 'dashboard' | 'profile' | 'access-accounts' | 'groups' | 'mount-points' | 'usage';
+type UserView = 'dashboard' | 'profile' | 'access-accounts' | 'groups' | 'mount-points' | 'usage' | 'data-push';
 type SupplierView = 'dashboard' | 'profile' | 'access-accounts' | 'stations' | 'supply-usage' | 'earnings';
 
 interface SelfServiceWorkspaceProps {
@@ -84,6 +85,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const groupsQuery = usePolling(() => meApi.allowedGroups(), 5000, scope === 'me' && (view === 'dashboard' || view === 'groups' || view === 'access-accounts'));
   const mountsQuery = usePolling(() => meApi.mountPoints(), 5000, scope === 'me' && (view === 'dashboard' || view === 'mount-points'));
   const usageQuery = usePolling(() => meApi.usage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'usage'));
+  const dataPushQuery = usePolling(() => meApi.dataPushUsage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'data-push'));
   const stationsQuery = usePolling(() => supplierApi.stations(), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'stations'));
   const supplyQuery = usePolling(() => supplierApi.supplyUsage(currentPeriod()), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'supply-usage' || view === 'earnings'));
   const earningsQuery = usePolling(() => supplierApi.earnings(currentPeriod()), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'earnings'));
@@ -92,6 +94,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const groupRows = useMemo(() => rowsFromHash(groupsQuery.data), [groupsQuery.data]);
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
+  const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
 
@@ -218,6 +221,16 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const dataPushColumns: ColumnsType<DataPushUsage & { key: string }> = [
+    { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
+    { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
+    { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
+    { title: '统计费用', key: 'stat_cost_cents', width: 120, render: (_, row) => formatCents(row.stat_cost_cents) },
+    { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
+    { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
+    { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+  ];
+
   const stationColumns: ColumnsType<StationRecord & { key: string }> = [
     { title: '挂载点', dataIndex: 'mountpoint', key: 'mountpoint', width: 170 },
     { title: '站点 ID', dataIndex: 'station_id', key: 'station_id', width: 190, render: (value) => value || '-' },
@@ -277,6 +290,9 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     if (scope === 'me' && view === 'usage') {
       return <Table columns={usageColumns} dataSource={usageRows} loading={usageQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
     }
+    if (scope === 'me' && view === 'data-push') {
+      return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
+    }
     if (scope === 'supplier' && view === 'stations') {
       return <Table columns={stationColumns} dataSource={stationRows} loading={stationsQuery.loading} rowKey="key" size="small" scroll={{ x: 900 }} />;
     }
@@ -312,6 +328,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     if (view === 'groups') return '授权分组';
     if (view === 'mount-points') return '可用挂载点';
     if (view === 'usage') return '计费用量';
+    if (view === 'data-push') return '数据推送';
     if (view === 'stations') return '供应站点';
     if (view === 'supply-usage') return '供应时长';
     return '供应收益';

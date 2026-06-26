@@ -84,6 +84,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/subscriptions
 /api/v1/admin/stations
 /api/v1/admin/usage
+/api/v1/admin/data-push-usage
 /api/v1/admin/supply-usage
 /api/v1/me/profile
 /api/v1/me/dashboard
@@ -91,6 +92,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/me/mount-points
 /api/v1/me/access-accounts
 /api/v1/me/usage
+/api/v1/me/data-push
 /api/v1/supplier/profile
 /api/v1/supplier/dashboard
 /api/v1/supplier/access-accounts
@@ -103,6 +105,10 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 `access_account_id`、`username`、`password`、`mount_point_group_id`、`status`、
 `concurrency_limit`、`expire_time`、`private_remark` 等允许字段。后端仍会从
 session 推导 owner 和 kind。
+
+NC-057 起运营台增加 `/admin/data-push-usage`，用户自助台增加 `/me/data-push`。
+两个页面按当前 `yyyyMM` 展示 `DATA:PUSH:<period>` 事实；用户页只展示当前
+session Account，管理员页展示全局记录并在总览中汇总数据推送扣费。
 
 ## API Types 和契约
 

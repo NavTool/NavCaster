@@ -261,6 +261,12 @@ ControllerResponse OperationsController::list_usage(const std::string &period)
     return list_limited_hash(key.c_str());
 }
 
+ControllerResponse OperationsController::list_data_push_usage(const std::string &period)
+{
+    const std::string key = redis_keys::data_push(request_period(period));
+    return list_limited_hash(key.c_str());
+}
+
 ControllerResponse OperationsController::list_supply_usage(const std::string &period)
 {
     const std::string key = redis_keys::supply_usage(request_period(period));

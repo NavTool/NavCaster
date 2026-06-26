@@ -1,7 +1,7 @@
 # Backend HTTP 当前实现说明
 
 更新时间：2026-06-26
-来源：NC-035 backend-http 文档审计、`src/http` 源码、NC-032/NC-034/NC-053 任务记录。
+来源：NC-035 backend-http 文档审计、`src/http` 源码、NC-032/NC-034/NC-053/NC-057 任务记录。
 
 ## 负责范围
 
@@ -37,6 +37,11 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   和旧 `/api/*` 只允许 admin；`/api/v1/me/*` 允许 user/admin；
   `/api/v1/supplier/*` 允许 supplier/admin。自助 API owner 只能从 session
   subject 推导，body 中的 `owner_account_id` / `kind` 不可信。
+- NC-057 新增数据推送用量 API：`GET /api/v1/admin/data-push-usage` 查询全局
+  `DATA:PUSH:<yyyyMM>`；`GET/POST /api/v1/me/data-push` 只作用于当前
+  session Account。POST 会覆盖请求体 `account_id`，按 `actual_debit_cents`
+  写 `ACC:BALANCE:LEDGER:<yyyyMM>` 并同步 `ACC:RECORD.balance_cents`；余额不足
+  返回 409 且不留下半写事实。
 
 ## HTTP ingress 口径
 

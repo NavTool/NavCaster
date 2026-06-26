@@ -30,6 +30,7 @@ import { adminApi } from '../api/operations';
 import type {
   AccessAccountRecord,
   BillingUsageEntry,
+  DataPushUsage,
   HashRecord,
   MountPointGroup,
   MountPointRecord,
@@ -47,6 +48,7 @@ type AdminView =
   | 'mount-points'
   | 'stations'
   | 'usage'
+  | 'data-push-usage'
   | 'supply-usage';
 
 interface OperationsDashboardProps {
@@ -92,6 +94,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountsQuery = usePolling(() => adminApi.mountPoints(), 5000, view === 'dashboard' || view === 'mount-points');
   const stationsQuery = usePolling(() => adminApi.stations(), 5000, view === 'dashboard' || view === 'stations');
   const usageQuery = usePolling(() => adminApi.usage(currentPeriod()), 5000, view === 'dashboard' || view === 'usage');
+  const dataPushQuery = usePolling(() => adminApi.dataPushUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-usage');
   const supplyQuery = usePolling(() => adminApi.supplyUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'supply-usage');
 
   const accountRows = useMemo(() => rowsFromHash(accountsQuery.data), [accountsQuery.data]);
@@ -100,12 +103,14 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
+  const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
 
   const totalBalance = accountRows.reduce((sum, account) => sum + Number(account.balance_cents ?? 0), 0);
   const totalSupplySeconds = supplyRows.reduce((sum, usage) => sum + Number(usage.used_seconds ?? 0), 0);
   const totalEarnings = supplyRows.reduce((sum, usage) => sum + Number(usage.earning_cents ?? 0), 0);
   const currentUsageCost = usageRows.reduce((sum, usage) => sum + Number(usage.stat_cost_cents ?? 0), 0);
+  const currentDataPushDebit = dataPushRows.reduce((sum, usage) => sum + Number(usage.actual_debit_cents ?? 0), 0);
 
   const openCreateAccount = () => {
     accountForm.resetFields();
@@ -235,6 +240,17 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const dataPushColumns: ColumnsType<DataPushUsage & { key: string }> = [
+    { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
+    { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
+    { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
+    { title: '时长', key: 'used_seconds', width: 100, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
+    { title: '统计费用', key: 'stat_cost_cents', width: 120, render: (_, row) => formatCents(row.stat_cost_cents) },
+    { title: '实际扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
+    { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
+    { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+  ];
+
   const supplyColumns: ColumnsType<SupplierSupplyUsage & { key: string }> = [
     { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
     { title: '供应商', dataIndex: 'supplier_account_id', key: 'supplier_account_id', width: 190 },
@@ -274,6 +290,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     if (view === 'usage') {
       return <Table columns={usageColumns} dataSource={usageRows} loading={usageQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
+    if (view === 'data-push-usage') {
+      return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
+    }
     if (view === 'supply-usage') {
       return <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
@@ -288,6 +307,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     'mount-points': '挂载点记录',
     stations: '历史站点',
     usage: '计费用量',
+    'data-push-usage': '数据推送用量',
     'supply-usage': '供应事实',
   };
 
@@ -321,6 +341,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="本期计费" value={formatCents(currentUsageCost)} prefix={<WalletOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="数据推送扣费" value={formatCents(currentDataPushDebit)} prefix={<WalletOutlined />} />
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="供应时长" value={formatDuration(totalSupplySeconds)} prefix={<BranchesOutlined />} />

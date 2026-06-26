@@ -2104,6 +2104,23 @@ int main()
             {"target_mountpoint", "BASE01"},
             {"used_seconds", 30},
         }, "202606", 5080).status == navcaster::storage::RepositoryStatus::Ok, "domain data push append");
+        expect_true(domain_repo.append_data_push_usage_with_balance({
+            {"usage_id", "push-usage-billed"},
+            {"account_id", "acc-user"},
+            {"target_mountpoint", "BASE01"},
+            {"used_seconds", 30},
+            {"stat_cost_cents", 5},
+            {"actual_debit_cents", 5},
+        }, "202606", 5080).status == navcaster::storage::RepositoryStatus::Ok, "domain data push append debits balance");
+        expect_eq_int(domain_redis.hget(navcaster::redis_keys::ACC_RECORD, "acc-user").value("balance_cents", 0), 9995, "domain data push updates account balance");
+        expect_true(domain_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:push-usage-billed").is_object(), "domain data push writes balance ledger");
+        expect_true(domain_repo.append_data_push_usage_with_balance({
+            {"usage_id", "push-usage-over-balance"},
+            {"account_id", "acc-user"},
+            {"target_mountpoint", "BASE01"},
+            {"actual_debit_cents", 20000},
+        }, "202606", 5080).status == navcaster::storage::RepositoryStatus::Conflict, "domain data push rejects insufficient balance");
+        expect_true(domain_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "push-usage-over-balance").is_null(), "domain data push insufficient has no usage half write");
         expect_true(domain_repo.append_supplier_supply_usage({
             {"usage_id", "supply-1"},
             {"supplier_account_id", "acc-supplier"},
@@ -2200,6 +2217,18 @@ int main()
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("op-bill"), "operations list billing usage");
 
+        expect_true(domain_repo.append_data_push_usage_with_balance({
+            {"usage_id", "op-data-push"},
+            {"account_id", "op-user"},
+            {"target_mountpoint", "OPBASE"},
+            {"used_seconds", 10},
+            {"stat_cost_cents", 3},
+            {"actual_debit_cents", 3},
+        }, "202606", 6035).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture data push usage");
+        response = operations.list_data_push_usage("202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-data-push"), "operations list data push usage");
+
         expect_true(domain_repo.append_supplier_supply_usage({
             {"usage_id", "op-supply"},
             {"supplier_account_id", "op-user"},
@@ -2224,6 +2253,7 @@ int main()
             {"username", "self-user-login"},
             {"role", "user"},
             {"password", "user-pass"},
+            {"balance_cents", 100},
             {"concurrency_limit", 2},
         }, 7001).status == navcaster::storage::RepositoryStatus::Ok, "self service user account fixture");
         expect_true(domain_repo.create_account({
@@ -2347,6 +2377,25 @@ int main()
         response = self_service.usage(user_subject, "202606");
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("self-bill"), "self service user usage filtered");
+
+        response = self_service.append_data_push_usage(user_subject, R"({"usage_id":"self-data-push","account_id":"self-supplier","target_mountpoint":"SELFBASE","used_seconds":20,"stat_cost_cents":7,"actual_debit_cents":7,"period":"202606","ledger_id":"client-ledger","balance_after_cents":999999})");
+        expect_eq_int(response.status_code, 201, "self service data push append");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service data push overrides account id");
+        expect_eq(response_body.value("ledger_id", std::string{}), "ledger:data_push:self-data-push", "self service data push overrides ledger id");
+        expect_eq_int(response_body.value("balance_after_cents", 0), 93, "self service data push response balance");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 93, "self service data push debits account");
+        expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "self-data-push").is_object(), "self service data push writes usage");
+        expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:self-data-push").is_object(), "self service data push writes ledger");
+        expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "client-ledger").is_null(), "self service data push ignores client ledger id");
+        response = self_service.data_push_usage(user_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-data-push"), "self service data push filtered");
+        response = self_service.append_data_push_usage(user_subject, R"({"usage_id":"self-overdraw","target_mountpoint":"SELFBASE","actual_debit_cents":200,"period":"202606"})");
+        expect_eq_int(response.status_code, 409, "self service data push rejects insufficient balance");
+        expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "self-overdraw").is_null(), "self service data push insufficient no usage write");
+        response = self_service.append_data_push_usage(supplier_subject, R"({"usage_id":"supplier-data-push","target_mountpoint":"SELFBASE","actual_debit_cents":1,"period":"202606"})");
+        expect_eq_int(response.status_code, 403, "self service supplier cannot use me data push");
 
         expect_true(domain_repo.upsert_station_record({
             {"mountpoint", "SELFBASE"},
