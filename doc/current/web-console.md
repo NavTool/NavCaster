@@ -80,6 +80,8 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/accounts
 /api/v1/admin/access-accounts
 /api/v1/admin/operations-monitor
+/api/v1/admin/online-connections
+/api/v1/admin/audit
 /api/v1/admin/mount-point-groups
 /api/v1/admin/mount-points
 /api/v1/admin/subscriptions
@@ -150,6 +152,12 @@ NC-069 起运营台增加 `/admin/operations-monitor`。该页面调用
 DataPush 失败/运行/维护状态、供应待结算和待付款收益，并提供告警、风险账号和最近失败
 DataPush 任务表。它使用后端聚合快照，不替代旧 `/admin/legacy/monitor` 的节点/Redis
 系统监控。
+
+NC-070 起运营台增加 `/admin/online-connections` 和 `/admin/audit`。在线连接页调用
+`GET /api/v1/admin/online-connections`，展示 `ACT:SESSION:*` 与 legacy `STR:ACTIVE`
+fallback 合并后的连接、账号、类型、地址、分组和在线时长；审计日志页调用
+`GET /api/v1/admin/audit`，支持 actor、action、target_type 和 limit 过滤，展示
+`LOG:AUDIT` 分页结果。旧 `/admin/legacy/audit` 仍保留作为旧管理台入口。
 
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加

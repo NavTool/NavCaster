@@ -4,6 +4,9 @@ import type {
   AccessAccountRecord,
   AccessAccountUpdateInput,
   AccountGroupGrant,
+  AccountActive,
+  AuditEntry,
+  AuditQueryParams,
   AuthSessionSubject,
   DataPushConfig,
   DataPushJob,
@@ -16,6 +19,7 @@ import type {
   MountPointRecord,
   OperationsAccount,
   OperationsMonitor,
+  PagedResult,
   RedeemCodeRecord,
   RedeemRedemptionRecord,
   RoleDashboard,
@@ -35,6 +39,17 @@ export const adminApi = {
   async operationsMonitor(period?: string): Promise<OperationsMonitor> {
     const { data } = await api.get('/api/v1/admin/operations-monitor', { params: period ? { period } : undefined });
     return data as OperationsMonitor;
+  },
+  async onlineConnections(): Promise<HashRecord<AccountActive>> {
+    const { data } = await api.get('/api/v1/admin/online-connections');
+    return data;
+  },
+  async audit(params: AuditQueryParams = {}): Promise<PagedResult<AuditEntry>> {
+    const query = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+    );
+    const { data } = await api.get('/api/v1/admin/audit', { params: Object.keys(query).length ? query : undefined });
+    return data as PagedResult<AuditEntry>;
   },
   async accounts(): Promise<HashRecord<OperationsAccount>> {
     const { data } = await api.get('/api/v1/admin/accounts');

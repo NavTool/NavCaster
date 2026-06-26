@@ -136,6 +136,8 @@ export default function AppRouter() {
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<OperationsDashboard scope="admin" />} />
           <Route path="operations-monitor" element={<OperationsDashboard scope="admin" view="operations-monitor" />} />
+          <Route path="online-connections" element={<OperationsDashboard scope="admin" view="online-connections" />} />
+          <Route path="audit" element={<OperationsDashboard scope="admin" view="audit" />} />
           <Route path="accounts" element={<OperationsDashboard scope="admin" view="accounts" />} />
           <Route path="access-accounts" element={<OperationsDashboard scope="admin" view="access-accounts" />} />
           <Route path="mount-point-groups" element={<OperationsDashboard scope="admin" view="mount-point-groups" />} />

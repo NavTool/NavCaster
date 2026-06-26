@@ -38,6 +38,8 @@ const adminMenuItems = [
     children: [
       { key: '/admin/dashboard', icon: <ClusterOutlined />, label: '运营总览' },
       { key: '/admin/operations-monitor', icon: <DashboardOutlined />, label: '运行监控' },
+      { key: '/admin/online-connections', icon: <ApiOutlined />, label: '在线连接' },
+      { key: '/admin/audit', icon: <HistoryOutlined />, label: '审计日志' },
       { key: '/admin/accounts', icon: <TeamOutlined />, label: '账号' },
       { key: '/admin/access-accounts', icon: <LockOutlined />, label: '接入账号' },
       { key: '/admin/usage', icon: <BarChartOutlined />, label: '计费用量' },

@@ -35,6 +35,8 @@ import { usePolling } from '../hooks/usePolling';
 import { adminApi } from '../api/operations';
 import type {
   AccessAccountRecord,
+  AccountActive,
+  AuditEntry,
   BillingUsageEntry,
   DataPushConfig,
   DataPushJob,
@@ -53,11 +55,13 @@ import type {
   SupplierSupplyUsage,
 } from '../api/types';
 import { PushType } from '../api/types';
-import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../utils/format';
+import { currentPeriod, formatCents, formatDuration, formatOnlineTime, getLocalTime } from '../utils/format';
 
 type AdminView =
   | 'dashboard'
   | 'operations-monitor'
+  | 'online-connections'
+  | 'audit'
   | 'accounts'
   | 'access-accounts'
   | 'mount-point-groups'
@@ -125,6 +129,12 @@ function dataPushJobStatusTag(status?: string) {
   return <Tag color={color}>{status || '-'}</Tag>;
 }
 
+function auditResultTag(result?: number) {
+  const status = Number(result ?? 0);
+  const color = status >= 200 && status < 400 ? 'green' : status >= 400 ? 'red' : 'default';
+  return <Tag color={color}>{status || '-'}</Tag>;
+}
+
 function monitorSeverityTag(severity?: string) {
   const color = severity === 'critical' ? 'red' : severity === 'warning' ? 'gold' : severity === 'info' ? 'blue' : 'default';
   return <Tag color={color}>{severity || '-'}</Tag>;
@@ -157,9 +167,24 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [paymentTarget, setPaymentTarget] = useState<SupplierSettlementRecord | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'payment_failed' | 'cancelled'>('paid');
+  const [auditActor, setAuditActor] = useState('');
+  const [auditAction, setAuditAction] = useState('');
+  const [auditTarget, setAuditTarget] = useState('');
+  const [auditLimit, setAuditLimit] = useState(100);
 
   const accountsQuery = usePolling(() => adminApi.accounts(), 5000, view === 'dashboard' || view === 'accounts');
   const monitorQuery = usePolling(() => adminApi.operationsMonitor(currentPeriod()), 5000, view === 'dashboard' || view === 'operations-monitor');
+  const onlineQuery = usePolling(() => adminApi.onlineConnections(), 5000, view === 'dashboard' || view === 'online-connections');
+  const auditQuery = usePolling(
+    () => adminApi.audit({
+      limit: auditLimit,
+      actor: auditActor.trim() || undefined,
+      action: auditAction.trim() || undefined,
+      target: auditTarget.trim() || undefined,
+    }),
+    5000,
+    view === 'audit',
+  );
   const accessAccountsQuery = usePolling(() => adminApi.accessAccounts(), 5000, view === 'dashboard' || view === 'access-accounts');
   const groupsQuery = usePolling(() => adminApi.mountPointGroups(), 5000, view === 'dashboard' || view === 'mount-point-groups');
   const mountsQuery = usePolling(() => adminApi.mountPoints(), 5000, view === 'dashboard' || view === 'mount-points');
@@ -175,6 +200,11 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const settlementQuery = usePolling(() => adminApi.supplierSettlements(currentPeriod()), 5000, view === 'dashboard' || view === 'supplier-settlements');
 
   const accountRows = useMemo(() => rowsFromHash(accountsQuery.data), [accountsQuery.data]);
+  const onlineRows = useMemo(() => rowsFromHash(onlineQuery.data), [onlineQuery.data]);
+  const auditRows = useMemo(
+    () => (auditQuery.data?.items ?? []).map((item) => ({ key: String(item.id), ...item })),
+    [auditQuery.data],
+  );
   const accessRows = useMemo(() => rowsFromHash(accessAccountsQuery.data), [accessAccountsQuery.data]);
   const groupRows = useMemo(() => rowsFromHash(groupsQuery.data), [groupsQuery.data]);
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
@@ -213,6 +243,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     .reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
   const currentUsageCost = usageRows.reduce((sum, usage) => sum + Number(usage.stat_cost_cents ?? 0), 0);
   const currentDataPushDebit = dataPushRows.reduce((sum, usage) => sum + Number(usage.actual_debit_cents ?? 0), 0);
+
+  useEffect(() => {
+    if (view === 'audit') {
+      auditQuery.refresh();
+    }
+  }, [auditActor, auditAction, auditTarget, auditLimit, view]);
 
   useEffect(() => {
     const config = dataPushMaintenanceQuery.data;
@@ -473,6 +509,30 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '并发', dataIndex: 'concurrency_limit', key: 'concurrency_limit', width: 90 },
     { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
     { title: '备注', dataIndex: 'remark', key: 'remark', ellipsis: true, render: (value) => value || '-' },
+  ];
+
+  const onlineColumns: ColumnsType<AccountActive & { key: string }> = [
+    { title: '连接', key: 'connect_key', width: 220, render: (_, row) => row.connect_key || row.uid || row.key },
+    { title: '账号', dataIndex: 'account', key: 'account', width: 180 },
+    { title: '类型', key: 'auth_type', width: 110, render: (_, row) => <Tag color={row.auth_type === 'server' ? 'blue' : 'green'}>{row.auth_type || '-'}</Tag> },
+    { title: '地址', key: 'addr', width: 180, render: (_, row) => `${row.addr || '-'}:${row.port || '-'}` },
+    { title: '分组', dataIndex: 'group_uid', key: 'group_uid', width: 150, render: (value) => value || '-' },
+    { title: '在线时长', key: 'online_time', width: 120, render: (_, row) => formatOnlineTime(row.online_time ?? 0) },
+    { title: '上线时间', key: 'online_at', width: 170, render: (_, row) => getLocalTime(row.online_time ?? 0) },
+    { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
+  ];
+
+  const auditColumns: ColumnsType<AuditEntry & { key: string }> = [
+    { title: 'ID', dataIndex: 'id', key: 'id', width: 90 },
+    { title: '时间', key: 'timestamp', width: 170, render: (_, row) => getLocalTime(row.timestamp ?? 0) },
+    { title: '操作者', dataIndex: 'actor', key: 'actor', width: 150, render: (value) => value || '-' },
+    { title: '动作', dataIndex: 'action', key: 'action', width: 240, ellipsis: true },
+    { title: '目标', key: 'target', width: 240, render: (_, row) => `${row.target_type || '-'}${row.target_id ? `/${row.target_id}` : ''}` },
+    { title: '结果', key: 'result', width: 90, render: (_, row) => auditResultTag(row.result) },
+    { title: '来源 IP', dataIndex: 'source_ip', key: 'source_ip', width: 130, render: (value) => value || '-' },
+    { title: '节点', dataIndex: 'node_id', key: 'node_id', width: 150, render: (value) => value || '-' },
+    { title: '错误', dataIndex: 'error_message', key: 'error_message', width: 180, ellipsis: true, render: (value) => value || '-' },
+    { title: 'Payload', dataIndex: 'payload', key: 'payload', ellipsis: true, render: (value) => value || '-' },
   ];
 
   const accessColumns: ColumnsType<AccessAccountRecord & { key: string }> = [
@@ -809,6 +869,33 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     if (view === 'operations-monitor') {
       return renderOperationsMonitor();
     }
+    if (view === 'online-connections') {
+      return <Table columns={onlineColumns} dataSource={onlineRows} loading={onlineQuery.loading} rowKey="key" size="small" scroll={{ x: 1360 }} />;
+    }
+    if (view === 'audit') {
+      return (
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <Input placeholder="actor" value={auditActor} onChange={(event) => setAuditActor(event.target.value)} style={{ width: 160 }} />
+            <Input placeholder="action" value={auditAction} onChange={(event) => setAuditAction(event.target.value)} style={{ width: 190 }} />
+            <Input placeholder="target_type" value={auditTarget} onChange={(event) => setAuditTarget(event.target.value)} style={{ width: 160 }} />
+            <InputNumber min={1} max={1000} value={auditLimit} onChange={(value) => setAuditLimit(Number(value ?? 100))} style={{ width: 110 }} />
+            <Button icon={<SyncOutlined />} onClick={auditQuery.refresh}>刷新</Button>
+            <Tag color="blue">total {auditQuery.data?.total ?? 0}</Tag>
+            {auditQuery.data?.has_more && <Tag color="gold">next {auditQuery.data.next_cursor}</Tag>}
+          </Space>
+          <Table
+            columns={auditColumns}
+            dataSource={auditRows}
+            loading={auditQuery.loading}
+            rowKey="key"
+            size="small"
+            pagination={false}
+            scroll={{ x: 1800 }}
+          />
+        </Space>
+      );
+    }
     if (view === 'accounts') {
       return (
         <Table
@@ -868,6 +955,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const titleMap: Record<AdminView, string> = {
     dashboard: '运营总览',
     'operations-monitor': '运行监控',
+    'online-connections': '在线连接',
+    audit: '审计日志',
     accounts: '账号',
     'access-accounts': '接入账号',
     'mount-point-groups': '挂载点分组',
@@ -911,6 +1000,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="历史站点" value={recordCount(stationsQuery.data)} prefix={<CloudServerOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="在线连接" value={recordCount(onlineQuery.data)} prefix={<BranchesOutlined />} />
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="账户余额" value={formatCents(totalBalance)} prefix={<WalletOutlined />} />
