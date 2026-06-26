@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Layout, Menu, Button, Space, Tag } from 'antd';
+import { Layout, Menu, Button, Space, Tag, Segmented } from 'antd';
 import {
   DashboardOutlined,
   CloudServerOutlined,
@@ -18,16 +18,98 @@ import {
   BarChartOutlined,
   ClusterOutlined,
   ApiOutlined,
+  WalletOutlined,
+  ProfileOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { logout } from '../api/auth';
 import { getSystemStatus } from '../api';
 import { useMultiSSE } from '../hooks/useSSE';
 import type { CasterNode } from '../api/types';
+import { useRoleSession } from '../role';
 
 const { Header, Sider, Content } = Layout;
 
-const menuItems = [
+const adminMenuItems = [
+  {
+    key: 'admin-operations',
+    icon: <DashboardOutlined />,
+    label: '运营',
+    children: [
+      { key: '/admin/dashboard', icon: <ClusterOutlined />, label: '运营总览' },
+      { key: '/admin/accounts', icon: <TeamOutlined />, label: '账号' },
+      { key: '/admin/access-accounts', icon: <LockOutlined />, label: '接入账号' },
+      { key: '/admin/usage', icon: <BarChartOutlined />, label: '计费用量' },
+      { key: '/admin/supply-usage', icon: <WalletOutlined />, label: '供应事实' },
+    ],
+  },
+  {
+    key: 'admin-mounts',
+    icon: <DatabaseOutlined />,
+    label: '挂载点',
+    children: [
+      { key: '/admin/mount-point-groups', icon: <BranchesOutlined />, label: '挂载点分组' },
+      { key: '/admin/mount-points', icon: <DatabaseOutlined />, label: '挂载点记录' },
+      { key: '/admin/stations', icon: <CloudServerOutlined />, label: '历史站点' },
+    ],
+  },
+  {
+    key: 'admin-scopes',
+    icon: <ProfileOutlined />,
+    label: '角色视图',
+    children: [
+      { key: '/me/dashboard', icon: <UserOutlined />, label: '用户视图' },
+      { key: '/supplier/dashboard', icon: <CloudServerOutlined />, label: '供应商视图' },
+    ],
+  },
+  {
+    key: 'legacy',
+    icon: <SettingOutlined />,
+    label: '旧管理台',
+    children: [
+      { key: '/admin/legacy/dashboard', icon: <ClusterOutlined />, label: '集群总览' },
+      { key: '/admin/legacy/accounts', icon: <TeamOutlined />, label: '旧账号管理' },
+      { key: '/admin/legacy/access', icon: <LockOutlined />, label: '旧访问管理' },
+      { key: '/admin/legacy/monitor', icon: <DashboardOutlined />, label: '系统监控' },
+      { key: '/admin/legacy/audit', icon: <HistoryOutlined />, label: '审计日志' },
+      { key: '/admin/legacy/settings', icon: <SettingOutlined />, label: '系统设置' },
+    ],
+  },
+];
+
+const userMenuItems = [
+  {
+    key: 'user-self',
+    icon: <UserOutlined />,
+    label: '用户',
+    children: [
+      { key: '/me/dashboard', icon: <DashboardOutlined />, label: '概览' },
+      { key: '/me/access-accounts', icon: <LockOutlined />, label: '接入账号' },
+      { key: '/me/groups', icon: <BranchesOutlined />, label: '授权分组' },
+      { key: '/me/mount-points', icon: <DatabaseOutlined />, label: '可用挂载点' },
+      { key: '/me/usage', icon: <BarChartOutlined />, label: '用量' },
+      { key: '/me/profile', icon: <ProfileOutlined />, label: '资料' },
+    ],
+  },
+];
+
+const supplierMenuItems = [
+  {
+    key: 'supplier-self',
+    icon: <CloudServerOutlined />,
+    label: '供应商',
+    children: [
+      { key: '/supplier/dashboard', icon: <DashboardOutlined />, label: '概览' },
+      { key: '/supplier/access-accounts', icon: <LockOutlined />, label: '接入账号' },
+      { key: '/supplier/stations', icon: <CloudServerOutlined />, label: '供应站点' },
+      { key: '/supplier/supply-usage', icon: <BarChartOutlined />, label: '供应时长' },
+      { key: '/supplier/earnings', icon: <WalletOutlined />, label: '收益' },
+      { key: '/supplier/profile', icon: <ProfileOutlined />, label: '资料' },
+    ],
+  },
+];
+
+const legacyMenuItems = [
   {
     key: 'monitor',
     icon: <DashboardOutlined />,
@@ -100,6 +182,12 @@ const MainLayout: React.FC = () => {
   const [masterNodeId, setMasterNodeId] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const session = useRoleSession();
+  const scope = location.pathname.startsWith('/supplier')
+    ? 'supplier'
+    : location.pathname.startsWith('/me')
+      ? 'user'
+      : 'admin';
 
   // 集群状态摘要 (Header 显示)
   const { data: sseData, connected: sseConnected } = useMultiSSE<{
@@ -126,6 +214,14 @@ const MainLayout: React.FC = () => {
     return () => window.clearInterval(interval);
   }, []);
 
+  const menuItems = location.pathname.startsWith('/admin/legacy')
+    ? legacyMenuItems
+    : scope === 'supplier'
+      ? supplierMenuItems
+      : scope === 'user'
+        ? userMenuItems
+        : adminMenuItems;
+
   // 根据当前路径确定展开的菜单组
   const openKeys = menuItems
     .filter(group => group.children?.some(c => location.pathname.startsWith(c.key)))
@@ -134,6 +230,18 @@ const MainLayout: React.FC = () => {
   const handleLogout = async () => {
     try { await logout(); } catch { /* ignore */ }
     navigate('/login');
+  };
+
+  const scopeOptions = [
+    ...(session.role === 'admin' ? [{ label: '管理员', value: 'admin' }] : []),
+    ...(session.role === 'admin' || session.role === 'user' ? [{ label: '用户', value: 'user' }] : []),
+    ...(session.role === 'admin' || session.role === 'supplier' ? [{ label: '供应商', value: 'supplier' }] : []),
+  ];
+
+  const switchScope = (value: string | number) => {
+    if (value === 'admin') navigate('/admin/dashboard');
+    if (value === 'user') navigate('/me/dashboard');
+    if (value === 'supplier') navigate('/supplier/dashboard');
   };
 
   return (
@@ -151,7 +259,7 @@ const MainLayout: React.FC = () => {
             color: '#fff', fontWeight: 700, fontSize: 14, flexShrink: 0,
           }}>NC</div>
           {!collapsed && (
-            <span style={{ color: '#e8eaf0', fontWeight: 600, fontSize: 16, letterSpacing: -0.3 }}>
+            <span style={{ color: '#e8eaf0', fontWeight: 600, fontSize: 16 }}>
               NavCaster
             </span>
           )}
@@ -180,6 +288,17 @@ const MainLayout: React.FC = () => {
               style={{ color: '#8b90a8' }}
             />
             <Space size={16} style={{ marginLeft: 8 }}>
+              <Tag color={session.role === 'admin' ? 'gold' : session.role === 'supplier' ? 'blue' : 'green'}>
+                {session.username}
+              </Tag>
+              {scopeOptions.length > 1 && (
+                <Segmented
+                  size="small"
+                  value={scope}
+                  options={scopeOptions}
+                  onChange={switchScope}
+                />
+              )}
               <span style={{ color: '#8b90a8', fontSize: 13 }}>
                 节点 <Tag color={nodeCount > 0 ? 'green' : 'default'}>{nodeCount}</Tag>
               </span>
@@ -212,7 +331,7 @@ const MainLayout: React.FC = () => {
         </Header>
         <Content style={{
           margin: 16, padding: 24, background: '#1a1e34',
-          borderRadius: 12, overflow: 'auto', border: '1px solid #1e2245',
+          borderRadius: 8, overflow: 'auto', border: '1px solid #1e2245',
         }}>
           <Outlet />
         </Content>

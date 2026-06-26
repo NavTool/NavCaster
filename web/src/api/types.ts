@@ -368,6 +368,186 @@ export interface SystemEvent {
   message: string;
 }
 
+// ==================== Operations Domain (NC-056) ====================
+
+export type AccountRole = 'admin' | 'user' | 'supplier';
+export type ResourceStatus = 'active' | 'disabled' | 'deleted' | string;
+export type AccessAccountKind = 'user_client' | 'supplier_station' | string;
+
+export interface OperationsAccount {
+  account_id: string;
+  username: string;
+  role: AccountRole | string;
+  status: ResourceStatus;
+  balance_cents?: number;
+  credit_limit_cents?: number;
+  concurrency_limit?: number;
+  allowed_group_count?: number;
+  create_time?: number;
+  update_time?: number;
+  delete_time?: number;
+  remark?: string;
+  schema_version?: number;
+}
+
+export interface AuthSessionSubject {
+  username: string;
+  account_id: string;
+  role: AccountRole | string;
+  status: ResourceStatus;
+  compat_admin: boolean;
+  token?: string;
+  account?: OperationsAccount;
+}
+
+export interface MountPointGroup {
+  group_id: string;
+  name: string;
+  status: ResourceStatus;
+  billing_multiplier?: number;
+  description?: string;
+  create_time?: number;
+  update_time?: number;
+  delete_time?: number;
+  schema_version?: number;
+}
+
+export interface AccountGroupGrant {
+  account_id?: string;
+  group_id: string;
+  status: ResourceStatus;
+  create_time?: number;
+  update_time?: number;
+  group?: MountPointGroup;
+}
+
+export interface MountPointRecord {
+  mountpoint: string;
+  status?: ResourceStatus;
+  hourly_price_cents?: number;
+  source_record_mount?: string;
+  group_id?: string;
+  create_time?: number;
+  update_time?: number;
+  delete_time?: number;
+  schema_version?: number;
+}
+
+export interface AccessAccountRecord {
+  access_account_id: string;
+  owner_account_id: string;
+  username: string;
+  kind: AccessAccountKind;
+  status: ResourceStatus;
+  mount_point_group_id: string;
+  concurrency_limit?: number;
+  expire_time?: number;
+  private_remark?: string;
+  admin_remark?: string;
+  create_time?: number;
+  update_time?: number;
+  delete_time?: number;
+  schema_version?: number;
+}
+
+export interface SubscriptionRecord {
+  subscription_id: string;
+  account_id: string;
+  group_ids: string[];
+  status: ResourceStatus;
+  start_time?: number;
+  expire_time?: number;
+  granted_by?: string;
+  remark?: string;
+  create_time?: number;
+  update_time?: number;
+}
+
+export interface BillingUsageEntry {
+  billing_id: string;
+  account_id: string;
+  access_account_id: string;
+  mountpoint: string;
+  group_id?: string;
+  session_id?: string;
+  billing_mode?: string;
+  used_seconds?: number;
+  stat_cost_cents?: number;
+  actual_debit_cents?: number;
+  fingerprint?: string;
+  create_time?: number;
+  start_time?: number;
+  end_time?: number;
+}
+
+export interface StationRecord {
+  station_id?: string;
+  mountpoint: string;
+  display_name?: string;
+  first_seen_time?: number;
+  last_seen_time?: number;
+  total_online_seconds?: number;
+  current_online?: boolean;
+  last_access_account_id?: string;
+  last_supplier_account_id?: string;
+  admin_note?: string;
+  create_time?: number;
+  update_time?: number;
+}
+
+export interface SupplierSupplyUsage {
+  usage_id: string;
+  supplier_account_id: string;
+  access_account_id: string;
+  station_id?: string;
+  mountpoint: string;
+  session_id?: string;
+  start_time?: number;
+  end_time?: number;
+  used_seconds?: number;
+  earning_cents?: number;
+  status?: string;
+  create_time?: number;
+}
+
+export interface RoleDashboard {
+  account: OperationsAccount;
+  access_account_count: number;
+  allowed_group_count: number;
+  balance_cents: number;
+  concurrency_limit: number;
+  usage_count?: number;
+  supply_usage_count?: number;
+}
+
+export interface SupplierEarningsSummary {
+  account_id: string;
+  period: string;
+  total_supply_seconds: number;
+  pending_earning_cents: number;
+  settled_earning_cents: number;
+  total_earning_cents: number;
+}
+
+export interface AccessAccountCreateInput {
+  access_account_id: string;
+  username: string;
+  password: string;
+  mount_point_group_id: string;
+  concurrency_limit?: number;
+  expire_time?: number;
+  status?: ResourceStatus;
+  private_remark?: string;
+}
+
+export interface AccessAccountUpdateInput {
+  mount_point_group_id?: string;
+  concurrency_limit?: number;
+  expire_time?: number;
+  status?: ResourceStatus;
+  private_remark?: string;
+}
+
 
 // ==================== API Response Helpers ====================
 

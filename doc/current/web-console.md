@@ -1,7 +1,7 @@
 # Web 管理台当前实现说明
 
-更新时间：2026-06-16
-来源：NC-035 frontend 文档审计、`web` 源码和近期任务记录。
+更新时间：2026-06-26
+来源：NC-035 frontend 文档审计、NC-056 Web 三角色改造、`web` 源码和近期任务记录。
 
 ## 当前事实
 
@@ -21,28 +21,88 @@ Recharts
 
 ## 路由和认证
 
-`web/src/router.tsx` 使用 `HashRouter`。`/login` 公开，其余页面经过 `RequireAuth`。当前受保护页面覆盖：
+`web/src/router.tsx` 使用 `HashRouter`。`/login` 公开，登录仍提交兼容
+`POST /api/auth/login`，成功后按返回 subject 跳转到角色首页。其余页面经过
+`RequireAuth`，守卫会读取 `GET /api/v1/auth/session`，并保存
+`account_id`、`username`、`role`、`status`、`compat_admin` 和脱敏 `account` 快照。
+
+NC-056 后 Web 路由按三角色分区：
 
 ```text
-dashboard
-node detail
-servers / server detail
-clients / client detail
-accounts / account detail
-sources / aliases / sourcetable
-access groups / access group detail
-pull relay / push relay
-connection history / detail
-statistics
-system monitor
-audit log
-ring log
-settings
+/admin/*
+  仅 role=admin 可访问。默认 /admin/dashboard。
+  覆盖运营总览、Account、AccessAccount、MountPointGroup、MountPoint、Station、Usage、SupplyUsage。
+
+/me/*
+  role=user 或 role=admin 可访问。默认 /me/dashboard。
+  覆盖用户资料、用户接入账号 CRUD、授权分组、可用挂载点和计费用量。
+
+/supplier/*
+  role=supplier 或 role=admin 可访问。默认 /supplier/dashboard。
+  覆盖供应商资料、基站接入账号 CRUD、供应站点、供应时长和收益。
+```
+
+管理员是超集角色。`MainLayout` 顶部提供 admin / user / supplier scope 切换；普通
+user 只看到用户入口，supplier 只看到供应商入口。前端路由守卫只负责体验边界，最终权限仍由
+后端 `/api/v1/admin`、`/api/v1/me`、`/api/v1/supplier` namespace 和 session
+subject 校验。
+
+旧管理台页面保留在 `/admin/legacy/*`，用于继续访问既有运行监控和旧配置页面：
+
+```text
+/admin/legacy/dashboard
+/admin/legacy/nodes/:id
+/admin/legacy/servers / server detail
+/admin/legacy/clients / client detail
+/admin/legacy/accounts / account detail
+/admin/legacy/sources / aliases / sourcetable
+/admin/legacy/access / access group detail
+/admin/legacy/relay/pull / relay/push
+/admin/legacy/history / detail
+/admin/legacy/statistics
+/admin/legacy/monitor
+/admin/legacy/audit
+/admin/legacy/logs/ring
+/admin/legacy/settings
 ```
 
 `web/src/api/client.ts` 使用 Axios 注入 `Authorization: Bearer <token>` 和 `X-Auth-User`。baseURL、token、authUser 保存在 localStorage。
 
-`probeBackend()` 只请求公开 `/api/status/health`，只证明后端可达，不证明 token 有效。
+`probeBackend()` 仍保留给旧调用方，但路由认证不再依赖公开 `/api/status/health` 判断
+token 有效性。
+
+## 运营域 API
+
+NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
+
+```text
+/api/v1/auth/session
+/api/v1/admin/accounts
+/api/v1/admin/access-accounts
+/api/v1/admin/mount-point-groups
+/api/v1/admin/mount-points
+/api/v1/admin/subscriptions
+/api/v1/admin/stations
+/api/v1/admin/usage
+/api/v1/admin/supply-usage
+/api/v1/me/profile
+/api/v1/me/dashboard
+/api/v1/me/allowed-groups
+/api/v1/me/mount-points
+/api/v1/me/access-accounts
+/api/v1/me/usage
+/api/v1/supplier/profile
+/api/v1/supplier/dashboard
+/api/v1/supplier/access-accounts
+/api/v1/supplier/stations
+/api/v1/supplier/supply-usage
+/api/v1/supplier/earnings
+```
+
+自助 AccessAccount 表单不提交 `owner_account_id` 和 `kind`，只提交
+`access_account_id`、`username`、`password`、`mount_point_group_id`、`status`、
+`concurrency_limit`、`expire_time`、`private_remark` 等允许字段。后端仍会从
+session 推导 owner 和 kind。
 
 ## API Types 和契约
 
@@ -58,6 +118,9 @@ SourceRecord ecef_x/ecef_y/ecef_z
 
 AccountActive connect_key/anonymous/auth_type/group_uid
   TS-only HTTP 扩展，来源于 ACT:SESSION:<account> JSON。
+
+NC-056 运营域类型
+  TS-only HTTP 类型，来源于 NC-053/NC-054 `/api/v1/*` JSON，不对应 proto 消息。
 ```
 
 ## SSE 和轮询
@@ -87,7 +150,14 @@ npm run lint
 npm run build
 ```
 
-`npm run build` 实际执行 `tsc -b && vite build`。近期记录显示 NC-029 至 NC-033 已补跑 Web build 并通过，NC-034 未改 Web 源码且未运行 Web build。前端仍有既有 lint 基线债，不能把 lint 写成当前硬门槛。
+`npm run build` 实际执行 `tsc -b && vite build`。NC-056 在任务 worktree 中通过
+`npm --prefix web run build`；Vite 仍报告既有 `api/index.ts` dynamic import 静态导入重叠和
+大 chunk 警告。
+
+前端仍有既有 lint 基线债，不能把 lint 写成当前硬门槛。NC-056 已清理本次新增/修改范围内的
+lint error；剩余 lint failure 位于旧文件，例如 `api/client.ts`、`components/DataTable.tsx`、
+`pages/AuditLog.tsx`、`pages/Dashboard.tsx`、`pages/RingLog.tsx`、`pages/Settings.tsx`
+和 `pages/SystemMonitor.tsx`。
 
 ## 历史资料
 

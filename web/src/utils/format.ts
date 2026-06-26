@@ -115,6 +115,18 @@ export function formatSpeed(bytesPerSec: number): string {
   return formatBytes(bytesPerSec) + '/s';
 }
 
+/** 整数分 → 人民币金额字符串 */
+export function formatCents(cents?: number): string {
+  if (cents == null || !Number.isFinite(cents)) return '-';
+  return `¥${(cents / 100).toFixed(2)}`;
+}
+
+/** yyyyMM 默认账期 */
+export function currentPeriod(): string {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 // ==================== 坐标转换 ====================
 
 /** WGS84 椭球参数 */

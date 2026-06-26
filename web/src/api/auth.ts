@@ -1,10 +1,11 @@
 import api, { setAuthUser, setToken } from './client';
+import type { AuthSessionSubject } from './types';
 
-export async function login(username: string, password: string): Promise<string> {
+export async function login(username: string, password: string): Promise<AuthSessionSubject> {
   const { data } = await api.post('/api/auth/login', { username, password });
   setToken(data.token);
   setAuthUser(data.username || username);
-  return data.token;
+  return data as AuthSessionSubject;
 }
 
 export async function logout(): Promise<void> {
