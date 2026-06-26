@@ -27,6 +27,7 @@
 #include "node_history_repository.h"
 #include "node_history_service.h"
 #include "node_log_level_service.h"
+#include "operations_controller.h"
 #include "redis_keys.h"
 #include "node_history_recorder.h"
 #include "redis_monitor_repository.h"
@@ -2024,6 +2025,91 @@ int main()
             {"role", "user"},
             {"balance_cents", 12000},
         }, 5092).status == navcaster::storage::RepositoryStatus::NotFound, "domain deleted account cannot be updated");
+    }
+
+    {
+        FakeRedisHashClient operations_redis;
+        navcaster::http_api::OperationsController operations(operations_redis, 6000);
+
+        auto response = operations.session_subject("admin");
+        expect_eq_int(response.status_code, 200, "operations session subject ok");
+        auto response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("role", std::string{}), "admin", "operations session role");
+        expect_true(response_body.value("compat_admin", false), "operations session compat admin");
+
+        response = operations.create_account(R"({"account_id":"op-user","username":"op-customer","role":"user","balance_cents":5000,"concurrency_limit":2})");
+        expect_eq_int(response.status_code, 201, "operations create account");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("account_id", std::string{}), "op-user", "operations create account id");
+        expect_missing(response_body, "password_hash", "operations account response strips password hash");
+        expect_true(operations.create_account(R"({"account_id":"op-bad","username":"op-bad","role":"operator"})").status_code == 400, "operations invalid account role");
+        expect_true(operations.create_account(R"({"account_id":"op-other","username":"op-customer","role":"user"})").status_code == 409, "operations duplicate account username");
+
+        response = operations.list_accounts();
+        expect_eq_int(response.status_code, 200, "operations list accounts");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-user"), "operations list contains account");
+
+        response = operations.update_account("op-user", R"({"role":"user","username":"op-customer","balance_cents":7000,"concurrency_limit":2})");
+        expect_eq_int(response.status_code, 200, "operations update account");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body.value("balance_cents", 0), 7000, "operations account update balance");
+
+        expect_eq_int(operations.create_mount_point_group(R"({"group_id":"op-group","name":"Operations Group"})").status_code, 201, "operations create group");
+        expect_eq_int(operations.create_mount_point(R"({"mountpoint":"OPBASE","hourly_price_cents":120})").status_code, 201, "operations create mount point");
+        expect_eq_int(operations.add_mount_point_group_member("op-group", R"({"mountpoint":"OPBASE"})").status_code, 201, "operations add group member");
+        expect_eq_int(operations.grant_account_group("op-user", R"({"group_id":"op-group"})").status_code, 201, "operations grant account group");
+        expect_true(operations_redis.hget(navcaster::redis_keys::acc_group("op-user").c_str(), "op-group").is_object(), "operations grant writes ACC:GROUP");
+
+        navcaster::storage::AccountDomainRepository domain_repo(operations_redis);
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "op-aacc"},
+            {"owner_account_id", "op-user"},
+            {"username", "op-rover"},
+            {"kind", "user_client"},
+            {"mount_point_group_id", "op-group"},
+        }, 6010).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture access account");
+        response = operations.list_access_accounts();
+        expect_eq_int(response.status_code, 200, "operations list access accounts");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-aacc"), "operations access account read-only list");
+
+        expect_eq_int(operations.create_subscription(R"({"subscription_id":"op-sub","account_id":"op-user","group_ids":["op-group"],"expire_time":9000})").status_code, 201, "operations create subscription");
+        response = operations.list_subscriptions();
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-sub"), "operations list subscriptions");
+
+        expect_eq_int(operations.append_balance_adjustment("op-user", R"({"ledger_id":"op-ledger","period":"202606","delta_cents":1000,"balance_after_cents":8000,"source":"manual_adjustment"})").status_code, 201, "operations balance adjustment");
+        expect_true(operations_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "op-ledger").is_object(), "operations balance ledger key");
+
+        expect_eq_int(domain_repo.upsert_station_record({{"mountpoint", "OPBASE"}, {"station_id", "station-op"}}, 6020).status == navcaster::storage::RepositoryStatus::Ok ? 200 : 500, 200, "operations fixture station");
+        response = operations.list_stations();
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("OPBASE"), "operations list stations");
+
+        expect_true(domain_repo.append_billing_usage({
+            {"billing_id", "op-bill"},
+            {"fingerprint", "op-fp"},
+            {"account_id", "op-user"},
+            {"access_account_id", "op-aacc"},
+            {"mountpoint", "OPBASE"},
+        }, "202606", 6030).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture billing usage");
+        response = operations.list_usage("202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-bill"), "operations list billing usage");
+
+        expect_true(domain_repo.append_supplier_supply_usage({
+            {"usage_id", "op-supply"},
+            {"supplier_account_id", "op-user"},
+            {"access_account_id", "op-aacc"},
+            {"mountpoint", "OPBASE"},
+        }, "202606", 6040).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture supply usage");
+        response = operations.list_supply_usage("202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-supply"), "operations list supply usage");
+
+        expect_eq_int(operations.delete_account("op-user").status_code, 200, "operations delete account");
+        expect_true(operations.create_account(R"({"account_id":"op-reuse","username":"op-customer","role":"user"})").status_code == 409, "operations deleted username cannot be reused");
     }
 
     FakeRedisHashClient account_controller_redis;

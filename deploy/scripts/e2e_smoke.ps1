@@ -47,7 +47,8 @@ param(
     [switch]$IncludeRelayFailover,
     [switch]$IncludeRelayPushFailover,
     [switch]$IncludeNtripDisabledAccount,
-    [switch]$IncludeRedisReconnect
+    [switch]$IncludeRedisReconnect,
+    [switch]$IncludeOperationsApi
 )
 
 $ErrorActionPreference = "Stop"
@@ -2704,6 +2705,111 @@ function Assert-E2eNodeIdFormat {
 
     if ([string]::IsNullOrWhiteSpace($NodeId) -or $NodeId -notmatch '^Node_[0-9A-F]{5}$') {
         Fail "$Context returned invalid node_id: $NodeId"
+    }
+}
+
+function Invoke-OperationsApiSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$Headers
+    )
+
+    Say "validating /api/v1 operations admin API"
+    $prefix = "nc053_$PID"
+    $accountId = "${prefix}_acc"
+    $username = "${prefix}_user"
+    $groupId = "${prefix}_grp"
+    $mount = "${prefix}_MPT"
+    $subscriptionId = "${prefix}_sub"
+    $ledgerId = "${prefix}_ledger"
+
+    $session = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/auth/session" -TimeoutSec 10
+    if ($session.role -ne "admin" -or $session.compat_admin -ne $true) {
+        Fail "operations session subject unexpected: $(ConvertTo-CompactJson $session)"
+    }
+
+    $accountBody = @{
+        account_id = $accountId
+        username = $username
+        role = "user"
+        balance_cents = 5000
+        concurrency_limit = 2
+    } | ConvertTo-Json -Compress
+    $account = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $accountBody -Uri "$Base/api/v1/admin/accounts" -TimeoutSec 10
+    if ($account.account_id -ne $accountId -or $account.role -ne "user") {
+        Fail "operations create account response mismatch: $(ConvertTo-CompactJson $account)"
+    }
+
+    $accounts = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/accounts" -TimeoutSec 10
+    if (-not $accounts.PSObject.Properties[$accountId]) {
+        Fail "operations account list missing $accountId"
+    }
+
+    $groupBody = @{ group_id = $groupId; name = "NC-053 group"; billing_multiplier = 1.0 } | ConvertTo-Json -Compress
+    $group = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $groupBody -Uri "$Base/api/v1/admin/mount-point-groups" -TimeoutSec 10
+    if ($group.group_id -ne $groupId) {
+        Fail "operations create group response mismatch: $(ConvertTo-CompactJson $group)"
+    }
+
+    $mountBody = @{ hourly_price_cents = 120 } | ConvertTo-Json -Compress
+    $mountPoint = Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body $mountBody -Uri "$Base/api/v1/admin/mount-points/$mount" -TimeoutSec 10
+    if ($mountPoint.mountpoint -ne $mount) {
+        Fail "operations create mount response mismatch: $(ConvertTo-CompactJson $mountPoint)"
+    }
+
+    $memberBody = @{ mountpoint = $mount } | ConvertTo-Json -Compress
+    $member = Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body $memberBody -Uri "$Base/api/v1/admin/mount-point-groups/$groupId/members" -TimeoutSec 10
+    if ($member.mountpoint -ne $mount -or $member.group_id -ne $groupId) {
+        Fail "operations group member response mismatch: $(ConvertTo-CompactJson $member)"
+    }
+
+    $grantBody = @{ group_id = $groupId } | ConvertTo-Json -Compress
+    $grant = Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body $grantBody -Uri "$Base/api/v1/admin/accounts/$accountId/group-grants" -TimeoutSec 10
+    if ($grant.account_id -ne $accountId -or $grant.group_id -ne $groupId) {
+        Fail "operations account grant response mismatch: $(ConvertTo-CompactJson $grant)"
+    }
+
+    $subscriptionBody = @{
+        subscription_id = $subscriptionId
+        account_id = $accountId
+        group_ids = @($groupId)
+        expire_time = 9999999999
+    } | ConvertTo-Json -Compress
+    $subscription = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $subscriptionBody -Uri "$Base/api/v1/admin/subscriptions" -TimeoutSec 10
+    if ($subscription.subscription_id -ne $subscriptionId) {
+        Fail "operations subscription response mismatch: $(ConvertTo-CompactJson $subscription)"
+    }
+
+    $ledgerBody = @{
+        ledger_id = $ledgerId
+        period = "202606"
+        delta_cents = 1000
+        balance_after_cents = 6000
+        source = "e2e_manual_adjustment"
+    } | ConvertTo-Json -Compress
+    $ledger = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $ledgerBody -Uri "$Base/api/v1/admin/accounts/$accountId/balance-adjustments" -TimeoutSec 10
+    if ($ledger.ledger_id -ne $ledgerId -or $ledger.account_id -ne $accountId) {
+        Fail "operations balance adjustment response mismatch: $(ConvertTo-CompactJson $ledger)"
+    }
+
+    $accessAccounts = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/access-accounts" -TimeoutSec 10
+    if ($null -eq $accessAccounts) {
+        Fail "operations access account list returned null"
+    }
+
+    $stations = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/stations" -TimeoutSec 10
+    if ($null -eq $stations) {
+        Fail "operations station list returned null"
+    }
+
+    $usage = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/usage?period=202606" -TimeoutSec 10
+    if ($null -eq $usage) {
+        Fail "operations usage list returned null"
+    }
+
+    $supply = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/supply-usage?period=202606" -TimeoutSec 10
+    if ($null -eq $supply) {
+        Fail "operations supply usage list returned null"
     }
 }
 
@@ -6054,7 +6160,7 @@ try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
 
     if ($IncludeDockerBridgeCluster) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi
         if ($otherIncludes) {
             Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
         }
@@ -6084,7 +6190,7 @@ try {
     }
 
     if ($IncludeHttpIngressStrategy) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi
         if ($otherIncludes) {
             Fail "HTTP ingress strategy smoke must run in a separate lifecycle because it creates its own Docker network, Redis, NavCaster containers, and nginx proxy."
         }
@@ -6388,6 +6494,10 @@ try {
 
     if ($IncludeRedisReconnect) {
         Invoke-RedisReconnectSmoke $base $headers
+    }
+
+    if ($IncludeOperationsApi) {
+        Invoke-OperationsApiSmoke $base $headers
     }
 
     Say "PASS health/login/status/cluster smoke"
