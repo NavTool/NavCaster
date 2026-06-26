@@ -500,8 +500,14 @@ bool normalize_supplier_settlement(nlohmann::json &record, std::int64_t now, std
     record["usage_count"] = record.value("usage_count", static_cast<int>(record["usage_ids"].size()));
     record["total_supply_seconds"] = record.value("total_supply_seconds", 0);
     record["total_earning_cents"] = record.value("total_earning_cents", 0);
-    record["status"] = record.value("status", std::string("settled"));
-    if (string_value(record, "status") != "settled" && string_value(record, "status") != "void")
+    record["status"] = record.value("status", std::string("pending_payment"));
+    const std::string status = string_value(record, "status");
+    if (status != "pending_payment" &&
+        status != "paid" &&
+        status != "payment_failed" &&
+        status != "cancelled" &&
+        status != "settled" &&
+        status != "void")
     {
         return fail(error, "invalid settlement status");
     }
@@ -513,6 +519,11 @@ bool normalize_supplier_settlement(nlohmann::json &record, std::int64_t now, std
     }
     touch(record, now);
     return true;
+}
+
+bool is_supplier_settlement_paid_status(const std::string &status)
+{
+    return status == "paid" || status == "settled";
 }
 
 nlohmann::json username_index_record(const std::string &id, const std::string &status, std::int64_t now)

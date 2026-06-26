@@ -716,7 +716,6 @@ ControllerResponse SelfServiceController::supplier_earnings(const AuthSessionSub
     }
     const auto usage = filter_supply_usage(subject.account_id, period);
     long long pending_cents = 0;
-    long long settled_cents = 0;
     long long total_seconds = 0;
     for (const auto &entry : usage)
     {
@@ -728,7 +727,6 @@ ControllerResponse SelfServiceController::supplier_earnings(const AuthSessionSub
         total_seconds += entry.value("used_seconds", 0LL);
         if (entry.value("status", std::string("pending")) == "settled")
         {
-            settled_cents += earning;
         }
         else
         {
@@ -736,13 +734,49 @@ ControllerResponse SelfServiceController::supplier_earnings(const AuthSessionSub
         }
     }
     const auto settlements = supplier_settlement_records(subject.account_id, period);
+    long long pending_payment_cents = 0;
+    long long paid_cents = 0;
+    long long failed_payment_cents = 0;
+    long long cancelled_cents = 0;
+    if (settlements.is_object())
+    {
+        for (const auto &settlement : settlements)
+        {
+            if (!settlement.is_object())
+            {
+                continue;
+            }
+            const long long amount = settlement.value("total_earning_cents", 0LL);
+            const std::string status = settlement.value("status", std::string("pending_payment"));
+            if (status == "paid" || status == "settled")
+            {
+                paid_cents += amount;
+            }
+            else if (status == "payment_failed")
+            {
+                failed_payment_cents += amount;
+            }
+            else if (status == "cancelled" || status == "void")
+            {
+                cancelled_cents += amount;
+            }
+            else
+            {
+                pending_payment_cents += amount;
+            }
+        }
+    }
     return json_response(200, {
         {"account_id", subject.account_id},
         {"period", request_period(period)},
         {"total_supply_seconds", total_seconds},
         {"pending_earning_cents", pending_cents},
-        {"settled_earning_cents", settled_cents},
-        {"total_earning_cents", pending_cents + settled_cents},
+        {"pending_payment_cents", pending_payment_cents},
+        {"paid_earning_cents", paid_cents},
+        {"failed_payment_cents", failed_payment_cents},
+        {"cancelled_payment_cents", cancelled_cents},
+        {"settled_earning_cents", paid_cents + pending_payment_cents},
+        {"total_earning_cents", pending_cents + pending_payment_cents + paid_cents + failed_payment_cents + cancelled_cents},
         {"settlement_count", settlements.is_object() ? static_cast<int>(settlements.size()) : 0},
     });
 }

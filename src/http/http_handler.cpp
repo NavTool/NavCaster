@@ -172,6 +172,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_supplier_settlements(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supplier-settlements/*", [this](auto &req, auto &resp)
                   { handle_v1_admin_supplier_settlement(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/supplier-settlements/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_supplier_settlement(req, resp); });
 
     // ==================== V1 Self-Service Domain ====================
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/profile", [this](auto &req, auto &resp)
@@ -840,9 +842,25 @@ void http_handler::handle_v1_admin_supplier_settlement(const HttpRequest &req, H
     const std::string settlement_id = get_path_segment(req, 4);
     auto period = req.query_params.find("period");
     auto supplier = req.query_params.find("supplier_account_id");
-    auto result = controller.get_supplier_settlement(settlement_id,
-                                                     period == req.query_params.end() ? std::string{} : period->second,
-                                                     supplier == req.query_params.end() ? std::string{} : supplier->second);
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_POST && req.path_segments.size() >= 6 && get_path_segment(req, 5) == "payment")
+    {
+        result = controller.update_supplier_settlement_payment(settlement_id,
+                                                               period == req.query_params.end() ? std::string{} : period->second,
+                                                               supplier == req.query_params.end() ? std::string{} : supplier->second,
+                                                               req.body);
+    }
+    else if (req.method == EVHTTP_REQ_POST)
+    {
+        result.status_code = 405;
+        result.body = R"({"error":"Method not allowed"})";
+    }
+    else
+    {
+        result = controller.get_supplier_settlement(settlement_id,
+                                                    period == req.query_params.end() ? std::string{} : period->second,
+                                                    supplier == req.query_params.end() ? std::string{} : supplier->second);
+    }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

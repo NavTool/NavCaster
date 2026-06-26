@@ -601,6 +601,12 @@ export interface SupplierSettlementRecord {
   status?: string;
   operator_note?: string;
   external_ref?: string;
+  payment_method?: string;
+  payment_ref?: string;
+  payment_note?: string;
+  paid_time?: number;
+  payment_failed_time?: number;
+  payment_update_time?: number;
   create_time?: number;
   update_time?: number;
 }
@@ -620,6 +626,10 @@ export interface SupplierEarningsSummary {
   period: string;
   total_supply_seconds: number;
   pending_earning_cents: number;
+  pending_payment_cents?: number;
+  paid_earning_cents?: number;
+  failed_payment_cents?: number;
+  cancelled_payment_cents?: number;
   settled_earning_cents: number;
   total_earning_cents: number;
   settlement_count?: number;

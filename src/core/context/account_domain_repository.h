@@ -60,6 +60,11 @@ public:
     AccountDomainResult create_data_push_job(nlohmann::json request, const std::string &period, std::int64_t now);
     AccountDomainResult append_supplier_supply_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult create_supplier_settlement(nlohmann::json request, const std::string &period, std::int64_t now);
+    AccountDomainResult update_supplier_settlement_payment(const std::string &settlement_id,
+                                                           const std::string &supplier_account_id,
+                                                           const std::string &period,
+                                                           nlohmann::json request,
+                                                           std::int64_t now);
 
 private:
     AccountDomainResult make_result(RepositoryStatus status, std::string id, std::string error) const;

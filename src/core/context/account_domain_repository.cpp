@@ -1486,9 +1486,13 @@ AccountDomainResult AccountDomainRepository::create_supplier_settlement(nlohmann
         for (auto it = all_usage.begin(); it != all_usage.end(); ++it)
         {
             const auto &entry = it.value();
-            if (!entry.is_object() ||
-                entry.value("supplier_account_id", std::string{}) != supplier_account_id ||
-                entry.value("status", std::string("pending")) == "settled")
+            if (!entry.is_object())
+            {
+                continue;
+            }
+            const std::string usage_status = entry.value("status", std::string("pending"));
+            if (entry.value("supplier_account_id", std::string{}) != supplier_account_id ||
+                usage_status == "settled")
             {
                 continue;
             }
@@ -1517,7 +1521,7 @@ AccountDomainResult AccountDomainRepository::create_supplier_settlement(nlohmann
         {"usage_count", static_cast<int>(selected_usage_ids.size())},
         {"total_supply_seconds", total_supply_seconds},
         {"total_earning_cents", total_earning_cents},
-        {"status", request.value("status", std::string("settled"))},
+        {"status", request.value("status", std::string("pending_payment"))},
     };
     if (request.contains("operator_note"))
     {
@@ -1552,6 +1556,106 @@ AccountDomainResult AccountDomainRepository::create_supplier_settlement(nlohmann
         {
             return redis_error(usage_id, "Failed to update SupplierSupplyUsage settlement status");
         }
+    }
+
+    AccountDomainResult result;
+    result.id = settlement_id;
+    result.record = std::move(settlement);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_supplier_settlement_payment(const std::string &settlement_id,
+                                                                                const std::string &supplier_account_id,
+                                                                                const std::string &period,
+                                                                                nlohmann::json request,
+                                                                                std::int64_t now)
+{
+    if (settlement_id.empty())
+    {
+        return invalid("settlement_id is required");
+    }
+    if (supplier_account_id.empty())
+    {
+        return invalid("supplier_account_id is required");
+    }
+    if (period.empty())
+    {
+        return invalid("period is required");
+    }
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+
+    const std::string key = redis_keys::supply_earning(supplier_account_id, period);
+    auto settlement = _redis.hget(key.c_str(), settlement_id.c_str());
+    if (!settlement.is_object())
+    {
+        return make_result(RepositoryStatus::NotFound, settlement_id, "SupplierSettlement not found");
+    }
+    if (settlement.value("supplier_account_id", std::string{}) != supplier_account_id)
+    {
+        return make_result(RepositoryStatus::Invalid, settlement_id, "SupplierSettlement supplier mismatch");
+    }
+    const std::string current_status = settlement.value("status", std::string("pending_payment"));
+    const std::string next_status = request.value("status", std::string("paid"));
+    if (next_status != "paid" && next_status != "payment_failed" && next_status != "cancelled")
+    {
+        return invalid("status must be paid, payment_failed, or cancelled");
+    }
+    if (account_domain::is_supplier_settlement_paid_status(current_status) && next_status != "paid")
+    {
+        return make_result(RepositoryStatus::Conflict, settlement_id, "Paid SupplierSettlement cannot move to unpaid status");
+    }
+    if (current_status == "cancelled" && next_status != "cancelled")
+    {
+        return make_result(RepositoryStatus::Conflict, settlement_id, "Cancelled SupplierSettlement cannot be paid");
+    }
+
+    settlement["status"] = next_status;
+    settlement["payment_update_time"] = now;
+    settlement["update_time"] = now;
+    if (request.contains("payment_method"))
+    {
+        settlement["payment_method"] = request["payment_method"];
+    }
+    if (request.contains("payment_ref"))
+    {
+        settlement["payment_ref"] = request["payment_ref"];
+    }
+    if (request.contains("payment_note"))
+    {
+        settlement["payment_note"] = request["payment_note"];
+    }
+    if (request.contains("operator_note"))
+    {
+        settlement["operator_note"] = request["operator_note"];
+    }
+    if (next_status == "paid")
+    {
+        settlement["paid_time"] = request.value("paid_time", settlement.value("paid_time", now));
+        settlement.erase("payment_failed_time");
+    }
+    else if (next_status == "payment_failed")
+    {
+        settlement["payment_failed_time"] = request.value("payment_failed_time", now);
+        settlement.erase("paid_time");
+    }
+    else
+    {
+        settlement["cancelled_time"] = request.value("cancelled_time", now);
+        settlement.erase("paid_time");
+        settlement.erase("payment_failed_time");
+    }
+
+    std::string error;
+    if (!account_domain::normalize_supplier_settlement(settlement, now, &error))
+    {
+        return invalid(error);
+    }
+    if (!hset_json(key.c_str(), settlement_id, settlement))
+    {
+        return redis_error(settlement_id, "Failed to update SupplierSettlement payment status");
     }
 
     AccountDomainResult result;

@@ -58,6 +58,10 @@ public:
                                                const std::string &period,
                                                const std::string &supplier_account_id);
     ControllerResponse create_supplier_settlement(const std::string &body_text);
+    ControllerResponse update_supplier_settlement_payment(const std::string &settlement_id,
+                                                          const std::string &period,
+                                                          const std::string &supplier_account_id,
+                                                          const std::string &body_text);
 
 private:
     ControllerResponse repository_result(int success_status, const storage::AccountDomainResult &result) const;

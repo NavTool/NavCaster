@@ -61,12 +61,16 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   ledger，还会按 `delta_cents` 同步更新 `ACC:RECORD.balance_cents` 并刷新 owner
   下 AccessAccount 运行时余额快照。`GET /api/v1/me/subscriptions` 和
   `GET /api/v1/me/redeem-redemptions` 返回当前用户自己的订阅和兑换记录。
-- NC-061 新增供应商结算 API：`GET/POST /api/v1/admin/supplier-settlements`、
-  `GET /api/v1/admin/supplier-settlements/{settlement_id}` 和
+- NC-061/NC-063 新增并扩展供应商结算 API：`GET/POST
+  /api/v1/admin/supplier-settlements`、`GET
+  /api/v1/admin/supplier-settlements/{settlement_id}`、`POST
+  /api/v1/admin/supplier-settlements/{settlement_id}/payment` 和
   `GET /api/v1/supplier/settlements`。管理员创建结算时聚合同供应商、同账期的
   pending `SUPPLY:USAGE`，写 `SUPPLY:EARNING:<account_id>:<period>`，并把供应事实
-  标记为 `settled`。供应商收益摘要继续从 `SUPPLY:USAGE` 汇总 pending/settled，
-  同时返回 `settlement_count`。
+  标记为 `settled`；结算批次默认 `pending_payment`，管理员可标记 `paid`、
+  `payment_failed` 或 `cancelled` 并记录付款方式、流水和备注。供应商收益摘要从
+  `SUPPLY:USAGE` 与 `SUPPLY:EARNING` 拆分 pending、pending_payment、paid 和 failed
+  金额，同时返回 `settlement_count`。
 
 ## HTTP ingress 口径
 

@@ -129,8 +129,10 @@ NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的�
 订阅权益和兑换记录。
 
 NC-061 起运营台增加 `/admin/supplier-settlements`，管理员可按当前账期查看结算批次，
-并输入 Supplier Account ID 创建结算。供应商自助台增加 `/supplier/settlements`，
-`/supplier/earnings` 同时展示结算批次、供应事实和 pending/settled 收益汇总。
+并输入 Supplier Account ID 创建结算。NC-063 起该页面可把结算批次标记为已付款或
+付款失败，并展示付款方式、流水和付款时间。供应商自助台增加 `/supplier/settlements`，
+`/supplier/earnings` 同时展示结算批次、供应事实以及待结算、待付款、已付款和付款失败
+收益汇总。
 
 ## API Types 和契约
 
