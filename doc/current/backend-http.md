@@ -1,7 +1,7 @@
 # Backend HTTP 当前实现说明
 
-更新时间：2026-06-16
-来源：NC-035 backend-http 文档审计、`src/http` 源码、NC-032/NC-034 任务记录。
+更新时间：2026-06-26
+来源：NC-035 backend-http 文档审计、`src/http` 源码、NC-032/NC-034/NC-053 任务记录。
 
 ## 负责范围
 
@@ -24,6 +24,13 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
 - `/api/accounts/active` 当前受路由注册顺序影响，实际依赖 `AccountController::get_account("active")` 兼容分支；后续重构不能删除该兼容，除非同步调整路由顺序并补测试。
 - HTTP Redis adapter 已有断线重连 timer。源码当前退避约为 `1/4/6/8/10` 秒，上限 10 秒。
 - `/api/status/health` 只证明 HTTP listener 存活，不证明 Redis、Master、token 或登录后 API 完整可用。
+- NC-053 新增 `/api/v1/auth/session` 和 `/api/v1/admin/*` 运营域 API，读写
+  NC-051 的 `ACC:*` / `AACC:*` / `MPGRP:*` / `SUB:*` / `BILL:*` /
+  `SUPPLY:*` / `STATION:*` key。该 namespace 不替换旧 `/api/*`，也不切换
+  NTRIP Auth 或 Web 页面。
+- `/api/v1/auth/session` 当前返回旧 admin 登录的兼容 subject：
+  `role=admin`、`account_id=""`、`compat_admin=true`。HTTP token 仍是进程内
+  session，不跨节点共享。
 
 ## HTTP ingress 口径
 

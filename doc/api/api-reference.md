@@ -8,6 +8,7 @@
 
 - [全局规范](#全局规范)
 - [认证](#1-认证)
+- [运营域 API v1](#11-运营域-api-v1)
 - [账户管理](#2-账户管理)
 - [源表记录](#3-源表记录)
 - [基站状态](#4-基站状态只读)
@@ -101,6 +102,85 @@
 ```json
 { "ok": true }
 ```
+
+---
+
+## 1.1 运营域 API v1
+
+> NC-053 起新增。该 namespace 使用 NC-051 的 `ACC:*` / `AACC:*` / `MPGRP:*` /
+> `SUB:*` / `BILL:*` / `SUPPLY:*` / `STATION:*` 运营域模型，不替换旧
+> `/api/accounts` 和旧 Web 管理接口。
+
+### GET `/api/v1/auth/session`
+
+返回当前进程内 Bearer token 的兼容 subject。
+
+**Response 200:**
+```json
+{
+  "username": "admin",
+  "role": "admin",
+  "account_id": "",
+  "compat_admin": true
+}
+```
+
+> 当前 HTTP token 仍是进程内 session。旧 admin 登录尚未迁移到 `ACC:*` 时，
+> `account_id` 为空，`role=admin` 代表兼容管理员 subject。
+
+### Admin Account APIs
+
+| Method | Path | Redis | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/admin/accounts` | `ACC:RECORD` | 列出运营域 Account |
+| `POST` | `/api/v1/admin/accounts` | `ACC:RECORD` / `ACC:USERNAME` | 创建 Account |
+| `GET` | `/api/v1/admin/accounts/{account_id}` | `ACC:RECORD` | 查询 Account |
+| `PUT` | `/api/v1/admin/accounts/{account_id}` | `ACC:RECORD` | 更新 Account，不允许改 username |
+| `DELETE` | `/api/v1/admin/accounts/{account_id}` | `ACC:RECORD` / `ACC:USERNAME` | 软删除并 tombstone username |
+| `PUT` | `/api/v1/admin/accounts/{account_id}/group-grants` | `ACC:GROUP:{account_id}` | 授权 MountPointGroup |
+| `POST` | `/api/v1/admin/accounts/{account_id}/balance-adjustments` | `ACC:BALANCE:LEDGER:{period}` | 写余额调整事实 |
+
+创建 Account 示例：
+
+```json
+{
+  "account_id": "acc_user_1",
+  "username": "customer-a",
+  "role": "user",
+  "balance_cents": 10000,
+  "concurrency_limit": 3
+}
+```
+
+### Admin Group / MountPoint APIs
+
+| Method | Path | Redis | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/admin/mount-point-groups` | `MPGRP:RECORD` | 列出挂载点分组 |
+| `POST` | `/api/v1/admin/mount-point-groups` | `MPGRP:RECORD` | 创建挂载点分组 |
+| `PUT` | `/api/v1/admin/mount-point-groups/{group_id}/members` | `MPGRP:MEMBER:{group_id}` | 增加或更新分组成员 |
+| `GET` | `/api/v1/admin/mount-points` | `MOUNT:RECORD` | 列出挂载点 |
+| `PUT` | `/api/v1/admin/mount-points/{mountpoint}` | `MOUNT:RECORD` | 创建挂载点主记录 |
+
+### Admin Operations Read APIs
+
+| Method | Path | Redis | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/admin/access-accounts` | `AACC:RECORD` | 全局只读 AccessAccount；管理员不代建 |
+| `GET` | `/api/v1/admin/subscriptions` | `SUB:RECORD` | 列出订阅 |
+| `POST` | `/api/v1/admin/subscriptions` | `SUB:RECORD` / `SUB:ACCOUNT:{account_id}` | 创建订阅 |
+| `GET` | `/api/v1/admin/stations` | `STATION:RECORD` | 列出历史站点 |
+| `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
+| `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
+
+通用错误：
+
+```json
+{ "error": "message" }
+```
+
+`RepositoryStatus` 映射为：`Invalid -> 400`，`NotFound -> 404`，
+`Conflict -> 409`，`RedisError -> 500`。
 
 ---
 

@@ -12,9 +12,11 @@
 #include "config_controller.h"
 #include "config_repository.h"
 #include "connection_history_service.h"
+#include "controller_helpers.h"
 #include "mountpoint_subscriber_service.h"
 #include "node_log_level_service.h"
 #include "node_history_service.h"
+#include "operations_controller.h"
 #include "redis_keys.h"
 #include "redis_monitor_service.h"
 #include "ring_log_service.h"
@@ -94,6 +96,44 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_login(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/auth/logout", [this](auto &req, auto &resp)
                   { handle_logout(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/auth/session", [this](auto &req, auto &resp)
+                  { handle_v1_session(req, resp); });
+
+    // ==================== V1 Operations Domain ====================
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/accounts", [this](auto &req, auto &resp)
+                  { handle_v1_admin_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/accounts", [this](auto &req, auto &resp)
+                  { handle_v1_admin_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_account(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_account(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_account(req, resp); });
+    _server.route(EVHTTP_REQ_DELETE, "/api/v1/admin/accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_account(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/mount-point-groups", [this](auto &req, auto &resp)
+                  { handle_v1_admin_mount_point_groups(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/mount-point-groups", [this](auto &req, auto &resp)
+                  { handle_v1_admin_mount_point_groups(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/mount-point-groups/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_mount_point_group_members(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/mount-points", [this](auto &req, auto &resp)
+                  { handle_v1_admin_mount_points(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/mount-points/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_mount_points(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/access-accounts", [this](auto &req, auto &resp)
+                  { handle_v1_admin_access_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/subscriptions", [this](auto &req, auto &resp)
+                  { handle_v1_admin_subscriptions(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/subscriptions", [this](auto &req, auto &resp)
+                  { handle_v1_admin_subscriptions(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/stations", [this](auto &req, auto &resp)
+                  { handle_v1_admin_stations(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/usage", [this](auto &req, auto &resp)
+                  { handle_v1_admin_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supply-usage", [this](auto &req, auto &resp)
+                  { handle_v1_admin_supply_usage(req, resp); });
 
     // ==================== Accounts ====================
     _server.route(EVHTTP_REQ_GET, "/api/accounts", [this](auto &req, auto &resp)
@@ -366,6 +406,156 @@ void http_handler::handle_logout(const HttpRequest &req, HttpResponse &resp)
 {
     auto it = req.headers.find("Authorization");
     auto result = _auth_sessions.logout(it != req.headers.end() ? it->second : std::string());
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_session(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.session_subject(_auth_sessions.lookup_user(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_accounts(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = req.method == EVHTTP_REQ_POST ? controller.create_account(req.body) : controller.list_accounts();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_account(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    const std::string account_id = get_path_segment(req, 4);
+    navcaster::http_api::ControllerResponse result;
+    if (req.path_segments.size() >= 6 && get_path_segment(req, 5) == "group-grants" && req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.grant_account_group(account_id, req.body);
+    }
+    else if (req.path_segments.size() >= 6 && get_path_segment(req, 5) == "balance-adjustments" && req.method == EVHTTP_REQ_POST)
+    {
+        result = controller.append_balance_adjustment(account_id, req.body);
+    }
+    else if (req.path_segments.size() > 5)
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not Found"})";
+    }
+    else if (req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_account(account_id, req.body);
+    }
+    else if (req.method == EVHTTP_REQ_DELETE)
+    {
+        result = controller.delete_account(account_id);
+    }
+    else
+    {
+        result = controller.get_account(account_id);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_account_group_grants(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.grant_account_group(get_path_segment(req, 4), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_account_balance_adjustments(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.append_balance_adjustment(get_path_segment(req, 4), req.body);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_mount_point_groups(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = req.method == EVHTTP_REQ_POST ? controller.create_mount_point_group(req.body) : controller.list_mount_point_groups();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_mount_point_group_members(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    navcaster::http_api::ControllerResponse result;
+    if (req.path_segments.size() == 6 && get_path_segment(req, 5) == "members")
+    {
+        result = controller.add_mount_point_group_member(get_path_segment(req, 4), req.body);
+    }
+    else
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not Found"})";
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_mount_points(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    if (req.method == EVHTTP_REQ_PUT)
+    {
+        auto result = controller.create_mount_point(get_resource_id(req), req.body);
+        resp.status_code = result.status_code;
+        resp.body = std::move(result.body);
+        return;
+    }
+    auto result = controller.list_mount_points();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_access_accounts(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.list_access_accounts();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_subscriptions(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = req.method == EVHTTP_REQ_POST ? controller.create_subscription(req.body) : controller.list_subscriptions();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_stations(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.list_stations();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.list_usage(period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_supply_usage(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.list_supply_usage(period == req.query_params.end() ? std::string{} : period->second);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

@@ -55,6 +55,21 @@ private:
     // Auth endpoints
     void handle_login(const HttpRequest &req, HttpResponse &resp);
     void handle_logout(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_session(const HttpRequest &req, HttpResponse &resp);
+
+    // Operations domain endpoints (ACC:* / AACC:* / billing keys)
+    void handle_v1_admin_accounts(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_account(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_account_group_grants(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_account_balance_adjustments(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_mount_point_groups(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_mount_point_group_members(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_mount_points(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_access_accounts(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_subscriptions(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_stations(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_supply_usage(const HttpRequest &req, HttpResponse &resp);
 
     // Account endpoints (ACT:RECORD) — uses auth_redis
     void handle_get_accounts(const HttpRequest &req, HttpResponse &resp);
