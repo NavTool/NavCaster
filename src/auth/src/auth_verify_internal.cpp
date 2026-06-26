@@ -180,6 +180,18 @@ std::int64_t json_i64_value(const json &record, const char *field, std::int64_t 
     auto it = record.find(field);
     return it == record.end() ? fallback : navcaster::json_record::as_i64(*it, fallback);
 }
+
+struct access_runtime_revalidation_ctx
+{
+    std::string user_name;
+    std::string connect_key;
+    std::string access_username;
+    std::string auth_type;
+    std::string mountpoint;
+    std::int64_t now = 0;
+    std::int64_t hourly_price_cents = 0;
+    double billing_multiplier = 1.0;
+};
 }
 
 verify_internal::verify_internal(/* args */)
@@ -590,8 +602,10 @@ int verify_internal::upload_record_item()
             redisAsyncCommand(_pub_context, NULL, NULL, "HEXPIRE ACT:REC:%s %s FIELDS 1 %s", items.second.user_name.c_str(), std::to_string(_key_expire_time).c_str(), items.second.connect_key.c_str()); // 给这个挂载点连接续期
             if (items.second.active_session_enabled)
             {
-                update_active_session(items.second, util_get_time_stamp());
-                update_access_online_session(items.second, util_get_time_stamp());
+                const auto update_time = util_get_time_stamp();
+                update_active_session(items.second, update_time);
+                update_access_online_session(items.second, update_time);
+                revalidate_access_runtime_session(items.second, update_time);
             }
         }
     }
@@ -769,6 +783,47 @@ int verify_internal::write_access_runtime_login(const auth_cb_item &item, std::t
         return ret;
     }
     return REDIS_OK;
+}
+
+int verify_internal::revalidate_access_runtime_session(const auth_cb_item &item, std::time_t update_time)
+{
+    if (!item.access_runtime_enabled || item.access_username.empty())
+    {
+        return REDIS_OK;
+    }
+    if (!_pub_context || !_is_pub_connected)
+    {
+        spdlog::warn("[auth]: event=access_runtime_revalidation_skipped operation=revalidate_access_runtime_session owner_account_id={} access_account_id={} connect_key={} reason=redis_not_connected",
+                     item.owner_account_id,
+                     item.access_account_id,
+                     item.connect_key);
+        return REDIS_ERR;
+    }
+
+    auto *ctx = new access_runtime_revalidation_ctx;
+    ctx->user_name = item.user_name;
+    ctx->connect_key = item.connect_key;
+    ctx->access_username = item.access_username;
+    ctx->auth_type = navcaster::auth::AuthLoginService::auth_type_name(item.type);
+    ctx->mountpoint = item.runtime.mountpoint;
+    ctx->now = update_time;
+    ctx->hourly_price_cents = item.hourly_price_cents;
+    ctx->billing_multiplier = item.billing_multiplier;
+    const int ret = redisAsyncCommand(_pub_context,
+                                      Redis_Revalidate_Access_Runtime_Callback,
+                                      ctx,
+                                      "HGET %s %s",
+                                      navcaster::redis_keys::AACC_ACTIVE,
+                                      item.access_username.c_str());
+    if (ret != REDIS_OK)
+    {
+        delete ctx;
+        spdlog::error("[auth]: event=redis_command_failed operation=revalidate_access_runtime_session redis_key={} access_username={} connect_key={} reason=hget_failed",
+                      navcaster::redis_keys::AACC_ACTIVE,
+                      item.access_username,
+                      item.connect_key);
+    }
+    return ret;
 }
 
 int verify_internal::finalize_access_runtime_session(const auth_cb_item &item, const char *disconnect_reason)
@@ -1452,6 +1507,49 @@ void verify_internal::Redis_Verify_Access_Accept(auth_ctx *ctx)
                  Reply.group_uid);
     ctx->cb(nullptr, ctx->arg, &Reply);
     delete_auth_ctx(ctx);
+}
+
+void verify_internal::Redis_Revalidate_Access_Runtime_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    (void)c;
+    auto *ctx = static_cast<access_runtime_revalidation_ctx *>(privdata);
+    if (!ctx)
+    {
+        return;
+    }
+
+    std::string reason;
+    json active_record;
+    if (!redis_reply_to_json_object(static_cast<redisReply *>(r), active_record, reason))
+    {
+        reason = reason == "not_found" ? "access_account_disabled" : "access_runtime_revalidation_" + reason;
+    }
+    else
+    {
+        const auto validation = navcaster::core::revalidate_access_runtime_session({
+            active_record,
+            ctx->auth_type,
+            ctx->mountpoint,
+            ctx->now,
+            60,
+            ctx->hourly_price_cents,
+            ctx->billing_multiplier,
+        });
+        if (validation.ok)
+        {
+            delete ctx;
+            return;
+        }
+        reason = validation.reason;
+    }
+
+    spdlog::warn("[auth]: event=access_runtime_revalidation_failed operation=revalidate_access_runtime_session account={} access_username={} connect_key={} reason={}",
+                 ctx->user_name,
+                 ctx->access_username,
+                 ctx->connect_key,
+                 reason);
+    verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), ctx->connect_key.c_str(), AuthReply::ERR, reason.c_str());
+    delete ctx;
 }
 
 void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *privdata)

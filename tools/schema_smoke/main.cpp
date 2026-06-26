@@ -873,6 +873,23 @@ int main()
 
         expect_eq(runtime_period_from_unix(1782432000), "202606", "access runtime billing period");
         expect_eq_int(static_cast<int>(calculate_runtime_cost_cents(1800, 120, 1.5)), 90, "access runtime cost rounding");
+        runtime_check = revalidate_access_runtime_session({auth_index, "client", "RUNTIME", 1782432000, 60, 1200, 1.0});
+        expect_true(runtime_check.ok, "access runtime revalidation accepts funded user client");
+        runtime_check = revalidate_access_runtime_session({disabled_auth_index, "client", "RUNTIME", 1782432000, 60, 1200, 1.0});
+        expect_true(!runtime_check.ok && runtime_check.reason == "access_account_disabled", "access runtime revalidation rejects disabled access");
+        auto expired_auth_index = auth_index;
+        expired_auth_index["expire_time"] = 1782431999;
+        runtime_check = revalidate_access_runtime_session({expired_auth_index, "client", "RUNTIME", 1782432000, 60, 1200, 1.0});
+        expect_true(!runtime_check.ok && runtime_check.reason == "access_account_expired", "access runtime revalidation rejects expired access");
+        auto low_balance_auth_index = auth_index;
+        low_balance_auth_index["balance_cents"] = 1;
+        runtime_check = revalidate_access_runtime_session({low_balance_auth_index, "client", "RUNTIME", 1782432000, 60, 1200, 1.0});
+        expect_true(!runtime_check.ok && runtime_check.reason == "balance_insufficient", "access runtime revalidation rejects next slice insufficient balance");
+        auto supplier_auth_index = auth_index;
+        supplier_auth_index["access_kind"] = "supplier_station";
+        supplier_auth_index["balance_cents"] = 0;
+        runtime_check = revalidate_access_runtime_session({supplier_auth_index, "server", "RUNTIME", 1782432000, 60, 1200, 1.0});
+        expect_true(runtime_check.ok, "access runtime revalidation does not debit supplier station");
 
         AccessRuntimeRecordInput runtime_input;
         runtime_input.owner_account_id = "acc-runtime";

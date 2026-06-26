@@ -174,6 +174,15 @@ AccessAccount 登录成功后继续写旧 ACT:REC / ACT:SESSION 兼容桶，同�
 supplier_station 断开时写 SUPPLY:USAGE、SUPPLY:ACCOUNT、STATION:RECORD 和 STATION:EVENT:<mountpoint>。
 ```
 
+NC-058 运行中连接重验：
+
+```text
+Auth 周期续期会对 access_runtime_enabled 的实名连接重读 AACC:ACTIVE[access_username]。
+重验 access_status、owner_status、expire_time、access_kind、mount_point_group_id 和 user_client 下一计费切片余额。
+不合规则通过 AUTH:BROADCAST 断连，并复用断开 finalization 写 BILL:ENTRY / ledger / ONLINE:SESSION 清理。
+subscription snapshot / subscription_expired 断连尚未接入。
+```
+
 NC-057 数据推送用量：
 
 ```text
