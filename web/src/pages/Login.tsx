@@ -4,6 +4,7 @@ import { UserOutlined, LockOutlined, ApiOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../api/auth';
 import { setBaseURL, getBaseURL } from '../api/client';
+import { roleHome } from '../role';
 
 const { Title } = Typography;
 
@@ -20,12 +21,13 @@ const Login: React.FC = () => {
     try {
       const baseUrl = `http://${values.host}:${values.port}`;
       setBaseURL(baseUrl);
-      await login(values.username, values.password);
+      const session = await login(values.username, values.password);
       message.success('登录成功');
-      navigate('/dashboard');
-    } catch (error: any) {
-      const retryAfter = error?.response?.data?.retry_after;
-      if (error?.response?.status === 429 && retryAfter) {
+      navigate(roleHome(session));
+    } catch (error: unknown) {
+      const response = (error as { response?: { status?: number; data?: { retry_after?: number } } }).response;
+      const retryAfter = response?.data?.retry_after;
+      if (response?.status === 429 && retryAfter) {
         message.error(`登录尝试过于频繁，请在 ${retryAfter} 秒后重试`);
       } else {
         message.error('登录失败，请检查地址和凭据');
@@ -48,7 +50,7 @@ const Login: React.FC = () => {
             color: '#fff', fontWeight: 700, fontSize: 20, marginBottom: 12,
           }}>NC</div>
           <Title level={3} style={{ margin: 0 }}>
-            NavCaster 管理平台
+            NavCaster 运营平台
           </Title>
           <div style={{ color: '#6b7194', fontSize: 13, marginTop: 4 }}>
             GNSS 差分数据基础设施管理
