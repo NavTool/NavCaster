@@ -557,11 +557,14 @@ int verify_internal::add_logout_record(const char *user_name, const char *connec
         {
             cb_item.runtime = *runtime;
         }
-        finalize_access_runtime_session(cb_item, cb_item.runtime.disconnect_reason.c_str());
+        if (cb_item.active_session_enabled)
+        {
+            finalize_access_runtime_session(cb_item, cb_item.runtime.disconnect_reason.c_str());
+            remove_active_session(user_name, connect_key);
+        }
         user_registers->second.erase(item);
         // 删除Redis记录
         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL ACT:REC:%s %s", user_name, connect_key);
-        remove_active_session(user_name, connect_key);
     }
 
     // 删除status记录

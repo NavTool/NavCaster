@@ -3273,6 +3273,243 @@ function Count-AccessRuntimeBillingEntries {
     return $count
 }
 
+function Get-AccessRuntimeBillingEntries {
+    param(
+        [string]$Period
+    )
+
+    $key = "BILL:ENTRY:$Period"
+    $result = @()
+    $entries = Get-RedisHashMap $key
+    foreach ($field in $entries.Keys) {
+        try {
+            $record = $entries[$field] | ConvertFrom-Json
+            $result += [pscustomobject]@{
+                Key = $key
+                Field = $field
+                Record = $record
+                Raw = $entries[$field]
+            }
+        }
+        catch {
+        }
+    }
+    return @($result)
+}
+
+function Get-AccessRuntimeBillingIds {
+    param(
+        [string]$AccessAccountId,
+        [string]$Period
+    )
+
+    $ids = @{}
+    foreach ($entry in @(Get-AccessRuntimeBillingEntries $Period)) {
+        $record = $entry.Record
+        if ($record.access_account_id -eq $AccessAccountId) {
+            $billingId = [string]$record.billing_id
+            if (-not [string]::IsNullOrWhiteSpace($billingId)) {
+                $ids[$billingId] = $true
+            }
+        }
+    }
+    return $ids
+}
+
+function Wait-AccessRuntimeNewBillingEntry {
+    param(
+        [string]$AccountId,
+        [string]$AccessAccountId,
+        [string]$Mount,
+        [string]$Period,
+        [hashtable]$KnownBillingIds,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        foreach ($entry in @(Get-AccessRuntimeBillingEntries $Period)) {
+            $record = $entry.Record
+            $billingId = [string]$record.billing_id
+            if ($record.account_id -eq $AccountId -and
+                $record.access_account_id -eq $AccessAccountId -and
+                $record.mountpoint -eq $Mount -and
+                -not [string]::IsNullOrWhiteSpace($billingId) -and
+                ($null -eq $KnownBillingIds -or -not $KnownBillingIds.ContainsKey($billingId))) {
+                return $entry
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $key = "BILL:ENTRY:$Period"
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $key)
+    Fail "$Context new billing entry missing from $key; raw=[$raw]"
+}
+
+function Test-AccessRuntimeLedgerEntryExists {
+    param(
+        [string]$BillingId,
+        [string]$Period
+    )
+
+    $key = "ACC:BALANCE:LEDGER:$Period"
+    $entries = Get-RedisHashMap $key
+    foreach ($field in $entries.Keys) {
+        try {
+            $record = $entries[$field] | ConvertFrom-Json
+            if ($record.billing_id -eq $BillingId) {
+                return $true
+            }
+        }
+        catch {
+        }
+    }
+    return $false
+}
+
+function Invoke-AccessRuntimeBalanceAdjustment {
+    param(
+        [string]$Base,
+        [hashtable]$AdminHeaders,
+        [string]$AccountId,
+        [int64]$DeltaCents,
+        [string]$LedgerId,
+        [string]$Period,
+        [string]$Source
+    )
+
+    $body = @{
+        ledger_id = $LedgerId
+        period = $Period
+        delta_cents = $DeltaCents
+        source = $Source
+    } | ConvertTo-Json -Compress
+    return Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body $body -Uri "$Base/api/v1/admin/accounts/$AccountId/balance-adjustments" -TimeoutSec 10
+}
+
+function New-AccessRuntimeUserClientSeed {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$Prefix,
+        [string]$Mount,
+        [string]$AccessAccountId,
+        [string]$AccessUsername,
+        [string]$AccessPassword,
+        [string]$GroupId
+    )
+
+    Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body (@{
+        access_account_id = $AccessAccountId
+        username = $AccessUsername
+        password = $AccessPassword
+        mount_point_group_id = $GroupId
+        concurrency_limit = 1
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10 | Out-Null
+
+    return [pscustomobject]@{
+        Prefix = $Prefix
+        Mount = $Mount
+        Account = $AccessUsername
+        Password = $AccessPassword
+    }
+}
+
+function Assert-AccessRuntimeForcedDisconnect {
+    param(
+        [pscustomobject]$Seed,
+        [string]$OwnerAccountId,
+        [string]$AccessAccountId,
+        [string]$AccessUsername,
+        [string]$Mount,
+        [string]$Period,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [scriptblock]$Mutation,
+        [string]$Label,
+        [string]$ExpectedReason,
+        [string]$ExpectedBillingMode = "",
+        [string]$ExpectedSubscriptionId = "",
+        [bool]$ExpectBilling = $true,
+        [bool]$ExpectPositiveDebit = $false,
+        [bool]$ExpectZeroDebit = $false,
+        [int64]$ExpectedBalanceCents = ([int64]::MinValue)
+    )
+
+    $knownBillingIds = Get-AccessRuntimeBillingIds $AccessAccountId $Period
+    $connection = $null
+    $online = $null
+    try {
+        $connection = Open-NtripClientForSeed $Seed $NtripHost $NtripPort $Label
+        $online = Wait-AccessRuntimeOnlineSession $OwnerAccountId $AccessAccountId $AccessUsername $Mount $StartupTimeoutSec $Label
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedBillingMode) -and $online.Record.billing_mode -ne $ExpectedBillingMode) {
+            Fail "$Label online session billing mode mismatch: expected=$ExpectedBillingMode actual=$($online.Record.billing_mode) record=$(ConvertTo-CompactJson $online.Record)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedSubscriptionId) -and $online.Record.subscription_id -ne $ExpectedSubscriptionId) {
+            Fail "$Label online session subscription mismatch: expected=$ExpectedSubscriptionId actual=$($online.Record.subscription_id) record=$(ConvertTo-CompactJson $online.Record)"
+        }
+
+        Start-Sleep -Seconds 2
+        $mutationError = ""
+        try {
+            & $Mutation
+        }
+        catch {
+            $mutationError = $_.Exception.Message
+        }
+        Wait-NtripTcpConnectionClosed $connection $StartupTimeoutSec $Label
+        Wait-AccessRuntimeOnlineSessionGone $online.Key $online.Field $StartupTimeoutSec $Label
+    }
+    finally {
+        Close-NtripTcpConnection $connection
+    }
+
+    if (-not $ExpectBilling) {
+        return $null
+    }
+
+    $billing = Wait-AccessRuntimeNewBillingEntry $OwnerAccountId $AccessAccountId $Mount $Period $knownBillingIds $StartupTimeoutSec $Label
+    if ([int64]$billing.Record.used_seconds -le 0) {
+        Fail "$Label billing entry did not carry positive usage: $(ConvertTo-CompactJson $billing.Record)"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedReason) -and $billing.Record.disconnect_reason -ne $ExpectedReason) {
+        Fail "$Label billing disconnect reason mismatch: expected=$ExpectedReason actual=$($billing.Record.disconnect_reason) billing=$(ConvertTo-CompactJson $billing.Record)"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedBillingMode) -and $billing.Record.billing_mode -ne $ExpectedBillingMode) {
+        Fail "$Label billing mode mismatch: expected=$ExpectedBillingMode actual=$($billing.Record.billing_mode) billing=$(ConvertTo-CompactJson $billing.Record)"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedSubscriptionId) -and $billing.Record.subscription_id -ne $ExpectedSubscriptionId) {
+        Fail "$Label billing subscription mismatch: expected=$ExpectedSubscriptionId actual=$($billing.Record.subscription_id) billing=$(ConvertTo-CompactJson $billing.Record)"
+    }
+    if ($ExpectPositiveDebit -and [int64]$billing.Record.actual_debit_cents -le 0) {
+        Fail "$Label billing entry did not carry positive debit: $(ConvertTo-CompactJson $billing.Record)"
+    }
+    if ($ExpectZeroDebit -and [int64]$billing.Record.actual_debit_cents -ne 0) {
+        Fail "$Label billing entry should not debit balance: $(ConvertTo-CompactJson $billing.Record)"
+    }
+
+    if ([int64]$billing.Record.actual_debit_cents -gt 0) {
+        $ledger = Wait-AccessRuntimeLedgerEntry $OwnerAccountId $AccessAccountId $billing.Record.billing_id $Period $StartupTimeoutSec $Label
+        if ([int64]$ledger.Record.delta_cents -ne -[int64]$billing.Record.actual_debit_cents) {
+            Fail "$Label ledger delta mismatch: billing=$(ConvertTo-CompactJson $billing.Record) ledger=$(ConvertTo-CompactJson $ledger.Record)"
+        }
+    }
+    elseif (Test-AccessRuntimeLedgerEntryExists $billing.Record.billing_id $Period) {
+        Fail "$Label zero-debit billing unexpectedly created a balance ledger entry: $(ConvertTo-CompactJson $billing.Record)"
+    }
+
+    if ($ExpectedBalanceCents -ne [int64]::MinValue) {
+        $ownerRecord = Get-RedisJsonHashField "ACC:RECORD" $OwnerAccountId "$Label owner balance"
+        if ([int64]$ownerRecord.balance_cents -ne $ExpectedBalanceCents) {
+            Fail "$Label owner balance changed unexpectedly: expected=$ExpectedBalanceCents actual=$($ownerRecord.balance_cents) owner=$(ConvertTo-CompactJson $ownerRecord)"
+        }
+    }
+
+    return $billing
+}
+
 function Assert-AccessRuntimeRejected {
     param(
         [pscustomobject]$Seed,
@@ -3321,9 +3558,15 @@ function Invoke-AccessRuntimeEnforcementSmoke {
     $userAccountId = "${prefix}_user_acc"
     $supplierAccountId = "${prefix}_supplier_acc"
     $blockedAccountId = "${prefix}_blocked_acc"
+    $lowBalanceAccountId = "${prefix}_runtime_low_acc"
+    $subRevokedAccountId = "${prefix}_runtime_sub_rev_acc"
+    $subExpiredAccountId = "${prefix}_runtime_sub_exp_acc"
     $userName = "${prefix}_user"
     $supplierName = "${prefix}_supplier"
     $blockedName = "${prefix}_blocked"
+    $lowBalanceName = "${prefix}_runtime_low_user"
+    $subRevokedName = "${prefix}_runtime_sub_rev_user"
+    $subExpiredName = "${prefix}_runtime_sub_exp_user"
     $password = "runtime-pass"
     $groupId = "${prefix}_grp"
     $mount = "${prefix}_MPT"
@@ -3331,18 +3574,37 @@ function Invoke-AccessRuntimeEnforcementSmoke {
     $userAccessId = "${prefix}_user_aacc"
     $supplierAccessId = "${prefix}_supplier_aacc"
     $blockedAccessId = "${prefix}_blocked_aacc"
+    $disableRunningAccessId = "${prefix}_runtime_disable_aacc"
+    $lowBalanceAccessId = "${prefix}_runtime_low_aacc"
+    $subRevokedAccessId = "${prefix}_runtime_sub_rev_aacc"
+    $subExpiredAccessId = "${prefix}_runtime_sub_exp_aacc"
     $userAccessName = "${prefix}_rover"
     $supplierAccessName = "${prefix}_station"
     $blockedAccessName = "${prefix}_blocked_rover"
+    $disableRunningAccessName = "${prefix}_runtime_disable_rover"
+    $lowBalanceAccessName = "${prefix}_runtime_low_rover"
+    $subRevokedAccessName = "${prefix}_runtime_sub_rev_rover"
+    $subExpiredAccessName = "${prefix}_runtime_sub_exp_rover"
     $userAccessPassword = "runtime-rover-pass"
     $supplierAccessPassword = "runtime-station-pass"
     $blockedAccessPassword = "runtime-blocked-pass"
+    $disableRunningAccessPassword = "runtime-disable-pass"
+    $lowBalanceAccessPassword = "runtime-low-pass"
+    $subRevokedAccessPassword = "runtime-sub-rev-pass"
+    $subExpiredAccessPassword = "runtime-sub-exp-pass"
+    $subRevokedSubscriptionId = "${prefix}_runtime_sub_rev"
+    $subExpiredSubscriptionId = "${prefix}_runtime_sub_exp"
+    $subRevokedInitialBalance = 7000
+    $subExpiredInitialBalance = 8000
     $period = Get-E2eRuntimePeriod
 
     foreach ($body in @(
         @{ account_id = $userAccountId; username = $userName; role = "user"; password = $password; balance_cents = 20000; credit_limit_cents = 0; concurrency_limit = 2 },
         @{ account_id = $supplierAccountId; username = $supplierName; role = "supplier"; password = $password; balance_cents = 0; credit_limit_cents = 0; concurrency_limit = 2 },
-        @{ account_id = $blockedAccountId; username = $blockedName; role = "user"; password = $password; balance_cents = 0; credit_limit_cents = 0; concurrency_limit = 1 }
+        @{ account_id = $blockedAccountId; username = $blockedName; role = "user"; password = $password; balance_cents = 0; credit_limit_cents = 0; concurrency_limit = 1 },
+        @{ account_id = $lowBalanceAccountId; username = $lowBalanceName; role = "user"; password = $password; balance_cents = 20000; credit_limit_cents = 0; concurrency_limit = 1 },
+        @{ account_id = $subRevokedAccountId; username = $subRevokedName; role = "user"; password = $password; balance_cents = $subRevokedInitialBalance; credit_limit_cents = 0; concurrency_limit = 1 },
+        @{ account_id = $subExpiredAccountId; username = $subExpiredName; role = "user"; password = $password; balance_cents = $subExpiredInitialBalance; credit_limit_cents = 0; concurrency_limit = 1 }
     )) {
         Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body ($body | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts" -TimeoutSec 10 | Out-Null
     }
@@ -3351,13 +3613,32 @@ function Invoke-AccessRuntimeEnforcementSmoke {
     Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ hourly_price_cents = 3600 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-points/$mount" -TimeoutSec 10 | Out-Null
     Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ hourly_price_cents = 3600 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-points/$otherMount" -TimeoutSec 10 | Out-Null
     Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ mountpoint = $mount } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-point-groups/$groupId/members" -TimeoutSec 10 | Out-Null
-    foreach ($accountId in @($userAccountId, $supplierAccountId, $blockedAccountId)) {
+    foreach ($accountId in @($userAccountId, $supplierAccountId, $blockedAccountId, $lowBalanceAccountId, $subRevokedAccountId, $subExpiredAccountId)) {
         Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ group_id = $groupId } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts/$accountId/group-grants" -TimeoutSec 10 | Out-Null
     }
+
+    $subscriptionFutureExpire = ([DateTimeOffset]::UtcNow).ToUnixTimeSeconds() + 3600
+    Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        subscription_id = $subRevokedSubscriptionId
+        account_id = $subRevokedAccountId
+        group_ids = @($groupId)
+        status = "active"
+        expire_time = $subscriptionFutureExpire
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscriptions" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        subscription_id = $subExpiredSubscriptionId
+        account_id = $subExpiredAccountId
+        group_ids = @($groupId)
+        status = "active"
+        expire_time = $subscriptionFutureExpire
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscriptions" -TimeoutSec 10 | Out-Null
 
     $userLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime user" -Username $userName -Password $password
     $supplierLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime supplier" -Username $supplierName -Password $password
     $blockedLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime blocked user" -Username $blockedName -Password $password
+    $lowBalanceLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime low balance user" -Username $lowBalanceName -Password $password
+    $subRevokedLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime subscription revoked user" -Username $subRevokedName -Password $password
+    $subExpiredLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime subscription expired user" -Username $subExpiredName -Password $password
 
     Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
         access_account_id = $userAccessId
@@ -3382,6 +3663,43 @@ function Invoke-AccessRuntimeEnforcementSmoke {
         mount_point_group_id = $groupId
         concurrency_limit = 1
     } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10 | Out-Null
+
+    $disableRunningSeed = New-AccessRuntimeUserClientSeed `
+        -Base $Base `
+        -Headers $userLogin.Headers `
+        -Prefix $prefix `
+        -Mount $mount `
+        -AccessAccountId $disableRunningAccessId `
+        -AccessUsername $disableRunningAccessName `
+        -AccessPassword $disableRunningAccessPassword `
+        -GroupId $groupId
+    $lowBalanceSeed = New-AccessRuntimeUserClientSeed `
+        -Base $Base `
+        -Headers $lowBalanceLogin.Headers `
+        -Prefix $prefix `
+        -Mount $mount `
+        -AccessAccountId $lowBalanceAccessId `
+        -AccessUsername $lowBalanceAccessName `
+        -AccessPassword $lowBalanceAccessPassword `
+        -GroupId $groupId
+    $subRevokedSeed = New-AccessRuntimeUserClientSeed `
+        -Base $Base `
+        -Headers $subRevokedLogin.Headers `
+        -Prefix $prefix `
+        -Mount $mount `
+        -AccessAccountId $subRevokedAccessId `
+        -AccessUsername $subRevokedAccessName `
+        -AccessPassword $subRevokedAccessPassword `
+        -GroupId $groupId
+    $subExpiredSeed = New-AccessRuntimeUserClientSeed `
+        -Base $Base `
+        -Headers $subExpiredLogin.Headers `
+        -Prefix $prefix `
+        -Mount $mount `
+        -AccessAccountId $subExpiredAccessId `
+        -AccessUsername $subExpiredAccessName `
+        -AccessPassword $subExpiredAccessPassword `
+        -GroupId $groupId
 
     $sourceSeed = [pscustomobject]@{
         Prefix = $prefix
@@ -3442,6 +3760,105 @@ function Invoke-AccessRuntimeEnforcementSmoke {
             Fail "runtime AACC active balance snapshot mismatch: owner=$(ConvertTo-CompactJson $ownerRecord) active=$(ConvertTo-CompactJson $activeIndex)"
         }
 
+        Assert-AccessRuntimeForcedDisconnect `
+            -Seed $lowBalanceSeed `
+            -OwnerAccountId $lowBalanceAccountId `
+            -AccessAccountId $lowBalanceAccessId `
+            -AccessUsername $lowBalanceAccessName `
+            -Mount $mount `
+            -Period $period `
+            -NtripHost $NtripHost `
+            -NtripPort $NtripPort `
+            -Mutation {
+                Invoke-AccessRuntimeBalanceAdjustment `
+                    -Base $Base `
+                    -AdminHeaders $AdminHeaders `
+                    -AccountId $lowBalanceAccountId `
+                    -DeltaCents (-19941) `
+                    -LedgerId "${prefix}_runtime_low_force_59" `
+                    -Period $period `
+                    -Source "e2e_runtime_balance_revalidation" | Out-Null
+            } `
+            -Label "runtime running balance insufficient" `
+            -ExpectedReason "balance_insufficient" `
+            -ExpectedBillingMode "payg" `
+            -ExpectPositiveDebit $true | Out-Null
+
+        Assert-AccessRuntimeForcedDisconnect `
+            -Seed $subRevokedSeed `
+            -OwnerAccountId $subRevokedAccountId `
+            -AccessAccountId $subRevokedAccessId `
+            -AccessUsername $subRevokedAccessName `
+            -Mount $mount `
+            -Period $period `
+            -NtripHost $NtripHost `
+            -NtripPort $NtripPort `
+            -Mutation {
+                Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+                    status = "disabled"
+                } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscriptions/$subRevokedSubscriptionId" -TimeoutSec 10 | Out-Null
+            } `
+            -Label "runtime running subscription disabled" `
+            -ExpectedReason "subscription_revoked" `
+            -ExpectedBillingMode "subscription" `
+            -ExpectedSubscriptionId $subRevokedSubscriptionId `
+            -ExpectZeroDebit $true `
+            -ExpectedBalanceCents $subRevokedInitialBalance | Out-Null
+
+        $expiredAt = ([DateTimeOffset]::UtcNow).ToUnixTimeSeconds() - 1
+        Assert-AccessRuntimeForcedDisconnect `
+            -Seed $subExpiredSeed `
+            -OwnerAccountId $subExpiredAccountId `
+            -AccessAccountId $subExpiredAccessId `
+            -AccessUsername $subExpiredAccessName `
+            -Mount $mount `
+            -Period $period `
+            -NtripHost $NtripHost `
+            -NtripPort $NtripPort `
+            -Mutation {
+                Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+                    expire_time = $expiredAt
+                } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscriptions/$subExpiredSubscriptionId" -TimeoutSec 10 | Out-Null
+            } `
+            -Label "runtime running subscription expired" `
+            -ExpectedReason "subscription_expired" `
+            -ExpectedBillingMode "subscription" `
+            -ExpectedSubscriptionId $subExpiredSubscriptionId `
+            -ExpectZeroDebit $true `
+            -ExpectedBalanceCents $subExpiredInitialBalance | Out-Null
+
+        Assert-AccessRuntimeForcedDisconnect `
+            -Seed $disableRunningSeed `
+            -OwnerAccountId $userAccountId `
+            -AccessAccountId $disableRunningAccessId `
+            -AccessUsername $disableRunningAccessName `
+            -Mount $mount `
+            -Period $period `
+            -NtripHost $NtripHost `
+            -NtripPort $NtripPort `
+            -Mutation {
+                Invoke-RestMethod -Method Put -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+                    status = "disabled"
+                    mount_point_group_id = $groupId
+                    concurrency_limit = 1
+                } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts/$disableRunningAccessId" -TimeoutSec 10 | Out-Null
+            } `
+            -Label "runtime running access disabled" `
+            -ExpectedReason "access_account_disabled" `
+            -ExpectedBillingMode "payg" `
+            -ExpectBilling $false | Out-Null
+
+        Assert-AccessRuntimeRejected $clientSeed $otherMount $NtripHost $NtripPort "runtime unauthorized mount" $userAccountId $userAccessId $userAccessName
+
+        Invoke-RestMethod -Method Put -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+            status = "disabled"
+            mount_point_group_id = $groupId
+            concurrency_limit = 1
+        } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts/$userAccessId" -TimeoutSec 10 | Out-Null
+        Assert-AccessRuntimeRejected $clientSeed $mount $NtripHost $NtripPort "runtime disabled access" $userAccountId $userAccessId $userAccessName
+
+        Assert-AccessRuntimeRejected $blockedSeed $mount $NtripHost $NtripPort "runtime balance insufficient" $blockedAccountId $blockedAccessId $blockedAccessName
+
         Close-NtripTcpConnection $sourceConnection
         $sourceConnection = $null
         Wait-AccessRuntimeOnlineSessionGone $sourceOnline.Key $sourceOnline.Field $StartupTimeoutSec "runtime source"
@@ -3454,17 +3871,6 @@ function Invoke-AccessRuntimeEnforcementSmoke {
             Fail "runtime station record should be offline after disconnect: $(ConvertTo-CompactJson $station.Record)"
         }
         Wait-AccessRuntimeStationEvents $supplierAccountId $supplierAccessId $mount $StartupTimeoutSec "runtime source"
-
-        Assert-AccessRuntimeRejected $clientSeed $otherMount $NtripHost $NtripPort "runtime unauthorized mount" $userAccountId $userAccessId $userAccessName
-
-        Invoke-RestMethod -Method Put -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
-            status = "disabled"
-            mount_point_group_id = $groupId
-            concurrency_limit = 1
-        } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts/$userAccessId" -TimeoutSec 10 | Out-Null
-        Assert-AccessRuntimeRejected $clientSeed $mount $NtripHost $NtripPort "runtime disabled access" $userAccountId $userAccessId $userAccessName
-
-        Assert-AccessRuntimeRejected $blockedSeed $mount $NtripHost $NtripPort "runtime balance insufficient" $blockedAccountId $blockedAccessId $blockedAccessName
     }
     finally {
         Close-NtripTcpConnection $clientConnection
