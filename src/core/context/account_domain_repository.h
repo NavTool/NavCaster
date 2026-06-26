@@ -36,6 +36,7 @@ public:
 
     AccountDomainResult create_access_account(nlohmann::json record, std::int64_t now);
     AccountDomainResult get_access_account(const std::string &access_account_id);
+    AccountDomainResult update_access_account(const std::string &access_account_id, nlohmann::json record, std::int64_t now);
     AccountDomainResult delete_access_account(const std::string &access_account_id, std::int64_t now);
 
     AccountDomainResult create_subscription(nlohmann::json record, std::int64_t now);

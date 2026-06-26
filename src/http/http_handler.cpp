@@ -1,6 +1,7 @@
 #include "http_handler.h"
 #include "SysUsage.h"
 #include "Caster_Core.h"
+#include "account_domain.h"
 #include "account_controller.h"
 #include "access_controller.h"
 #include "access_repository.h"
@@ -26,6 +27,7 @@
 #include "runtime_command_service.h"
 #include "runtime_state_controller.h"
 #include "runtime_state_repository.h"
+#include "self_service_controller.h"
 #include "sourcetable_service.h"
 #include "statistics_controller.h"
 #include "status_service.h"
@@ -85,6 +87,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
     _server.add_public_path("/api/status/health");
     _server.set_auth_validator([this](const std::string &token) -> bool
                                { return _auth_sessions.validate_token(token); });
+    _server.set_access_authorizer([this](const HttpRequest &req, const std::string &token, HttpResponse &resp) -> bool
+                                  { return authorize_request(req, token, resp); });
     _server.set_actor_resolver([this](const std::string &token) -> std::string
                                { return _auth_sessions.lookup_user(token); });
     _server.set_audit_sink([this](const HttpRequest &req, const HttpResponse &resp,
@@ -134,6 +138,48 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_usage(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supply-usage", [this](auto &req, auto &resp)
                   { handle_v1_admin_supply_usage(req, resp); });
+
+    // ==================== V1 Self-Service Domain ====================
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/profile", [this](auto &req, auto &resp)
+                  { handle_v1_me_profile(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/dashboard", [this](auto &req, auto &resp)
+                  { handle_v1_me_dashboard(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/allowed-groups", [this](auto &req, auto &resp)
+                  { handle_v1_me_allowed_groups(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/mount-points", [this](auto &req, auto &resp)
+                  { handle_v1_me_mount_points(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/access-accounts", [this](auto &req, auto &resp)
+                  { handle_v1_me_access_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/me/access-accounts", [this](auto &req, auto &resp)
+                  { handle_v1_me_access_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/access-accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_me_access_account(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/me/access-accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_me_access_account(req, resp); });
+    _server.route(EVHTTP_REQ_DELETE, "/api/v1/me/access-accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_me_access_account(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/usage", [this](auto &req, auto &resp)
+                  { handle_v1_me_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/profile", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_profile(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/dashboard", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_dashboard(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/access-accounts", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_access_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/supplier/access-accounts", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_access_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/access-accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_access_account(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/supplier/access-accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_access_account(req, resp); });
+    _server.route(EVHTTP_REQ_DELETE, "/api/v1/supplier/access-accounts/*", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_access_account(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/stations", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_stations(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/supply-usage", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_supply_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/supplier/earnings", [this](auto &req, auto &resp)
+                  { handle_v1_supplier_earnings(req, resp); });
 
     // ==================== Accounts ====================
     _server.route(EVHTTP_REQ_GET, "/api/accounts", [this](auto &req, auto &resp)
@@ -397,7 +443,8 @@ void http_handler::handle_login(const HttpRequest &req, HttpResponse &resp)
     auto result = _auth_sessions.login(
         req.body,
         {_config.admin_user, _config.admin_password},
-        config_repo.get_config(navcaster::storage::ConfigSection::Auth));
+        config_repo.get_config(navcaster::storage::ConfigSection::Auth),
+        &auth_redis_client());
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }
@@ -414,10 +461,67 @@ void http_handler::handle_v1_session(const HttpRequest &req, HttpResponse &resp)
 {
     auto it = req.headers.find("Authorization");
     const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
-    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
-    auto result = controller.session_subject(_auth_sessions.lookup_user(token));
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.session_subject(_auth_sessions.lookup_subject(token));
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
+}
+
+bool http_handler::authorize_request(const HttpRequest &req, const std::string &token, HttpResponse &resp)
+{
+    const auto subject = _auth_sessions.lookup_subject(token);
+    if (!subject.authenticated)
+    {
+        resp.status_code = 401;
+        resp.body = R"({"error":"Unauthorized"})";
+        return false;
+    }
+
+    if (req.path == "/api/v1/auth/session" || req.path == "/api/auth/logout")
+    {
+        return true;
+    }
+
+    if (req.path.starts_with("/api/v1/admin/"))
+    {
+        if (subject.role != navcaster::account_domain::ROLE_ADMIN)
+        {
+            resp.status_code = 403;
+            resp.body = R"({"error":"Forbidden"})";
+            return false;
+        }
+        return true;
+    }
+    if (req.path.starts_with("/api/v1/me/"))
+    {
+        if (subject.role != navcaster::account_domain::ROLE_ADMIN &&
+            subject.role != navcaster::account_domain::ROLE_USER)
+        {
+            resp.status_code = 403;
+            resp.body = R"({"error":"Forbidden"})";
+            return false;
+        }
+        return true;
+    }
+    if (req.path.starts_with("/api/v1/supplier/"))
+    {
+        if (subject.role != navcaster::account_domain::ROLE_ADMIN &&
+            subject.role != navcaster::account_domain::ROLE_SUPPLIER)
+        {
+            resp.status_code = 403;
+            resp.body = R"({"error":"Forbidden"})";
+            return false;
+        }
+        return true;
+    }
+
+    if (subject.role != navcaster::account_domain::ROLE_ADMIN)
+    {
+        resp.status_code = 403;
+        resp.body = R"({"error":"Forbidden"})";
+        return false;
+    }
+    return true;
 }
 
 void http_handler::handle_v1_admin_accounts(const HttpRequest &req, HttpResponse &resp)
@@ -556,6 +660,201 @@ void http_handler::handle_v1_admin_supply_usage(const HttpRequest &req, HttpResp
     navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
     auto period = req.query_params.find("period");
     auto result = controller.list_supply_usage(period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_profile(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.profile(_auth_sessions.lookup_subject(token), "me");
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_dashboard(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.dashboard(_auth_sessions.lookup_subject(token), "me");
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_allowed_groups(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.allowed_groups(_auth_sessions.lookup_subject(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_mount_points(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.mount_points(_auth_sessions.lookup_subject(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_access_accounts(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    auto result = req.method == EVHTTP_REQ_POST
+        ? controller.create_access_account(subject, "me", req.body)
+        : controller.list_access_accounts(subject, "me");
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_access_account(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    const std::string access_account_id = get_path_segment(req, 4);
+    navcaster::http_api::ControllerResponse result;
+    if (req.path_segments.size() >= 6 && get_path_segment(req, 5) == "password" && req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_access_account_password(subject, "me", access_account_id, req.body);
+    }
+    else if (req.path_segments.size() > 5)
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not Found"})";
+    }
+    else if (req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_access_account(subject, "me", access_account_id, req.body);
+    }
+    else if (req.method == EVHTTP_REQ_DELETE)
+    {
+        result = controller.delete_access_account(subject, "me", access_account_id);
+    }
+    else
+    {
+        result = controller.get_access_account(subject, "me", access_account_id);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_usage(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.usage(_auth_sessions.lookup_subject(token), period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_profile(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.profile(_auth_sessions.lookup_subject(token), "supplier");
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_dashboard(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.dashboard(_auth_sessions.lookup_subject(token), "supplier");
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_access_accounts(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    auto result = req.method == EVHTTP_REQ_POST
+        ? controller.create_access_account(subject, "supplier", req.body)
+        : controller.list_access_accounts(subject, "supplier");
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_access_account(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    const std::string access_account_id = get_path_segment(req, 4);
+    navcaster::http_api::ControllerResponse result;
+    if (req.path_segments.size() >= 6 && get_path_segment(req, 5) == "password" && req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_access_account_password(subject, "supplier", access_account_id, req.body);
+    }
+    else if (req.path_segments.size() > 5)
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not Found"})";
+    }
+    else if (req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_access_account(subject, "supplier", access_account_id, req.body);
+    }
+    else if (req.method == EVHTTP_REQ_DELETE)
+    {
+        result = controller.delete_access_account(subject, "supplier", access_account_id);
+    }
+    else
+    {
+        result = controller.get_access_account(subject, "supplier", access_account_id);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_stations(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.supplier_stations(_auth_sessions.lookup_subject(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_supply_usage(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.supplier_supply_usage(_auth_sessions.lookup_subject(token), period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_supplier_earnings(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.supplier_earnings(_auth_sessions.lookup_subject(token), period == req.query_params.end() ? std::string{} : period->second);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

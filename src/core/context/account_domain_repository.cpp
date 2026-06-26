@@ -161,6 +161,7 @@ AccountDomainResult AccountDomainRepository::update_account(const std::string &a
     {
         record["create_time"] = current["create_time"];
     }
+    account_domain::preserve_existing_password_material(record, current);
 
     std::string error;
     if (!account_domain::normalize_account_record(record, now, &error))
@@ -356,6 +357,109 @@ AccountDomainResult AccountDomainRepository::get_access_account(const std::strin
     AccountDomainResult result;
     result.id = access_account_id;
     result.record = record;
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_access_account(const std::string &access_account_id, nlohmann::json record, std::int64_t now)
+{
+    if (access_account_id.empty())
+    {
+        return invalid("access_account_id is required");
+    }
+    auto current = get_hash_record(redis_keys::AACC_RECORD, access_account_id);
+    if (current.is_null())
+    {
+        return make_result(RepositoryStatus::NotFound, access_account_id, "AccessAccount not found");
+    }
+    if (current.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, access_account_id, "AccessAccount not active");
+    }
+    if (record.value("access_account_id", access_account_id) != access_account_id)
+    {
+        return invalid("access_account_id mismatch");
+    }
+
+    record["access_account_id"] = access_account_id;
+    record["owner_account_id"] = current.value("owner_account_id", std::string{});
+    record["username"] = current.value("username", std::string{});
+    if (!record.contains("kind"))
+    {
+        record["kind"] = current.value("kind", std::string{});
+    }
+    if (record.value("kind", std::string{}) != current.value("kind", std::string{}))
+    {
+        return invalid("access account kind cannot be changed");
+    }
+    if (!record.contains("mount_point_group_id"))
+    {
+        record["mount_point_group_id"] = current.value("mount_point_group_id", std::string{});
+    }
+    if (!record.contains("status"))
+    {
+        record["status"] = current.value("status", std::string(account_domain::STATUS_ACTIVE));
+    }
+    if (!record.contains("concurrency_limit"))
+    {
+        record["concurrency_limit"] = current.value("concurrency_limit", 1);
+    }
+    if (!record.contains("expire_time"))
+    {
+        record["expire_time"] = current.value("expire_time", 0);
+    }
+    if (!record.contains("create_time") && current.contains("create_time"))
+    {
+        record["create_time"] = current["create_time"];
+    }
+    account_domain::preserve_existing_password_material(record, current);
+
+    std::string error;
+    if (!account_domain::normalize_access_account(record, now, &error))
+    {
+        return invalid(error);
+    }
+
+    const std::string owner_account_id = record.value("owner_account_id", std::string{});
+    const std::string group_id = record.value("mount_point_group_id", std::string{});
+    const auto owner = get_hash_record(redis_keys::ACC_RECORD, owner_account_id);
+    if (!owner.is_object() || !account_domain::is_active_status(owner))
+    {
+        return make_result(RepositoryStatus::NotFound, owner_account_id, "Owner account not found or inactive");
+    }
+    if (!account_domain::is_access_kind_allowed_for_role(owner.value("role", std::string{}), record.value("kind", std::string{})))
+    {
+        return make_result(RepositoryStatus::Invalid, access_account_id, "AccessAccount kind is not allowed for owner role");
+    }
+    if (record.value("concurrency_limit", 0) > owner.value("concurrency_limit", 0))
+    {
+        return make_result(RepositoryStatus::Invalid, access_account_id, "AccessAccount concurrency limit exceeds owner limit");
+    }
+    if (!group_is_active(group_id) || !account_has_group(owner_account_id, group_id))
+    {
+        return make_result(RepositoryStatus::Invalid, group_id, "AccessAccount group is not granted to owner");
+    }
+
+    if (!hset_json(redis_keys::AACC_RECORD, access_account_id, record))
+    {
+        return redis_error(access_account_id, "Failed to update AccessAccount");
+    }
+    const auto summary = account_domain::access_account_owner_summary(record);
+    const std::string owner_key = redis_keys::aacc_owner(owner_account_id);
+    hset_json(owner_key.c_str(), access_account_id, summary);
+    const std::string username = record.value("username", std::string{});
+    hset_json(redis_keys::AACC_USERNAME, username, account_domain::username_index_record(access_account_id, record.value("status", std::string{}), now));
+    if (account_domain::is_active_status(record) && account_domain::is_active_status(owner))
+    {
+        hset_json(redis_keys::AACC_ACTIVE, username, account_domain::access_account_auth_index(record, owner));
+    }
+    else
+    {
+        _redis.hdel(redis_keys::AACC_ACTIVE, username.c_str());
+    }
+
+    AccountDomainResult result;
+    result.id = access_account_id;
+    result.record = std::move(record);
     return result;
 }
 

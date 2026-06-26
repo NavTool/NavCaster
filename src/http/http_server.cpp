@@ -77,6 +77,13 @@ void http_server::set_auth_validator(std::function<bool(const std::string &token
     _auth_validator = validator;
 }
 
+void http_server::set_access_authorizer(std::function<bool(const HttpRequest &request,
+                                                           const std::string &token,
+                                                           HttpResponse &response)> authorizer)
+{
+    _access_authorizer = std::move(authorizer);
+}
+
 void http_server::set_actor_resolver(std::function<std::string(const std::string &)> resolver)
 {
     _actor_resolver = std::move(resolver);
@@ -324,6 +331,20 @@ void http_server::handle_request(evhttp_request *req)
             spdlog::warn("[{}:{}]: Unauthorized access to {}", __class__, __func__, parsed.path);
             send_response(req, resp);
             return;
+        }
+        if (_access_authorizer)
+        {
+            HttpResponse authz_resp;
+            if (!_access_authorizer(parsed, bearer_token, authz_resp))
+            {
+                if (authz_resp.body.empty())
+                {
+                    authz_resp.status_code = authz_resp.status_code == 0 ? 403 : authz_resp.status_code;
+                    authz_resp.body = R"({"error":"Forbidden"})";
+                }
+                send_response(req, authz_resp);
+                return;
+            }
         }
     }
 

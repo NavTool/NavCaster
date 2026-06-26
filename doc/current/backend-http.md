@@ -16,7 +16,7 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
 
 ## 当前事实
 
-- HTTP token 是进程内 Bearer token，不是 JWT。服务端生成 64 位十六进制随机字符串，存放在进程内 session map，不写 Redis、不跨节点共享；服务重启后失效。
+- HTTP token 是进程内 Bearer token，不是 JWT。服务端生成 64 位十六进制随机字符串，存放在进程内 session map，不写 Redis、不跨节点共享；服务重启后失效。NC-054 起 session map 保存 `username/account_id/role/status/compat_admin` subject。
 - SSE endpoint 是 `/api/events/stream`。路由层允许 query token，但 raw handler 内部仍校验 `?token=<token>` 或 `Authorization: Bearer <token>`。
 - SSE 当前 channel：`servers`、`clients`、`streams`、`nodes`、`accounts`、`sources`、`aliases`、`access_groups`、`pull_records`、`pull_states`、`push_records`、`push_states`、`account_actives`。
 - `channels` 为空、纯空白或 `*` 表示订阅全部；普通 CSV channel 按精确集合匹配。
@@ -28,9 +28,15 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   NC-051 的 `ACC:*` / `AACC:*` / `MPGRP:*` / `SUB:*` / `BILL:*` /
   `SUPPLY:*` / `STATION:*` key。该 namespace 不替换旧 `/api/*`，也不切换
   NTRIP Auth 或 Web 页面。
-- `/api/v1/auth/session` 当前返回旧 admin 登录的兼容 subject：
-  `role=admin`、`account_id=""`、`compat_admin=true`。HTTP token 仍是进程内
-  session，不跨节点共享。
+- NC-054 新增 `/api/v1/me/*` 和 `/api/v1/supplier/*` 自助 API，并扩展
+  `/api/auth/login`：优先用 `ACC:USERNAME` / `ACC:RECORD` 登录三角色 Account，
+  失败后再走旧 admin / Redis admin 兼容登录。真实 Account token 返回
+  `compat_admin=false`，旧 admin 兼容 token 返回 `role=admin`、`account_id=""`、
+  `compat_admin=true`。
+- NC-054 起 HTTP handler 对非公开路径执行 role authorizer：`/api/v1/admin/*`
+  和旧 `/api/*` 只允许 admin；`/api/v1/me/*` 允许 user/admin；
+  `/api/v1/supplier/*` 允许 supplier/admin。自助 API owner 只能从 session
+  subject 推导，body 中的 `owner_account_id` / `kind` 不可信。
 
 ## HTTP ingress 口径
 
