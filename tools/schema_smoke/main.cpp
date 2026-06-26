@@ -3557,6 +3557,28 @@ int main()
     expect_true(!sse_account_actives.contains("wrong-session"), "sse snapshot account actives ignores caster redis");
     expect_eq(sse_account_actives["sse-conflict"].value("account", std::string{}), "session-acct", "sse snapshot account actives prefers ACT_SESSION");
 
+    navcaster::http_api::AccountController admin_online_controller(auth_sse_redis, 12000);
+    auto admin_online_response = admin_online_controller.list_active_sessions();
+    expect_eq_int(admin_online_response.status_code, 200, "admin online v1 source controller status");
+    auto admin_online_body = nlohmann::json::parse(admin_online_response.body);
+    expect_true(admin_online_body.contains("acct-1"), "admin online v1 source keeps STR_ACTIVE fallback");
+    expect_true(admin_online_body.contains("acct-1-conn"), "admin online v1 source reads ACT_SESSION");
+    expect_true(!admin_online_body.contains("wrong-session"), "admin online v1 source ignores caster redis");
+    expect_eq(admin_online_body["sse-conflict"].value("account", std::string{}), "session-acct", "admin online v1 source prefers ACT_SESSION");
+
+    FakeRedisHashClient admin_audit_redis;
+    navcaster::http_api::AuditLogService admin_audit_service(admin_audit_redis);
+    admin_audit_redis.lists[navcaster::redis_keys::LOG_AUDIT].push_back({{"id", 10}, {"actor", "admin"}, {"action", "PUT /api/v1/admin/accounts/acc-1"}, {"target_type", "accounts"}, {"target_id", "acc-1"}, {"result", 200}});
+    admin_audit_redis.lists[navcaster::redis_keys::LOG_AUDIT].push_back({{"id", 9}, {"actor", "supplier"}, {"action", "POST /api/v1/supplier/access-accounts"}, {"target_type", "access-accounts"}, {"target_id", "aacc-1"}, {"result", 201}});
+    auto admin_audit_response = admin_audit_service.list(10, 0, "admin", "PUT", "accounts");
+    expect_eq_int(admin_audit_response.status_code, 200, "admin audit v1 source service status");
+    auto admin_audit_body = nlohmann::json::parse(admin_audit_response.body);
+    expect_eq_int(admin_audit_body.value("total", 0), 2, "admin audit v1 source reports total log size");
+    expect_eq_int(admin_audit_body.value("next_cursor", 0), 2, "admin audit v1 source advances cursor by scanned entries");
+    expect_true(!admin_audit_body.value("has_more", true), "admin audit v1 source detects end");
+    expect_eq_int(static_cast<int>(admin_audit_body["items"].size()), 1, "admin audit v1 source filters item count");
+    expect_eq(admin_audit_body["items"][0].value("target_id", std::string{}), "acc-1", "admin audit v1 source filters target");
+
     std::unordered_set<std::string> parsed_channels;
     bool wildcard_channels = false;
     parse_sse_channels("clients, streams ,account_actives", parsed_channels, wildcard_channels);

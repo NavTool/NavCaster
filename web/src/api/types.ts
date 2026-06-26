@@ -320,6 +320,22 @@ export interface AuditEntry {
   error_message?: string;
 }
 
+export interface AuditQueryParams {
+  limit?: number;
+  cursor?: number;
+  actor?: string;
+  action?: string;
+  target?: string;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  total?: number;
+  count?: number;
+  has_more?: boolean;
+  next_cursor?: number;
+}
+
 /** 环形内存日志条目 */
 export interface RingLogEntry {
   timestamp: number;       // 毫秒

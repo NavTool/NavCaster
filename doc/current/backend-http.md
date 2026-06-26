@@ -86,6 +86,12 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   `SUPPLY:USAGE:<period>` 和 `SUPPLY:EARNING:*:<period>`，返回账号余额/状态风险、
   订阅/兑换码状态、DataPush 任务状态和最近失败任务、供应事实、供应商结算付款状态及
   运营告警数组。低余额监控阈值当前固定为 1000 分，仅用于风险提示。
+- NC-070 起新增 `GET /api/v1/admin/online-connections` 和 `GET /api/v1/admin/audit`。
+  两个接口都是只读 admin v1 alias，不新增存储 key：online connections 复用
+  `AccountController::list_active_sessions()`，继续从 `ACT:SESSION:*` 合并
+  `STR:ACTIVE` fallback；audit 复用 `AuditLogService::list()`，从 `LOG:AUDIT`
+  返回分页结果并支持 `limit`、`cursor`、`actor`、`action`、`target` 过滤。旧
+  `/api/accounts/active` 与 `/api/audit` 保持兼容。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和

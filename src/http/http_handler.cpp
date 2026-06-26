@@ -178,6 +178,10 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_stations(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/operations-monitor", [this](auto &req, auto &resp)
                   { handle_v1_admin_operations_monitor(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/online-connections", [this](auto &req, auto &resp)
+                  { handle_v1_admin_online_connections(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/audit", [this](auto &req, auto &resp)
+                  { handle_v1_admin_audit(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/usage", [this](auto &req, auto &resp)
                   { handle_v1_admin_usage(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-configs", [this](auto &req, auto &resp)
@@ -799,6 +803,20 @@ void http_handler::handle_v1_admin_stations(const HttpRequest &req, HttpResponse
     auto result = controller.list_stations();
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_online_connections(const HttpRequest &req, HttpResponse &resp)
+{
+    (void)req;
+    navcaster::http_api::AccountController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.list_active_sessions();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_audit(const HttpRequest &req, HttpResponse &resp)
+{
+    handle_get_audit(req, resp);
 }
 
 void http_handler::handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp)

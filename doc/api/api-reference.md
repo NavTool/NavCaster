@@ -178,6 +178,8 @@
 | `POST` | `/api/v1/admin/redeem-codes/{code}/redeem` | `REDEEM:ACCOUNT:{account_id}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 兑换到指定 Account 并同步余额 |
 | `GET` | `/api/v1/admin/stations` | `STATION:RECORD` | 列出历史站点 |
 | `GET` | `/api/v1/admin/operations-monitor?period=yyyyMM` | `ACC:RECORD` / `SUB:RECORD` / `REDEEM:CODE` / `DATA:PUSH:*` / `SUPPLY:*` / `DATA:PUSH:MAINTENANCE` | 返回运营域运行监控聚合快照 |
+| `GET` | `/api/v1/admin/online-connections` | `ACT:SESSION:*` / `STR:ACTIVE` | 列出当前在线连接，与 legacy `/api/accounts/active` 同源 |
+| `GET` | `/api/v1/admin/audit?limit=&cursor=&actor=&action=&target=` | `LOG:AUDIT` / `LOG:AUDIT:SEQ` | 列出审计日志，支持分页和 actor/action/target 过滤 |
 | `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
 | `GET` | `/api/v1/admin/data-push-configs` | `DATA:PUSH:CONFIG` | 列出数据推送配置 |
 | `POST` | `/api/v1/admin/data-push-configs` | `DATA:PUSH:CONFIG` | 创建数据推送配置 |
@@ -265,6 +267,13 @@ Redis key。响应包含 `accounts`、`subscriptions`、`redeem_codes`、`data_p
 DataPush 聚合当期用量、任务状态、runtime maintenance 配置和最近失败任务；供应聚合
 当期供应事实、待结算/已结算收益以及 `SUPPLY:EARNING:*:<period>` 结算付款状态。
 该接口用于运营监控面板和后续告警/结算扩展，当前不触发断连、补偿或付款动作。
+
+`GET /api/v1/admin/online-connections` 和 `GET /api/v1/admin/audit` 是现有只读能力的
+admin v1 命名空间入口，不引入新 Redis key。在线连接复用
+`AccountController::list_active_sessions()`，读取 `ACT:SESSION:*` 并保留
+`STR:ACTIVE` fallback；审计日志复用 `AuditLogService::list()`，读取 `LOG:AUDIT`
+并按 `limit`、`cursor`、`actor`、`action`、`target` 过滤。旧
+`/api/accounts/active` 与 `/api/audit` 继续保留。
 
 `POST /api/v1/me/data-push/jobs/{job_id}/control` 请求体包含 `action` 和可选
 `period`、`operator_note`。用户侧只允许 `cancel` / `retry` 且只能控制自己的
