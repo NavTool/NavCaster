@@ -6,3 +6,4 @@
 | 文件 | 内容 |
 | --- | --- |
 | `http-multi-entry-productization.md` | HTTP 多入口管理 API、token、SSE、Web 和部署策略的产品化决策。 |
+| `account-billing-web-redesign.md` | 账户、接入账号、计费、供应商、站点历史和 Web 三角色重构设计。 |
