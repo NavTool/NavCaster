@@ -78,14 +78,67 @@ bool data_push_terminal_status(const std::string &status)
     return status == "cancelled" || status == "failed" || status == "completed";
 }
 
-nlohmann::json reconcile_data_push_job_runtime_record(nlohmann::json job, RedisHashClient &redis, std::int64_t now)
+bool data_push_active_status(const std::string &status)
+{
+    return status == "queued" || status == "running";
+}
+
+struct DataPushRuntimeSyncOptions
+{
+    std::string action = "reconcile";
+    bool fail_unhealthy = false;
+    std::int64_t unhealthy_after_seconds = 300;
+};
+
+struct DataPushRuntimeSyncResult
+{
+    nlohmann::json job;
+    bool failed = false;
+    bool redis_ok = true;
+};
+
+bool disable_managed_data_push_relay(nlohmann::json &job, RedisHashClient &redis, std::int64_t now)
+{
+    const std::string relay_uid = job.value("relay_uid", std::string{});
+    if (relay_uid.empty())
+    {
+        return true;
+    }
+
+    auto relay_record = redis.hget(redis_keys::PUSH_RECORD, relay_uid.c_str());
+    if (relay_record.is_object())
+    {
+        relay_record["enabled"] = false;
+        relay_record["update_time"] = now;
+        if (!redis.hset(redis_keys::PUSH_RECORD, relay_uid.c_str(), json_record::dump_record(relay_record)))
+        {
+            return false;
+        }
+        job["relay_push_record"] = sanitized_relay_snapshot(relay_record);
+    }
+    redis.hdel(redis_keys::PUSH_STAT, relay_uid.c_str());
+    return true;
+}
+
+DataPushRuntimeSyncResult reconcile_data_push_job_runtime_record(nlohmann::json job,
+                                                                 RedisHashClient &redis,
+                                                                 std::int64_t now,
+                                                                 const DataPushRuntimeSyncOptions &options)
 {
     const std::string relay_uid = job.value("relay_uid", std::string{});
     const auto state = relay_uid.empty() ? nlohmann::json{} : redis.hget(redis_keys::PUSH_STAT, relay_uid.c_str());
     const std::string runtime_status = relay_runtime_status(state);
+    const std::string runtime_observed = state.is_object() ? runtime_status : "missing";
+    const std::string action = options.action.empty() ? "reconcile" : options.action;
     job["relay_status"] = runtime_status;
-    job["runtime_reconcile_action"] = "reconcile";
+    job["relay_runtime_observed"] = runtime_observed;
+    job["runtime_reconcile_action"] = action;
     job["runtime_reconcile_time"] = now;
+    if (action == "auto_reconcile")
+    {
+        job["runtime_maintenance_action"] = action;
+        job["runtime_maintenance_time"] = now;
+    }
     if (state.is_object())
     {
         job["relay_state"] = state;
@@ -117,8 +170,39 @@ nlohmann::json reconcile_data_push_job_runtime_record(nlohmann::json job, RedisH
     {
         job["status"] = "running";
         job["running_time"] = job.value("running_time", now);
+        job["runtime_last_healthy_time"] = now;
+        job.erase("runtime_unhealthy_since");
+        job.erase("runtime_unhealthy_elapsed_seconds");
+        return {std::move(job), false, true};
     }
-    return job;
+
+    if (options.fail_unhealthy && data_push_active_status(current_status))
+    {
+        std::int64_t unhealthy_since = json_record::as_i64(job.value("runtime_unhealthy_since", 0), 0);
+        if (unhealthy_since <= 0 || unhealthy_since > now)
+        {
+            unhealthy_since = now;
+        }
+        const std::int64_t unhealthy_elapsed = now > unhealthy_since ? now - unhealthy_since : 0;
+        job["runtime_unhealthy_since"] = unhealthy_since;
+        job["runtime_unhealthy_elapsed_seconds"] = unhealthy_elapsed;
+        job["runtime_unhealthy_after_seconds"] = options.unhealthy_after_seconds;
+        if (unhealthy_elapsed >= options.unhealthy_after_seconds)
+        {
+            job["status"] = "failed";
+            job["failed_time"] = now;
+            job["failure_time"] = now;
+            job["failure_reason"] = runtime_observed == "missing" ? "relay_runtime_missing" : "relay_runtime_stopped";
+            job["runtime_failure_after_seconds"] = options.unhealthy_after_seconds;
+            job["runtime_failure_action"] = action;
+            if (!disable_managed_data_push_relay(job, redis, now))
+            {
+                return {std::move(job), false, false};
+            }
+            return {std::move(job), true, true};
+        }
+    }
+    return {std::move(job), false, true};
 }
 } // namespace
 
@@ -1628,18 +1712,10 @@ AccountDomainResult AccountDomainRepository::update_data_push_job_control(const 
         job["failed_time"] = now;
         if (relay_push && !relay_uid.empty())
         {
-            auto relay_record = get_hash_record(redis_keys::PUSH_RECORD, relay_uid);
-            if (relay_record.is_object())
+            if (!disable_managed_data_push_relay(job, _redis, now))
             {
-                relay_record["enabled"] = false;
-                relay_record["update_time"] = now;
-                if (!hset_json(redis_keys::PUSH_RECORD, relay_uid, relay_record))
-                {
-                    return redis_error(relay_uid, "Failed to disable PushRecord");
-                }
-                job["relay_push_record"] = sanitized_relay_snapshot(relay_record);
+                return redis_error(relay_uid, "Failed to disable PushRecord");
             }
-            _redis.hdel(redis_keys::PUSH_STAT, relay_uid.c_str());
         }
     }
     else if (action == "mark_completed" || action == "completed")
@@ -1712,7 +1788,12 @@ AccountDomainResult AccountDomainRepository::reconcile_data_push_job_runtime(con
     }
 
     job["period"] = resolved_period;
-    job = reconcile_data_push_job_runtime_record(std::move(job), _redis, now);
+    auto sync = reconcile_data_push_job_runtime_record(std::move(job), _redis, now, {});
+    if (!sync.redis_ok)
+    {
+        return redis_error(job_id, "Failed to reconcile DataPushJob runtime");
+    }
+    job = std::move(sync.job);
     if (request.contains("operator_note"))
     {
         job["operator_note"] = request["operator_note"];
@@ -1763,7 +1844,12 @@ AccountDomainResult AccountDomainRepository::reconcile_data_push_jobs_runtime(co
             continue;
         }
         job["period"] = resolved_period;
-        job = reconcile_data_push_job_runtime_record(std::move(job), _redis, now);
+        auto sync = reconcile_data_push_job_runtime_record(std::move(job), _redis, now, {});
+        if (!sync.redis_ok)
+        {
+            return redis_error(it.key(), "Failed to reconcile DataPushJob runtime");
+        }
+        job = std::move(sync.job);
         std::string error;
         if (!account_domain::normalize_data_push_job(job, now, &error))
         {
@@ -1779,7 +1865,94 @@ AccountDomainResult AccountDomainRepository::reconcile_data_push_jobs_runtime(co
 
     AccountDomainResult result;
     result.id = resolved_period;
-    result.record = {{"period", resolved_period}, {"updated_count", updated_count}, {"items", std::move(items)}};
+    result.record = {{"period", resolved_period}, {"updated_count", updated_count}, {"failed_count", 0}, {"items", std::move(items)}};
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::maintain_data_push_jobs_runtime(const std::string &period,
+                                                                             nlohmann::json request,
+                                                                             std::int64_t now)
+{
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+    const std::string resolved_period = request.value("period", period.empty() ? std::string("current") : period);
+    std::int64_t unhealthy_after_seconds = json_record::as_i64(request.value("unhealthy_after_seconds", 300), 300);
+    if (unhealthy_after_seconds < 0)
+    {
+        unhealthy_after_seconds = 0;
+    }
+
+    const std::string job_key = redis_keys::data_push_job(resolved_period);
+    const auto records = _redis.hgetall(job_key.c_str());
+    if (!records.is_object())
+    {
+        AccountDomainResult result;
+        result.id = resolved_period;
+        result.record = {
+            {"period", resolved_period},
+            {"updated_count", 0},
+            {"failed_count", 0},
+            {"unhealthy_after_seconds", unhealthy_after_seconds},
+            {"items", nlohmann::json::object()},
+        };
+        return result;
+    }
+
+    int updated_count = 0;
+    int failed_count = 0;
+    nlohmann::json items = nlohmann::json::object();
+    const DataPushRuntimeSyncOptions options{
+        "auto_reconcile",
+        true,
+        unhealthy_after_seconds,
+    };
+    for (auto it = records.begin(); it != records.end(); ++it)
+    {
+        if (!it.value().is_object())
+        {
+            continue;
+        }
+        auto job = it.value();
+        if (job.value("execution_mode", std::string(account_domain::DATA_PUSH_EXECUTION_LEDGER_ONLY)) != account_domain::DATA_PUSH_EXECUTION_RELAY_PUSH ||
+            job.value("relay_uid", std::string{}).empty())
+        {
+            continue;
+        }
+        job["period"] = resolved_period;
+        auto sync = reconcile_data_push_job_runtime_record(std::move(job), _redis, now, options);
+        if (!sync.redis_ok)
+        {
+            return redis_error(it.key(), "Failed to maintain DataPushJob runtime");
+        }
+        job = std::move(sync.job);
+        std::string error;
+        if (!account_domain::normalize_data_push_job(job, now, &error))
+        {
+            return invalid(error);
+        }
+        if (!hset_json(job_key.c_str(), it.key(), job))
+        {
+            return redis_error(it.key(), "Failed to maintain DataPushJob runtime");
+        }
+        if (sync.failed)
+        {
+            ++failed_count;
+        }
+        items[it.key()] = job;
+        ++updated_count;
+    }
+
+    AccountDomainResult result;
+    result.id = resolved_period;
+    result.record = {
+        {"period", resolved_period},
+        {"updated_count", updated_count},
+        {"failed_count", failed_count},
+        {"unhealthy_after_seconds", unhealthy_after_seconds},
+        {"items", std::move(items)},
+    };
     return result;
 }
 

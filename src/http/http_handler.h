@@ -248,4 +248,9 @@ private:
     event *_redis_sample_timer = nullptr;
     static void on_redis_sample_timer(evutil_socket_t fd, short what, void *arg);
     void sample_redis_history();
+
+    // DataPush runtime maintenance timer
+    event *_data_push_runtime_timer = nullptr;
+    static void on_data_push_runtime_timer(evutil_socket_t fd, short what, void *arg);
+    void maintain_data_push_runtime();
 };

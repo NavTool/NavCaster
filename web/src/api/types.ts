@@ -574,6 +574,17 @@ export interface DataPushJob {
   runtime_reconcile_action?: string;
   runtime_reconcile_time?: number;
   runtime_reconcile_note?: string;
+  runtime_maintenance_action?: string;
+  runtime_maintenance_time?: number;
+  runtime_unhealthy_since?: number;
+  runtime_unhealthy_elapsed_seconds?: number;
+  runtime_unhealthy_after_seconds?: number;
+  runtime_last_healthy_time?: number;
+  relay_runtime_observed?: string;
+  failure_reason?: string;
+  failure_time?: number;
+  runtime_failure_after_seconds?: number;
+  runtime_failure_action?: string;
   relay_record_key?: string;
   relay_status_key?: string;
   operator_note?: string;

@@ -272,6 +272,13 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 `POST /api/v1/admin/data-push-jobs?action=reconcile&period=yyyyMM` 批量同步当期
 relay_push 任务。
 
+HTTP 服务还会每 60 秒对当前 `yyyyMM` 账期执行一次 DataPush runtime maintenance。
+自动维护复用同一运行态沉淀字段，但 `runtime_reconcile_action` 写为
+`auto_reconcile`，同时写 `runtime_maintenance_time`。当非终态 `relay_push`
+任务连续 `stopped` / missing 超过 300 秒，任务会被标记为 `status=failed`，
+写入 `failure_reason` / `failure_time` / `runtime_failure_after_seconds`，并禁用
+受管 `PUSH:RECORD[relay_uid]`。终态任务只更新运行态审计快照，不会被重新打开。
+
 `POST /api/v1/admin/redeem-codes/{code}/redeem` 可通过 query 参数或 JSON body 传入
 `account_id`。兑换成功会生成兑换记录和余额 ledger，增加 Account 余额；同一 Account 对
 同一 code 只能兑换一次，禁用、过期或超过 `max_redemptions` 的兑换码返回 `409`。

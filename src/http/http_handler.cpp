@@ -36,6 +36,8 @@
 #include "sse_snapshot_service.h"
 #include "system_event_service.h"
 #include <spdlog/spdlog.h>
+#include <iomanip>
+#include <sstream>
 #include <ctime>
 
 #define __class__ "http_handler"
@@ -59,10 +61,36 @@ namespace
         return static_cast<std::int64_t>(std::time(nullptr));
     }
 
+    std::string current_period_yyyymm()
+    {
+        const std::time_t now = std::time(nullptr);
+        std::tm local_time{};
+#if defined(_WIN32)
+        localtime_s(&local_time, &now);
+#else
+        localtime_r(&now, &local_time);
+#endif
+        std::ostringstream out;
+        out << std::put_time(&local_time, "%Y%m");
+        return out.str();
+    }
+
 } // anonymous namespace
 
 http_handler::http_handler() {}
-http_handler::~http_handler() {}
+http_handler::~http_handler()
+{
+    if (_redis_sample_timer)
+    {
+        event_free(_redis_sample_timer);
+        _redis_sample_timer = nullptr;
+    }
+    if (_data_push_runtime_timer)
+    {
+        event_free(_data_push_runtime_timer);
+        _data_push_runtime_timer = nullptr;
+    }
+}
 
 int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adapter *auth_redis, const HttpApiConfig &config)
 {
@@ -464,6 +492,15 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
         struct timeval tv {60, 0};
         event_add(_redis_sample_timer, &tv);
         spdlog::info("[{}:{}]: Redis history sampling enabled (60s interval)", __class__, __func__);
+    }
+
+    // DataPush relay_push runtime maintenance (60s period, 300s unhealthy threshold).
+    _data_push_runtime_timer = event_new(base, -1, EV_PERSIST, on_data_push_runtime_timer, this);
+    if (_data_push_runtime_timer)
+    {
+        struct timeval tv {60, 0};
+        event_add(_data_push_runtime_timer, &tv);
+        spdlog::info("[{}:{}]: DataPush runtime maintenance enabled (60s interval)", __class__, __func__);
     }
 
     // Register SSE channels through repository-backed snapshot service.
@@ -1999,6 +2036,37 @@ void http_handler::sample_redis_history()
     if (!service.sample_history(static_cast<long long>(std::time(nullptr))))
     {
         spdlog::warn("[{}:{}]: skip redis history sample, INFO missing required sections or used_memory is 0", __class__, __func__);
+    }
+}
+
+void http_handler::on_data_push_runtime_timer(evutil_socket_t /*fd*/, short /*what*/, void *arg)
+{
+    static_cast<http_handler *>(arg)->maintain_data_push_runtime();
+}
+
+void http_handler::maintain_data_push_runtime()
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.maintain_data_push_jobs_runtime(current_period_yyyymm(), 300);
+    if (result.status_code != 200)
+    {
+        spdlog::warn("[{}:{}]: DataPush runtime maintenance failed: status={}", __class__, __func__, result.status_code);
+        return;
+    }
+
+    try
+    {
+        const auto body = nlohmann::json::parse(result.body);
+        spdlog::debug("[{}:{}]: DataPush runtime maintenance period={} updated={} failed={}",
+                      __class__,
+                      __func__,
+                      body.value("period", std::string{}),
+                      body.value("updated_count", 0),
+                      body.value("failed_count", 0));
+    }
+    catch (...)
+    {
+        spdlog::debug("[{}:{}]: DataPush runtime maintenance completed", __class__, __func__);
     }
 }
 

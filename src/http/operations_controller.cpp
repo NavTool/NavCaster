@@ -494,6 +494,19 @@ ControllerResponse OperationsController::reconcile_data_push_jobs_runtime(const 
     return repository_result(200, result);
 }
 
+ControllerResponse OperationsController::maintain_data_push_jobs_runtime(const std::string &period, std::int64_t unhealthy_after_seconds)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.maintain_data_push_jobs_runtime(
+        request_period(period),
+        {
+            {"period", request_period(period)},
+            {"unhealthy_after_seconds", unhealthy_after_seconds},
+        },
+        _now);
+    return repository_result(200, result);
+}
+
 ControllerResponse OperationsController::list_data_push_usage(const std::string &period)
 {
     const std::string key = redis_keys::data_push(request_period(period));
