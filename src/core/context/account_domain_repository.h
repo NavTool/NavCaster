@@ -46,6 +46,7 @@ public:
     AccountDomainResult append_balance_ledger(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_billing_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_data_push_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult append_data_push_usage_with_balance(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_supplier_supply_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
 
 private:

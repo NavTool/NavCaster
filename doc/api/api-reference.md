@@ -171,6 +171,7 @@
 | `POST` | `/api/v1/admin/subscriptions` | `SUB:RECORD` / `SUB:ACCOUNT:{account_id}` | 创建订阅 |
 | `GET` | `/api/v1/admin/stations` | `STATION:RECORD` | 列出历史站点 |
 | `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
+| `GET` | `/api/v1/admin/data-push-usage?period=yyyyMM` | `DATA:PUSH:{period}` | 列出数据推送用量和扣费事实 |
 | `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
 
 ### Self-Service APIs
@@ -192,6 +193,8 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `PUT` | `/api/v1/me/access-accounts/{id}/password` | `AACC:*` | 更新自己的接入账号密码 |
 | `DELETE` | `/api/v1/me/access-accounts/{id}` | `AACC:*` | 软删除自己的接入账号并 tombstone username |
 | `GET` | `/api/v1/me/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 当前用户计费用量事实 |
+| `GET` | `/api/v1/me/data-push?period=yyyyMM` | `DATA:PUSH:{period}` | 当前用户数据推送用量和扣费事实 |
+| `POST` | `/api/v1/me/data-push` | `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 追加当前用户数据推送用量，按 `actual_debit_cents` 扣费 |
 | `GET` | `/api/v1/supplier/profile` | `ACC:RECORD` | 当前供应商 Account 脱敏资料 |
 | `GET` | `/api/v1/supplier/dashboard` | `ACC:*` / `SUPPLY:*` | 当前供应商供应摘要 |
 | `GET` | `/api/v1/supplier/access-accounts` | `AACC:RECORD` | 当前供应商 `supplier_station` 接入账号 |
@@ -203,6 +206,11 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `GET` | `/api/v1/supplier/stations` | `STATION:RECORD` | 当前供应商最近供应过的站点 |
 | `GET` | `/api/v1/supplier/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 当前供应商供应事实 |
 | `GET` | `/api/v1/supplier/earnings?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 当前供应商收益摘要 |
+
+`POST /api/v1/me/data-push` 请求体至少包含 `usage_id`。服务端从 Bearer session
+推导 `account_id`，会忽略请求体中的 `account_id`；`period` 缺省为当前 `yyyyMM`。
+当 `actual_debit_cents` 大于 0 时，同步写入余额 ledger 并更新
+`ACC:RECORD.balance_cents`。余额不足返回 `409`，不写入 `DATA:PUSH` 或 ledger。
 
 通用错误：
 

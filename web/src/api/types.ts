@@ -480,6 +480,21 @@ export interface BillingUsageEntry {
   end_time?: number;
 }
 
+export interface DataPushUsage {
+  usage_id: string;
+  account_id: string;
+  target_mountpoint: string;
+  used_seconds?: number;
+  stat_cost_cents?: number;
+  actual_debit_cents?: number;
+  balance_after_cents?: number;
+  ledger_id?: string;
+  source?: string;
+  create_time?: number;
+  start_time?: number;
+  end_time?: number;
+}
+
 export interface StationRecord {
   station_id?: string;
   mountpoint: string;

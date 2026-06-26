@@ -141,6 +141,7 @@ export default function AppRouter() {
           <Route path="mount-points" element={<OperationsDashboard scope="admin" view="mount-points" />} />
           <Route path="stations" element={<OperationsDashboard scope="admin" view="stations" />} />
           <Route path="usage" element={<OperationsDashboard scope="admin" view="usage" />} />
+          <Route path="data-push-usage" element={<OperationsDashboard scope="admin" view="data-push-usage" />} />
           <Route path="supply-usage" element={<OperationsDashboard scope="admin" view="supply-usage" />} />
           <Route path="legacy">
             <Route index element={<Navigate to="/admin/legacy/dashboard" replace />} />
@@ -179,6 +180,7 @@ export default function AppRouter() {
           <Route path="groups" element={<SelfServiceWorkspace scope="me" view="groups" />} />
           <Route path="mount-points" element={<SelfServiceWorkspace scope="me" view="mount-points" />} />
           <Route path="usage" element={<SelfServiceWorkspace scope="me" view="usage" />} />
+          <Route path="data-push" element={<SelfServiceWorkspace scope="me" view="data-push" />} />
         </Route>
         <Route
           path="/supplier"

@@ -455,6 +455,24 @@ nlohmann::json SelfServiceController::filter_billing_usage(const std::string &ac
     return records;
 }
 
+nlohmann::json SelfServiceController::filter_data_push_usage(const std::string &account_id, const std::string &period) const
+{
+    const auto all = _redis.hgetall(redis_keys::data_push(request_period(period)).c_str());
+    nlohmann::json records = nlohmann::json::object();
+    if (!all.is_object())
+    {
+        return records;
+    }
+    for (auto it = all.begin(); it != all.end(); ++it)
+    {
+        if (it.value().is_object() && it.value().value("account_id", std::string{}) == account_id)
+        {
+            records[it.key()] = it.value();
+        }
+    }
+    return records;
+}
+
 ControllerResponse SelfServiceController::usage(const AuthSessionSubject &subject, const std::string &period)
 {
     auto guard = subject_error(subject, "me");
@@ -463,6 +481,49 @@ ControllerResponse SelfServiceController::usage(const AuthSessionSubject &subjec
         return guard;
     }
     return json_response(200, filter_billing_usage(subject.account_id, period));
+}
+
+ControllerResponse SelfServiceController::data_push_usage(const AuthSessionSubject &subject, const std::string &period)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    return json_response(200, filter_data_push_usage(subject.account_id, period));
+}
+
+ControllerResponse SelfServiceController::append_data_push_usage(const AuthSessionSubject &subject, const std::string &body_text)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    nlohmann::json body;
+    if (!parse_json_body(body_text, body) || !body.is_object())
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    body["account_id"] = subject.account_id;
+    body.erase("ledger_id");
+    body.erase("balance_after_cents");
+    const std::string period = request_period(body.value("period", std::string{}));
+    if (!body.contains("usage_id"))
+    {
+        return error_response(400, "usage_id is required");
+    }
+    if (!body.contains("stat_cost_cents") && body.contains("actual_debit_cents"))
+    {
+        body["stat_cost_cents"] = body["actual_debit_cents"];
+    }
+    if (!body.contains("actual_debit_cents") && body.contains("stat_cost_cents"))
+    {
+        body["actual_debit_cents"] = body["stat_cost_cents"];
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.append_data_push_usage_with_balance(std::move(body), period, _now);
+    return repository_result(201, result);
 }
 
 ControllerResponse SelfServiceController::supplier_stations(const AuthSessionSubject &subject)

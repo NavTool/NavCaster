@@ -174,6 +174,15 @@ AccessAccount 登录成功后继续写旧 ACT:REC / ACT:SESSION 兼容桶，同�
 supplier_station 断开时写 SUPPLY:USAGE、SUPPLY:ACCOUNT、STATION:RECORD 和 STATION:EVENT:<mountpoint>。
 ```
 
+NC-057 数据推送用量：
+
+```text
+用户数据推送事实写 DATA:PUSH:<yyyyMM>，field 为 usage_id。
+account_id 由 HTTP session 推导，不能由请求体覆盖。
+actual_debit_cents > 0 时写 ACC:BALANCE:LEDGER:<yyyyMM>，同步更新 ACC:RECORD.balance_cents。
+余额不足返回 Conflict，不写 DATA:PUSH 或 ledger。
+```
+
 `ONLINE:SESSION:<account_id>` 当前 JSON 字段：
 
 ```json

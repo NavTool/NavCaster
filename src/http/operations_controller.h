@@ -38,6 +38,7 @@ public:
 
     ControllerResponse list_stations();
     ControllerResponse list_usage(const std::string &period);
+    ControllerResponse list_data_push_usage(const std::string &period);
     ControllerResponse list_supply_usage(const std::string &period);
 
 private:

@@ -6,6 +6,7 @@ import type {
   AccountGroupGrant,
   AuthSessionSubject,
   BillingUsageEntry,
+  DataPushUsage,
   HashRecord,
   MountPointGroup,
   MountPointRecord,
@@ -79,6 +80,10 @@ export const adminApi = {
     const { data } = await api.get('/api/v1/admin/usage', { params: period ? { period } : undefined });
     return data;
   },
+  async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {
+    const { data } = await api.get('/api/v1/admin/data-push-usage', { params: period ? { period } : undefined });
+    return data;
+  },
   async supplyUsage(period?: string): Promise<HashRecord<SupplierSupplyUsage>> {
     const { data } = await api.get('/api/v1/admin/supply-usage', { params: period ? { period } : undefined });
     return data;
@@ -131,6 +136,10 @@ export const meApi = {
   },
   async usage(period?: string): Promise<HashRecord<BillingUsageEntry>> {
     const { data } = await api.get('/api/v1/me/usage', { params: period ? { period } : undefined });
+    return data;
+  },
+  async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {
+    const { data } = await api.get('/api/v1/me/data-push', { params: period ? { period } : undefined });
     return data;
   },
 };
