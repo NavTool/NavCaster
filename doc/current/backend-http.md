@@ -63,6 +63,13 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   `POST /api/v1/me/data-push/jobs/{job_id}/control` 仅允许当前用户对自己的
   relay_push 任务执行 `cancel` / `retry`。cancel 会禁用受管 `PUSH:RECORD` 并清
   `PUSH:STAT`；retry 会重新启用或重建受管 `PUSH:RECORD`。
+- NC-066 起新增 DataPushJob 运行态同步 API：
+  `POST /api/v1/admin/data-push-jobs?action=reconcile&period=yyyyMM` 可批量同步当期
+  relay_push 任务，`POST /api/v1/admin/data-push-jobs/{job_id}/reconcile` 和
+  `POST /api/v1/me/data-push/jobs/{job_id}/reconcile` 可同步单任务。reconcile 会把
+  `PUSH:STAT[relay_uid]` 的状态、connect_key 和节点信息沉淀到
+  `DATA:PUSH:JOB:<period>` 的 `relay_state_snapshot`、`relay_status`、
+  `runtime_reconcile_time` 等字段；终态任务不会被重新打开。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和

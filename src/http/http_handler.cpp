@@ -162,6 +162,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_data_push_config(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-jobs", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_jobs(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/data-push-jobs", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_jobs(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/v1/admin/data-push-jobs/*", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_job(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-usage", [this](auto &req, auto &resp)
@@ -798,7 +800,24 @@ void http_handler::handle_v1_admin_data_push_jobs(const HttpRequest &req, HttpRe
 {
     navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
     auto period = req.query_params.find("period");
-    auto result = controller.list_data_push_jobs(period == req.query_params.end() ? std::string{} : period->second);
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_POST)
+    {
+        const auto action = req.query_params.find("action");
+        if (action != req.query_params.end() && action->second == "reconcile")
+        {
+            result = controller.reconcile_data_push_jobs_runtime(period == req.query_params.end() ? std::string{} : period->second);
+        }
+        else
+        {
+            result.status_code = 404;
+            result.body = R"({"error":"Not found"})";
+        }
+    }
+    else
+    {
+        result = controller.list_data_push_jobs(period == req.query_params.end() ? std::string{} : period->second);
+    }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }
@@ -813,6 +832,11 @@ void http_handler::handle_v1_admin_data_push_job(const HttpRequest &req, HttpRes
     {
         auto period = req.query_params.find("period");
         result = controller.update_data_push_job_control(job_id, period == req.query_params.end() ? std::string{} : period->second, req.body);
+    }
+    else if (action == "reconcile")
+    {
+        auto period = req.query_params.find("period");
+        result = controller.reconcile_data_push_job_runtime(job_id, period == req.query_params.end() ? std::string{} : period->second, req.body);
     }
     else
     {
@@ -1049,6 +1073,11 @@ void http_handler::handle_v1_me_data_push_job(const HttpRequest &req, HttpRespon
     {
         auto period = req.query_params.find("period");
         result = controller.update_data_push_job_control(subject, job_id, period == req.query_params.end() ? std::string{} : period->second, req.body);
+    }
+    else if (action == "reconcile")
+    {
+        auto period = req.query_params.find("period");
+        result = controller.reconcile_data_push_job_runtime(subject, job_id, period == req.query_params.end() ? std::string{} : period->second, req.body);
     }
     else
     {

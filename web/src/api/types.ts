@@ -567,6 +567,13 @@ export interface DataPushJob {
   relay_uid?: string;
   relay_status?: string;
   relay_state?: PushState;
+  relay_state_snapshot?: PushState;
+  relay_connect_key?: string;
+  relay_node_uid?: string;
+  relay_node_name?: string;
+  runtime_reconcile_action?: string;
+  runtime_reconcile_time?: number;
+  runtime_reconcile_note?: string;
   relay_record_key?: string;
   relay_status_key?: string;
   operator_note?: string;

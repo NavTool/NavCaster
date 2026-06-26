@@ -184,7 +184,9 @@
 | `PUT` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 更新数据推送配置 |
 | `DELETE` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 软删除数据推送配置 |
 | `GET` | `/api/v1/admin/data-push-jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 列出数据推送任务并补充 relay 运行态 |
+| `POST` | `/api/v1/admin/data-push-jobs?action=reconcile&period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 批量同步 relay_push 任务运行态审计快照 |
 | `POST` | `/api/v1/admin/data-push-jobs/{job_id}/control` | `DATA:PUSH:JOB:{period}` / `PUSH:RECORD` / `PUSH:STAT` | 控制数据推送任务：cancel/retry/mark_failed/mark_completed |
+| `POST` | `/api/v1/admin/data-push-jobs/{job_id}/reconcile` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 同步单个 relay_push 任务运行态审计快照 |
 | `GET` | `/api/v1/admin/data-push-usage?period=yyyyMM` | `DATA:PUSH:{period}` | 列出数据推送用量和扣费事实 |
 | `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
 | `GET` | `/api/v1/admin/supplier-settlements?period=yyyyMM&supplier_account_id=...` | `SUPPLY:EARNING:{account_id}:{period}` | 列出供应商结算批次；未传 supplier 时扫描供应商/admin 账号当期结算 |
@@ -216,6 +218,7 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `GET` | `/api/v1/me/data-push/jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 当前用户数据推送任务并补充 relay 运行态 |
 | `POST` | `/api/v1/me/data-push/jobs` | `DATA:PUSH:JOB:{period}` / `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` / `PUSH:RECORD` | 创建当前用户数据推送任务并扣费 |
 | `POST` | `/api/v1/me/data-push/jobs/{job_id}/control` | `DATA:PUSH:JOB:{period}` / `PUSH:RECORD` / `PUSH:STAT` | 当前用户取消或重试自己的 relay_push 任务 |
+| `POST` | `/api/v1/me/data-push/jobs/{job_id}/reconcile` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 当前用户同步自己的 relay_push 任务运行态审计快照 |
 | `GET` | `/api/v1/me/data-push?period=yyyyMM` | `DATA:PUSH:{period}` | 当前用户数据推送用量和扣费事实 |
 | `POST` | `/api/v1/me/data-push` | `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 追加当前用户数据推送用量，按 `actual_debit_cents` 扣费 |
 | `GET` | `/api/v1/me/redeem-redemptions` | `REDEEM:ACCOUNT:{account_id}` | 当前用户兑换记录 |
@@ -259,6 +262,15 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 受管 `PUSH:RECORD`，并把任务置回 `status=queued`。管理员
 `POST /api/v1/admin/data-push-jobs/{job_id}/control` 额外允许 `mark_failed` 和
 `mark_completed`。
+
+`POST /api/v1/me/data-push/jobs/{job_id}/reconcile` 和管理员同名接口会读取
+`PUSH:STAT[relay_uid]`，把 `relay_status`、`relay_state_snapshot`、
+`relay_connect_key`、`relay_node_uid`、`relay_node_name` 和
+`runtime_reconcile_time` 写回 `DATA:PUSH:JOB:<period>[job_id]`。非终态任务在
+`state=1` 时固化为 `status=running`；`cancelled` / `failed` / `completed`
+不会因运行态同步被重新打开。管理员还可通过
+`POST /api/v1/admin/data-push-jobs?action=reconcile&period=yyyyMM` 批量同步当期
+relay_push 任务。
 
 `POST /api/v1/admin/redeem-codes/{code}/redeem` 可通过 query 参数或 JSON body 传入
 `account_id`。兑换成功会生成兑换记录和余额 ledger，增加 Account 余额；同一 Account 对

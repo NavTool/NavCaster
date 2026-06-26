@@ -129,6 +129,14 @@ export const adminApi = {
     const { data } = await api.post(`/api/v1/admin/data-push-jobs/${encodeURIComponent(jobId)}/control`, body, { params: body.period ? { period: body.period } : undefined });
     return data as DataPushJob;
   },
+  async reconcileDataPushJob(jobId: string, body: { period?: string; operator_note?: string }) {
+    const { data } = await api.post(`/api/v1/admin/data-push-jobs/${encodeURIComponent(jobId)}/reconcile`, body, { params: body.period ? { period: body.period } : undefined });
+    return data as DataPushJob;
+  },
+  async reconcileDataPushJobs(period?: string) {
+    const { data } = await api.post('/api/v1/admin/data-push-jobs', {}, { params: { action: 'reconcile', ...(period ? { period } : {}) } });
+    return data as { period: string; updated_count: number; items: HashRecord<DataPushJob> };
+  },
   async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {
     const { data } = await api.get('/api/v1/admin/data-push-usage', { params: period ? { period } : undefined });
     return data;
@@ -237,6 +245,10 @@ export const meApi = {
   },
   async controlDataPushJob(jobId: string, body: { action: 'cancel' | 'retry'; period?: string; operator_note?: string }) {
     const { data } = await api.post(`/api/v1/me/data-push/jobs/${encodeURIComponent(jobId)}/control`, body, { params: body.period ? { period: body.period } : undefined });
+    return data as DataPushJob;
+  },
+  async reconcileDataPushJob(jobId: string, body: { period?: string; operator_note?: string }) {
+    const { data } = await api.post(`/api/v1/me/data-push/jobs/${encodeURIComponent(jobId)}/reconcile`, body, { params: body.period ? { period: body.period } : undefined });
     return data as DataPushJob;
   },
 };

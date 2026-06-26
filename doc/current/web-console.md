@@ -131,6 +131,9 @@ NC-064 起数据推送配置表单支持 `ledger_only` / `relay_push` 执行模�
 NC-065 起管理员数据推送任务表增加完成、失败、重试、取消操作；用户数据推送任务表增加
 重试、取消操作。用户操作仅作用于当前 session Account 的 relay_push 任务。
 
+NC-066 起管理员和用户数据推送任务表增加运行态同步操作，并展示最近同步节点和同步时间，
+便于运营追踪 relay_push 任务当前执行快照。
+
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加
 `/me/subscriptions` 和 `/me/redeem-redemptions`，只展示当前 session Account 的
