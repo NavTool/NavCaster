@@ -7,6 +7,8 @@ import type {
   AuthSessionSubject,
   DataPushConfig,
   DataPushJob,
+  DataPushMaintenanceConfig,
+  DataPushMaintenanceResult,
   BillingUsageEntry,
   DataPushUsage,
   HashRecord,
@@ -136,6 +138,20 @@ export const adminApi = {
   async reconcileDataPushJobs(period?: string) {
     const { data } = await api.post('/api/v1/admin/data-push-jobs', {}, { params: { action: 'reconcile', ...(period ? { period } : {}) } });
     return data as { period: string; updated_count: number; items: HashRecord<DataPushJob> };
+  },
+  async dataPushMaintenanceConfig(): Promise<DataPushMaintenanceConfig> {
+    const { data } = await api.get('/api/v1/admin/data-push-maintenance');
+    return data as DataPushMaintenanceConfig;
+  },
+  async updateDataPushMaintenanceConfig(body: Partial<DataPushMaintenanceConfig>) {
+    const { data } = await api.put('/api/v1/admin/data-push-maintenance', body);
+    return data as DataPushMaintenanceConfig;
+  },
+  async runDataPushMaintenance(body: { period?: string; unhealthy_after_seconds?: number }) {
+    const { data } = await api.post('/api/v1/admin/data-push-maintenance', body, {
+      params: { action: 'run', ...(body.period ? { period: body.period } : {}) },
+    });
+    return data as DataPushMaintenanceResult;
   },
   async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {
     const { data } = await api.get('/api/v1/admin/data-push-usage', { params: period ? { period } : undefined });

@@ -67,6 +67,8 @@ public:
                                                         nlohmann::json request,
                                                         std::int64_t now);
     AccountDomainResult reconcile_data_push_jobs_runtime(const std::string &period, std::int64_t now);
+    AccountDomainResult get_data_push_maintenance_config(std::int64_t now);
+    AccountDomainResult update_data_push_maintenance_config(nlohmann::json request, std::int64_t now);
     AccountDomainResult maintain_data_push_jobs_runtime(const std::string &period,
                                                         nlohmann::json request,
                                                         std::int64_t now);

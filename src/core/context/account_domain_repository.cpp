@@ -83,6 +83,67 @@ bool data_push_active_status(const std::string &status)
     return status == "queued" || status == "running";
 }
 
+nlohmann::json default_data_push_maintenance_config(std::int64_t now)
+{
+    return {
+        {"config_id", "default"},
+        {"enabled", true},
+        {"interval_seconds", 60},
+        {"unhealthy_after_seconds", 300},
+        {"period_scope", "current"},
+        {"create_time", now},
+        {"update_time", now},
+    };
+}
+
+bool normalize_data_push_maintenance_config(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    auto merged = default_data_push_maintenance_config(now);
+    if (record.is_object())
+    {
+        for (auto it = record.begin(); it != record.end(); ++it)
+        {
+            merged[it.key()] = it.value();
+        }
+    }
+    record = std::move(merged);
+    record["config_id"] = "default";
+    if (!record["enabled"].is_boolean())
+    {
+        record["enabled"] = json_record::bool_or_number_as_int(record["enabled"], 1) != 0;
+    }
+    std::int64_t interval_seconds = json_record::as_i64(record["interval_seconds"], 60);
+    std::int64_t unhealthy_after_seconds = json_record::as_i64(record["unhealthy_after_seconds"], 300);
+    if (interval_seconds < 5 || interval_seconds > 86400)
+    {
+        if (error)
+        {
+            *error = "interval_seconds must be between 5 and 86400";
+        }
+        return false;
+    }
+    if (unhealthy_after_seconds < 0 || unhealthy_after_seconds > 86400)
+    {
+        if (error)
+        {
+            *error = "unhealthy_after_seconds must be between 0 and 86400";
+        }
+        return false;
+    }
+    record["interval_seconds"] = interval_seconds;
+    record["unhealthy_after_seconds"] = unhealthy_after_seconds;
+    auto period_scope_it = record.find("period_scope");
+    record["period_scope"] = period_scope_it != record.end() && period_scope_it->is_string()
+        ? period_scope_it->get<std::string>()
+        : std::string("current");
+    record["update_time"] = now;
+    if (json_record::as_i64(record["create_time"], 0) <= 0)
+    {
+        record["create_time"] = now;
+    }
+    return true;
+}
+
 struct DataPushRuntimeSyncOptions
 {
     std::string action = "reconcile";
@@ -1866,6 +1927,55 @@ AccountDomainResult AccountDomainRepository::reconcile_data_push_jobs_runtime(co
     AccountDomainResult result;
     result.id = resolved_period;
     result.record = {{"period", resolved_period}, {"updated_count", updated_count}, {"failed_count", 0}, {"items", std::move(items)}};
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::get_data_push_maintenance_config(std::int64_t now)
+{
+    auto config = get_hash_record(redis_keys::DATA_PUSH_MAINTENANCE, "default");
+    if (!config.is_object())
+    {
+        config = default_data_push_maintenance_config(now);
+    }
+    std::string error;
+    auto update_time_it = config.find("update_time");
+    const auto normalize_time = update_time_it != config.end() ? json_record::as_i64(*update_time_it, now) : now;
+    if (!normalize_data_push_maintenance_config(config, normalize_time, &error))
+    {
+        return invalid(error);
+    }
+    AccountDomainResult result;
+    result.id = "default";
+    result.record = std::move(config);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_data_push_maintenance_config(nlohmann::json request, std::int64_t now)
+{
+    auto current = get_hash_record(redis_keys::DATA_PUSH_MAINTENANCE, "default");
+    if (!current.is_object())
+    {
+        current = default_data_push_maintenance_config(now);
+    }
+    if (request.is_object())
+    {
+        for (auto it = request.begin(); it != request.end(); ++it)
+        {
+            current[it.key()] = it.value();
+        }
+    }
+    std::string error;
+    if (!normalize_data_push_maintenance_config(current, now, &error))
+    {
+        return invalid(error);
+    }
+    if (!hset_json(redis_keys::DATA_PUSH_MAINTENANCE, "default", current))
+    {
+        return redis_error("default", "Failed to update DataPush maintenance config");
+    }
+    AccountDomainResult result;
+    result.id = "default";
+    result.record = std::move(current);
     return result;
 }
 

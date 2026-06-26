@@ -592,6 +592,26 @@ export interface DataPushJob {
   update_time?: number;
 }
 
+export interface DataPushMaintenanceConfig {
+  config_id: string;
+  enabled?: boolean;
+  interval_seconds?: number;
+  unhealthy_after_seconds?: number;
+  period_scope?: string;
+  create_time?: number;
+  update_time?: number;
+}
+
+export interface DataPushMaintenanceResult {
+  period: string;
+  updated_count: number;
+  failed_count: number;
+  unhealthy_after_seconds?: number;
+  manual?: boolean;
+  config?: DataPushMaintenanceConfig;
+  items: HashRecord<DataPushJob>;
+}
+
 export interface StationRecord {
   station_id?: string;
   mountpoint: string;

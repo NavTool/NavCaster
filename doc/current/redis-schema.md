@@ -149,6 +149,7 @@ NC-051 在 Core 层新增 AccountDomainRepository，用于账户/接入账号/�
 | `BILL:ACCOUNT:<account_id>:<yyyyMM>` | LIST | billing_id | billing_id | 持久或后续归档 | AccountDomainRepository |
 | `BILL:IDEMPOTENT` | HASH | billing_id | fingerprint JSON | 持久或后续归档 | AccountDomainRepository |
 | `DATA:PUSH:CONFIG` | HASH | config_id | DataPushConfig JSON | 持久 | AccountDomainRepository |
+| `DATA:PUSH:MAINTENANCE` | HASH | config_id | DataPushMaintenanceConfig JSON | 持久 | AccountDomainRepository |
 | `DATA:PUSH:JOB:<yyyyMM>` | HASH | job_id | DataPushJob JSON | 持久 | AccountDomainRepository |
 | `DATA:PUSH:<yyyyMM>` | HASH | usage_id | DataPushUsage JSON | 持久 | AccountDomainRepository |
 | `SUPPLY:USAGE:<yyyyMM>` | HASH | usage_id | SupplierSupplyUsage JSON | 持久 | AccountDomainRepository |
@@ -302,6 +303,20 @@ runtime_unhealthy_after_seconds。连续异常超过默认 300s 后，任务 sta
 写 failure_reason、failure_time、runtime_failure_after_seconds，并禁用受管
 PUSH:RECORD[relay_uid].enabled=false。cancelled/failed/completed 终态任务只更新
 运行态审计快照，不会被重新打开或重复失败。
+```
+
+NC-068 DataPush 自动维护配置：
+
+```text
+DATA:PUSH:MAINTENANCE[default] 保存 HTTP runtime maintenance 的运营配置。
+默认配置为 enabled=true、interval_seconds=60、unhealthy_after_seconds=300。
+GET 配置在无记录时返回默认值；PUT 配置会持久化 default 记录，并校验
+interval_seconds 介于 5..86400，unhealthy_after_seconds 介于 0..86400。
+
+HTTP timer 仍每 60s tick；enabled=false 时不执行维护，enabled=true 时按
+interval_seconds 对 last-run 做节流。interval_seconds 小于 60s 时不会快于
+timer tick 执行。管理员可通过手动 maintenance API 按 period 执行一次维护，并可
+覆盖 unhealthy_after_seconds。
 ```
 
 `ONLINE:SESSION:<account_id>` 当前 JSON 字段：

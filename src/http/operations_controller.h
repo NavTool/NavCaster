@@ -54,6 +54,10 @@ public:
     ControllerResponse update_data_push_job_control(const std::string &job_id, const std::string &period, const std::string &body_text);
     ControllerResponse reconcile_data_push_job_runtime(const std::string &job_id, const std::string &period, const std::string &body_text);
     ControllerResponse reconcile_data_push_jobs_runtime(const std::string &period);
+    ControllerResponse data_push_maintenance_config();
+    ControllerResponse update_data_push_maintenance_config(const std::string &body_text);
+    ControllerResponse run_data_push_maintenance(const std::string &period, const std::string &body_text);
+    ControllerResponse scheduled_data_push_maintenance(const std::string &period, std::int64_t last_run_time);
     ControllerResponse maintain_data_push_jobs_runtime(const std::string &period, std::int64_t unhealthy_after_seconds);
     ControllerResponse list_data_push_usage(const std::string &period);
     ControllerResponse list_supply_usage(const std::string &period);

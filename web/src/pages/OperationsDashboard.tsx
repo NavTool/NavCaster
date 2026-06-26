@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Col,
@@ -9,6 +9,7 @@ import {
   Row,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   message,
@@ -20,7 +21,9 @@ import {
   DatabaseOutlined,
   LockOutlined,
   PlusOutlined,
+  SaveOutlined,
   StopOutlined,
+  SyncOutlined,
   SwapOutlined,
   TeamOutlined,
   WalletOutlined,
@@ -131,6 +134,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [redeemForm] = Form.useForm();
   const [redeemApplyForm] = Form.useForm();
   const [dataPushConfigForm] = Form.useForm();
+  const [dataPushMaintenanceForm] = Form.useForm();
   const [settlementForm] = Form.useForm();
   const [paymentForm] = Form.useForm();
   const [accountOpen, setAccountOpen] = useState(false);
@@ -155,6 +159,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const redeemQuery = usePolling(() => adminApi.redeemCodes(), 5000, view === 'dashboard' || view === 'redeem-codes');
   const dataPushConfigQuery = usePolling(() => adminApi.dataPushConfigs(), 5000, view === 'dashboard' || view === 'data-push-configs');
   const dataPushJobQuery = usePolling(() => adminApi.dataPushJobs(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-jobs');
+  const dataPushMaintenanceQuery = usePolling(() => adminApi.dataPushMaintenanceConfig(), 5000, view === 'data-push-jobs');
   const dataPushQuery = usePolling(() => adminApi.dataPushUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-usage');
   const supplyQuery = usePolling(() => adminApi.supplyUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'supply-usage');
   const settlementQuery = usePolling(() => adminApi.supplierSettlements(currentPeriod()), 5000, view === 'dashboard' || view === 'supplier-settlements');
@@ -185,6 +190,23 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     .reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
   const currentUsageCost = usageRows.reduce((sum, usage) => sum + Number(usage.stat_cost_cents ?? 0), 0);
   const currentDataPushDebit = dataPushRows.reduce((sum, usage) => sum + Number(usage.actual_debit_cents ?? 0), 0);
+
+  useEffect(() => {
+    const config = dataPushMaintenanceQuery.data;
+    if (!config) return;
+    dataPushMaintenanceForm.setFieldsValue({
+      enabled: config.enabled ?? true,
+      interval_seconds: config.interval_seconds ?? 60,
+      unhealthy_after_seconds: config.unhealthy_after_seconds ?? 300,
+    });
+  }, [
+    dataPushMaintenanceForm,
+    dataPushMaintenanceQuery.data?.config_id,
+    dataPushMaintenanceQuery.data?.enabled,
+    dataPushMaintenanceQuery.data?.interval_seconds,
+    dataPushMaintenanceQuery.data?.unhealthy_after_seconds,
+    dataPushMaintenanceQuery.data?.update_time,
+  ]);
 
   const openCreateAccount = () => {
     accountForm.resetFields();
@@ -357,6 +379,24 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     });
     message.success('推送任务运行态已同步');
     dataPushJobQuery.refresh();
+  };
+
+  const submitDataPushMaintenance = async () => {
+    const values = await dataPushMaintenanceForm.validateFields();
+    await adminApi.updateDataPushMaintenanceConfig(values);
+    message.success('维护配置已保存');
+    dataPushMaintenanceQuery.refresh();
+  };
+
+  const runDataPushMaintenance = async () => {
+    const values = dataPushMaintenanceForm.getFieldsValue();
+    const result = await adminApi.runDataPushMaintenance({
+      period: currentPeriod(),
+      unhealthy_after_seconds: Number(values.unhealthy_after_seconds ?? dataPushMaintenanceQuery.data?.unhealthy_after_seconds ?? 300),
+    });
+    message.success(`维护完成：更新 ${result.updated_count}，失败 ${result.failed_count}`);
+    dataPushJobQuery.refresh();
+    dataPushMaintenanceQuery.refresh();
   };
 
   const openSupplierSettlement = () => {
@@ -557,6 +597,42 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     },
   ];
 
+  const dataPushMaintenanceControls = (
+    <Form
+      form={dataPushMaintenanceForm}
+      layout="inline"
+      size="small"
+      initialValues={{ enabled: true, interval_seconds: 60, unhealthy_after_seconds: 300 }}
+      style={{ rowGap: 8 }}
+    >
+      <Form.Item name="enabled" label="自动维护" valuePropName="checked">
+        <Switch checkedChildren="开" unCheckedChildren="关" />
+      </Form.Item>
+      <Form.Item name="interval_seconds" label="周期(秒)" rules={[{ required: true }]}>
+        <InputNumber min={5} max={86400} style={{ width: 110 }} />
+      </Form.Item>
+      <Form.Item name="unhealthy_after_seconds" label="失败阈值(秒)" rules={[{ required: true }]}>
+        <InputNumber min={0} max={86400} style={{ width: 120 }} />
+      </Form.Item>
+      <Form.Item>
+        <Button icon={<SaveOutlined />} onClick={submitDataPushMaintenance}>保存</Button>
+      </Form.Item>
+      <Form.Item>
+        <Button icon={<SyncOutlined />} onClick={runDataPushMaintenance}>立即维护</Button>
+      </Form.Item>
+      <Form.Item>
+        <Tag color={dataPushMaintenanceQuery.data?.enabled === false ? 'default' : 'green'}>
+          {dataPushMaintenanceQuery.data?.enabled === false ? '已停用' : '运行中'}
+        </Tag>
+      </Form.Item>
+      <Form.Item>
+        <span style={{ color: '#666' }}>
+          {dataPushMaintenanceQuery.data?.update_time ? getLocalTime(dataPushMaintenanceQuery.data.update_time) : '-'}
+        </span>
+      </Form.Item>
+    </Form>
+  );
+
   const supplyColumns: ColumnsType<SupplierSupplyUsage & { key: string }> = [
     { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
     { title: '供应商', dataIndex: 'supplier_account_id', key: 'supplier_account_id', width: 190 },
@@ -633,7 +709,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       return <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
     }
     if (view === 'data-push-jobs') {
-      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2990 }} />;
+      return (
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {dataPushMaintenanceControls}
+          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2990 }} />
+        </Space>
+      );
     }
     if (view === 'data-push-usage') {
       return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
