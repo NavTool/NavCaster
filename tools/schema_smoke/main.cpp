@@ -2211,6 +2211,12 @@ int main()
     expect_eq_int(statistics_controller_body.value("mpt_connections", 0), 1, "statistics controller overview reads mpt logs");
     expect_eq_int(statistics_controller_body.value("usr_connections", 0), 1, "statistics controller overview reads usr logs");
 
+    statistics_controller_response = statistics_controller.overview({{"start", "0"}, {"end", "3601"}});
+    expect_eq_int(statistics_controller_response.status_code, 200, "statistics controller explicit epoch range status");
+    statistics_controller_body = nlohmann::json::parse(statistics_controller_response.body);
+    expect_eq_int(statistics_controller_body.value("start", -1), 0, "statistics controller preserves explicit epoch start");
+    expect_eq_int(statistics_controller_body.value("mpt_connections", 0), 1, "statistics controller explicit epoch reads mpt logs");
+
     statistics_controller_response = statistics_controller.daily("bad-date");
     expect_eq_int(statistics_controller_response.status_code, 400, "statistics controller invalid daily date");
     statistics_controller_redis.strings[navcaster::redis_keys::stat_daily("1970-01-01")] = R"({"cached":true})";

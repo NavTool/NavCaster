@@ -56,7 +56,9 @@ std::tm local_time_snapshot(std::time_t value)
 
 void apply_date_override(const std::unordered_map<std::string, std::string> &params,
                          long long &start_ts,
-                         long long &end_ts)
+                         long long &end_ts,
+                         bool &has_start,
+                         bool &has_end)
 {
     auto date_it = params.find("date");
     if (date_it == params.end() || date_it->second.empty())
@@ -72,15 +74,50 @@ void apply_date_override(const std::unordered_map<std::string, std::string> &par
     }
     start_ts = day_start;
     end_ts = day_end;
+    has_start = true;
+    has_end = true;
 }
 
-void apply_default_time_range(long long now_ts, long long &start_ts, long long &end_ts)
+bool parse_time_param(const std::unordered_map<std::string, std::string> &params, const char *name, long long &value)
 {
-    if (start_ts == 0)
+    auto it = params.find(name);
+    if (it == params.end() || it->second.empty())
+    {
+        value = 0;
+        return false;
+    }
+
+    try
+    {
+        value = std::stoll(it->second);
+        return true;
+    }
+    catch (...)
+    {
+    }
+
+    long long start_ts = 0;
+    if (statistics_parse_date_start(it->second, start_ts))
+    {
+        value = start_ts;
+        return true;
+    }
+
+    value = 0;
+    return false;
+}
+
+void apply_default_time_range(long long now_ts,
+                              long long &start_ts,
+                              long long &end_ts,
+                              bool has_start,
+                              bool has_end)
+{
+    if (!has_start)
     {
         start_ts = statistics_today_start(now_ts);
     }
-    if (end_ts == 0)
+    if (!has_end)
     {
         end_ts = now_ts + 1;
     }
@@ -94,26 +131,9 @@ StatisticsController::StatisticsController(storage::RedisHashClient &redis, long
 
 long long statistics_parse_time_param(const std::unordered_map<std::string, std::string> &params, const char *name)
 {
-    auto it = params.find(name);
-    if (it == params.end() || it->second.empty())
-    {
-        return 0;
-    }
-
-    try
-    {
-        return std::stoll(it->second);
-    }
-    catch (...)
-    {
-    }
-
-    long long start_ts = 0;
-    if (statistics_parse_date_start(it->second, start_ts))
-    {
-        return start_ts;
-    }
-    return 0;
+    long long value = 0;
+    parse_time_param(params, name, value);
+    return value;
 }
 
 bool statistics_parse_date_start(const std::string &date, long long &start_ts)
@@ -164,10 +184,12 @@ int statistics_limit_param(const std::unordered_map<std::string, std::string> &p
 
 ControllerResponse StatisticsController::overview(const std::unordered_map<std::string, std::string> &query_params)
 {
-    long long start_ts = statistics_parse_time_param(query_params, "start");
-    long long end_ts = statistics_parse_time_param(query_params, "end");
-    apply_date_override(query_params, start_ts, end_ts);
-    apply_default_time_range(_now_ts, start_ts, end_ts);
+    long long start_ts = 0;
+    long long end_ts = 0;
+    bool has_start = parse_time_param(query_params, "start", start_ts);
+    bool has_end = parse_time_param(query_params, "end", end_ts);
+    apply_date_override(query_params, start_ts, end_ts, has_start, has_end);
+    apply_default_time_range(_now_ts, start_ts, end_ts, has_start, has_end);
 
     StatisticsService service;
     json result = service.overview(
@@ -229,9 +251,11 @@ ControllerResponse StatisticsController::daily(const std::string &date)
 
 ControllerResponse StatisticsController::mountpoint_ranking(const std::unordered_map<std::string, std::string> &query_params)
 {
-    long long start_ts = statistics_parse_time_param(query_params, "start");
-    long long end_ts = statistics_parse_time_param(query_params, "end");
-    apply_default_time_range(_now_ts, start_ts, end_ts);
+    long long start_ts = 0;
+    long long end_ts = 0;
+    const bool has_start = parse_time_param(query_params, "start", start_ts);
+    const bool has_end = parse_time_param(query_params, "end", end_ts);
+    apply_default_time_range(_now_ts, start_ts, end_ts, has_start, has_end);
 
     StatisticsService service;
     return json_response(200, service.mountpoint_ranking(
@@ -244,9 +268,11 @@ ControllerResponse StatisticsController::mountpoint_ranking(const std::unordered
 
 ControllerResponse StatisticsController::user_ranking(const std::unordered_map<std::string, std::string> &query_params)
 {
-    long long start_ts = statistics_parse_time_param(query_params, "start");
-    long long end_ts = statistics_parse_time_param(query_params, "end");
-    apply_default_time_range(_now_ts, start_ts, end_ts);
+    long long start_ts = 0;
+    long long end_ts = 0;
+    const bool has_start = parse_time_param(query_params, "start", start_ts);
+    const bool has_end = parse_time_param(query_params, "end", end_ts);
+    apply_default_time_range(_now_ts, start_ts, end_ts, has_start, has_end);
 
     StatisticsService service;
     return json_response(200, service.user_ranking(
