@@ -80,6 +80,12 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   queued/running 任务会标记为 `failed`，记录 `failure_reason` / `failure_time`，
   并禁用受管 `PUSH:RECORD`。该能力是后续告警、补偿计费和真实 relay_push e2e 的
   最小状态机基础。
+- NC-069 起新增 `GET /api/v1/admin/operations-monitor?period=yyyyMM` 只读聚合接口。
+  该接口不写新 key，直接汇总 `ACC:RECORD`、`SUB:RECORD`、`REDEEM:CODE`、
+  `DATA:PUSH:<period>`、`DATA:PUSH:JOB:<period>`、`DATA:PUSH:MAINTENANCE`、
+  `SUPPLY:USAGE:<period>` 和 `SUPPLY:EARNING:*:<period>`，返回账号余额/状态风险、
+  订阅/兑换码状态、DataPush 任务状态和最近失败任务、供应事实、供应商结算付款状态及
+  运营告警数组。低余额监控阈值当前固定为 1000 分，仅用于风险提示。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和

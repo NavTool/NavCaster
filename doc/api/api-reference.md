@@ -177,6 +177,7 @@
 | `GET` | `/api/v1/admin/redeem-codes/{code}` | `REDEEM:CODE` | 查询兑换码 |
 | `POST` | `/api/v1/admin/redeem-codes/{code}/redeem` | `REDEEM:ACCOUNT:{account_id}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 兑换到指定 Account 并同步余额 |
 | `GET` | `/api/v1/admin/stations` | `STATION:RECORD` | 列出历史站点 |
+| `GET` | `/api/v1/admin/operations-monitor?period=yyyyMM` | `ACC:RECORD` / `SUB:RECORD` / `REDEEM:CODE` / `DATA:PUSH:*` / `SUPPLY:*` / `DATA:PUSH:MAINTENANCE` | 返回运营域运行监控聚合快照 |
 | `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
 | `GET` | `/api/v1/admin/data-push-configs` | `DATA:PUSH:CONFIG` | 列出数据推送配置 |
 | `POST` | `/api/v1/admin/data-push-configs` | `DATA:PUSH:CONFIG` | 创建数据推送配置 |
@@ -257,6 +258,13 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 `execution_mode`、`relay_uid`、`relay_record_key`、`relay_status_key`。任务列表会读取
 `PUSH:STAT[relay_uid]` 补充 `relay_status` / `relay_state`；返回 JSON 会剥离
 `relay_target_password` / `target_password`，`DATA:PUSH:JOB` 中的配置和 relay 快照也不保存远端密码。
+
+`GET /api/v1/admin/operations-monitor?period=yyyyMM` 是只读聚合接口，不写入新
+Redis key。响应包含 `accounts`、`subscriptions`、`redeem_codes`、`data_push`、
+`supply` 和 `alerts`。其中账号风险统计负余额、低余额、禁用/冻结/过期账号；
+DataPush 聚合当期用量、任务状态、runtime maintenance 配置和最近失败任务；供应聚合
+当期供应事实、待结算/已结算收益以及 `SUPPLY:EARNING:*:<period>` 结算付款状态。
+该接口用于运营监控面板和后续告警/结算扩展，当前不触发断连、补偿或付款动作。
 
 `POST /api/v1/me/data-push/jobs/{job_id}/control` 请求体包含 `action` 和可选
 `period`、`operator_note`。用户侧只允许 `cancel` / `retry` 且只能控制自己的

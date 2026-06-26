@@ -6,13 +6,20 @@
 #include "json_record.h"
 #include "redis_keys.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace navcaster::http_api
 {
 namespace
 {
+constexpr std::int64_t LOW_BALANCE_THRESHOLD_CENTS = 1000;
+constexpr std::size_t MAX_RISK_ACCOUNTS = 12;
+constexpr std::size_t MAX_RECENT_FAILED_JOBS = 8;
+
 nlohmann::json sanitized_record(nlohmann::json record)
 {
     if (!record.is_object())
@@ -75,6 +82,164 @@ bool parse_body_object(const std::string &body_text, nlohmann::json &body)
 std::string request_period(const std::string &period)
 {
     return period.empty() ? "current" : period;
+}
+
+std::string string_value(const nlohmann::json &record, const char *field, std::string fallback = {})
+{
+    return json_record::string_field(record, field, std::move(fallback));
+}
+
+std::int64_t i64_value(const nlohmann::json &record, const char *field, std::int64_t fallback = 0)
+{
+    const auto it = record.find(field);
+    return it == record.end() ? fallback : json_record::as_i64(*it, fallback);
+}
+
+bool bool_value(const nlohmann::json &record, const char *field, bool fallback = false)
+{
+    const auto it = record.find(field);
+    if (it == record.end())
+    {
+        return fallback;
+    }
+    if (it->is_boolean())
+    {
+        return it->get<bool>();
+    }
+    return json_record::bool_or_number_as_int(*it, fallback ? 1 : 0) != 0;
+}
+
+bool is_expired(const nlohmann::json &record, std::int64_t now)
+{
+    const auto expire_time = i64_value(record, "expire_time", 0);
+    return expire_time > 0 && now > 0 && expire_time <= now;
+}
+
+void increment_json_count(nlohmann::json &record, const char *field, std::int64_t delta = 1)
+{
+    record[field] = json_record::as_i64(record.value(field, 0), 0) + delta;
+}
+
+void increment_status_count(nlohmann::json &record, const std::string &status)
+{
+    const auto key = status.empty() ? std::string("other") : status;
+    record[key] = json_record::as_i64(record.value(key, 0), 0) + 1;
+}
+
+void append_alert(nlohmann::json &alerts,
+                  const std::string &severity,
+                  const std::string &code,
+                  std::int64_t count,
+                  const std::string &message)
+{
+    if (count <= 0)
+    {
+        return;
+    }
+    alerts.push_back({
+        {"severity", severity},
+        {"code", code},
+        {"count", count},
+        {"message", message},
+    });
+}
+
+std::int64_t data_push_job_sort_time(const nlohmann::json &job)
+{
+    const auto failure_time = i64_value(job, "failure_time", 0);
+    if (failure_time > 0)
+    {
+        return failure_time;
+    }
+    const auto maintenance_time = i64_value(job, "runtime_maintenance_time", 0);
+    if (maintenance_time > 0)
+    {
+        return maintenance_time;
+    }
+    const auto update_time = i64_value(job, "update_time", 0);
+    return update_time > 0 ? update_time : i64_value(job, "create_time", 0);
+}
+
+nlohmann::json data_push_job_monitor_summary(const nlohmann::json &job, const std::string &period)
+{
+    return sanitized_record({
+        {"job_id", string_value(job, "job_id")},
+        {"period", string_value(job, "period", period)},
+        {"account_id", string_value(job, "account_id")},
+        {"config_id", string_value(job, "config_id")},
+        {"target_mountpoint", string_value(job, "target_mountpoint")},
+        {"execution_mode", string_value(job, "execution_mode")},
+        {"relay_uid", string_value(job, "relay_uid")},
+        {"relay_status", string_value(job, "relay_status")},
+        {"status", string_value(job, "status")},
+        {"failure_reason", string_value(job, "failure_reason")},
+        {"failure_time", i64_value(job, "failure_time", 0)},
+        {"runtime_maintenance_time", i64_value(job, "runtime_maintenance_time", 0)},
+        {"update_time", i64_value(job, "update_time", 0)},
+        {"create_time", i64_value(job, "create_time", 0)},
+    });
+}
+
+bool starts_with(const std::string &text, const std::string &prefix)
+{
+    return text.rfind(prefix, 0) == 0;
+}
+
+bool ends_with(const std::string &text, const std::string &suffix)
+{
+    return text.size() >= suffix.size() && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+std::vector<std::string> supplier_settlement_keys(storage::RedisHashClient &redis,
+                                                  const nlohmann::json &accounts,
+                                                  const std::string &period)
+{
+    std::vector<std::string> keys;
+    const std::string prefix = redis_keys::SUPPLY_EARNING_PREFIX;
+    const std::string suffix = ":" + period;
+    for (const auto &key : redis.scan_all_keys())
+    {
+        if (starts_with(key, prefix) && ends_with(key, suffix))
+        {
+            keys.push_back(key);
+        }
+    }
+    if (!keys.empty() || !accounts.is_object())
+    {
+        return keys;
+    }
+
+    for (const auto &account : accounts)
+    {
+        if (!account.is_object())
+        {
+            continue;
+        }
+        const std::string role = string_value(account, "role");
+        if (role != account_domain::ROLE_SUPPLIER && role != account_domain::ROLE_ADMIN)
+        {
+            continue;
+        }
+        const std::string account_id = string_value(account, "account_id");
+        if (!account_id.empty())
+        {
+            keys.push_back(redis_keys::supply_earning(account_id, period));
+        }
+    }
+    return keys;
+}
+
+nlohmann::json default_data_push_maintenance_snapshot(std::int64_t now)
+{
+    return {
+        {"config_id", "default"},
+        {"enabled", true},
+        {"interval_seconds", 60},
+        {"unhealthy_after_seconds", 300},
+        {"period_scope", "current"},
+        {"create_time", now},
+        {"update_time", now},
+    };
 }
 
 bool is_supplier_settlement_owner(const nlohmann::json &account)
@@ -398,6 +563,411 @@ ControllerResponse OperationsController::redeem_code(const std::string &code, co
 ControllerResponse OperationsController::list_stations()
 {
     return empty_or_records(redis_keys::STATION_RECORD);
+}
+
+ControllerResponse OperationsController::operations_monitor(const std::string &period)
+{
+    const std::string resolved_period = request_period(period);
+    const auto accounts_records = _redis.hgetall(redis_keys::ACC_RECORD);
+    const auto subscription_records = _redis.hgetall(redis_keys::SUB_RECORD);
+    const auto redeem_records = _redis.hgetall(redis_keys::REDEEM_CODE);
+    const auto data_push_usage_records = _redis.hgetall(redis_keys::data_push(resolved_period).c_str());
+    const auto data_push_job_records = data_push_jobs_with_runtime(
+        _redis.hgetall(redis_keys::data_push_job(resolved_period).c_str()),
+        _redis);
+    const auto supply_usage_records = _redis.hgetall(redis_keys::supply_usage(resolved_period).c_str());
+
+    nlohmann::json account_summary = {
+        {"total_count", 0},
+        {"admin_count", 0},
+        {"user_count", 0},
+        {"supplier_count", 0},
+        {"active_count", 0},
+        {"disabled_count", 0},
+        {"frozen_count", 0},
+        {"expired_count", 0},
+        {"deleted_count", 0},
+        {"negative_balance_count", 0},
+        {"low_balance_count", 0},
+        {"low_balance_threshold_cents", LOW_BALANCE_THRESHOLD_CENTS},
+        {"total_balance_cents", 0},
+        {"risk_accounts", nlohmann::json::array()},
+    };
+    if (accounts_records.is_object())
+    {
+        for (const auto &account : accounts_records)
+        {
+            if (!account.is_object())
+            {
+                continue;
+            }
+            increment_json_count(account_summary, "total_count");
+            const std::string role = string_value(account, "role");
+            if (role == account_domain::ROLE_ADMIN)
+            {
+                increment_json_count(account_summary, "admin_count");
+            }
+            else if (role == account_domain::ROLE_SUPPLIER)
+            {
+                increment_json_count(account_summary, "supplier_count");
+            }
+            else if (role == account_domain::ROLE_USER)
+            {
+                increment_json_count(account_summary, "user_count");
+            }
+
+            const std::string status = string_value(account, "status", account_domain::STATUS_ACTIVE);
+            const bool expired = is_expired(account, _now) || status == "expired";
+            if (status == account_domain::STATUS_ACTIVE && !expired)
+            {
+                increment_json_count(account_summary, "active_count");
+            }
+            if (status == account_domain::STATUS_DISABLED)
+            {
+                increment_json_count(account_summary, "disabled_count");
+            }
+            if (status == "frozen")
+            {
+                increment_json_count(account_summary, "frozen_count");
+            }
+            if (status == account_domain::STATUS_DELETED)
+            {
+                increment_json_count(account_summary, "deleted_count");
+            }
+            if (expired)
+            {
+                increment_json_count(account_summary, "expired_count");
+            }
+
+            const auto balance_cents = i64_value(account, "balance_cents", 0);
+            account_summary["total_balance_cents"] = json_record::as_i64(account_summary["total_balance_cents"], 0) + balance_cents;
+            nlohmann::json risks = nlohmann::json::array();
+            if (status != account_domain::STATUS_DELETED && balance_cents < 0)
+            {
+                increment_json_count(account_summary, "negative_balance_count");
+                risks.push_back("negative_balance");
+            }
+            else if (status != account_domain::STATUS_DELETED && balance_cents < LOW_BALANCE_THRESHOLD_CENTS)
+            {
+                increment_json_count(account_summary, "low_balance_count");
+                risks.push_back("low_balance");
+            }
+            if (status == account_domain::STATUS_DISABLED)
+            {
+                risks.push_back("disabled");
+            }
+            if (status == "frozen")
+            {
+                risks.push_back("frozen");
+            }
+            if (expired)
+            {
+                risks.push_back("expired");
+            }
+            if (!risks.empty() && account_summary["risk_accounts"].size() < MAX_RISK_ACCOUNTS)
+            {
+                account_summary["risk_accounts"].push_back(sanitized_record({
+                    {"account_id", string_value(account, "account_id")},
+                    {"username", string_value(account, "username")},
+                    {"role", role},
+                    {"status", status},
+                    {"balance_cents", balance_cents},
+                    {"expire_time", i64_value(account, "expire_time", 0)},
+                    {"risks", risks},
+                }));
+            }
+        }
+    }
+
+    nlohmann::json subscription_summary = {
+        {"total_count", 0},
+        {"active_count", 0},
+        {"disabled_count", 0},
+        {"expired_count", 0},
+        {"deleted_count", 0},
+    };
+    if (subscription_records.is_object())
+    {
+        for (const auto &subscription : subscription_records)
+        {
+            if (!subscription.is_object())
+            {
+                continue;
+            }
+            increment_json_count(subscription_summary, "total_count");
+            const std::string status = string_value(subscription, "status", account_domain::STATUS_ACTIVE);
+            const bool expired = is_expired(subscription, _now) || status == "expired";
+            if (status == account_domain::STATUS_ACTIVE && !expired)
+            {
+                increment_json_count(subscription_summary, "active_count");
+            }
+            if (status == account_domain::STATUS_DISABLED)
+            {
+                increment_json_count(subscription_summary, "disabled_count");
+            }
+            if (status == account_domain::STATUS_DELETED)
+            {
+                increment_json_count(subscription_summary, "deleted_count");
+            }
+            if (expired)
+            {
+                increment_json_count(subscription_summary, "expired_count");
+            }
+        }
+    }
+
+    nlohmann::json redeem_summary = {
+        {"total_count", 0},
+        {"active_count", 0},
+        {"disabled_count", 0},
+        {"expired_count", 0},
+        {"available_count", 0},
+    };
+    if (redeem_records.is_object())
+    {
+        for (const auto &code : redeem_records)
+        {
+            if (!code.is_object())
+            {
+                continue;
+            }
+            increment_json_count(redeem_summary, "total_count");
+            const std::string status = string_value(code, "status", account_domain::STATUS_ACTIVE);
+            const bool expired = is_expired(code, _now) || status == "expired";
+            if (status == account_domain::STATUS_ACTIVE && !expired)
+            {
+                increment_json_count(redeem_summary, "active_count");
+            }
+            if (status == account_domain::STATUS_DISABLED)
+            {
+                increment_json_count(redeem_summary, "disabled_count");
+            }
+            if (expired)
+            {
+                increment_json_count(redeem_summary, "expired_count");
+            }
+            const auto redeemed_count = i64_value(code, "redeemed_count", 0);
+            const auto max_redemptions = i64_value(code, "max_redemptions", 1);
+            if (status == account_domain::STATUS_ACTIVE && !expired && redeemed_count < max_redemptions)
+            {
+                increment_json_count(redeem_summary, "available_count");
+            }
+        }
+    }
+
+    nlohmann::json data_push_summary = {
+        {"period", resolved_period},
+        {"usage_count", 0},
+        {"total_used_seconds", 0},
+        {"total_debit_cents", 0},
+        {"job_count", 0},
+        {"relay_push_count", 0},
+        {"ledger_only_count", 0},
+        {"status_counts", {
+            {"queued", 0},
+            {"running", 0},
+            {"failed", 0},
+            {"completed", 0},
+            {"cancelled", 0},
+            {"other", 0},
+        }},
+        {"failed_count", 0},
+        {"running_count", 0},
+        {"queued_count", 0},
+        {"maintenance", default_data_push_maintenance_snapshot(_now)},
+        {"recent_failed_jobs", nlohmann::json::array()},
+    };
+    if (data_push_usage_records.is_object())
+    {
+        for (const auto &usage : data_push_usage_records)
+        {
+            if (!usage.is_object())
+            {
+                continue;
+            }
+            increment_json_count(data_push_summary, "usage_count");
+            data_push_summary["total_used_seconds"] = json_record::as_i64(data_push_summary["total_used_seconds"], 0) + i64_value(usage, "used_seconds", 0);
+            data_push_summary["total_debit_cents"] = json_record::as_i64(data_push_summary["total_debit_cents"], 0) + i64_value(usage, "actual_debit_cents", 0);
+        }
+    }
+    std::vector<nlohmann::json> failed_jobs;
+    if (data_push_job_records.is_object())
+    {
+        for (const auto &job : data_push_job_records)
+        {
+            if (!job.is_object())
+            {
+                continue;
+            }
+            increment_json_count(data_push_summary, "job_count");
+            const std::string mode = string_value(job, "execution_mode", account_domain::DATA_PUSH_EXECUTION_LEDGER_ONLY);
+            if (mode == account_domain::DATA_PUSH_EXECUTION_RELAY_PUSH)
+            {
+                increment_json_count(data_push_summary, "relay_push_count");
+            }
+            else
+            {
+                increment_json_count(data_push_summary, "ledger_only_count");
+            }
+            const std::string status = string_value(job, "status", "other");
+            if (status == "queued" || status == "running" || status == "failed" || status == "completed" || status == "cancelled")
+            {
+                increment_status_count(data_push_summary["status_counts"], status);
+            }
+            else
+            {
+                increment_status_count(data_push_summary["status_counts"], "other");
+            }
+            if (status == "failed")
+            {
+                failed_jobs.push_back(data_push_job_monitor_summary(job, resolved_period));
+            }
+        }
+    }
+    data_push_summary["failed_count"] = data_push_summary["status_counts"].value("failed", 0);
+    data_push_summary["running_count"] = data_push_summary["status_counts"].value("running", 0);
+    data_push_summary["queued_count"] = data_push_summary["status_counts"].value("queued", 0);
+    std::sort(failed_jobs.begin(), failed_jobs.end(), [](const auto &lhs, const auto &rhs) {
+        return data_push_job_sort_time(lhs) > data_push_job_sort_time(rhs);
+    });
+    for (const auto &job : failed_jobs)
+    {
+        if (data_push_summary["recent_failed_jobs"].size() >= MAX_RECENT_FAILED_JOBS)
+        {
+            break;
+        }
+        data_push_summary["recent_failed_jobs"].push_back(job);
+    }
+
+    storage::AccountDomainRepository repo(_redis);
+    auto maintenance = repo.get_data_push_maintenance_config(_now);
+    if (maintenance.status == storage::RepositoryStatus::Ok)
+    {
+        data_push_summary["maintenance"] = sanitized_record(maintenance.record);
+    }
+    else
+    {
+        data_push_summary["maintenance"]["error"] = maintenance.error;
+    }
+
+    nlohmann::json supply_summary = {
+        {"period", resolved_period},
+        {"usage_count", 0},
+        {"pending_usage_count", 0},
+        {"settled_usage_count", 0},
+        {"total_supply_seconds", 0},
+        {"total_earning_cents", 0},
+        {"pending_earning_cents", 0},
+        {"settled_earning_cents", 0},
+        {"settlements", {
+            {"count", 0},
+            {"pending_payment_count", 0},
+            {"paid_count", 0},
+            {"payment_failed_count", 0},
+            {"cancelled_count", 0},
+            {"other_count", 0},
+            {"pending_payment_cents", 0},
+            {"paid_cents", 0},
+            {"failed_payment_cents", 0},
+            {"cancelled_payment_cents", 0},
+            {"other_cents", 0},
+        }},
+    };
+    if (supply_usage_records.is_object())
+    {
+        for (const auto &usage : supply_usage_records)
+        {
+            if (!usage.is_object())
+            {
+                continue;
+            }
+            increment_json_count(supply_summary, "usage_count");
+            const auto seconds = i64_value(usage, "used_seconds", 0);
+            const auto cents = i64_value(usage, "earning_cents", 0);
+            supply_summary["total_supply_seconds"] = json_record::as_i64(supply_summary["total_supply_seconds"], 0) + seconds;
+            supply_summary["total_earning_cents"] = json_record::as_i64(supply_summary["total_earning_cents"], 0) + cents;
+            const std::string status = string_value(usage, "status", "pending");
+            if (status == "settled")
+            {
+                increment_json_count(supply_summary, "settled_usage_count");
+                supply_summary["settled_earning_cents"] = json_record::as_i64(supply_summary["settled_earning_cents"], 0) + cents;
+            }
+            else
+            {
+                increment_json_count(supply_summary, "pending_usage_count");
+                supply_summary["pending_earning_cents"] = json_record::as_i64(supply_summary["pending_earning_cents"], 0) + cents;
+            }
+        }
+    }
+    for (const auto &key : supplier_settlement_keys(_redis, accounts_records, resolved_period))
+    {
+        const auto settlement_records = _redis.hgetall(key.c_str());
+        if (!settlement_records.is_object())
+        {
+            continue;
+        }
+        for (const auto &settlement : settlement_records)
+        {
+            if (!settlement.is_object())
+            {
+                continue;
+            }
+            increment_json_count(supply_summary["settlements"], "count");
+            const auto cents = i64_value(settlement, "total_earning_cents", 0);
+            const std::string status = string_value(settlement, "status", "pending_payment");
+            if (status == "pending_payment" || status.empty())
+            {
+                increment_json_count(supply_summary["settlements"], "pending_payment_count");
+                supply_summary["settlements"]["pending_payment_cents"] = json_record::as_i64(supply_summary["settlements"]["pending_payment_cents"], 0) + cents;
+            }
+            else if (status == "paid" || status == "settled")
+            {
+                increment_json_count(supply_summary["settlements"], "paid_count");
+                supply_summary["settlements"]["paid_cents"] = json_record::as_i64(supply_summary["settlements"]["paid_cents"], 0) + cents;
+            }
+            else if (status == "payment_failed")
+            {
+                increment_json_count(supply_summary["settlements"], "payment_failed_count");
+                supply_summary["settlements"]["failed_payment_cents"] = json_record::as_i64(supply_summary["settlements"]["failed_payment_cents"], 0) + cents;
+            }
+            else if (status == "cancelled" || status == "void")
+            {
+                increment_json_count(supply_summary["settlements"], "cancelled_count");
+                supply_summary["settlements"]["cancelled_payment_cents"] = json_record::as_i64(supply_summary["settlements"]["cancelled_payment_cents"], 0) + cents;
+            }
+            else
+            {
+                increment_json_count(supply_summary["settlements"], "other_count");
+                supply_summary["settlements"]["other_cents"] = json_record::as_i64(supply_summary["settlements"]["other_cents"], 0) + cents;
+            }
+        }
+    }
+
+    nlohmann::json alerts = nlohmann::json::array();
+    append_alert(alerts, "critical", "negative_balance", account_summary.value("negative_balance_count", 0), "Account balance is below zero");
+    append_alert(alerts, "warning", "low_balance", account_summary.value("low_balance_count", 0), "Account balance is below the operations threshold");
+    append_alert(alerts, "critical", "data_push_failed", data_push_summary.value("failed_count", 0), "DataPush jobs failed in the selected period");
+    if (!bool_value(data_push_summary["maintenance"], "enabled", true))
+    {
+        append_alert(alerts, "warning", "data_push_maintenance_disabled", 1, "DataPush runtime maintenance is disabled");
+    }
+    append_alert(alerts,
+                 "warning",
+                 "supplier_pending_payment",
+                 supply_summary["settlements"].value("pending_payment_count", 0),
+                 "Supplier settlements are waiting for payment");
+    append_alert(alerts, "warning", "supplier_usage_pending", supply_summary.value("pending_usage_count", 0), "Supplier usage is not settled yet");
+
+    return json_response(200, {
+        {"period", resolved_period},
+        {"generated_time", _now},
+        {"accounts", account_summary},
+        {"subscriptions", subscription_summary},
+        {"redeem_codes", redeem_summary},
+        {"data_push", data_push_summary},
+        {"supply", supply_summary},
+        {"alerts", alerts},
+    });
 }
 
 ControllerResponse OperationsController::list_usage(const std::string &period)

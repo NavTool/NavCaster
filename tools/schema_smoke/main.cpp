@@ -2445,6 +2445,79 @@ int main()
         expect_eq_int(operations.update_supplier_settlement_payment(op_settlement_id, "202606", "op-supplier", R"({"status":"payment_failed"})").status_code, 409, "operations paid settlement cannot fail");
         expect_eq_int(operations.create_supplier_settlement(R"({"supplier_account_id":"op-supplier","period":"202606"})").status_code, 409, "operations supplier settlement no pending usage rejected");
 
+        response = operations.operations_monitor("202606");
+        expect_eq_int(response.status_code, 200, "operations monitor basic snapshot");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("period", std::string{}), "202606", "operations monitor period");
+        expect_true(response_body["accounts"].value("total_count", 0) >= 2, "operations monitor account count");
+        expect_true(response_body["data_push"].value("usage_count", 0) >= 1, "operations monitor data push usage count");
+        expect_eq_int(response_body["supply"]["settlements"].value("paid_count", 0), 1, "operations monitor paid settlement count");
+
+        operations_redis.hset(navcaster::redis_keys::ACC_RECORD, "op-negative", nlohmann::json{
+            {"account_id", "op-negative"},
+            {"username", "op-negative"},
+            {"role", "user"},
+            {"status", "active"},
+            {"balance_cents", -25},
+            {"expire_time", 0},
+        }.dump());
+        operations_redis.hset(navcaster::redis_keys::ACC_RECORD, "op-low", nlohmann::json{
+            {"account_id", "op-low"},
+            {"username", "op-low"},
+            {"role", "user"},
+            {"status", "active"},
+            {"balance_cents", 500},
+            {"expire_time", 0},
+        }.dump());
+        operations_redis.hset(navcaster::redis_keys::data_push_job("202606").c_str(), "op-monitor-failed", nlohmann::json{
+            {"job_id", "op-monitor-failed"},
+            {"account_id", "op-user"},
+            {"config_id", "op-push-cfg"},
+            {"target_mountpoint", "OPBASE"},
+            {"execution_mode", "relay_push"},
+            {"relay_uid", "data_push:op-monitor-failed"},
+            {"status", "failed"},
+            {"failure_reason", "relay_runtime_missing"},
+            {"failure_time", 6060},
+            {"period", "202606"},
+        }.dump());
+        expect_true(domain_repo.append_supplier_supply_usage({
+            {"usage_id", "op-supply-pending"},
+            {"supplier_account_id", "op-supplier"},
+            {"access_account_id", "op-station"},
+            {"mountpoint", "OPBASE"},
+            {"used_seconds", 120},
+            {"earning_cents", 25},
+        }, "202606", 6045).status == navcaster::storage::RepositoryStatus::Ok, "operations monitor fixture pending supply");
+        operations_redis.hset(navcaster::redis_keys::supply_earning("op-supplier", "202606").c_str(), "op-pending-payment", nlohmann::json{
+            {"settlement_id", "op-pending-payment"},
+            {"supplier_account_id", "op-supplier"},
+            {"period", "202606"},
+            {"usage_count", 1},
+            {"total_supply_seconds", 30},
+            {"total_earning_cents", 33},
+            {"status", "pending_payment"},
+            {"create_time", 6061},
+        }.dump());
+        response = operations.operations_monitor("202606");
+        expect_eq_int(response.status_code, 200, "operations monitor risk snapshot");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body["accounts"].value("negative_balance_count", 0), 1, "operations monitor negative balance count");
+        expect_true(response_body["accounts"].value("low_balance_count", 0) >= 1, "operations monitor low balance count");
+        expect_eq_int(response_body["data_push"].value("failed_count", 0), 1, "operations monitor data push failed count");
+        expect_true(!response_body["data_push"]["recent_failed_jobs"].empty(), "operations monitor recent failed jobs");
+        expect_eq_int(response_body["supply"].value("pending_usage_count", 0), 1, "operations monitor pending supply count");
+        expect_true(response_body["supply"]["settlements"].value("pending_payment_count", 0) >= 1, "operations monitor pending settlement count");
+        expect_true(!response_body["alerts"].empty(), "operations monitor alerts generated");
+
+        FakeRedisHashClient monitor_empty_redis;
+        navcaster::http_api::OperationsController monitor_empty(monitor_empty_redis, 6100);
+        response = monitor_empty.operations_monitor("202606");
+        expect_eq_int(response.status_code, 200, "operations monitor empty snapshot");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body["accounts"].value("total_count", -1), 0, "operations monitor empty account count");
+        expect_true(response_body["data_push"]["maintenance"].value("enabled", false), "operations monitor empty default maintenance");
+
         expect_eq_int(operations.delete_account("op-user").status_code, 200, "operations delete account");
         expect_true(operations.create_account(R"({"account_id":"op-reuse","username":"op-customer","role":"user"})").status_code == 409, "operations deleted username cannot be reused");
     }
