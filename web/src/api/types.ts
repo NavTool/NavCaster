@@ -555,6 +555,21 @@ export interface SupplierSupplyUsage {
   create_time?: number;
 }
 
+export interface SupplierSettlementRecord {
+  settlement_id: string;
+  supplier_account_id: string;
+  period: string;
+  usage_ids?: string[];
+  usage_count?: number;
+  total_supply_seconds?: number;
+  total_earning_cents?: number;
+  status?: string;
+  operator_note?: string;
+  external_ref?: string;
+  create_time?: number;
+  update_time?: number;
+}
+
 export interface RoleDashboard {
   account: OperationsAccount;
   access_account_count: number;
@@ -572,6 +587,7 @@ export interface SupplierEarningsSummary {
   pending_earning_cents: number;
   settled_earning_cents: number;
   total_earning_cents: number;
+  settlement_count?: number;
 }
 
 export interface AccessAccountCreateInput {

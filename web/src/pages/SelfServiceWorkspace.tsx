@@ -42,13 +42,14 @@ import type {
   StationRecord,
   SubscriptionRecord,
   SupplierEarningsSummary,
+  SupplierSettlementRecord,
   SupplierSupplyUsage,
 } from '../api/types';
 import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../utils/format';
 
 type SelfScope = 'me' | 'supplier';
 type UserView = 'dashboard' | 'profile' | 'access-accounts' | 'groups' | 'mount-points' | 'usage' | 'subscriptions' | 'redeem-redemptions' | 'data-push';
-type SupplierView = 'dashboard' | 'profile' | 'access-accounts' | 'stations' | 'supply-usage' | 'earnings';
+type SupplierView = 'dashboard' | 'profile' | 'access-accounts' | 'stations' | 'supply-usage' | 'settlements' | 'earnings';
 
 interface SelfServiceWorkspaceProps {
   scope: SelfScope;
@@ -92,6 +93,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const dataPushQuery = usePolling(() => meApi.dataPushUsage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'data-push'));
   const stationsQuery = usePolling(() => supplierApi.stations(), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'stations'));
   const supplyQuery = usePolling(() => supplierApi.supplyUsage(currentPeriod()), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'supply-usage' || view === 'earnings'));
+  const settlementQuery = usePolling(() => supplierApi.settlements(currentPeriod()), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'settlements' || view === 'earnings'));
   const earningsQuery = usePolling(() => supplierApi.earnings(currentPeriod()), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'earnings'));
 
   const accessRows = useMemo(() => rowsFromHash(accessQuery.data), [accessQuery.data]);
@@ -103,6 +105,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
+  const settlementRows = useMemo(() => rowsFromHash(settlementQuery.data), [settlementQuery.data]);
 
   const groupOptions = groupRows.map((grant) => ({
     value: grant.group_id,
@@ -275,6 +278,17 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const settlementColumns: ColumnsType<SupplierSettlementRecord & { key: string }> = [
+    { title: 'Settlement ID', dataIndex: 'settlement_id', key: 'settlement_id', width: 260 },
+    { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
+    { title: '用量数', dataIndex: 'usage_count', key: 'usage_count', width: 90 },
+    { title: '供应时长', key: 'total_supply_seconds', width: 120, render: (_, row) => formatDuration(row.total_supply_seconds ?? 0) },
+    { title: '结算收益', key: 'total_earning_cents', width: 120, render: (_, row) => formatCents(row.total_earning_cents) },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'settled' ? 'green' : 'default'}>{value || '-'}</Tag> },
+    { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+    { title: '备注', dataIndex: 'operator_note', key: 'operator_note', ellipsis: true, render: (value) => value || '-' },
+  ];
+
   const dashboard = dashboardQuery.data;
   const earnings = earningsQuery.data;
   const title = scope === 'supplier' ? '供应商工作台' : '用户工作台';
@@ -331,6 +345,9 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     if (scope === 'supplier' && view === 'supply-usage') {
       return <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
     }
+    if (scope === 'supplier' && view === 'settlements') {
+      return <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1180 }} />;
+    }
     if (scope === 'supplier' && view === 'earnings') {
       return renderEarnings(earnings);
     }
@@ -343,6 +360,10 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
       <Col xs={12} md={6}><MetricCard title="待结算" value={formatCents(summary?.pending_earning_cents)} prefix={<WalletOutlined />} /></Col>
       <Col xs={12} md={6}><MetricCard title="已结算" value={formatCents(summary?.settled_earning_cents)} prefix={<WalletOutlined />} /></Col>
       <Col xs={12} md={6}><MetricCard title="累计收益" value={formatCents(summary?.total_earning_cents)} prefix={<WalletOutlined />} /></Col>
+      <Col xs={12} md={6}><MetricCard title="结算批次" value={summary?.settlement_count ?? settlementRows.length} prefix={<BranchesOutlined />} /></Col>
+      <Col span={24}>
+        <Table columns={settlementColumns} dataSource={settlementRows} loading={settlementQuery.loading} rowKey="key" size="small" scroll={{ x: 1180 }} />
+      </Col>
       <Col span={24}>
         <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />
       </Col>
@@ -365,6 +386,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     if (view === 'data-push') return '数据推送';
     if (view === 'stations') return '供应站点';
     if (view === 'supply-usage') return '供应时长';
+    if (view === 'settlements') return '供应结算';
     return '供应收益';
   })();
 

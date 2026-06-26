@@ -47,6 +47,11 @@ public:
     ControllerResponse list_usage(const std::string &period);
     ControllerResponse list_data_push_usage(const std::string &period);
     ControllerResponse list_supply_usage(const std::string &period);
+    ControllerResponse list_supplier_settlements(const std::string &period, const std::string &supplier_account_id);
+    ControllerResponse get_supplier_settlement(const std::string &settlement_id,
+                                               const std::string &period,
+                                               const std::string &supplier_account_id);
+    ControllerResponse create_supplier_settlement(const std::string &body_text);
 
 private:
     ControllerResponse repository_result(int success_status, const storage::AccountDomainResult &result) const;

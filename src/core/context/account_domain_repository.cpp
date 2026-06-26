@@ -4,6 +4,7 @@
 #include "json_record.h"
 #include "redis_keys.h"
 
+#include <unordered_set>
 #include <utility>
 
 namespace navcaster::storage
@@ -1196,6 +1197,136 @@ AccountDomainResult AccountDomainRepository::append_supplier_supply_usage(nlohma
     AccountDomainResult result;
     result.id = usage_id;
     result.record = std::move(entry);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::create_supplier_settlement(nlohmann::json request, const std::string &period, std::int64_t now)
+{
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+    const std::string supplier_account_id = request.value("supplier_account_id", std::string{});
+    if (supplier_account_id.empty())
+    {
+        return invalid("supplier_account_id is required");
+    }
+    const std::string resolved_period = request.value("period", period);
+    if (resolved_period.empty())
+    {
+        return invalid("period is required");
+    }
+
+    const auto supplier = get_hash_record(redis_keys::ACC_RECORD, supplier_account_id);
+    if (!supplier.is_object() || !account_domain::is_active_status(supplier))
+    {
+        return make_result(RepositoryStatus::NotFound, supplier_account_id, "Supplier account not found or inactive");
+    }
+    const std::string supplier_role = supplier.value("role", std::string{});
+    if (supplier_role != account_domain::ROLE_SUPPLIER && supplier_role != account_domain::ROLE_ADMIN)
+    {
+        return make_result(RepositoryStatus::Invalid, supplier_account_id, "Settlement account must be supplier or admin");
+    }
+
+    std::unordered_set<std::string> requested_usage_ids;
+    if (request.contains("usage_ids"))
+    {
+        if (!request["usage_ids"].is_array() || request["usage_ids"].empty())
+        {
+            return invalid("usage_ids must be a non-empty array");
+        }
+        for (const auto &usage_id : request["usage_ids"])
+        {
+            if (!usage_id.is_string() || usage_id.get<std::string>().empty())
+            {
+                return invalid("usage_ids must contain strings");
+            }
+            requested_usage_ids.insert(usage_id.get<std::string>());
+        }
+    }
+
+    const std::string usage_key = redis_keys::supply_usage(resolved_period);
+    const auto all_usage = _redis.hgetall(usage_key.c_str());
+    nlohmann::json selected_usage_ids = nlohmann::json::array();
+    nlohmann::json selected_records = nlohmann::json::array();
+    std::int64_t total_supply_seconds = 0;
+    std::int64_t total_earning_cents = 0;
+    if (all_usage.is_object())
+    {
+        for (auto it = all_usage.begin(); it != all_usage.end(); ++it)
+        {
+            const auto &entry = it.value();
+            if (!entry.is_object() ||
+                entry.value("supplier_account_id", std::string{}) != supplier_account_id ||
+                entry.value("status", std::string("pending")) == "settled")
+            {
+                continue;
+            }
+            const std::string usage_id = entry.value("usage_id", it.key());
+            if (!requested_usage_ids.empty() && requested_usage_ids.find(usage_id) == requested_usage_ids.end())
+            {
+                continue;
+            }
+            selected_usage_ids.push_back(usage_id);
+            selected_records.push_back(entry);
+            total_supply_seconds += json_record::as_i64(entry.value("used_seconds", 0), 0);
+            total_earning_cents += json_record::as_i64(entry.value("earning_cents", 0), 0);
+        }
+    }
+    if (selected_usage_ids.empty())
+    {
+        return make_result(RepositoryStatus::Conflict, supplier_account_id, "No pending SupplierSupplyUsage found");
+    }
+
+    const std::string settlement_id = request.value("settlement_id", std::string("settlement:") + supplier_account_id + ":" + resolved_period + ":" + std::to_string(now));
+    nlohmann::json settlement = {
+        {"settlement_id", settlement_id},
+        {"supplier_account_id", supplier_account_id},
+        {"period", resolved_period},
+        {"usage_ids", selected_usage_ids},
+        {"usage_count", static_cast<int>(selected_usage_ids.size())},
+        {"total_supply_seconds", total_supply_seconds},
+        {"total_earning_cents", total_earning_cents},
+        {"status", request.value("status", std::string("settled"))},
+    };
+    if (request.contains("operator_note"))
+    {
+        settlement["operator_note"] = request["operator_note"];
+    }
+    if (request.contains("external_ref"))
+    {
+        settlement["external_ref"] = request["external_ref"];
+    }
+
+    std::string error;
+    if (!account_domain::normalize_supplier_settlement(settlement, now, &error))
+    {
+        return invalid(error);
+    }
+
+    const std::string settlement_key = redis_keys::supply_earning(supplier_account_id, resolved_period);
+    if (!hsetnx_json(settlement_key.c_str(), settlement_id, settlement))
+    {
+        return make_result(RepositoryStatus::Conflict, settlement_id, "SupplierSettlement already exists");
+    }
+
+    for (const auto &selected : selected_records)
+    {
+        nlohmann::json updated = selected;
+        const std::string usage_id = updated.value("usage_id", std::string{});
+        updated["status"] = "settled";
+        updated["settlement_id"] = settlement_id;
+        updated["settlement_time"] = now;
+        updated["update_time"] = now;
+        if (!hset_json(usage_key.c_str(), usage_id, updated))
+        {
+            return redis_error(usage_id, "Failed to update SupplierSupplyUsage settlement status");
+        }
+    }
+
+    AccountDomainResult result;
+    result.id = settlement_id;
+    result.record = std::move(settlement);
     return result;
 }
 

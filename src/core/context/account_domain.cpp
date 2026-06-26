@@ -434,6 +434,36 @@ bool normalize_supplier_supply_usage(nlohmann::json &record, std::int64_t now, s
     return true;
 }
 
+bool normalize_supplier_settlement(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    if (!normalize_append_fact(record, "settlement_id", now, error) ||
+        !require_string(record, "supplier_account_id", error) ||
+        !require_string(record, "period", error))
+    {
+        return false;
+    }
+    if (!record.contains("usage_ids") || !record["usage_ids"].is_array() || record["usage_ids"].empty())
+    {
+        return fail(error, "usage_ids is required");
+    }
+    record["usage_count"] = record.value("usage_count", static_cast<int>(record["usage_ids"].size()));
+    record["total_supply_seconds"] = record.value("total_supply_seconds", 0);
+    record["total_earning_cents"] = record.value("total_earning_cents", 0);
+    record["status"] = record.value("status", std::string("settled"));
+    if (string_value(record, "status") != "settled" && string_value(record, "status") != "void")
+    {
+        return fail(error, "invalid settlement status");
+    }
+    if (!is_nonnegative_number(record["usage_count"]) ||
+        !is_nonnegative_number(record["total_supply_seconds"]) ||
+        !is_nonnegative_number(record["total_earning_cents"]))
+    {
+        return fail(error, "supplier settlement numeric fields must be non-negative");
+    }
+    touch(record, now);
+    return true;
+}
+
 nlohmann::json username_index_record(const std::string &id, const std::string &status, std::int64_t now)
 {
     return {

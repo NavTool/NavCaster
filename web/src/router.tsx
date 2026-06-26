@@ -145,6 +145,7 @@ export default function AppRouter() {
           <Route path="redeem-codes" element={<OperationsDashboard scope="admin" view="redeem-codes" />} />
           <Route path="data-push-usage" element={<OperationsDashboard scope="admin" view="data-push-usage" />} />
           <Route path="supply-usage" element={<OperationsDashboard scope="admin" view="supply-usage" />} />
+          <Route path="supplier-settlements" element={<OperationsDashboard scope="admin" view="supplier-settlements" />} />
           <Route path="legacy">
             <Route index element={<Navigate to="/admin/legacy/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
@@ -196,6 +197,7 @@ export default function AppRouter() {
           <Route path="access-accounts" element={<SelfServiceWorkspace scope="supplier" view="access-accounts" />} />
           <Route path="stations" element={<SelfServiceWorkspace scope="supplier" view="stations" />} />
           <Route path="supply-usage" element={<SelfServiceWorkspace scope="supplier" view="supply-usage" />} />
+          <Route path="settlements" element={<SelfServiceWorkspace scope="supplier" view="settlements" />} />
           <Route path="earnings" element={<SelfServiceWorkspace scope="supplier" view="earnings" />} />
         </Route>
         <Route

@@ -75,6 +75,8 @@ private:
     void handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_usage(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_supply_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_supplier_settlements(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_supplier_settlement(const HttpRequest &req, HttpResponse &resp);
 
     // Self-service domain endpoints
     void handle_v1_me_profile(const HttpRequest &req, HttpResponse &resp);
@@ -93,6 +95,7 @@ private:
     void handle_v1_supplier_access_account(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_supplier_stations(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_supplier_supply_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_settlements(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_supplier_earnings(const HttpRequest &req, HttpResponse &resp);
 
     // Account endpoints (ACT:RECORD) — uses auth_redis

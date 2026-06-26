@@ -1,5 +1,6 @@
 #include "operations_controller.h"
 
+#include "account_domain.h"
 #include "account_domain_repository.h"
 #include "controller_helpers.h"
 #include "json_record.h"
@@ -55,6 +56,12 @@ bool parse_body_object(const std::string &body_text, nlohmann::json &body)
 std::string request_period(const std::string &period)
 {
     return period.empty() ? "current" : period;
+}
+
+bool is_supplier_settlement_owner(const nlohmann::json &account)
+{
+    const std::string role = account.value("role", std::string{});
+    return role == account_domain::ROLE_SUPPLIER || role == account_domain::ROLE_ADMIN;
 }
 } // namespace
 
@@ -342,6 +349,105 @@ ControllerResponse OperationsController::list_supply_usage(const std::string &pe
 {
     const std::string key = redis_keys::supply_usage(request_period(period));
     return list_limited_hash(key.c_str());
+}
+
+ControllerResponse OperationsController::list_supplier_settlements(const std::string &period, const std::string &supplier_account_id)
+{
+    const std::string resolved_period = request_period(period);
+    if (!supplier_account_id.empty())
+    {
+        const std::string key = redis_keys::supply_earning(supplier_account_id, resolved_period);
+        return list_limited_hash(key.c_str());
+    }
+
+    const auto accounts = _redis.hgetall(redis_keys::ACC_RECORD);
+    nlohmann::json records = nlohmann::json::object();
+    if (!accounts.is_object())
+    {
+        return json_response(200, records);
+    }
+    for (const auto &account : accounts)
+    {
+        if (!account.is_object() || !is_supplier_settlement_owner(account))
+        {
+            continue;
+        }
+        const std::string account_id = account.value("account_id", std::string{});
+        if (account_id.empty())
+        {
+            continue;
+        }
+        const std::string key = redis_keys::supply_earning(account_id, resolved_period);
+        const auto settlements = _redis.hgetall(key.c_str());
+        if (!settlements.is_object())
+        {
+            continue;
+        }
+        for (auto it = settlements.begin(); it != settlements.end(); ++it)
+        {
+            records[it.key()] = sanitized_record(it.value());
+        }
+    }
+    return json_response(200, records);
+}
+
+ControllerResponse OperationsController::get_supplier_settlement(const std::string &settlement_id,
+                                                                 const std::string &period,
+                                                                 const std::string &supplier_account_id)
+{
+    if (settlement_id.empty())
+    {
+        return error_response(400, "settlement_id is required");
+    }
+    const std::string resolved_period = request_period(period);
+    if (!supplier_account_id.empty())
+    {
+        const std::string key = redis_keys::supply_earning(supplier_account_id, resolved_period);
+        const auto record = _redis.hget(key.c_str(), settlement_id.c_str());
+        if (!record.is_object())
+        {
+            return error_response(404, "SupplierSettlement not found");
+        }
+        return json_response(200, sanitized_record(record));
+    }
+
+    const auto accounts = _redis.hgetall(redis_keys::ACC_RECORD);
+    if (accounts.is_object())
+    {
+        for (const auto &account : accounts)
+        {
+            if (!account.is_object() || !is_supplier_settlement_owner(account))
+            {
+                continue;
+            }
+            const std::string account_id = account.value("account_id", std::string{});
+            if (account_id.empty())
+            {
+                continue;
+            }
+            const std::string key = redis_keys::supply_earning(account_id, resolved_period);
+            const auto record = _redis.hget(key.c_str(), settlement_id.c_str());
+            if (record.is_object())
+            {
+                return json_response(200, sanitized_record(record));
+            }
+        }
+    }
+    return error_response(404, "SupplierSettlement not found");
+}
+
+ControllerResponse OperationsController::create_supplier_settlement(const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    const std::string period = request_period(body.value("period", std::string{}));
+    body["period"] = period;
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.create_supplier_settlement(std::move(body), period, _now);
+    return repository_result(201, result);
 }
 
 } // namespace navcaster::http_api

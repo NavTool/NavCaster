@@ -87,6 +87,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/usage
 /api/v1/admin/data-push-usage
 /api/v1/admin/supply-usage
+/api/v1/admin/supplier-settlements
 /api/v1/me/profile
 /api/v1/me/dashboard
 /api/v1/me/allowed-groups
@@ -101,6 +102,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/supplier/access-accounts
 /api/v1/supplier/stations
 /api/v1/supplier/supply-usage
+/api/v1/supplier/settlements
 /api/v1/supplier/earnings
 ```
 
@@ -117,6 +119,10 @@ NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的�
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加
 `/me/subscriptions` 和 `/me/redeem-redemptions`，只展示当前 session Account 的
 订阅权益和兑换记录。
+
+NC-061 起运营台增加 `/admin/supplier-settlements`，管理员可按当前账期查看结算批次，
+并输入 Supplier Account ID 创建结算。供应商自助台增加 `/supplier/settlements`，
+`/supplier/earnings` 同时展示结算批次、供应事实和 pending/settled 收益汇总。
 
 ## API Types 和契约
 
