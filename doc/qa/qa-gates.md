@@ -7,26 +7,24 @@
 
 ## CI 硬门槛
 
-主 CI `.github/workflows/build-and-package.yml` 当前执行：
+主 CI `.github/workflows/build-and-package.yml` 当前只调用统一打包入口：
 
 ```text
-API contract check
-  node tools/contract_check/check_api_contracts.mjs
+Windows:
+  deploy/scripts/package_windows.ps1
 
-Web build
-  cd web
-  npm ci
-  npm run build
-
-schema smoke
-  cmake -S . -B build/ci-Release -G Ninja -DCMAKE_BUILD_TYPE=Release
-  cmake --build build/ci-Release --target schema_smoke --parallel <全处理器数>
-  ctest --test-dir build/ci-Release --output-on-failure -R schema_smoke
-
-package build
-  deploy/ci/build_in_linux.sh
-  deploy/ci/build_in_windows.ps1
+Linux:
+  Docker ubuntu-20.04 container
+  -> deploy/scripts/package_linux.sh
 ```
+
+两个打包入口都会先检查并尽量补全构建环境，然后执行 API contract check、Web build、
+Ninja Release 构建、`schema_smoke` CTest、发布目录组装和归档。产物统一输出到
+`dist/<PackageName>/`，并生成 `dist/<PackageName>.zip` 或
+`dist/<PackageName>.tar.gz`。不传参数时打包脚本必须使用默认 Release、默认 `dist/`
+输出、默认版本解析和默认平台解析；默认版本优先使用最新 Git tag 加距 tag 提交数，
+例如 `2.0.1-189`，生成的目录名和归档名必须带版本号。脚本同时写出
+`dist/package-metadata.env`，GitHub Actions 只根据该元数据上传 `dist` 中对应归档。
 
 API contract check 会比较 `proto/caster` 中关键 message 字段、enum 成员名和
 enum 数字值与 `web/src/api/types.ts` 的同步状态。未知差异会失败；当前阶段性允许差异

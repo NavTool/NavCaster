@@ -7,6 +7,7 @@ BUILD_TYPE="${BUILD_TYPE:-Release}"
 IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-navcaster}"
 IMAGE_PREFIX="${IMAGE_PREFIX:-team-dev}"
 BASE_IMAGE="${BASE_IMAGE:-ubuntu:24.04}"
+BUILDER_BASE_IMAGE="${BUILDER_BASE_IMAGE:-ubuntu:20.04}"
 SOURCE="${SOURCE:-https://github.com/NavTool/NavCaster}"
 REDIS_VERSION="${REDIS_VERSION:-8.6.3}"
 USE_DOCKER_BUILDER="${USE_DOCKER_BUILDER:-auto}"
@@ -24,8 +25,8 @@ usage() {
 Usage: deploy/scripts/build_runtime_image.sh [options]
 
 Build a Linux NavCaster package and Docker runtime image with commit provenance.
-On Linux hosts the package is built locally. On non-Linux hosts the script uses
-the Ubuntu 24.04 Docker builder from deploy/docker/dockerfile.debian.
+On Linux hosts the package is built locally through deploy/scripts/package_linux.sh.
+On non-Linux hosts the script uses the Docker builder from deploy/docker/dockerfile.debian.
 
 Options:
   --build-type <Release|Debug>  CMake build type. Defaults to BUILD_TYPE or Release.
@@ -43,6 +44,7 @@ Environment:
   IMAGE_REPOSITORY=navcaster
   IMAGE_PREFIX=team-dev
   BASE_IMAGE=ubuntu:24.04
+  BUILDER_BASE_IMAGE=ubuntu:20.04
   SOURCE=https://github.com/NavTool/NavCaster
   REDIS_VERSION=8.6.3
   USE_DOCKER_BUILDER=auto|1|0
@@ -85,6 +87,71 @@ docker_cli() {
 
 git_repo() {
 	git -c "safe.directory=$ROOT_DIR" -C "$ROOT_DIR" "$@"
+}
+
+project_default_version() {
+	local major="0"
+	local minor="0"
+	local patch="0"
+	local extra="0"
+	local line
+
+	if [[ -r "${ROOT_DIR}/CMakeLists.txt" ]]; then
+		while IFS= read -r line; do
+			case "${line}" in
+				*"set(VERSION_MAJOR "*)
+					major="$(printf '%s' "${line}" | sed -nE 's/^[[:space:]]*set\(VERSION_MAJOR[[:space:]]+([0-9]+)\).*/\1/p')"
+					;;
+				*"set(VERSION_MINOR "*)
+					minor="$(printf '%s' "${line}" | sed -nE 's/^[[:space:]]*set\(VERSION_MINOR[[:space:]]+([0-9]+)\).*/\1/p')"
+					;;
+				*"set(VERSION_PATCH "*)
+					patch="$(printf '%s' "${line}" | sed -nE 's/^[[:space:]]*set\(VERSION_PATCH[[:space:]]+([0-9]+)\).*/\1/p')"
+					;;
+				*"set(VERSION_EXTRA "*)
+					extra="$(printf '%s' "${line}" | sed -nE 's/^[[:space:]]*set\(VERSION_EXTRA[[:space:]]+([0-9]+)\).*/\1/p')"
+					;;
+			esac
+		done < "${ROOT_DIR}/CMakeLists.txt"
+	fi
+
+	printf '%s.%s.%s.%s' "${major:-0}" "${minor:-0}" "${patch:-0}" "${extra:-0}"
+}
+
+resolve_default_version() {
+	local latest_tag=""
+	if latest_tag="$(git_repo describe --tags --abbrev=0 2>/dev/null)" && [[ -n "${latest_tag}" ]]; then
+		local commit_count=""
+		if commit_count="$(git_repo rev-list "${latest_tag}..HEAD" --count 2>/dev/null)" && [[ "${commit_count}" =~ ^[0-9]+$ ]]; then
+			if [[ "${commit_count}" == "0" ]]; then
+				printf '%s' "${latest_tag}"
+			else
+				printf '%s-%s' "${latest_tag}" "${commit_count}"
+			fi
+			return
+		fi
+	fi
+
+	if [[ "${GITHUB_REF_TYPE:-}" == "tag" && -n "${GITHUB_REF_NAME:-}" ]]; then
+		printf '%s' "${GITHUB_REF_NAME}"
+		return
+	fi
+
+	local base_version
+	base_version="$(project_default_version)"
+
+	local short_ref=""
+	if short_ref="$(git_repo rev-parse --short=12 HEAD 2>/dev/null)" && [[ -n "${short_ref}" ]]; then
+		printf '%s-%s' "${base_version}" "${short_ref}"
+		return
+	fi
+
+	if [[ -n "${GITHUB_SHA:-}" ]]; then
+		printf '%s-%s' "${base_version}" "${GITHUB_SHA:0:12}"
+		return
+	fi
+
+	printf '%s-%s' "${base_version}" "$(date -u '+%Y%m%d%H%M%S')"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -140,22 +207,21 @@ done
 
 VCS_REF="$(git_repo rev-parse HEAD)"
 SHORT_REF="$(git_repo rev-parse --short=12 HEAD)"
-RAW_VERSION="$(git_repo describe --tags --always --dirty=-dirty)"
-VERSION="$(sanitize_tag_part "$RAW_VERSION")"
+VERSION="$(sanitize_tag_part "$(resolve_default_version)")"
 CREATED="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
 if ! git_repo diff --quiet || ! git_repo diff --cached --quiet; then
 	if [[ "$ALLOW_DIRTY" != "1" ]]; then
 		fail "tracked working tree changes would make image provenance ambiguous. Commit/stash changes first, or rerun with --allow-dirty for an explicit local test image."
 	fi
-	VERSION="$(sanitize_tag_part "${VERSION}-dirty")"
 fi
 
-PACKAGE_NAME="${PACKAGE_NAME:-NavCaster-${VERSION}-ubuntu-24.04-amd64}"
-PACKAGE_DIR="${PACKAGE_DIR_OVERRIDE:-release/${PACKAGE_NAME}}"
+PACKAGE_PLATFORM="${PACKAGE_PLATFORM:-ubuntu-20.04-amd64}"
+PACKAGE_NAME="${PACKAGE_NAME:-NavCaster-${VERSION}-${PACKAGE_PLATFORM}}"
+PACKAGE_DIR="${PACKAGE_DIR_OVERRIDE:-dist/${PACKAGE_NAME}}"
 PRIMARY_TAG="${IMAGE_TAG_OVERRIDE:-${IMAGE_REPOSITORY}:${IMAGE_PREFIX}-${SHORT_REF}}"
 VERSION_TAG="${IMAGE_REPOSITORY}:${VERSION}-ubuntu-24.04-amd64"
-BUILDER_IMAGE="${BUILDER_IMAGE:-navcaster-linux-builder:ubuntu-24.04-amd64}"
+BUILDER_IMAGE="${BUILDER_IMAGE:-navcaster-linux-builder:${PACKAGE_PLATFORM}}"
 BUILDER_CONTAINER="${BUILDER_CONTAINER:-navcaster-linux-builder-${SHORT_REF}-$$}"
 
 if [[ "$USE_DOCKER_BUILDER" == "auto" ]]; then
@@ -174,12 +240,6 @@ echo "[runtime-image] package    : $PACKAGE_DIR"
 echo "[runtime-image] image      : $PRIMARY_TAG"
 
 if [[ "$SKIP_PACKAGE_BUILD" != "1" ]]; then
-	if [[ "$SKIP_WEB_BUILD" != "1" ]]; then
-		npm --prefix "$ROOT_DIR/web" ci
-		npm --prefix "$ROOT_DIR/web" run build
-		rm -rf "$ROOT_DIR/web/node_modules"
-	fi
-
 	if [[ "$USE_DOCKER_BUILDER" == "1" ]]; then
 		command -v docker >/dev/null 2>&1 || fail "docker is required for non-Linux package builds"
 
@@ -190,7 +250,7 @@ if [[ "$SKIP_PACKAGE_BUILD" != "1" ]]; then
 		echo "[runtime-image] builder   : $BUILDER_IMAGE"
 		docker_cli build \
 			-f "$builder_dockerfile" \
-			--build-arg "BASE_IMAGE=$BASE_IMAGE" \
+			--build-arg "BASE_IMAGE=$BUILDER_BASE_IMAGE" \
 			-t "$BUILDER_IMAGE" \
 			"$builder_context"
 
@@ -208,25 +268,29 @@ if [[ "$SKIP_PACKAGE_BUILD" != "1" ]]; then
 		docker_cli exec "$BUILDER_CONTAINER" mkdir -p /workspace
 		docker_cli cp "${repo_context}/." "${BUILDER_CONTAINER}:/workspace"
 		docker_cli exec -w /workspace "$BUILDER_CONTAINER" git config --global --add safe.directory /workspace || true
-		docker_cli exec -w /workspace "$BUILDER_CONTAINER" chmod +x deploy/ci/build_in_linux.sh
+		docker_cli exec -w /workspace "$BUILDER_CONTAINER" chmod +x deploy/scripts/package_linux.sh
+		package_args=(deploy/scripts/package_linux.sh --build-type "$BUILD_TYPE" --package-version "$VERSION" --package-platform "$PACKAGE_PLATFORM" --redis-version "$REDIS_VERSION")
+		if [[ "$SKIP_WEB_BUILD" == "1" ]]; then
+			package_args+=(--skip-web-build)
+		fi
 		docker_cli exec \
-			-e "BUILD_TYPE=$BUILD_TYPE" \
-			-e "PACKAGE_NAME=$PACKAGE_NAME" \
-			-e "REDIS_VERSION=$REDIS_VERSION" \
 			-w /workspace \
 			"$BUILDER_CONTAINER" \
-			bash deploy/ci/build_in_linux.sh
+			bash "${package_args[@]}"
 
 		case "$PACKAGE_DIR" in
-			release/*) rm -rf "$ROOT_DIR/$PACKAGE_DIR" ;;
-			*) fail "refusing to overwrite package outside release/: $PACKAGE_DIR" ;;
+			dist/*) rm -rf "$ROOT_DIR/$PACKAGE_DIR" ;;
+			*) fail "refusing to overwrite package outside dist/: $PACKAGE_DIR" ;;
 		esac
-		mkdir -p "$ROOT_DIR/release"
-		release_context="$(host_path_for_docker_cp "$ROOT_DIR/release")"
-		docker_cli cp "${BUILDER_CONTAINER}:/workspace/${PACKAGE_DIR}" "$release_context/"
+		mkdir -p "$ROOT_DIR/dist"
+		dist_context="$(host_path_for_docker_cp "$ROOT_DIR/dist")"
+		docker_cli cp "${BUILDER_CONTAINER}:/workspace/${PACKAGE_DIR}" "$dist_context/"
 	else
-		BUILD_TYPE="$BUILD_TYPE" PACKAGE_NAME="$PACKAGE_NAME" REDIS_VERSION="$REDIS_VERSION" \
-			bash "$ROOT_DIR/deploy/ci/build_in_linux.sh"
+		package_args=(--build-type "$BUILD_TYPE" --package-version "$VERSION" --package-platform "$PACKAGE_PLATFORM" --redis-version "$REDIS_VERSION")
+		if [[ "$SKIP_WEB_BUILD" == "1" ]]; then
+			package_args+=(--skip-web-build)
+		fi
+		bash "$ROOT_DIR/deploy/scripts/package_linux.sh" "${package_args[@]}"
 	fi
 else
 	if [[ ! -d "$ROOT_DIR/$PACKAGE_DIR" ]]; then

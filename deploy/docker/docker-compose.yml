@@ -10,7 +10,7 @@
 #        docker compose -f deploy/docker/docker-compose.yml up -d
 #
 # Override the package directory (relative to repo root) only for rebuilds:
-#        NAVCASTER_PACKAGE=release/NavCaster-v1.2.3-ubuntu-24.04-amd64 \
+#        NAVCASTER_PACKAGE=dist/NavCaster-v1.2.3-ubuntu-20.04-amd64 \
 #          docker compose -f deploy/docker/docker-compose.yml up -d
 
 services:
@@ -20,7 +20,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.runtime
       args:
         BASE_IMAGE: ubuntu:24.04
-        PACKAGE_DIR: ${NAVCASTER_PACKAGE:-release/NavCaster-local}
+        PACKAGE_DIR: ${NAVCASTER_PACKAGE:-dist/NavCaster-local}
         VCS_REF: ${NAVCASTER_VCS_REF:-unknown}
         VERSION: ${NAVCASTER_VERSION:-local}
         SOURCE: ${NAVCASTER_SOURCE:-https://github.com/NavTool/NavCaster}

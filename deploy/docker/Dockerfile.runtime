@@ -2,9 +2,9 @@
 #
 # This Dockerfile expects a pre-built NavCaster package directory to be
 # available at the build context. By default it consumes the layout produced
-# by deploy/ci/build_in_linux.sh:
+# by deploy/scripts/package_linux.sh:
 #
-#   release/<package-name>/
+#   dist/<package-name>/
 #       CasterService
 #       reg_check
 #       conf/
@@ -52,7 +52,7 @@ RUN set -eux; \
 
 # PACKAGE_DIR is the path on the host (relative to docker build context)
 # that contains the NavCaster package layout to ship inside the image.
-ARG PACKAGE_DIR=release/NavCaster-local
+ARG PACKAGE_DIR=dist/NavCaster-local
 
 # Default Redis connection used by /app/conf/*.yml inside the container.
 # Override via build arg if needed.

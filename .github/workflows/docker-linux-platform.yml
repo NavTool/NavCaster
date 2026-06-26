@@ -4,7 +4,7 @@ name: Package Linux Multi-Distro
 # (so the produced binaries link against the target distro's glibc).
 #
 # Active workflows on push are:
-#   - build-and-package.yml  (native Ubuntu 24.04 + Windows)
+#   - build-and-package.yml  (Ubuntu 20.04 Docker + Windows)
 #   - this one               (multi-distro Docker matrix)
 
 on:
@@ -30,6 +30,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - version: ubuntu-20.04-amd64
+            platform: linux/amd64
+            dockerfile: deploy/docker/dockerfile.debian
+            docker_img: ubuntu:20.04
           - version: ubuntu-24.04-amd64
             platform: linux/amd64
             dockerfile: deploy/docker/dockerfile.debian
@@ -51,29 +55,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           submodules: recursive
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Build Web Assets
-        working-directory: ./web
-        run: |
-          npm ci
-          npm run build
-          rm -rf node_modules
-
-      - name: Resolve package metadata
-        id: meta
-        shell: bash
-        run: |
-          TAG_VERSION="$(git describe --tags --always --dirty=-dev)"
-          PACKAGE_NAME="NavCaster-${TAG_VERSION}-${{ matrix.version }}"
-          echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU for multi-platform support
         if: matrix.platform != 'linux/amd64'
@@ -102,26 +83,35 @@ jobs:
       - name: Run build inside container
         run: |
           docker exec build-container-${{ matrix.version }} mkdir -p /workspace
-          docker cp . build-container-${{ matrix.version }}:/workspace
+          docker cp ./. build-container-${{ matrix.version }}:/workspace
           docker exec -w /workspace build-container-${{ matrix.version }} \
             git config --global --add safe.directory /workspace
+          docker exec -w /workspace build-container-${{ matrix.version }} cmake --version
+          docker exec -w /workspace build-container-${{ matrix.version }} ninja --version
+          docker exec -w /workspace build-container-${{ matrix.version }} node --version
+          docker exec -w /workspace build-container-${{ matrix.version }} npm --version
           docker exec -w /workspace build-container-${{ matrix.version }} \
-            chmod +x deploy/ci/build_in_linux.sh
+            chmod +x deploy/scripts/package_linux.sh
           docker exec \
-            -e BUILD_TYPE=${BUILD_TYPE} \
-            -e PACKAGE_NAME=${{ steps.meta.outputs.package_name }} \
-            -e REDIS_VERSION=${REDIS_VERSION} \
+            -e BUILD_TYPE="${BUILD_TYPE}" \
+            -e PACKAGE_PLATFORM="${{ matrix.version }}" \
+            -e REDIS_VERSION="${REDIS_VERSION}" \
             -w /workspace build-container-${{ matrix.version }} \
-            bash deploy/ci/build_in_linux.sh
+            bash deploy/scripts/package_linux.sh
 
       - name: Copy artifacts from container
+        id: package
         run: |
           mkdir -p output
           docker cp \
-            build-container-${{ matrix.version }}:/workspace/release/${{ steps.meta.outputs.package_name }} \
-            ./output/
-          tar -C output -czf output/${{ steps.meta.outputs.package_name }}.tar.gz \
-            ${{ steps.meta.outputs.package_name }}
+            build-container-${{ matrix.version }}:/workspace/dist/package-metadata.env \
+            ./output/package-metadata.env
+          source ./output/package-metadata.env
+          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "archive_file=${ARCHIVE_FILE}" >> "$GITHUB_OUTPUT"
+          docker cp \
+            build-container-${{ matrix.version }}:/workspace/dist/${ARCHIVE_FILE} \
+            "./output/${ARCHIVE_FILE}"
 
       - name: Cleanup container
         if: always()
@@ -132,6 +122,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.meta.outputs.package_name }}
-          path: ./output/${{ steps.meta.outputs.package_name }}.tar.gz
+          name: ${{ steps.package.outputs.package_name }}
+          path: ./output/${{ steps.package.outputs.archive_file }}
           if-no-files-found: error

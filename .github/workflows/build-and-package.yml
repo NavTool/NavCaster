@@ -1,4 +1,4 @@
-name: Build and Package (Windows & Ubuntu 24.04)
+name: Build and Package (Windows & Ubuntu 20.04 Docker)
 
 on:
   push:
@@ -14,13 +14,19 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Ubuntu 24.04 native build
+  # Ubuntu 20.04 package build inside Docker
   # ---------------------------------------------------------------------------
   build-linux:
-    name: Build (ubuntu-24.04-amd64)
+    name: Build (ubuntu-20.04-amd64 Docker)
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    env:
+      LINUX_VERSION: ubuntu-20.04-amd64
+      LINUX_PLATFORM: linux/amd64
+      LINUX_BASE_IMAGE: ubuntu:20.04
+      LINUX_BUILDER_IMAGE: navcaster-linux-builder:ubuntu-20.04-amd64
+      LINUX_BUILDER_CONTAINER: navcaster-linux-builder-ubuntu-20-04-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: Checkout repository
@@ -31,75 +37,77 @@ jobs:
           fetch-tags: true
           submodules: recursive
 
-      - name: Install build dependencies
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Ubuntu 20.04 builder image
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build git pkg-config ca-certificates
+          docker buildx build \
+            --platform "${LINUX_PLATFORM}" \
+            --tag "${LINUX_BUILDER_IMAGE}" \
+            --build-arg "BASE_IMAGE=${LINUX_BASE_IMAGE}" \
+            -f deploy/docker/dockerfile.debian \
+            --load .
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Check API Contracts
-        run: node tools/contract_check/check_api_contracts.mjs
-
-      - name: Build Web Assets
-        working-directory: ./web
+      - name: Run package script inside Ubuntu 20.04 container
         run: |
-          npm ci
-          npm run build
-          rm -rf node_modules
+          docker run --name "${LINUX_BUILDER_CONTAINER}" \
+            --platform "${LINUX_PLATFORM}" \
+            -d "${LINUX_BUILDER_IMAGE}"
 
-      - name: Configure CMake
-        run: cmake -S . -B build/ci-${{ env.BUILD_TYPE }} -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
-
-      - name: Run schema smoke
-        run: |
-          cmake --build build/ci-${{ env.BUILD_TYPE }} --target schema_smoke --parallel $(nproc)
-          ctest --test-dir build/ci-${{ env.BUILD_TYPE }} --output-on-failure -R schema_smoke
-
-      - name: Resolve package metadata
-        id: meta
-        shell: bash
-        run: |
-          TAG_VERSION="$(git describe --tags --always --dirty=-dev)"
-          PACKAGE_NAME="NavCaster-${TAG_VERSION}-ubuntu-24.04-amd64"
-          echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
-
-      - name: Run package script
-        env:
-          BUILD_TYPE: ${{ env.BUILD_TYPE }}
-          PACKAGE_NAME: ${{ steps.meta.outputs.package_name }}
-          REDIS_VERSION: ${{ env.REDIS_VERSION }}
-        run: |
-          chmod +x deploy/ci/build_in_linux.sh
-          bash deploy/ci/build_in_linux.sh
+          docker exec "${LINUX_BUILDER_CONTAINER}" mkdir -p /workspace
+          docker cp ./. "${LINUX_BUILDER_CONTAINER}:/workspace"
+          docker exec -w /workspace "${LINUX_BUILDER_CONTAINER}" \
+            git config --global --add safe.directory /workspace
+          docker exec -w /workspace "${LINUX_BUILDER_CONTAINER}" cmake --version
+          docker exec -w /workspace "${LINUX_BUILDER_CONTAINER}" ninja --version
+          docker exec -w /workspace "${LINUX_BUILDER_CONTAINER}" node --version
+          docker exec -w /workspace "${LINUX_BUILDER_CONTAINER}" npm --version
+          docker exec -w /workspace "${LINUX_BUILDER_CONTAINER}" chmod +x deploy/scripts/package_linux.sh
+          docker exec \
+            -e BUILD_TYPE="${BUILD_TYPE}" \
+            -e PACKAGE_PLATFORM="${LINUX_VERSION}" \
+            -e REDIS_VERSION="${REDIS_VERSION}" \
+            -w /workspace "${LINUX_BUILDER_CONTAINER}" \
+            bash deploy/scripts/package_linux.sh
 
       - name: Archive package
+        id: package
         run: |
-          tar -C release -czf release/${{ steps.meta.outputs.package_name }}.tar.gz \
-            ${{ steps.meta.outputs.package_name }}
+          mkdir -p output
+          docker cp \
+            "${LINUX_BUILDER_CONTAINER}:/workspace/dist/package-metadata.env" \
+            ./output/package-metadata.env
+          source ./output/package-metadata.env
+          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "archive_file=${ARCHIVE_FILE}" >> "$GITHUB_OUTPUT"
+          docker cp \
+            "${LINUX_BUILDER_CONTAINER}:/workspace/dist/${ARCHIVE_FILE}" \
+            "./output/${ARCHIVE_FILE}"
+
+      - name: Cleanup Linux builder container
+        if: always()
+        run: |
+          docker stop "${LINUX_BUILDER_CONTAINER}" || true
+          docker rm "${LINUX_BUILDER_CONTAINER}" || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.meta.outputs.package_name }}
-          path: ./release/${{ steps.meta.outputs.package_name }}.tar.gz
+          name: ${{ steps.package.outputs.package_name }}
+          path: ./output/${{ steps.package.outputs.archive_file }}
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # Windows native build (MSVC)
   # ---------------------------------------------------------------------------
   build-windows:
-    name: Build (windows-latest-amd64)
-    runs-on: windows-latest
+    name: Build (windows-2022-amd64)
+    runs-on: windows-2022
     permissions:
       contents: read
+    env:
+      PACKAGE_PLATFORM: windows-2022-amd64
 
     steps:
       - name: Checkout repository
@@ -110,69 +118,15 @@ jobs:
           fetch-tags: true
           submodules: recursive
 
-      - name: Setup MSVC developer command prompt
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Check Ninja
-        shell: pwsh
-        run: ninja --version
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Check API Contracts
-        run: node tools\contract_check\check_api_contracts.mjs
-
-      - name: Build Web Assets
-        working-directory: ./web
-        run: |
-          npm ci
-          npm run build
-
-      - name: Configure CMake
-        shell: pwsh
-        run: cmake -S . -B build\ci-${{ env.BUILD_TYPE }} -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl
-
-      - name: Run schema smoke
-        shell: pwsh
-        run: |
-          cmake --build build\ci-${{ env.BUILD_TYPE }} --target schema_smoke --parallel $env:NUMBER_OF_PROCESSORS
-          ctest --test-dir build\ci-${{ env.BUILD_TYPE }} --build-config ${{ env.BUILD_TYPE }} --output-on-failure -R schema_smoke
-
-      - name: Resolve package metadata
-        id: meta
-        shell: bash
-        run: |
-          TAG_VERSION="$(git describe --tags --always --dirty=-dev)"
-          PACKAGE_NAME="NavCaster-${TAG_VERSION}-windows-latest-amd64"
-          echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
-
       - name: Run package script
-        env:
-          BUILD_TYPE: ${{ env.BUILD_TYPE }}
-          PACKAGE_NAME: ${{ steps.meta.outputs.package_name }}
-        shell: pwsh
-        run: .\deploy\ci\build_in_windows.ps1
-
-      - name: Archive package
+        id: package
         shell: pwsh
         run: |
-          $packageName = "${{ steps.meta.outputs.package_name }}"
-          $packageDir = Join-Path $PWD "release\$packageName"
-          $archivePath = Join-Path $PWD "release\$packageName.zip"
-          if (Test-Path $archivePath) { Remove-Item $archivePath -Force }
-          Compress-Archive -Path $packageDir -DestinationPath $archivePath -CompressionLevel Optimal
+          .\deploy\scripts\package_windows.ps1
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.meta.outputs.package_name }}
-          path: ./release/${{ steps.meta.outputs.package_name }}.zip
+          name: ${{ steps.package.outputs.package_name }}
+          path: ./dist/${{ steps.package.outputs.archive_file }}
           if-no-files-found: error
