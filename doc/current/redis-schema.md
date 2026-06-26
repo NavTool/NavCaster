@@ -248,6 +248,22 @@ ACC:BALANCE:LEDGER:<yyyyMM>[ledger_id] 并同步 ACC:RECORD.balance_cents。
 actual_debit_cents。余额不足时不写 job、usage 或 ledger。
 ```
 
+NC-064 DataPush relay execution bridge：
+
+```text
+DATA:PUSH:CONFIG.execution_mode 默认为 ledger_only；relay_push 模式额外要求
+source_mountpoint、relay_target_host，并保存 relay_target_port、relay_target_mountpoint、
+relay_target_account、relay_target_password、relay_push_type。
+用户创建 relay_push 任务时，除 DATA:PUSH:JOB / DATA:PUSH / ledger 外，还写
+PUSH:RECORD[data_push:<job_id>]。该记录 managed_by=data_push_job，enabled=true，
+login_mpt=source_mountpoint，target_ip/target_port/target_mpt/target_account/
+target_password 来自 relay_target_* 字段。
+DATA:PUSH:JOB:<yyyyMM>[job_id] 记录 execution_mode、relay_uid、relay_record_key、
+relay_status_key 和 relay_push_record 脱敏快照；任务初始 status=queued。
+HTTP 查询任务时读取 PUSH:STAT[relay_uid] 补充 relay_status/relay_state，不把运行态
+直接回写 DATA:PUSH:JOB。
+```
+
 `ONLINE:SESSION:<account_id>` 当前 JSON 字段：
 
 ```json

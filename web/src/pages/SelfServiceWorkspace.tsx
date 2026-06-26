@@ -79,6 +79,23 @@ function settlementStatusTag(status?: string) {
   return <Tag color={color}>{status || 'pending_payment'}</Tag>;
 }
 
+function dataPushExecutionTag(mode?: string) {
+  return <Tag color={mode === 'relay_push' ? 'blue' : 'default'}>{mode || 'ledger_only'}</Tag>;
+}
+
+function dataPushJobStatusTag(status?: string) {
+  const color = status === 'completed'
+    ? 'green'
+    : status === 'running'
+      ? 'blue'
+      : status === 'queued'
+        ? 'gold'
+        : status === 'failed'
+          ? 'red'
+          : 'default';
+  return <Tag color={color}>{status || '-'}</Tag>;
+}
+
 function kindLabel(scope: SelfScope): string {
   return scope === 'supplier' ? 'supplier_station' : 'user_client';
 }
@@ -133,7 +150,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   }));
   const dataPushConfigOptions = dataPushConfigRows.map((config) => ({
     value: config.config_id,
-    label: `${config.name || config.config_id} -> ${config.target_mountpoint}`,
+    label: `${config.name || config.config_id} -> ${config.target_mountpoint} (${config.execution_mode || 'ledger_only'})`,
   }));
 
   const openCreate = () => {
@@ -309,6 +326,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const dataPushConfigColumns: ColumnsType<DataPushConfig & { key: string }> = [
     { title: 'Config ID', dataIndex: 'config_id', key: 'config_id', width: 180 },
     { title: '名称', dataIndex: 'name', key: 'name', width: 180 },
+    { title: '执行模式', key: 'execution_mode', width: 130, render: (_, row) => dataPushExecutionTag(row.execution_mode) },
+    { title: '源挂载点', dataIndex: 'source_mountpoint', key: 'source_mountpoint', width: 150, render: (value) => value || '-' },
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
     { title: '小时价格', key: 'fixed_hourly_price_cents', width: 120, render: (_, row) => formatCents(row.fixed_hourly_price_cents) },
     { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
@@ -318,12 +337,15 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const dataPushJobColumns: ColumnsType<DataPushJob & { key: string }> = [
     { title: 'Job ID', dataIndex: 'job_id', key: 'job_id', width: 260 },
     { title: '配置', dataIndex: 'config_id', key: 'config_id', width: 160 },
+    { title: '执行模式', key: 'execution_mode', width: 130, render: (_, row) => dataPushExecutionTag(row.execution_mode) },
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
+    { title: 'Relay UID', dataIndex: 'relay_uid', key: 'relay_uid', width: 250, render: (value) => value || '-' },
+    { title: 'Relay 状态', dataIndex: 'relay_status', key: 'relay_status', width: 120, render: (value) => <Tag color={value === 'running' ? 'blue' : value === 'stopped' ? 'default' : 'gold'}>{value || '-'}</Tag> },
     { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
     { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
     { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'completed' ? 'green' : 'red'}>{value || '-'}</Tag> },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => dataPushJobStatusTag(value) },
     { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
@@ -387,10 +409,10 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
         <Col xs={12} md={6}><MetricCard title="推送时长" value={formatDuration(totalSeconds)} prefix={<CloudServerOutlined />} /></Col>
         <Col xs={12} md={6}><MetricCard title="推送扣费" value={formatCents(totalDebit)} prefix={<WalletOutlined />} /></Col>
         <Col span={24}>
-          <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 980 }} />
+          <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1160 }} />
         </Col>
         <Col span={24}>
-          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />
+          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1700 }} />
         </Col>
         <Col span={24}>
           <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1340 }} />

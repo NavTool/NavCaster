@@ -423,6 +423,35 @@ bool normalize_data_push_config(nlohmann::json &record, std::int64_t now, std::s
     {
         return fail(error, "fixed_hourly_price_cents must be non-negative");
     }
+    record["execution_mode"] = record.value("execution_mode", std::string(DATA_PUSH_EXECUTION_LEDGER_ONLY));
+    const std::string execution_mode = string_value(record, "execution_mode");
+    if (execution_mode != DATA_PUSH_EXECUTION_LEDGER_ONLY && execution_mode != DATA_PUSH_EXECUTION_RELAY_PUSH)
+    {
+        return fail(error, "invalid data push execution_mode");
+    }
+    if (execution_mode == DATA_PUSH_EXECUTION_RELAY_PUSH)
+    {
+        if (!require_string(record, "source_mountpoint", error) ||
+            !require_string(record, "relay_target_host", error))
+        {
+            return false;
+        }
+        record["relay_target_mountpoint"] = record.value("relay_target_mountpoint", string_value(record, "target_mountpoint"));
+        if (!has_nonempty_string(record, "relay_target_mountpoint"))
+        {
+            return fail(error, "relay_target_mountpoint is required");
+        }
+        record["relay_target_port"] = record.value("relay_target_port", 2101);
+        record["relay_push_type"] = record.value("relay_push_type", 1);
+        if (!is_nonnegative_number(record["relay_target_port"]) ||
+            !is_nonnegative_number(record["relay_push_type"]) ||
+            json_record::as_i64(record["relay_target_port"], 0) <= 0)
+        {
+            return fail(error, "relay push numeric fields are invalid");
+        }
+        record["relay_target_account"] = record.value("relay_target_account", std::string{});
+        record["relay_target_password"] = record.value("relay_target_password", std::string{});
+    }
     touch(record, now);
     return true;
 }
@@ -456,9 +485,24 @@ bool normalize_data_push_job(nlohmann::json &record, std::int64_t now, std::stri
     record["stat_cost_cents"] = record.value("stat_cost_cents", 0);
     record["actual_debit_cents"] = record.value("actual_debit_cents", 0);
     record["status"] = record.value("status", std::string("completed"));
-    if (string_value(record, "status") != "completed" && string_value(record, "status") != "failed")
+    const std::string status = string_value(record, "status");
+    if (status != "queued" &&
+        status != "running" &&
+        status != "completed" &&
+        status != "failed" &&
+        status != "cancelled")
     {
         return fail(error, "invalid data push job status");
+    }
+    record["execution_mode"] = record.value("execution_mode", std::string(DATA_PUSH_EXECUTION_LEDGER_ONLY));
+    const std::string execution_mode = string_value(record, "execution_mode");
+    if (execution_mode != DATA_PUSH_EXECUTION_LEDGER_ONLY && execution_mode != DATA_PUSH_EXECUTION_RELAY_PUSH)
+    {
+        return fail(error, "invalid data push execution_mode");
+    }
+    if (execution_mode == DATA_PUSH_EXECUTION_RELAY_PUSH && !require_string(record, "relay_uid", error))
+    {
+        return false;
     }
     if (!is_nonnegative_number(record["used_seconds"]) ||
         !is_nonnegative_number(record["stat_cost_cents"]) ||

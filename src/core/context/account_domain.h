@@ -17,6 +17,8 @@ inline constexpr const char *STATUS_DISABLED = "disabled";
 inline constexpr const char *STATUS_DELETED = "deleted";
 inline constexpr const char *ACCESS_KIND_USER_CLIENT = "user_client";
 inline constexpr const char *ACCESS_KIND_SUPPLIER_STATION = "supplier_station";
+inline constexpr const char *DATA_PUSH_EXECUTION_LEDGER_ONLY = "ledger_only";
+inline constexpr const char *DATA_PUSH_EXECUTION_RELAY_PUSH = "relay_push";
 
 bool is_account_role(const std::string &role);
 bool is_resource_status(const std::string &status);
