@@ -6,8 +6,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 BUILD_DIR="${ROOT_DIR}/build/ci-${BUILD_TYPE}"
 RUNTIME_DIR="${ROOT_DIR}/bin/${BUILD_TYPE}"
-PACKAGE_ROOT="${ROOT_DIR}/release"
-PACKAGE_NAME="${PACKAGE_NAME:-NavCaster-${BUILD_TYPE}}"
+if [[ -z "${PACKAGE_ROOT:-}" ]]; then
+	echo "[ci] PACKAGE_ROOT must be set by deploy/scripts/package_linux.sh" >&2
+	exit 2
+fi
+if [[ -z "${PACKAGE_NAME:-}" ]]; then
+	echo "[ci] PACKAGE_NAME must be set by deploy/scripts/package_linux.sh" >&2
+	exit 2
+fi
 PACKAGE_DIR="${PACKAGE_ROOT}/${PACKAGE_NAME}"
 WEB_DIST_DIR="${WEB_DIST_DIR:-${ROOT_DIR}/web/dist}"
 REDIS_VERSION="${REDIS_VERSION:-8.6.3}" # NavCaster minimum is 8.4.0; 8.6.3 is the verified package default.

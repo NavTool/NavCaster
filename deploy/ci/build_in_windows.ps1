@@ -4,8 +4,14 @@ $RootDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $BuildType = if ($env:BUILD_TYPE) { $env:BUILD_TYPE } else { 'Release' }
 $BuildDir = Join-Path $RootDir ("build\ci-" + $BuildType)
 $RuntimeDir = Join-Path $RootDir ("bin\" + $BuildType)
-$PackageRoot = Join-Path $RootDir 'release'
-$PackageName = if ($env:PACKAGE_NAME) { $env:PACKAGE_NAME } else { "NavCaster-$BuildType" }
+if (-not $env:PACKAGE_ROOT) {
+	throw "PACKAGE_ROOT must be set by deploy\scripts\package_windows.ps1"
+}
+if (-not $env:PACKAGE_NAME) {
+	throw "PACKAGE_NAME must be set by deploy\scripts\package_windows.ps1"
+}
+$PackageRoot = $env:PACKAGE_ROOT
+$PackageName = $env:PACKAGE_NAME
 $PackageDir = Join-Path $PackageRoot $PackageName
 $WebDistDir = if ($env:WEB_DIST_DIR) { $env:WEB_DIST_DIR } else { Join-Path $RootDir 'web\dist' }
 $Jobs = if ($env:CMAKE_BUILD_PARALLEL_LEVEL) { [int]$env:CMAKE_BUILD_PARALLEL_LEVEL } elseif ($env:NUMBER_OF_PROCESSORS) { [int]$env:NUMBER_OF_PROCESSORS } else { 2 }
@@ -159,7 +165,7 @@ if (Test-Path $PackageDir) {
 	Remove-Item $PackageDir -Recurse -Force
 }
 
-cmake -S $RootDir -B $BuildDir -G Ninja -DCMAKE_BUILD_TYPE=$BuildType -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl "-DCMAKE_MAKE_PROGRAM=$NinjaExe"
+cmake -S $RootDir -B $BuildDir -G Ninja "-DCMAKE_BUILD_TYPE=$BuildType" -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl "-DCMAKE_MAKE_PROGRAM=$NinjaExe"
 cmake --build $BuildDir --parallel $Jobs
 
 if (-not (Test-Path (Join-Path $RuntimeDir 'conf'))) {

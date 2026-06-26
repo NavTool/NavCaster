@@ -50,16 +50,16 @@ Linux：
 BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh
 ```
 
-Windows CI 打包：
+Windows 打包：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File deploy\ci\build_in_windows.ps1
+powershell -ExecutionPolicy Bypass -File deploy\scripts\package_windows.ps1
 ```
 
-Linux CI 打包：
+Linux 打包：
 
 ```bash
-BUILD_TYPE=Release PACKAGE_NAME=NavCaster-local bash deploy/ci/build_in_linux.sh
+bash deploy/scripts/package_linux.sh
 ```
 
 前端：
@@ -71,7 +71,13 @@ npm run dev
 npm run build
 ```
 
-打包脚本要求 `web/dist/index.html` 已存在，然后把二进制、`conf/`、`web/`、`scripts/` 复制到 `release/<PackageName>`。Linux 打包脚本还会拉取并构建 Redis。
+打包脚本会先检查并尽量补全构建环境，然后执行 contract check、Web build、CMake/Ninja 构建、
+schema_smoke CTest 和发布目录组装。产物输出到 `dist/<PackageName>/`，并生成
+`dist/<PackageName>.zip` 或 `dist/<PackageName>.tar.gz`。不传参数时脚本默认使用
+Release、`dist/`、最新 Git tag 加距 tag 提交数或项目版本兜底值，并自动推断平台，因此包目录和归档
+默认带版本号。脚本还会写出 `dist/package-metadata.env` 供 CI 上传实际产物。Linux 打包
+脚本还会拉取并构建 Redis；CI 的 Ubuntu 20.04 包通过 `PACKAGE_PLATFORM=ubuntu-20.04-amd64`
+固定平台后缀。
 
 Docker runtime image：
 

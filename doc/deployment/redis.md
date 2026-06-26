@@ -50,7 +50,7 @@ HTTP 后端通过同步 Redis client 读取这些运行态 hash；若 Redis 版�
 生产最低版本：Redis Open Source 8.4.0+
 推荐/已验证版本：Redis 8.6.3
 Docker Compose：deploy/docker/docker-compose.yml 使用 redis:8.6.3
-Linux package：deploy/ci/build_in_linux.sh 默认 REDIS_VERSION=8.6.3
+Linux package：deploy/scripts/package_linux.sh 默认 REDIS_VERSION=8.6.3
 ```
 
 如果使用外部 Redis，部署前必须运行兼容检查脚本。检查通过前不要把该 Redis

@@ -32,47 +32,16 @@ jobs:
           fetch-tags: true
           submodules: recursive
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Build Web Assets
-        working-directory: ./web
-        run: |
-          npm ci
-          npm run build
-
-      - name: Resolve package metadata
-        id: meta
-        shell: bash
-        run: |
-          TAG_VERSION="$(git describe --tags --always --dirty=-dev)"
-          PACKAGE_NAME="NavCaster-${TAG_VERSION}-${{ matrix.version }}"
-          echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
-
       - name: Run package script
-        env:
-          PACKAGE_NAME: ${{ steps.meta.outputs.package_name }}
-        run: .\deploy\ci\build_in_windows.ps1
-
-      - name: Archive package
+        id: package
         shell: pwsh
         run: |
-          $packageName = "${{ steps.meta.outputs.package_name }}"
-          $packageDir = Join-Path $PWD "release\$packageName"
-          $archivePath = Join-Path $PWD "release\$packageName.zip"
-          if (Test-Path $archivePath) {
-              Remove-Item $archivePath -Force
-          }
-          Compress-Archive -Path $packageDir -DestinationPath $archivePath -CompressionLevel Optimal
+          $env:PACKAGE_PLATFORM = "${{ matrix.version }}"
+          .\deploy\scripts\package_windows.ps1
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4.3.3
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.meta.outputs.package_name }}
-          path: ./release/${{ steps.meta.outputs.package_name }}.zip
+          name: ${{ steps.package.outputs.package_name }}
+          path: ./dist/${{ steps.package.outputs.archive_file }}
           if-no-files-found: error
