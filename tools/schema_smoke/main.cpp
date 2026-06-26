@@ -7,6 +7,7 @@
 #include "auth_login_service.h"
 #include "access_controller.h"
 #include "access_policy_service.h"
+#include "access_runtime_service.h"
 #include "access_repository.h"
 #include "alias_controller.h"
 #include "alias_repository.h"
@@ -835,6 +836,79 @@ int main()
             "ops"));
         expect_eq(grouped_session.value("auth_type", ""), "server", "auth active session grouped server type");
         expect_eq(grouped_session.value("group_uid", ""), "ops", "auth active session explicit group");
+    }
+
+    {
+        using namespace navcaster::core;
+        const nlohmann::json auth_index = {
+            {"access_account_id", "aacc-runtime"},
+            {"owner_account_id", "acc-runtime"},
+            {"access_username", "runtime-rover"},
+            {"access_kind", "user_client"},
+            {"access_status", "active"},
+            {"owner_status", "active"},
+            {"mount_point_group_id", "mpg-runtime"},
+            {"balance_cents", 500},
+            {"expire_time", 0},
+        };
+        auto runtime_check = validate_access_auth_index(auth_index, "client", "RUNTIME", 1782432000, true);
+        expect_true(runtime_check.ok, "access runtime validates active user client");
+        runtime_check = validate_access_auth_index(auth_index, "server", "RUNTIME", 1782432000, true);
+        expect_true(!runtime_check.ok && runtime_check.reason == "access_kind_not_allowed", "access runtime rejects user client as station");
+        auto disabled_auth_index = auth_index;
+        disabled_auth_index["access_status"] = "disabled";
+        runtime_check = validate_access_auth_index(disabled_auth_index, "client", "RUNTIME", 1782432000, true);
+        expect_true(!runtime_check.ok && runtime_check.reason == "access_account_disabled", "access runtime rejects disabled access");
+
+        runtime_check = validate_access_dependencies({{"status", "active"}},
+                                                     {{"status", "active"}},
+                                                     {{"status", "active"}},
+                                                     {{"status", "active"}});
+        expect_true(runtime_check.ok, "access runtime validates active dependencies");
+        runtime_check = validate_access_dependencies({{"status", "active"}},
+                                                     {{"status", "active"}},
+                                                     {{"status", "disabled"}},
+                                                     {{"status", "active"}});
+        expect_true(!runtime_check.ok && runtime_check.reason == "mountpoint_not_in_group", "access runtime rejects disabled member");
+
+        expect_eq(runtime_period_from_unix(1782432000), "202606", "access runtime billing period");
+        expect_eq_int(static_cast<int>(calculate_runtime_cost_cents(1800, 120, 1.5)), 90, "access runtime cost rounding");
+
+        AccessRuntimeRecordInput runtime_input;
+        runtime_input.owner_account_id = "acc-runtime";
+        runtime_input.access_account_id = "aacc-runtime";
+        runtime_input.access_username = "runtime-rover";
+        runtime_input.access_kind = "user_client";
+        runtime_input.mountpoint = "RUNTIME";
+        runtime_input.group_id = "mpg-runtime";
+        runtime_input.connect_key = "conn-runtime";
+        runtime_input.auth_type = "client";
+        runtime_input.addr = "127.0.0.1";
+        runtime_input.port = 2101;
+        runtime_input.start_time = 1782432000;
+        runtime_input.update_time = 1782432060;
+        runtime_input.end_time = 1782432060;
+        runtime_input.used_seconds = 60;
+        runtime_input.stat_cost_cents = 2;
+        runtime_input.actual_debit_cents = 2;
+        runtime_input.balance_after_cents = 498;
+        runtime_input.disconnect_reason = "client_closed";
+        const auto online_session = build_online_session_record(runtime_input);
+        expect_eq(online_session.value("access_account_id", std::string{}), "aacc-runtime", "access runtime online session access id");
+        const auto billing = build_billing_usage_entry(runtime_input);
+        expect_eq(billing.value("account_id", std::string{}), "acc-runtime", "access runtime billing owner");
+        expect_eq_int(billing.value("actual_debit_cents", 0), 2, "access runtime billing debit");
+        const auto ledger = build_balance_ledger_entry(runtime_input);
+        expect_eq_int(ledger.value("delta_cents", 0), -2, "access runtime ledger delta");
+
+        runtime_input.access_kind = "supplier_station";
+        runtime_input.auth_type = "server";
+        const auto supply = build_supplier_supply_usage(runtime_input);
+        expect_eq(supply.value("supplier_account_id", std::string{}), "acc-runtime", "access runtime supply owner");
+        const auto station = build_station_record(runtime_input, true);
+        expect_true(station.value("current_online", false), "access runtime station online");
+        const auto station_event = build_station_event(runtime_input, "login");
+        expect_eq(station_event.value("event_type", std::string{}), "login", "access runtime station login event");
     }
 
     expect_eq(redis_keys::mpt_rec("BASE01"), "MPT:REC:BASE01", "mpt_rec key");
@@ -1846,6 +1920,8 @@ int main()
         expect_true(domain_repo.create_mount_point({{"mountpoint", "BASE01"}, {"hourly_price_cents", 120}}, 5011).status == navcaster::storage::RepositoryStatus::Ok, "domain mount point create");
         expect_true(domain_repo.add_mount_point_group_member("mpg-basic", {{"mountpoint", "BASE01"}}, 5012).status == navcaster::storage::RepositoryStatus::Ok, "domain group member create");
         expect_true(domain_redis.hget(navcaster::redis_keys::mpgrp_member("mpg-basic").c_str(), "BASE01").is_object(), "domain group member key");
+        expect_true(domain_redis.hget(navcaster::redis_keys::ACCESS_GROUP, "mpg-basic").is_object(), "domain mount point group syncs legacy access group");
+        expect_eq_int(domain_redis.hget(navcaster::redis_keys::access_item("mpg-basic").c_str(), "BASE01").value("allow_access", 0), 1, "domain mount point member syncs legacy access item");
         expect_true(domain_repo.grant_account_group("acc-user", {{"group_id", "mpg-basic"}}, 5013).status == navcaster::storage::RepositoryStatus::Ok, "domain user group grant");
         expect_true(domain_repo.grant_account_group("acc-supplier", {{"group_id", "mpg-basic"}}, 5014).status == navcaster::storage::RepositoryStatus::Ok, "domain supplier group grant");
         expect_true(domain_repo.grant_account_group("acc-admin", {{"group_id", "mpg-basic"}}, 5015).status == navcaster::storage::RepositoryStatus::Ok, "domain admin group grant");
@@ -1856,6 +1932,7 @@ int main()
             {"username", "rover-user"},
             {"kind", "user_client"},
             {"status", "active"},
+            {"password", "rover-pass"},
             {"mount_point_group_id", "mpg-basic"},
             {"concurrency_limit", 1},
         }, 5020);
@@ -1865,13 +1942,29 @@ int main()
         auto active_access = domain_redis.hget(navcaster::redis_keys::AACC_ACTIVE, "rover-user");
         expect_eq(active_access.value("owner_account_id", std::string{}), "acc-user", "domain access active owner");
         expect_eq(active_access.value("owner_role", std::string{}), "user", "domain access active owner role");
+        expect_eq(active_access.value("account", std::string{}), "rover-user", "domain access active auth account");
+        expect_eq(active_access.value("group_uid", std::string{}), "mpg-basic", "domain access active auth group");
+        expect_eq_int(active_access.value("connection_limit", 0), 1, "domain access active auth connection limit");
+        expect_has(active_access, "password_hash", "domain access active carries password hash");
+        expect_missing(active_access, "password", "domain access active hides plaintext password");
+        auto active_login = navcaster::auth::AuthLoginService::evaluate_account(active_access.dump(), "rover-pass", AuthType::CLIENT, 5020);
+        expect_true(active_login.result.ok(), "domain access active index works with auth login service");
+        expect_eq(active_login.group_uid, "mpg-basic", "domain access active index login group");
         expect_true(domain_redis.hget(navcaster::redis_keys::aacc_owner("acc-user").c_str(), "aacc-user-1").is_object(), "domain owner access summary");
 
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-missing-password"},
+            {"owner_account_id", "acc-user"},
+            {"username", "missing-password"},
+            {"kind", "user_client"},
+            {"mount_point_group_id", "mpg-basic"},
+        }, 5021).status == navcaster::storage::RepositoryStatus::Invalid, "domain access account requires password");
         expect_true(domain_repo.create_access_account({
             {"access_account_id", "aacc-user-bad-kind"},
             {"owner_account_id", "acc-user"},
             {"username", "bad-station"},
             {"kind", "supplier_station"},
+            {"password", "bad-pass"},
             {"mount_point_group_id", "mpg-basic"},
         }, 5021).status == navcaster::storage::RepositoryStatus::Invalid, "domain user cannot create supplier station");
         expect_true(domain_repo.create_access_account({
@@ -1879,6 +1972,7 @@ int main()
             {"owner_account_id", "acc-user"},
             {"username", "no-grant"},
             {"kind", "user_client"},
+            {"password", "no-grant-pass"},
             {"mount_point_group_id", "mpg-missing"},
         }, 5022).status == navcaster::storage::RepositoryStatus::Invalid, "domain access account requires granted group");
         expect_true(domain_repo.create_access_account({
@@ -1886,6 +1980,7 @@ int main()
             {"owner_account_id", "acc-user"},
             {"username", "over-limit"},
             {"kind", "user_client"},
+            {"password", "over-limit-pass"},
             {"mount_point_group_id", "mpg-basic"},
             {"concurrency_limit", 4},
         }, 5022).status == navcaster::storage::RepositoryStatus::Invalid, "domain access concurrency cannot exceed owner");
@@ -1894,6 +1989,7 @@ int main()
             {"owner_account_id", "acc-user"},
             {"username", "rover-user"},
             {"kind", "user_client"},
+            {"password", "dup-pass"},
             {"mount_point_group_id", "mpg-basic"},
         }, 5023).status == navcaster::storage::RepositoryStatus::Conflict, "domain access username unique");
         expect_true(domain_repo.create_access_account({
@@ -1901,6 +1997,7 @@ int main()
             {"owner_account_id", "acc-user"},
             {"username", "new-failed-access-name"},
             {"kind", "user_client"},
+            {"password", "dup-id-pass"},
             {"mount_point_group_id", "mpg-basic"},
         }, 5023).status == navcaster::storage::RepositoryStatus::Conflict, "domain duplicate access account id rejected");
         expect_true(domain_redis.hget(navcaster::redis_keys::AACC_USERNAME, "new-failed-access-name").is_null(), "domain failed access create does not tombstone username");
@@ -1910,6 +2007,7 @@ int main()
             {"owner_account_id", "acc-supplier"},
             {"username", "station-supplier"},
             {"kind", "supplier_station"},
+            {"password", "station-pass"},
             {"mount_point_group_id", "mpg-basic"},
         }, 5024);
         expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain supplier station create ok");
@@ -1918,6 +2016,7 @@ int main()
             {"owner_account_id", "acc-admin"},
             {"username", "admin-station"},
             {"kind", "supplier_station"},
+            {"password", "admin-station-pass"},
             {"mount_point_group_id", "mpg-basic"},
         }, 5025).status == navcaster::storage::RepositoryStatus::Ok, "domain admin super role creates own station access account");
 
@@ -1929,6 +2028,7 @@ int main()
             {"owner_account_id", "acc-user"},
             {"username", "rover-user"},
             {"kind", "user_client"},
+            {"password", "reused-pass"},
             {"mount_point_group_id", "mpg-basic"},
         }, 5031).status == navcaster::storage::RepositoryStatus::Conflict, "domain deleted access username cannot be reused");
 
@@ -2068,6 +2168,7 @@ int main()
             {"owner_account_id", "op-user"},
             {"username", "op-rover"},
             {"kind", "user_client"},
+            {"password", "op-rover-pass"},
             {"mount_point_group_id", "op-group"},
         }, 6010).status == navcaster::storage::RepositoryStatus::Ok, "operations fixture access account");
         response = operations.list_access_accounts();

@@ -48,6 +48,7 @@ public:
 
     int running();
     int send_reply();
+    AuthRuntimeContext auth_runtime_context(const char *reason = "client_closed") const;
     int transfer_sub_raw_data(const char *data, size_t length);
     int publish_recv_raw_data();
 

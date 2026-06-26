@@ -55,6 +55,7 @@ private:
 
     int running();
     int send_reply();
+    AuthRuntimeContext auth_runtime_context(const char *reason = "client_closed") const;
     int send_heart_beat_to_server();
     int publish_recv_raw_data();
     int publish_data_from_evbuf();

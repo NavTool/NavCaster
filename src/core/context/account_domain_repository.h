@@ -59,6 +59,10 @@ private:
 
     bool account_has_group(const std::string &account_id, const std::string &group_id);
     bool group_is_active(const std::string &group_id);
+    bool sync_legacy_access_group(const nlohmann::json &group, std::int64_t now);
+    bool sync_legacy_access_item(const std::string &group_id, const nlohmann::json &member);
+    void refresh_owner_access_indexes(const nlohmann::json &owner, std::int64_t now, const std::string &reason = {});
+    void publish_access_status_update(const std::string &username, const std::string &reason);
 
     RedisHashClient &_redis;
 };

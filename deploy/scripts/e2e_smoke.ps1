@@ -49,7 +49,8 @@ param(
     [switch]$IncludeNtripDisabledAccount,
     [switch]$IncludeRedisReconnect,
     [switch]$IncludeOperationsApi,
-    [switch]$IncludeSelfServiceApi
+    [switch]$IncludeSelfServiceApi,
+    [switch]$IncludeAccessRuntimeEnforcement
 )
 
 $ErrorActionPreference = "Stop"
@@ -2974,6 +2975,503 @@ function Invoke-SelfServiceApiSmoke {
     if ($adminSelfAccess.owner_account_id -ne $adminAccountId -or $adminSelfAccess.kind -ne "supplier_station") {
         Fail "self-service admin supplier scope mismatch: $(ConvertTo-CompactJson $adminSelfAccess)"
     }
+}
+
+function Get-E2eRuntimePeriod {
+    return (Get-Date).ToUniversalTime().ToString("yyyyMM")
+}
+
+function Wait-AccessRuntimeOnlineSession {
+    param(
+        [string]$OwnerAccountId,
+        [string]$AccessAccountId,
+        [string]$AccessUsername,
+        [string]$Mount,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $key = "ONLINE:SESSION:$OwnerAccountId"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $sessions = Get-RedisHashMap $key
+        foreach ($field in $sessions.Keys) {
+            try {
+                $record = $sessions[$field] | ConvertFrom-Json
+                if ($record.access_account_id -eq $AccessAccountId -and
+                    $record.access_username -eq $AccessUsername -and
+                    $record.mountpoint -eq $Mount) {
+                    return [pscustomobject]@{
+                        Key = $key
+                        Field = $field
+                        Record = $record
+                        Raw = $sessions[$field]
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $key)
+    Fail "$Context access runtime online session did not appear in $key; raw=[$raw]"
+}
+
+function Wait-AccessRuntimeOnlineSessionGone {
+    param(
+        [string]$Key,
+        [string]$Field,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $raw = Invoke-RedisCommand HGET $Key $Field
+        if ([string]::IsNullOrEmpty($raw)) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGET $Key $Field)
+    Fail "$Context access runtime online session did not disappear; key=$Key field=$Field raw=[$raw]"
+}
+
+function Wait-AccessRuntimeBillingEntry {
+    param(
+        [string]$AccountId,
+        [string]$AccessAccountId,
+        [string]$Mount,
+        [string]$Period,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $key = "BILL:ENTRY:$Period"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $entries = Get-RedisHashMap $key
+        foreach ($field in $entries.Keys) {
+            try {
+                $record = $entries[$field] | ConvertFrom-Json
+                if ($record.account_id -eq $AccountId -and
+                    $record.access_account_id -eq $AccessAccountId -and
+                    $record.mountpoint -eq $Mount) {
+                    return [pscustomobject]@{
+                        Key = $key
+                        Field = $field
+                        Record = $record
+                        Raw = $entries[$field]
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $key)
+    Fail "$Context billing entry missing from $key; raw=[$raw]"
+}
+
+function Wait-AccessRuntimeLedgerEntry {
+    param(
+        [string]$AccountId,
+        [string]$AccessAccountId,
+        [string]$BillingId,
+        [string]$Period,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $key = "ACC:BALANCE:LEDGER:$Period"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $entries = Get-RedisHashMap $key
+        foreach ($field in $entries.Keys) {
+            try {
+                $record = $entries[$field] | ConvertFrom-Json
+                if ($record.account_id -eq $AccountId -and
+                    $record.access_account_id -eq $AccessAccountId -and
+                    $record.billing_id -eq $BillingId) {
+                    return [pscustomobject]@{
+                        Key = $key
+                        Field = $field
+                        Record = $record
+                        Raw = $entries[$field]
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $key)
+    Fail "$Context ledger entry missing from $key; raw=[$raw]"
+}
+
+function Wait-AccessRuntimeSupplyUsage {
+    param(
+        [string]$SupplierAccountId,
+        [string]$AccessAccountId,
+        [string]$Mount,
+        [string]$Period,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $key = "SUPPLY:USAGE:$Period"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $entries = Get-RedisHashMap $key
+        foreach ($field in $entries.Keys) {
+            try {
+                $record = $entries[$field] | ConvertFrom-Json
+                if ($record.supplier_account_id -eq $SupplierAccountId -and
+                    $record.access_account_id -eq $AccessAccountId -and
+                    $record.mountpoint -eq $Mount) {
+                    return [pscustomobject]@{
+                        Key = $key
+                        Field = $field
+                        Record = $record
+                        Raw = $entries[$field]
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $key)
+    Fail "$Context supply usage missing from $key; raw=[$raw]"
+}
+
+function Wait-AccessRuntimeStationRecord {
+    param(
+        [string]$SupplierAccountId,
+        [string]$AccessAccountId,
+        [string]$Mount,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $raw = Invoke-RedisCommand HGET "STATION:RECORD" $Mount
+        if (-not [string]::IsNullOrWhiteSpace($raw)) {
+            try {
+                $record = $raw | ConvertFrom-Json
+                if ($record.mountpoint -eq $Mount -and
+                    $record.last_supplier_account_id -eq $SupplierAccountId -and
+                    $record.last_access_account_id -eq $AccessAccountId) {
+                    return [pscustomobject]@{
+                        Key = "STATION:RECORD"
+                        Field = $Mount
+                        Record = $record
+                        Raw = $raw
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGET "STATION:RECORD" $Mount)
+    Fail "$Context station record missing for $Mount; raw=[$raw]"
+}
+
+function Wait-AccessRuntimeStationEvents {
+    param(
+        [string]$SupplierAccountId,
+        [string]$AccessAccountId,
+        [string]$Mount,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $key = "STATION:EVENT:$Mount"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $raw = Invoke-RedisCommand LRANGE $key 0 -1
+        $hasLogin = $false
+        $hasDisconnect = $false
+        foreach ($line in @($raw -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+            try {
+                $record = $line | ConvertFrom-Json
+                if ($record.supplier_account_id -eq $SupplierAccountId -and
+                    $record.access_account_id -eq $AccessAccountId -and
+                    $record.mountpoint -eq $Mount) {
+                    if ($record.event_type -eq "login") {
+                        $hasLogin = $true
+                    }
+                    elseif ($record.event_type -eq "disconnect") {
+                        $hasDisconnect = $true
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        if ($hasLogin -and $hasDisconnect) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand LRANGE $key 0 -1)
+    Fail "$Context station events missing login/disconnect in $key; raw=[$raw]"
+}
+
+function Get-RedisJsonHashField {
+    param(
+        [string]$Key,
+        [string]$Field,
+        [string]$Context
+    )
+
+    $raw = Invoke-RedisCommand HGET $Key $Field
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        Fail "$Context missing Redis hash field $Key/$Field"
+    }
+    try {
+        return ($raw | ConvertFrom-Json)
+    }
+    catch {
+        Fail "$Context Redis hash field $Key/$Field is not JSON: $(Format-DebugText $raw)"
+    }
+}
+
+function Count-AccessRuntimeBillingEntries {
+    param(
+        [string]$AccessAccountId
+    )
+
+    $count = 0
+    foreach ($key in (Get-RedisKeys "BILL:ENTRY:*")) {
+        $entries = Get-RedisHashMap $key
+        foreach ($field in $entries.Keys) {
+            try {
+                $record = $entries[$field] | ConvertFrom-Json
+                if ($record.access_account_id -eq $AccessAccountId) {
+                    $count++
+                }
+            }
+            catch {
+            }
+        }
+    }
+    return $count
+}
+
+function Assert-AccessRuntimeRejected {
+    param(
+        [pscustomobject]$Seed,
+        [string]$Mount,
+        [string]$NtripHost,
+        [int]$NtripPort,
+        [string]$Label,
+        [string]$OwnerAccountId,
+        [string]$AccessAccountId,
+        [string]$AccessUsername
+    )
+
+    $before = Count-AccessRuntimeBillingEntries $AccessAccountId
+    $connection = Open-NtripClientForMount $Seed $Mount $NtripHost $NtripPort $Label -AllowRejected
+    Close-NtripTcpConnection $connection
+    Start-Sleep -Milliseconds 800
+
+    $onlineKey = "ONLINE:SESSION:$OwnerAccountId"
+    $online = Get-RedisHashMap $onlineKey
+    foreach ($field in $online.Keys) {
+        try {
+            $record = $online[$field] | ConvertFrom-Json
+            if ($record.access_account_id -eq $AccessAccountId -or $record.access_username -eq $AccessUsername) {
+                Fail "$Label left rejected online session in $onlineKey field=$field"
+            }
+        }
+        catch {
+        }
+    }
+    $after = Count-AccessRuntimeBillingEntries $AccessAccountId
+    if ($after -ne $before) {
+        Fail "$Label unexpectedly created billing entry after rejection; before=$before after=$after"
+    }
+}
+
+function Invoke-AccessRuntimeEnforcementSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$AdminHeaders,
+        [string]$NtripHost,
+        [int]$NtripPort
+    )
+
+    Say "validating access runtime enforcement over AACC-backed NTRIP sessions"
+    $prefix = "nc055_$PID"
+    $userAccountId = "${prefix}_user_acc"
+    $supplierAccountId = "${prefix}_supplier_acc"
+    $blockedAccountId = "${prefix}_blocked_acc"
+    $userName = "${prefix}_user"
+    $supplierName = "${prefix}_supplier"
+    $blockedName = "${prefix}_blocked"
+    $password = "runtime-pass"
+    $groupId = "${prefix}_grp"
+    $mount = "${prefix}_MPT"
+    $otherMount = "${prefix}_OTHER"
+    $userAccessId = "${prefix}_user_aacc"
+    $supplierAccessId = "${prefix}_supplier_aacc"
+    $blockedAccessId = "${prefix}_blocked_aacc"
+    $userAccessName = "${prefix}_rover"
+    $supplierAccessName = "${prefix}_station"
+    $blockedAccessName = "${prefix}_blocked_rover"
+    $userAccessPassword = "runtime-rover-pass"
+    $supplierAccessPassword = "runtime-station-pass"
+    $blockedAccessPassword = "runtime-blocked-pass"
+    $period = Get-E2eRuntimePeriod
+
+    foreach ($body in @(
+        @{ account_id = $userAccountId; username = $userName; role = "user"; password = $password; balance_cents = 20000; credit_limit_cents = 0; concurrency_limit = 2 },
+        @{ account_id = $supplierAccountId; username = $supplierName; role = "supplier"; password = $password; balance_cents = 0; credit_limit_cents = 0; concurrency_limit = 2 },
+        @{ account_id = $blockedAccountId; username = $blockedName; role = "user"; password = $password; balance_cents = 0; credit_limit_cents = 0; concurrency_limit = 1 }
+    )) {
+        Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body ($body | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts" -TimeoutSec 10 | Out-Null
+    }
+
+    Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body (@{ group_id = $groupId; name = "NC-055 runtime group"; billing_multiplier = 1.0 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-point-groups" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ hourly_price_cents = 3600 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-points/$mount" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ hourly_price_cents = 3600 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-points/$otherMount" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ mountpoint = $mount } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-point-groups/$groupId/members" -TimeoutSec 10 | Out-Null
+    foreach ($accountId in @($userAccountId, $supplierAccountId, $blockedAccountId)) {
+        Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ group_id = $groupId } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts/$accountId/group-grants" -TimeoutSec 10 | Out-Null
+    }
+
+    $userLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime user" -Username $userName -Password $password
+    $supplierLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime supplier" -Username $supplierName -Password $password
+    $blockedLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "runtime blocked user" -Username $blockedName -Password $password
+
+    Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+        access_account_id = $userAccessId
+        username = $userAccessName
+        password = $userAccessPassword
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10 | Out-Null
+
+    Invoke-RestMethod -Method Post -Headers $supplierLogin.Headers -ContentType "application/json" -Body (@{
+        access_account_id = $supplierAccessId
+        username = $supplierAccessName
+        password = $supplierAccessPassword
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/supplier/access-accounts" -TimeoutSec 10 | Out-Null
+
+    Invoke-RestMethod -Method Post -Headers $blockedLogin.Headers -ContentType "application/json" -Body (@{
+        access_account_id = $blockedAccessId
+        username = $blockedAccessName
+        password = $blockedAccessPassword
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10 | Out-Null
+
+    $sourceSeed = [pscustomobject]@{
+        Prefix = $prefix
+        Mount = $mount
+        SourceUser = $supplierAccessName
+        SourcePassword = $supplierAccessPassword
+        Account = $supplierAccessName
+        Password = $supplierAccessPassword
+        SourceConnectKey = ""
+    }
+    $clientSeed = [pscustomobject]@{
+        Prefix = $prefix
+        Mount = $mount
+        Account = $userAccessName
+        Password = $userAccessPassword
+    }
+    $blockedSeed = [pscustomobject]@{
+        Prefix = $prefix
+        Mount = $mount
+        Account = $blockedAccessName
+        Password = $blockedAccessPassword
+    }
+
+    $sourceConnection = $null
+    $clientConnection = $null
+    try {
+        $sourceConnection = Open-NtripSourceForSeed $sourceSeed $NtripHost $NtripPort "runtime-source"
+        $sourceOnline = Wait-AccessRuntimeOnlineSession $supplierAccountId $supplierAccessId $supplierAccessName $mount $StartupTimeoutSec "runtime source"
+
+        $clientConnection = Open-NtripClientForSeed $clientSeed $NtripHost $NtripPort "runtime-client"
+        $clientOnline = Wait-AccessRuntimeOnlineSession $userAccountId $userAccessId $userAccessName $mount $StartupTimeoutSec "runtime client"
+        if ($clientOnline.Record.kind -ne "user_client" -or $sourceOnline.Record.kind -ne "supplier_station") {
+            Fail "access runtime online kind mismatch: client=$(ConvertTo-CompactJson $clientOnline.Record) source=$(ConvertTo-CompactJson $sourceOnline.Record)"
+        }
+
+        Write-NtripPayload $sourceConnection "NC055_PAYLOAD`r`n" "runtime source"
+        Wait-NtripPayload $clientConnection "NC055_PAYLOAD`r`n" 10 "runtime client"
+        Start-Sleep -Seconds 2
+
+        Close-NtripTcpConnection $clientConnection
+        $clientConnection = $null
+        Wait-AccessRuntimeOnlineSessionGone $clientOnline.Key $clientOnline.Field $StartupTimeoutSec "runtime client"
+        $billing = Wait-AccessRuntimeBillingEntry $userAccountId $userAccessId $mount $period $StartupTimeoutSec "runtime client"
+        if ([int64]$billing.Record.used_seconds -le 0 -or [int64]$billing.Record.actual_debit_cents -le 0) {
+            Fail "runtime billing entry did not carry positive usage/debit: $(ConvertTo-CompactJson $billing.Record)"
+        }
+        $ledger = Wait-AccessRuntimeLedgerEntry $userAccountId $userAccessId $billing.Record.billing_id $period $StartupTimeoutSec "runtime client"
+        if ([int64]$ledger.Record.delta_cents -ne -[int64]$billing.Record.actual_debit_cents) {
+            Fail "runtime ledger delta mismatch: billing=$(ConvertTo-CompactJson $billing.Record) ledger=$(ConvertTo-CompactJson $ledger.Record)"
+        }
+
+        $ownerRecord = Get-RedisJsonHashField "ACC:RECORD" $userAccountId "runtime client owner balance"
+        if ([int64]$ownerRecord.balance_cents -ge 20000) {
+            Fail "runtime client owner balance was not decremented: $(ConvertTo-CompactJson $ownerRecord)"
+        }
+        $activeIndex = Get-RedisJsonHashField "AACC:ACTIVE" $userAccessName "runtime client active index balance"
+        if ([int64]$activeIndex.balance_cents -ne [int64]$ownerRecord.balance_cents) {
+            Fail "runtime AACC active balance snapshot mismatch: owner=$(ConvertTo-CompactJson $ownerRecord) active=$(ConvertTo-CompactJson $activeIndex)"
+        }
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        Wait-AccessRuntimeOnlineSessionGone $sourceOnline.Key $sourceOnline.Field $StartupTimeoutSec "runtime source"
+        $supply = Wait-AccessRuntimeSupplyUsage $supplierAccountId $supplierAccessId $mount $period $StartupTimeoutSec "runtime source"
+        if ([int64]$supply.Record.used_seconds -le 0) {
+            Fail "runtime supply usage did not carry positive duration: $(ConvertTo-CompactJson $supply.Record)"
+        }
+        $station = Wait-AccessRuntimeStationRecord $supplierAccountId $supplierAccessId $mount $StartupTimeoutSec "runtime source"
+        if ($station.Record.current_online -ne $false) {
+            Fail "runtime station record should be offline after disconnect: $(ConvertTo-CompactJson $station.Record)"
+        }
+        Wait-AccessRuntimeStationEvents $supplierAccountId $supplierAccessId $mount $StartupTimeoutSec "runtime source"
+
+        Assert-AccessRuntimeRejected $clientSeed $otherMount $NtripHost $NtripPort "runtime unauthorized mount" $userAccountId $userAccessId $userAccessName
+
+        Invoke-RestMethod -Method Put -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+            status = "disabled"
+            mount_point_group_id = $groupId
+            concurrency_limit = 1
+        } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts/$userAccessId" -TimeoutSec 10 | Out-Null
+        Assert-AccessRuntimeRejected $clientSeed $mount $NtripHost $NtripPort "runtime disabled access" $userAccountId $userAccessId $userAccessName
+
+        Assert-AccessRuntimeRejected $blockedSeed $mount $NtripHost $NtripPort "runtime balance insufficient" $blockedAccountId $blockedAccessId $blockedAccessName
+    }
+    finally {
+        Close-NtripTcpConnection $clientConnection
+        Close-NtripTcpConnection $sourceConnection
+    }
+
+    Say "PASS access runtime enforcement smoke"
 }
 
 function Get-ClusterNodeByUid {
@@ -6313,7 +6811,7 @@ $activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeAccessRuntimeEnforcement
 $ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
@@ -6323,7 +6821,7 @@ try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
 
     if ($IncludeDockerBridgeCluster) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement
         if ($otherIncludes) {
             Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
         }
@@ -6353,7 +6851,7 @@ try {
     }
 
     if ($IncludeHttpIngressStrategy) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement
         if ($otherIncludes) {
             Fail "HTTP ingress strategy smoke must run in a separate lifecycle because it creates its own Docker network, Redis, NavCaster containers, and nginx proxy."
         }
@@ -6418,6 +6916,9 @@ try {
     }
     if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover)) {
         Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
+    }
+    if ($IncludeAccessRuntimeEnforcement -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount)) {
+        Fail "Access runtime enforcement smoke must run in a separate service lifecycle because it creates real role/access accounts and mutates runtime balances."
     }
     if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "secondary HTTP port must differ from primary HTTP port."
@@ -6544,7 +7045,13 @@ try {
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "IP" $RedisHost
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $authText = Set-YamlValueInSection $authText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsAuthFixture) {
+    if ($IncludeAccessRuntimeEnforcement) {
+        $authText = Set-YamlValueInSection $authText "Base_Setting" "Anonymous_Login" "false"
+        $authText = Set-YamlValueInSection $authText "Rover_Setting" "Anonymous_Login" "false"
+        $authText = Set-YamlValueInSection $authText "Rover_Setting" "Online_Protection" "true"
+        $authText = Set-YamlValueInSection $authText "Source_Setting" "Anonymous_Login" "false"
+    }
+    elseif ($ntripNeedsAuthFixture) {
         $roverOnlineProtection = if ($IncludeNtripAuthBroadcast) { "false" } elseif ($NtripOnlineProtectionScenario -eq "RejectNew") { "true" } else { "false" }
         $roverAnonymousLogin = if ($IncludeNtripAnonymousAuth -and $NtripAnonymousScenario -eq "AllowAnonymous") { "true" } else { "false" }
         $authText = Set-YamlValueInSection $authText "Base_Setting" "Anonymous_Login" "true"
@@ -6665,6 +7172,10 @@ try {
 
     if ($IncludeSelfServiceApi) {
         Invoke-SelfServiceApiSmoke $base $headers
+    }
+
+    if ($IncludeAccessRuntimeEnforcement) {
+        Invoke-AccessRuntimeEnforcementSmoke $base $headers $HttpBindAddr $NtripPort
     }
 
     Say "PASS health/login/status/cluster smoke"

@@ -2,8 +2,12 @@
 #include "auth_login_service.h"
 #include "auth_record_limit.h"
 #include "auth_session_record.h"
+#include "access_runtime_service.h"
 #include "account_schema.h"
+#include "json_record.h"
 #include "log_observability.h"
+#include "redis_keys.h"
+#include <algorithm>
 #include <list>
 #include <spdlog/spdlog.h>
 #include "knt.h"
@@ -48,6 +52,133 @@ const char *auth_reply_name(AuthReply reply)
         return "nil";
     }
     return "unknown";
+}
+
+std::string append_key(const char *prefix, const std::string &id)
+{
+    return std::string(prefix) + id;
+}
+
+void delete_auth_ctx(auth_ctx *ctx)
+{
+    if (!ctx)
+    {
+        return;
+    }
+    delete ctx->active_info;
+    ctx->active_info = nullptr;
+    delete ctx;
+}
+
+void reject_auth_ctx(auth_ctx *ctx, const std::string &reason, const std::string &legacy_reply = "User Not active or existed!")
+{
+    if (!ctx)
+    {
+        return;
+    }
+    spdlog::warn("[auth]: event=login_rejected operation=verify_account auth_type={} account={} reason={}",
+                 navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                 ctx->user_name,
+                 reason);
+    auth_reply Reply;
+    Reply.type = AuthReply::ERR;
+    Reply.str = legacy_reply.c_str();
+    if (ctx->cb)
+    {
+        ctx->cb(nullptr, ctx->arg, &Reply);
+    }
+    delete_auth_ctx(ctx);
+}
+
+bool redis_reply_to_json_object(redisReply *reply, json &out, std::string &reason)
+{
+    if (!reply)
+    {
+        reason = "redis_reply_missing";
+        return false;
+    }
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        reason = "not_found";
+        return false;
+    }
+    if (reply->type != REDIS_REPLY_STRING || !reply->str)
+    {
+        reason = "unexpected_reply_type";
+        return false;
+    }
+    try
+    {
+        out = json::parse(reply->str);
+    }
+    catch (const std::exception &e)
+    {
+        reason = e.what();
+        return false;
+    }
+    if (!out.is_object())
+    {
+        reason = "record_not_object";
+        return false;
+    }
+    return true;
+}
+
+bool json_status_active(const json &record)
+{
+    return record.is_object() && record.value("status", std::string{}) == navcaster::core::ACCESS_RUNTIME_STATUS_ACTIVE;
+}
+
+void continue_legacy_verify(auth_ctx *ctx)
+{
+    redisAsyncCommand(verify_internal::getInstance()->_pub_context,
+                      verify_internal::Redis_Verify_Callback,
+                      ctx,
+                      "HGET ACT:ACTIVE %s",
+                      ctx->user_name.c_str());
+}
+
+navcaster::core::AccessRuntimeRecordInput runtime_input_from_item(const auth_cb_item &item,
+                                                                  std::time_t update_time,
+                                                                  const char *disconnect_reason)
+{
+    navcaster::core::AccessRuntimeRecordInput input;
+    input.owner_account_id = item.owner_account_id;
+    input.access_account_id = item.access_account_id;
+    input.access_username = item.access_username.empty() ? item.user_name : item.access_username;
+    input.access_kind = item.access_kind;
+    input.mountpoint = item.runtime.mountpoint;
+    input.group_id = item.mount_point_group_id.empty() ? item.group_uid : item.mount_point_group_id;
+    input.connect_key = item.connect_key;
+    input.auth_type = navcaster::auth::AuthLoginService::auth_type_name(item.type);
+    input.addr = item.runtime.addr;
+    input.port = item.runtime.port;
+    input.user_agent = item.runtime.user_agent;
+    input.ntrip_version = item.runtime.ntrip_version;
+    input.billing_mode = item.billing_mode.empty() ? navcaster::core::ACCESS_RUNTIME_BILLING_MODE_PAYG : item.billing_mode;
+    input.start_time = item.online_time;
+    input.update_time = update_time;
+    input.end_time = update_time;
+    input.used_seconds = std::max<std::int64_t>(0, static_cast<std::int64_t>(update_time - item.online_time));
+    input.stat_cost_cents = navcaster::core::calculate_runtime_cost_cents(input.used_seconds, item.hourly_price_cents, item.billing_multiplier);
+    input.actual_debit_cents =
+        item.access_kind == navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT &&
+                input.billing_mode == navcaster::core::ACCESS_RUNTIME_BILLING_MODE_PAYG
+            ? input.stat_cost_cents
+            : 0;
+    input.balance_after_cents = item.balance_cents - input.actual_debit_cents;
+    input.disconnect_reason = disconnect_reason && *disconnect_reason ? disconnect_reason : item.runtime.disconnect_reason;
+    if (input.disconnect_reason.empty())
+    {
+        input.disconnect_reason = "client_closed";
+    }
+    return input;
+}
+
+std::int64_t json_i64_value(const json &record, const char *field, std::int64_t fallback = 0)
+{
+    auto it = record.find(field);
+    return it == record.end() ? fallback : navcaster::json_record::as_i64(*it, fallback);
 }
 }
 
@@ -109,14 +240,19 @@ int verify_internal::stop()
     return 0;
 }
 
-int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyCallback cb, void *arg, AuthType type)
+int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyCallback cb, void *arg, AuthType type, const AuthRuntimeContext *runtime)
 {
     auto ctx = new auth_ctx;
     ctx->type = type;
-    ctx->user_name = user_name;
-    ctx->user_pwd = user_pwd;
+    ctx->user_name = user_name ? user_name : "";
+    ctx->user_pwd = user_pwd ? user_pwd : "";
     ctx->cb = cb;
     ctx->arg = arg;
+    if (runtime)
+    {
+        ctx->runtime = *runtime;
+        ctx->has_runtime = true;
+    }
 
     const bool anonymous_login = navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this));
     spdlog::info("[auth]: event=verify_request auth_type={} account={} anonymous={}",
@@ -128,11 +264,11 @@ int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyC
         //     如果是匿名模式，那么账户系统就完全失效，只会生效ACT:UNNAMED
         //     基站匿名登录 || 用户匿名登录
         //     自动注册一个匿名账户
-        redisAsyncCommand(_pub_context, Redis_Add_Temp_Callback, ctx, "HSET ACT:UNNAMED %s %s", user_name, util_get_time_stamp_str().c_str());
+        redisAsyncCommand(_pub_context, Redis_Add_Temp_Callback, ctx, "HSET ACT:UNNAMED %s %s", ctx->user_name.c_str(), util_get_time_stamp_str().c_str());
     }
     else
     {
-        redisAsyncCommand(_pub_context, Redis_Verify_Callback, ctx, "HGET ACT:ACTIVE %s", user_name);
+        redisAsyncCommand(_pub_context, Redis_Verify_Access_Callback, ctx, "HGET AACC:ACTIVE %s", ctx->user_name.c_str());
     }
 
     // //
@@ -153,7 +289,7 @@ int verify_internal::verify(const char *user_name, const char *user_pwd, VerifyC
     return 0;
 }
 
-int verify_internal::add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type)
+int verify_internal::add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type, const AuthRuntimeContext *runtime)
 {
 
     if (navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this)) && type != AuthType::SOURCE)
@@ -176,15 +312,19 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
 
         // 将cb注册回调记录到本地
         auth_cb_item cb_item;
-        cb_item.connect_key = connect_key;
-        cb_item.user_name = user_name;
+        cb_item.connect_key = connect_key ? connect_key : "";
+        cb_item.user_name = user_name ? user_name : "";
         cb_item.type = type;
         cb_item.online_time = util_get_time_stamp();
         cb_item.group_uid = "default";
+        if (runtime)
+        {
+            cb_item.runtime = *runtime;
+        }
         cb_item.cb = cb;
         cb_item.arg = arg;
 
-        find->second.insert(std::pair<std::string, auth_cb_item>(connect_key, cb_item));
+        find->second.insert(std::pair<std::string, auth_cb_item>(cb_item.connect_key, cb_item));
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性
         // 即：查询到的结果已经包含当前记录，因此避免查询-插入后还需要再进行一步检测的步骤
@@ -194,21 +334,26 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
 
         // 向云端插入记录
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX ACT:UND:%s EX %s FIELDS 1 %s %s",
-                          user_name,
+                          cb_item.user_name.c_str(),
                           std::to_string(_key_expire_time).c_str(),
-                          connect_key,
+                          cb_item.connect_key.c_str(),
                           util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
 
         // 向云端查询记录，等待下一步处理
 
         auto ctx = new auth_ctx();
         ctx->type = type;
-        ctx->user_name = user_name;
-        ctx->connect_key = connect_key;
+        ctx->user_name = cb_item.user_name;
+        ctx->connect_key = cb_item.connect_key;
         ctx->arg = arg;
         ctx->cb = cb;
+        if (runtime)
+        {
+            ctx->runtime = *runtime;
+            ctx->has_runtime = true;
+        }
 
-        redisAsyncCommand(_pub_context, Redis_Add_Unname_Callback, ctx, "HGETALL ACT:UND:%s", user_name); // 查询当前频道的所有记录
+        redisAsyncCommand(_pub_context, Redis_Add_Unname_Callback, ctx, "HGETALL ACT:UND:%s", cb_item.user_name.c_str()); // 查询当前频道的所有记录
     }
     else
     {
@@ -228,14 +373,18 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
 
         // 将cb注册回调记录到本地
         auth_cb_item cb_item;
-        cb_item.connect_key = connect_key;
-        cb_item.user_name = user_name;
+        cb_item.connect_key = connect_key ? connect_key : "";
+        cb_item.user_name = user_name ? user_name : "";
         cb_item.type = type;
         cb_item.online_time = util_get_time_stamp();
+        if (runtime)
+        {
+            cb_item.runtime = *runtime;
+        }
         cb_item.cb = cb;
         cb_item.arg = arg;
 
-        find->second.insert(std::pair<std::string, auth_cb_item>(connect_key, cb_item));
+        find->second.insert(std::pair<std::string, auth_cb_item>(cb_item.connect_key, cb_item));
 
         // 先向云端插入该条记录，再查询记录，这样能够保证原子性
         // 即：查询到的结果已经包含当前记录，因此避免查询-插入后还需要再进行一步检测的步骤
@@ -245,26 +394,31 @@ int verify_internal::add_login_record(const char *user_name, const char *connect
 
         // 向云端插入记录
         redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX ACT:REC:%s EX %s FIELDS 1 %s %s",
-                          user_name,
+                          cb_item.user_name.c_str(),
                           std::to_string(_key_expire_time).c_str(),
-                          connect_key,
+                          cb_item.connect_key.c_str(),
                           util_get_time_stamp_str().c_str()); // 更新挂载点数据生产者的更新时间
 
         // 向云端查询记录，等待下一步处理
 
         auto ctx = new auth_ctx();
         ctx->type = type;
-        ctx->user_name = user_name;
-        ctx->connect_key = connect_key;
+        ctx->user_name = cb_item.user_name;
+        ctx->connect_key = cb_item.connect_key;
         ctx->arg = arg;
         ctx->cb = cb;
+        if (runtime)
+        {
+            ctx->runtime = *runtime;
+            ctx->has_runtime = true;
+        }
 
-        redisAsyncCommand(_pub_context, Redis_Add_Login_Callback, ctx, "HGETALL ACT:REC:%s", user_name); // 查询当前频道的所有记录
+        redisAsyncCommand(_pub_context, Redis_Add_Login_Callback, ctx, "HGETALL ACT:REC:%s", cb_item.user_name.c_str()); // 查询当前频道的所有记录
     }
     return 0;
 }
 
-int verify_internal::add_logout_record(const char *user_name, const char *connect_key, AuthType type)
+int verify_internal::add_logout_record(const char *user_name, const char *connect_key, AuthType type, const AuthRuntimeContext *runtime)
 {
 
     if (navcaster::auth::AuthLoginService::anonymous_enabled(type, current_login_options(*this)) && type != AuthType::SOURCE)
@@ -289,6 +443,11 @@ int verify_internal::add_logout_record(const char *user_name, const char *connec
         }
 
         // 删除该条记录
+        auto cb_item = item->second;
+        if (runtime)
+        {
+            cb_item.runtime = *runtime;
+        }
         user_registers->second.erase(item);
         // 删除Redis记录
         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL ACT:UND:%s %s", user_name, connect_key);
@@ -314,6 +473,12 @@ int verify_internal::add_logout_record(const char *user_name, const char *connec
         }
 
         // 删除该条记录
+        auto cb_item = item->second;
+        if (runtime)
+        {
+            cb_item.runtime = *runtime;
+        }
+        finalize_access_runtime_session(cb_item, cb_item.runtime.disconnect_reason.c_str());
         user_registers->second.erase(item);
         // 删除Redis记录
         redisAsyncCommand(_pub_context, NULL, NULL, "HDEL ACT:REC:%s %s", user_name, connect_key);
@@ -426,6 +591,7 @@ int verify_internal::upload_record_item()
             if (items.second.active_session_enabled)
             {
                 update_active_session(items.second, util_get_time_stamp());
+                update_access_online_session(items.second, util_get_time_stamp());
             }
         }
     }
@@ -530,6 +696,210 @@ int verify_internal::update_active_session(const auth_cb_item &item, std::time_t
     return ret;
 }
 
+int verify_internal::remove_access_online_session(const auth_cb_item &item)
+{
+    if (!item.access_runtime_enabled || item.owner_account_id.empty())
+    {
+        return REDIS_OK;
+    }
+    if (!_pub_context || !_is_pub_connected)
+    {
+        spdlog::warn("[auth]: event=access_online_session_remove_skipped operation=remove_access_online_session owner_account_id={} access_account_id={} connect_key={} reason=redis_not_connected",
+                     item.owner_account_id,
+                     item.access_account_id,
+                     item.connect_key);
+        return REDIS_ERR;
+    }
+    const std::string redis_key = append_key(navcaster::redis_keys::ONLINE_SESSION_PREFIX, item.owner_account_id);
+    const int ret = redisAsyncCommand(_pub_context, NULL, NULL, "HDEL %s %s", redis_key.c_str(), item.connect_key.c_str());
+    if (ret != REDIS_OK)
+    {
+        spdlog::error("[auth]: event=redis_command_failed operation=remove_access_online_session redis_key={} owner_account_id={} access_account_id={} connect_key={} reason=hdel_failed",
+                      redis_key,
+                      item.owner_account_id,
+                      item.access_account_id,
+                      item.connect_key);
+    }
+    return ret;
+}
+
+int verify_internal::update_access_online_session(const auth_cb_item &item, std::time_t update_time)
+{
+    if (!item.access_runtime_enabled || item.owner_account_id.empty())
+    {
+        return REDIS_OK;
+    }
+    if (!_pub_context || !_is_pub_connected)
+    {
+        spdlog::warn("[auth]: event=access_online_session_update_skipped operation=update_access_online_session owner_account_id={} access_account_id={} connect_key={} reason=redis_not_connected",
+                     item.owner_account_id,
+                     item.access_account_id,
+                     item.connect_key);
+        return REDIS_ERR;
+    }
+    auto input = runtime_input_from_item(item, update_time, nullptr);
+    input.update_time = update_time;
+    const auto record = navcaster::core::build_online_session_record(input).dump();
+    const std::string redis_key = append_key(navcaster::redis_keys::ONLINE_SESSION_PREFIX, item.owner_account_id);
+    const int ret = redisAsyncCommand(_pub_context, NULL, NULL, "HSETEX %s EX %s FIELDS 1 %s %s",
+                                      redis_key.c_str(),
+                                      std::to_string(_key_expire_time).c_str(),
+                                      item.connect_key.c_str(),
+                                      record.c_str());
+    if (ret != REDIS_OK)
+    {
+        spdlog::error("[auth]: event=redis_command_failed operation=update_access_online_session redis_key={} owner_account_id={} access_account_id={} connect_key={} reason=hsetex_failed",
+                      redis_key,
+                      item.owner_account_id,
+                      item.access_account_id,
+                      item.connect_key);
+    }
+    return ret;
+}
+
+int verify_internal::write_access_runtime_login(const auth_cb_item &item, std::time_t update_time)
+{
+    if (!item.access_runtime_enabled)
+    {
+        return REDIS_OK;
+    }
+    int ret = update_access_online_session(item, update_time);
+    if (ret != REDIS_OK)
+    {
+        return ret;
+    }
+    return REDIS_OK;
+}
+
+int verify_internal::finalize_access_runtime_session(const auth_cb_item &item, const char *disconnect_reason)
+{
+    if (!item.access_runtime_enabled)
+    {
+        return REDIS_OK;
+    }
+    if (!_pub_context || !_is_pub_connected)
+    {
+        spdlog::warn("[auth]: event=access_runtime_finalize_skipped operation=finalize_access_runtime_session owner_account_id={} access_account_id={} connect_key={} reason=redis_not_connected",
+                     item.owner_account_id,
+                     item.access_account_id,
+                     item.connect_key);
+        return REDIS_ERR;
+    }
+    const auto now = util_get_time_stamp();
+    auto input = runtime_input_from_item(item, now, disconnect_reason);
+    const std::string period = navcaster::core::runtime_period_from_unix(now);
+    const auto billing = navcaster::core::build_billing_usage_entry(input);
+    const std::string billing_id = billing.value("billing_id", std::string{});
+    const std::string fingerprint = billing.value("fingerprint", std::string{});
+    const std::string idempotent_payload = json{{"fingerprint", fingerprint}, {"period", period}, {"create_time", now}}.dump();
+    const std::string bill_entry_key = append_key(navcaster::redis_keys::BILL_ENTRY_PREFIX, period);
+    const std::string bill_account_key = append_key(navcaster::redis_keys::BILL_ACCOUNT_PREFIX, item.owner_account_id) + ":" + period;
+    const std::string ledger_key = append_key(navcaster::redis_keys::ACC_BALANCE_LEDGER_PREFIX, period);
+    const auto ledger = input.actual_debit_cents != 0
+                            ? navcaster::core::build_balance_ledger_entry(input)
+                            : json::object();
+    const std::string ledger_id = ledger.value("ledger_id", std::string{});
+    const std::string ledger_payload = ledger.empty() ? std::string{} : ledger.dump();
+    static constexpr const char *billing_script =
+        "if redis.call('HSETNX',KEYS[1],ARGV[1],ARGV[2])==0 then return 0 end "
+        "redis.call('HSETNX',KEYS[2],ARGV[1],ARGV[3]) "
+        "redis.call('LPUSH',KEYS[3],ARGV[1]) "
+        "local debit=tonumber(ARGV[7]) or 0 "
+        "if debit~=0 then "
+        "local raw=redis.call('HGET',KEYS[4],ARGV[4]) "
+        "if raw then "
+        "local ok,rec=pcall(cjson.decode,raw) "
+        "if ok and type(rec)=='table' then "
+        "local balance=tonumber(rec['balance_cents'] or 0) or 0 "
+        "rec['balance_cents']=balance-debit "
+        "rec['update_time']=tonumber(ARGV[8]) or rec['update_time'] "
+        "redis.call('HSET',KEYS[4],ARGV[4],cjson.encode(rec)) "
+        "end end "
+        "local araw=redis.call('HGET',KEYS[6],ARGV[9]) "
+        "if araw then "
+        "local aok,arec=pcall(cjson.decode,araw) "
+        "if aok and type(arec)=='table' then "
+        "local abalance=tonumber(arec['balance_cents'] or 0) or 0 "
+        "arec['balance_cents']=abalance-debit "
+        "arec['update_time']=tonumber(ARGV[8]) or arec['update_time'] "
+        "redis.call('HSET',KEYS[6],ARGV[9],cjson.encode(arec)) "
+        "end end "
+        "redis.call('HSETNX',KEYS[5],ARGV[5],ARGV[6]) "
+        "end "
+        "return 1";
+    int ret = redisAsyncCommand(_pub_context, NULL, NULL, "EVAL %s 6 %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s",
+                                billing_script,
+                                navcaster::redis_keys::BILL_IDEMPOTENT,
+                                bill_entry_key.c_str(),
+                                bill_account_key.c_str(),
+                                navcaster::redis_keys::ACC_RECORD,
+                                ledger_key.c_str(),
+                                navcaster::redis_keys::AACC_ACTIVE,
+                                billing_id.c_str(),
+                                idempotent_payload.c_str(),
+                                billing.dump().c_str(),
+                                item.owner_account_id.c_str(),
+                                ledger_id.c_str(),
+                                ledger_payload.c_str(),
+                                std::to_string(input.actual_debit_cents).c_str(),
+                                std::to_string(now).c_str(),
+                                input.access_username.c_str());
+    if (ret != REDIS_OK)
+    {
+        return ret;
+    }
+
+    if (item.access_kind == navcaster::core::ACCESS_RUNTIME_KIND_SUPPLIER_STATION)
+    {
+        const auto supply = navcaster::core::build_supplier_supply_usage(input);
+        const std::string supply_key = append_key(navcaster::redis_keys::SUPPLY_USAGE_PREFIX, period);
+        const std::string supply_account_key = append_key(navcaster::redis_keys::SUPPLY_ACCOUNT_PREFIX, item.owner_account_id) + ":" + period;
+        ret = redisAsyncCommand(_pub_context, NULL, NULL, "HSETNX %s %s %s",
+                                supply_key.c_str(),
+                                supply.value("usage_id", std::string{}).c_str(),
+                                supply.dump().c_str());
+        if (ret != REDIS_OK)
+        {
+            return ret;
+        }
+        redisAsyncCommand(_pub_context, NULL, NULL, "LPUSH %s %s", supply_account_key.c_str(), supply.value("usage_id", std::string{}).c_str());
+
+        const auto login_event = navcaster::core::build_station_event(input, "login");
+        const auto station = navcaster::core::build_station_record(input, false);
+        const auto disconnect_event = navcaster::core::build_station_event(input, "disconnect");
+        const std::string event_key = append_key(navcaster::redis_keys::STATION_EVENT_PREFIX, input.mountpoint);
+        ret = redisAsyncCommand(_pub_context, NULL, NULL, "HSET %s %s %s",
+                                navcaster::redis_keys::STATION_RECORD,
+                                input.mountpoint.c_str(),
+                                station.dump().c_str());
+        if (ret != REDIS_OK)
+        {
+            return ret;
+        }
+        ret = redisAsyncCommand(_pub_context, NULL, NULL, "RPUSH %s %s", event_key.c_str(), login_event.dump().c_str());
+        if (ret != REDIS_OK)
+        {
+            return ret;
+        }
+        ret = redisAsyncCommand(_pub_context, NULL, NULL, "LPUSH %s %s", event_key.c_str(), disconnect_event.dump().c_str());
+        if (ret != REDIS_OK)
+        {
+            return ret;
+        }
+    }
+
+    remove_access_online_session(item);
+    spdlog::info("[auth]: event=access_runtime_finalized owner_account_id={} access_account_id={} mountpoint={} connect_key={} used_seconds={} debit_cents={} reason={}",
+                 item.owner_account_id,
+                 item.access_account_id,
+                 input.mountpoint,
+                 item.connect_key,
+                 input.used_seconds,
+                 input.actual_debit_cents,
+                 input.disconnect_reason);
+    return REDIS_OK;
+}
+
 int verify_internal::broadcast_response(std::string req_str)
 {
     // 根据接收到的广播，触发对应的回调函数，通知Catster外围创建和删除任务
@@ -588,6 +958,7 @@ int verify_internal::broadcast_response(std::string req_str)
             if (disable_active_session)
             {
                 iter.second.active_session_enabled = false;
+                finalize_access_runtime_session(iter.second, req.reason.c_str());
                 remove_active_session(req.channel.c_str(), iter.second.connect_key.c_str());
             }
             auto cb_item = iter.second;
@@ -617,6 +988,7 @@ int verify_internal::broadcast_response(std::string req_str)
         if (disable_active_session)
         {
             target->second.active_session_enabled = false;
+            finalize_access_runtime_session(target->second, req.reason.c_str());
             remove_active_session(req.channel.c_str(), req.connect_key.c_str());
         }
         auto cb_item = target->second;
@@ -773,6 +1145,315 @@ void verify_internal::Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, voi
     delete ctx;
 }
 
+void verify_internal::Redis_Verify_Access_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+
+    if (!reply)
+    {
+        reject_auth_ctx(ctx, "redis_reply_missing");
+        return;
+    }
+    if (reply->type == REDIS_REPLY_NIL)
+    {
+        continue_legacy_verify(ctx);
+        return;
+    }
+    if (reply->type != REDIS_REPLY_STRING || !reply->str)
+    {
+        reject_auth_ctx(ctx, "unexpected_aacc_active_reply");
+        return;
+    }
+
+    ctx->active_json = reply->str;
+    auto active_info = new auth_limit;
+    if (active_info->fromString(ctx->active_json) != 0)
+    {
+        delete active_info;
+        reject_auth_ctx(ctx, "aacc_active_parse_failed", "User auth info invalid!");
+        return;
+    }
+    ctx->active_info = active_info;
+
+    const auto login_decision = navcaster::auth::AuthLoginService::evaluate_account(ctx->active_json, ctx->user_pwd, ctx->type, util_get_time_stamp());
+    if (!login_decision.result.ok())
+    {
+        reject_auth_ctx(ctx, login_decision.result.message, login_decision.legacy_reply);
+        return;
+    }
+
+    const std::string auth_type_name = navcaster::auth::AuthLoginService::auth_type_name(ctx->type);
+    const bool require_mountpoint = ctx->type != AuthType::SOURCE;
+    const auto runtime_validation = navcaster::core::validate_access_auth_index(
+        login_decision.active_record,
+        auth_type_name,
+        ctx->runtime.mountpoint,
+        util_get_time_stamp(),
+        require_mountpoint);
+    if (!runtime_validation.ok)
+    {
+        reject_auth_ctx(ctx, runtime_validation.reason);
+        return;
+    }
+
+    ctx->active_info->_access_runtime_enabled = true;
+    ctx->active_info->_owner_account_id = login_decision.active_record.value("owner_account_id", std::string{});
+    ctx->active_info->_access_account_id = login_decision.active_record.value("access_account_id", std::string{});
+    ctx->active_info->_access_username = login_decision.active_record.value("access_username", ctx->user_name);
+    ctx->active_info->_access_kind = login_decision.active_record.value("access_kind", std::string{});
+    ctx->active_info->_mount_point_group_id = login_decision.active_record.value("mount_point_group_id", std::string{});
+    ctx->active_info->_balance_cents = json_i64_value(login_decision.active_record, "balance_cents", 0);
+    ctx->active_info->_credit_limit_cents = json_i64_value(login_decision.active_record, "credit_limit_cents", 0);
+
+    redisAsyncCommand(c,
+                      Redis_Verify_Access_Record_Callback,
+                      ctx,
+                      "HGET %s %s",
+                      navcaster::redis_keys::AACC_RECORD,
+                      ctx->active_info->_access_account_id.c_str());
+}
+
+void verify_internal::Redis_Verify_Access_Record_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+
+    std::string reason;
+    if (!redis_reply_to_json_object(reply, ctx->access_record, reason))
+    {
+        reject_auth_ctx(ctx, "access_record_" + reason);
+        return;
+    }
+    if (!json_status_active(ctx->access_record))
+    {
+        reject_auth_ctx(ctx, "access_account_disabled");
+        return;
+    }
+    if (ctx->access_record.value("username", std::string{}) != ctx->user_name ||
+        ctx->access_record.value("access_account_id", std::string{}) != ctx->active_info->_access_account_id)
+    {
+        reject_auth_ctx(ctx, "access_record_mismatch");
+        return;
+    }
+    if (ctx->access_record.value("kind", std::string{}) != ctx->active_info->_access_kind)
+    {
+        reject_auth_ctx(ctx, "access_kind_mismatch");
+        return;
+    }
+    const std::string owner_account_id = ctx->access_record.value("owner_account_id", std::string{});
+    if (owner_account_id.empty())
+    {
+        reject_auth_ctx(ctx, "owner_account_required");
+        return;
+    }
+    ctx->active_info->_owner_account_id = owner_account_id;
+    ctx->active_info->_mount_point_group_id = ctx->access_record.value("mount_point_group_id", ctx->active_info->_mount_point_group_id);
+    const int access_limit = ctx->access_record.value("concurrency_limit", ctx->active_info->_connect_limit);
+    if (access_limit > 0)
+    {
+        ctx->active_info->_connect_limit = access_limit;
+    }
+    redisAsyncCommand(c,
+                      Redis_Verify_Access_Owner_Callback,
+                      ctx,
+                      "HGET %s %s",
+                      navcaster::redis_keys::ACC_RECORD,
+                      owner_account_id.c_str());
+}
+
+void verify_internal::Redis_Verify_Access_Owner_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+
+    std::string reason;
+    if (!redis_reply_to_json_object(reply, ctx->owner_record, reason))
+    {
+        reject_auth_ctx(ctx, "owner_record_" + reason);
+        return;
+    }
+    if (!json_status_active(ctx->owner_record))
+    {
+        reject_auth_ctx(ctx, "owner_account_disabled");
+        return;
+    }
+    const std::string owner_role = ctx->owner_record.value("role", std::string{});
+    const std::string access_kind = ctx->access_record.value("kind", std::string{});
+    if (!((owner_role == "admin") ||
+          (owner_role == "user" && access_kind == navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT) ||
+          (owner_role == "supplier" && access_kind == navcaster::core::ACCESS_RUNTIME_KIND_SUPPLIER_STATION)))
+    {
+        reject_auth_ctx(ctx, "access_kind_not_allowed_for_owner_role");
+        return;
+    }
+
+    ctx->active_info->_balance_cents = json_i64_value(ctx->owner_record, "balance_cents", 0);
+    ctx->active_info->_credit_limit_cents = json_i64_value(ctx->owner_record, "credit_limit_cents", 0);
+    const int owner_limit = ctx->owner_record.value("concurrency_limit", 0);
+    if (owner_limit > 0)
+    {
+        ctx->active_info->_connect_limit = std::min(ctx->active_info->_connect_limit, owner_limit);
+    }
+    if (ctx->active_info->_access_kind == navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT &&
+        ctx->active_info->_balance_cents + ctx->active_info->_credit_limit_cents < 0)
+    {
+        reject_auth_ctx(ctx, "balance_insufficient");
+        return;
+    }
+
+    const std::string grant_key = append_key(navcaster::redis_keys::ACC_GROUP_PREFIX, ctx->active_info->_owner_account_id);
+    redisAsyncCommand(c,
+                      Redis_Verify_Access_Grant_Callback,
+                      ctx,
+                      "HGET %s %s",
+                      grant_key.c_str(),
+                      ctx->active_info->_mount_point_group_id.c_str());
+}
+
+void verify_internal::Redis_Verify_Access_Grant_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+
+    std::string reason;
+    if (!redis_reply_to_json_object(reply, ctx->grant_record, reason))
+    {
+        reject_auth_ctx(ctx, "group_grant_revoked");
+        return;
+    }
+    if (!json_status_active(ctx->grant_record))
+    {
+        reject_auth_ctx(ctx, "group_grant_revoked");
+        return;
+    }
+    redisAsyncCommand(c,
+                      Redis_Verify_Access_Group_Callback,
+                      ctx,
+                      "HGET %s %s",
+                      navcaster::redis_keys::MPGRP_RECORD,
+                      ctx->active_info->_mount_point_group_id.c_str());
+}
+
+void verify_internal::Redis_Verify_Access_Group_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+
+    std::string reason;
+    if (!redis_reply_to_json_object(reply, ctx->group_record, reason))
+    {
+        reject_auth_ctx(ctx, "mount_point_group_disabled");
+        return;
+    }
+    if (!json_status_active(ctx->group_record))
+    {
+        reject_auth_ctx(ctx, "mount_point_group_disabled");
+        return;
+    }
+    ctx->active_info->_billing_multiplier = ctx->group_record.value("billing_multiplier", 1.0);
+
+    if (ctx->runtime.mountpoint.empty() && ctx->type == AuthType::SOURCE)
+    {
+        Redis_Verify_Access_Accept(ctx);
+        return;
+    }
+    const std::string member_key = append_key(navcaster::redis_keys::MPGRP_MEMBER_PREFIX, ctx->active_info->_mount_point_group_id);
+    redisAsyncCommand(c,
+                      Redis_Verify_Access_Member_Callback,
+                      ctx,
+                      "HGET %s %s",
+                      member_key.c_str(),
+                      ctx->runtime.mountpoint.c_str());
+}
+
+void verify_internal::Redis_Verify_Access_Member_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+
+    std::string reason;
+    if (!redis_reply_to_json_object(reply, ctx->member_record, reason))
+    {
+        reject_auth_ctx(ctx, "mountpoint_not_in_group");
+        return;
+    }
+    if (!json_status_active(ctx->member_record))
+    {
+        reject_auth_ctx(ctx, "mountpoint_not_in_group");
+        return;
+    }
+    redisAsyncCommand(c,
+                      Redis_Verify_Access_Mount_Callback,
+                      ctx,
+                      "HGET %s %s",
+                      navcaster::redis_keys::MOUNT_RECORD,
+                      ctx->runtime.mountpoint.c_str());
+}
+
+void verify_internal::Redis_Verify_Access_Mount_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+
+    if (reply && reply->type == REDIS_REPLY_NIL)
+    {
+        ctx->mount_record = json::object();
+        Redis_Verify_Access_Accept(ctx);
+        return;
+    }
+
+    std::string reason;
+    if (!redis_reply_to_json_object(reply, ctx->mount_record, reason))
+    {
+        reject_auth_ctx(ctx, "mount_record_" + reason);
+        return;
+    }
+    if (ctx->mount_record.contains("status") && !json_status_active(ctx->mount_record))
+    {
+        reject_auth_ctx(ctx, "mountpoint_disabled");
+        return;
+    }
+    ctx->active_info->_hourly_price_cents = json_i64_value(ctx->mount_record, "hourly_price_cents", 0);
+    if (ctx->active_info->_access_kind == navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT)
+    {
+        const auto next_slice_cost = navcaster::core::calculate_runtime_cost_cents(
+            60,
+            ctx->active_info->_hourly_price_cents,
+            ctx->active_info->_billing_multiplier);
+        if (next_slice_cost > 0 && next_slice_cost > ctx->active_info->_balance_cents + ctx->active_info->_credit_limit_cents)
+        {
+            reject_auth_ctx(ctx, "balance_insufficient");
+            return;
+        }
+    }
+    Redis_Verify_Access_Accept(ctx);
+}
+
+void verify_internal::Redis_Verify_Access_Accept(auth_ctx *ctx)
+{
+    auto svr = verify_internal::getInstance();
+    auto find = svr->_register_limit_map.find(ctx->user_name);
+    if (find != svr->_register_limit_map.end())
+    {
+        svr->_register_limit_map.erase(find);
+    }
+    svr->_register_limit_map.insert(std::pair<std::string, auth_limit>(ctx->user_name, *ctx->active_info));
+
+    auth_reply Reply;
+    Reply.type = AuthReply::OK;
+    Reply.group_uid = normalize_group_uid(ctx->active_info->_group);
+    spdlog::info("[auth]: event=login_accepted operation=verify_access_account auth_type={} account={} owner_account_id={} access_account_id={} mountpoint={} group_uid={}",
+                 navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
+                 ctx->user_name,
+                 ctx->active_info->_owner_account_id,
+                 ctx->active_info->_access_account_id,
+                 ctx->runtime.mountpoint,
+                 Reply.group_uid);
+    ctx->cb(nullptr, ctx->arg, &Reply);
+    delete_auth_ctx(ctx);
+}
+
 void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void *privdata)
 {
     auto reply = static_cast<redisReply *>(r);
@@ -780,6 +1461,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
 
     if (!reply)
     {
+        reject_auth_ctx(ctx, "redis_reply_missing");
         return;
     }
     if (reply->type == REDIS_REPLY_NIL)
@@ -795,7 +1477,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
         Reply.type = AuthReply::ERR; // AUTH_REPLY_ERR;
         Reply.str = login_decision.legacy_reply.c_str();
         ctx->cb(nullptr, ctx->arg, &Reply);
-        delete ctx;
+        delete_auth_ctx(ctx);
         return;
     }
     if (reply->type != REDIS_REPLY_STRING)
@@ -803,6 +1485,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
         spdlog::warn("[auth]: event=login_rejected operation=verify_account auth_type={} account={} stage=account_lookup code=redis_error reason=unexpected_reply_type",
                      navcaster::auth::AuthLoginService::auth_type_name(ctx->type),
                      ctx->user_name);
+        reject_auth_ctx(ctx, "unexpected_legacy_active_reply");
         return;
     }
 
@@ -824,7 +1507,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
         Reply.type = AuthReply::ERR;
         Reply.str = "User auth info invalid!";
         ctx->cb(nullptr, ctx->arg, &Reply);
-        delete ctx;
+        delete_auth_ctx(ctx);
         return;
     }
 
@@ -841,7 +1524,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
         Reply.type = AuthReply::ERR;
         Reply.str = login_decision.legacy_reply.c_str();
         ctx->cb(nullptr, ctx->arg, &Reply);
-        delete ctx;
+        delete_auth_ctx(ctx);
         return;
     }
 
@@ -865,7 +1548,7 @@ void verify_internal::Redis_Verify_Callback(redisAsyncContext *c, void *r, void 
                  navcaster::auth::AuthLoginService::stage_name(login_decision.stage));
     ctx->cb(nullptr, ctx->arg, &Reply);
 
-    delete ctx;
+    delete_auth_ctx(ctx);
 }
 
 void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, void *privdata)
@@ -956,7 +1639,27 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
             if (cb_item != register_item->second.end())
             {
                 cb_item->second.group_uid = normalize_group_uid(limit_item->second._group);
-                verify_internal::getInstance()->update_active_session(cb_item->second, util_get_time_stamp());
+                cb_item->second.access_runtime_enabled = limit_item->second._access_runtime_enabled;
+                cb_item->second.owner_account_id = limit_item->second._owner_account_id;
+                cb_item->second.access_account_id = limit_item->second._access_account_id;
+                cb_item->second.access_username = limit_item->second._access_username;
+                cb_item->second.access_kind = limit_item->second._access_kind;
+                cb_item->second.mount_point_group_id = limit_item->second._mount_point_group_id;
+                cb_item->second.balance_cents = limit_item->second._balance_cents;
+                cb_item->second.credit_limit_cents = limit_item->second._credit_limit_cents;
+                cb_item->second.hourly_price_cents = limit_item->second._hourly_price_cents;
+                cb_item->second.billing_multiplier = limit_item->second._billing_multiplier;
+                cb_item->second.billing_mode = limit_item->second._billing_mode;
+                if (cb_item->second.runtime.mountpoint.empty() && ctx->has_runtime)
+                {
+                    cb_item->second.runtime = ctx->runtime;
+                }
+                const auto now = util_get_time_stamp();
+                verify_internal::getInstance()->update_active_session(cb_item->second, now);
+                if (verify_internal::getInstance()->write_access_runtime_login(cb_item->second, now) != REDIS_OK)
+                {
+                    throw std::logic_error("access runtime persist failed");
+                }
                 cb_item->second.active_session_enabled = true;
                 spdlog::info("[auth]: event=login_record_accepted operation=add_login_record account={} connect_key={} group_uid={}",
                              ctx->user_name,
@@ -1118,6 +1821,20 @@ int auth_limit::fromString(const std::string &str)
         _connect_limit = view.connection_limit;
         _group = view.group_uid;
         _expire = view.expire_time;
+        _access_runtime_enabled = info.contains("access_account_id") || info.contains("owner_account_id");
+        if (_access_runtime_enabled)
+        {
+            _owner_account_id = info.value("owner_account_id", std::string{});
+            _access_account_id = info.value("access_account_id", std::string{});
+            _access_username = info.value("access_username", view.account);
+            _access_kind = info.value("access_kind", std::string{});
+            _mount_point_group_id = info.value("mount_point_group_id", view.group_uid);
+            _balance_cents = json_i64_value(info, "balance_cents", 0);
+            _credit_limit_cents = json_i64_value(info, "credit_limit_cents", 0);
+            _hourly_price_cents = json_i64_value(info, "hourly_price_cents", 0);
+            _billing_multiplier = info.value("billing_multiplier", 1.0);
+            _billing_mode = info.value("billing_mode", std::string(navcaster::core::ACCESS_RUNTIME_BILLING_MODE_PAYG));
+        }
     }
     catch (const std::exception &e)
     {

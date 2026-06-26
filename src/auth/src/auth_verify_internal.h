@@ -53,12 +53,24 @@ using json = nlohmann::json;
     ACT:UND:KORO5              账号名-[连接的ConnectKey-添加记录时间]  匿名账户的登录记录（每条的有有效期是固定的）
 */
 
+class auth_limit;
+
 struct auth_ctx
 {
     AuthType type = AuthType::UNKNOWN;
     std::string user_name;
     std::string user_pwd;
     std::string connect_key;
+    AuthRuntimeContext runtime;
+    bool has_runtime = false;
+    std::string active_json;
+    auth_limit *active_info = nullptr;
+    json access_record;
+    json owner_record;
+    json grant_record;
+    json group_record;
+    json member_record;
+    json mount_record;
     VerifyCallback cb = nullptr;
     void *arg = nullptr;
 };
@@ -123,6 +135,17 @@ public:
                               *   空           没有任何访问权限，基站账号没有访问权限
                               */
     int64_t _expire = 0;     // 过期时间，时间戳，0表示不限制
+    bool _access_runtime_enabled = false;
+    std::string _owner_account_id;
+    std::string _access_account_id;
+    std::string _access_username;
+    std::string _access_kind;
+    std::string _mount_point_group_id;
+    std::int64_t _balance_cents = 0;
+    std::int64_t _credit_limit_cents = 0;
+    std::int64_t _hourly_price_cents = 0;
+    double _billing_multiplier = 1.0;
+    std::string _billing_mode = "payg";
 
 public:
     int fromString(const std::string &str);
@@ -137,6 +160,18 @@ public:
     std::time_t online_time = 0;
     std::string group_uid;
     bool active_session_enabled = false;
+    bool access_runtime_enabled = false;
+    AuthRuntimeContext runtime;
+    std::string owner_account_id;
+    std::string access_account_id;
+    std::string access_username;
+    std::string access_kind;
+    std::string mount_point_group_id;
+    std::int64_t balance_cents = 0;
+    std::int64_t credit_limit_cents = 0;
+    std::int64_t hourly_price_cents = 0;
+    double billing_multiplier = 1.0;
+    std::string billing_mode = "payg";
     VerifyCallback cb;
     void *arg;
 };
@@ -226,11 +261,11 @@ public:
     int start();
     int stop();
 
-    int verify(const char *user_name, const char *user_pwd, VerifyCallback cb, void *arg, AuthType type);
+    int verify(const char *user_name, const char *user_pwd, VerifyCallback cb, void *arg, AuthType type, const AuthRuntimeContext *runtime = nullptr);
 
-    int add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type);
+    int add_login_record(const char *user_name, const char *connect_key, VerifyCallback cb, void *arg, AuthType type, const AuthRuntimeContext *runtime = nullptr);
 
-    int add_logout_record(const char *user_name, const char *connect_key, AuthType type);
+    int add_logout_record(const char *user_name, const char *connect_key, AuthType type, const AuthRuntimeContext *runtime = nullptr);
 
 private:
     int init_sub_context();
@@ -244,6 +279,10 @@ private:
     int send_change_auth_status(const char *user_name, const char *connect_key, AuthReply type, const char *reason);
     int remove_active_session(const char *user_name, const char *connect_key);
     int update_active_session(const auth_cb_item &item, std::time_t update_time);
+    int remove_access_online_session(const auth_cb_item &item);
+    int update_access_online_session(const auth_cb_item &item, std::time_t update_time);
+    int write_access_runtime_login(const auth_cb_item &item, std::time_t update_time);
+    int finalize_access_runtime_session(const auth_cb_item &item, const char *disconnect_reason);
 
     int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
 
@@ -260,7 +299,15 @@ public:
     static void TimeoutCallback(evutil_socket_t fd, short events, void *arg);
 
     // 查询用户信息的回调
+    static void Redis_Verify_Access_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Verify_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Record_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Owner_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Grant_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Group_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Member_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Mount_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Accept(auth_ctx *ctx);
 
     // 添加匿名账户的回调
     static void Redis_Add_Temp_Callback(redisAsyncContext *c, void *r, void *privdata);
