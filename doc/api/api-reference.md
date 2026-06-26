@@ -187,6 +187,9 @@
 | `POST` | `/api/v1/admin/data-push-jobs?action=reconcile&period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 批量同步 relay_push 任务运行态审计快照 |
 | `POST` | `/api/v1/admin/data-push-jobs/{job_id}/control` | `DATA:PUSH:JOB:{period}` / `PUSH:RECORD` / `PUSH:STAT` | 控制数据推送任务：cancel/retry/mark_failed/mark_completed |
 | `POST` | `/api/v1/admin/data-push-jobs/{job_id}/reconcile` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 同步单个 relay_push 任务运行态审计快照 |
+| `GET` | `/api/v1/admin/data-push-maintenance` | `DATA:PUSH:MAINTENANCE` | 查询 DataPush 自动维护配置 |
+| `PUT` | `/api/v1/admin/data-push-maintenance` | `DATA:PUSH:MAINTENANCE` | 更新 DataPush 自动维护开关、周期和失败阈值 |
+| `POST` | `/api/v1/admin/data-push-maintenance?action=run&period=yyyyMM` | `DATA:PUSH:MAINTENANCE` / `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 手动执行 DataPush runtime maintenance |
 | `GET` | `/api/v1/admin/data-push-usage?period=yyyyMM` | `DATA:PUSH:{period}` | 列出数据推送用量和扣费事实 |
 | `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
 | `GET` | `/api/v1/admin/supplier-settlements?period=yyyyMM&supplier_account_id=...` | `SUPPLY:EARNING:{account_id}:{period}` | 列出供应商结算批次；未传 supplier 时扫描供应商/admin 账号当期结算 |
@@ -272,12 +275,23 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 `POST /api/v1/admin/data-push-jobs?action=reconcile&period=yyyyMM` 批量同步当期
 relay_push 任务。
 
-HTTP 服务还会每 60 秒对当前 `yyyyMM` 账期执行一次 DataPush runtime maintenance。
-自动维护复用同一运行态沉淀字段，但 `runtime_reconcile_action` 写为
-`auto_reconcile`，同时写 `runtime_maintenance_time`。当非终态 `relay_push`
-任务连续 `stopped` / missing 超过 300 秒，任务会被标记为 `status=failed`，
-写入 `failure_reason` / `failure_time` / `runtime_failure_after_seconds`，并禁用
-受管 `PUSH:RECORD[relay_uid]`。终态任务只更新运行态审计快照，不会被重新打开。
+HTTP 服务还会每 60 秒 tick 一次 DataPush runtime maintenance 调度。实际是否执行、
+执行节流周期和异常失败阈值由 `DATA:PUSH:MAINTENANCE[default]` 控制：
+`enabled` 默认为 `true`，`interval_seconds` 默认为 `60`，`unhealthy_after_seconds`
+默认为 `300`。`interval_seconds` 小于 60 秒时不会快于 60 秒调度粒度执行；大于
+60 秒时按 last-run 节流跳过。自动维护复用同一运行态沉淀字段，但
+`runtime_reconcile_action` 写为 `auto_reconcile`，同时写 `runtime_maintenance_time`。
+当非终态 `relay_push` 任务连续 `stopped` / missing 超过配置阈值，任务会被标记为
+`status=failed`，写入 `failure_reason` / `failure_time` /
+`runtime_failure_after_seconds`，并禁用受管 `PUSH:RECORD[relay_uid]`。终态任务只更新
+运行态审计快照，不会被重新打开。
+
+`GET /api/v1/admin/data-push-maintenance` 无记录时返回默认配置但不强制写入 Redis。
+`PUT` 请求体可更新 `enabled`、`interval_seconds`、`unhealthy_after_seconds`，
+其中 `interval_seconds` 范围为 5 到 86400，`unhealthy_after_seconds` 范围为 0 到
+86400。`POST /api/v1/admin/data-push-maintenance?action=run&period=yyyyMM` 会手动执行
+指定账期维护；请求体可传 `period` 和 `unhealthy_after_seconds` 覆盖配置阈值，响应包含
+`manual=true`、`updated_count`、`failed_count` 和本次使用的阈值。
 
 `POST /api/v1/admin/redeem-codes/{code}/redeem` 可通过 query 参数或 JSON body 传入
 `account_id`。兑换成功会生成兑换记录和余额 ledger，增加 Account 余额；同一 Account 对

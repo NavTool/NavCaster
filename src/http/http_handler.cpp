@@ -188,6 +188,12 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_data_push_config(req, resp); });
     _server.route(EVHTTP_REQ_DELETE, "/api/v1/admin/data-push-configs/*", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_config(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-maintenance", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_maintenance(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/data-push-maintenance", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_maintenance(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/data-push-maintenance", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_maintenance(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-jobs", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_jobs(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/v1/admin/data-push-jobs", [this](auto &req, auto &resp)
@@ -494,13 +500,13 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
         spdlog::info("[{}:{}]: Redis history sampling enabled (60s interval)", __class__, __func__);
     }
 
-    // DataPush relay_push runtime maintenance (60s period, 300s unhealthy threshold).
+    // DataPush relay_push runtime maintenance (60s scheduler tick; execution policy comes from Redis config).
     _data_push_runtime_timer = event_new(base, -1, EV_PERSIST, on_data_push_runtime_timer, this);
     if (_data_push_runtime_timer)
     {
         struct timeval tv {60, 0};
         event_add(_data_push_runtime_timer, &tv);
-        spdlog::info("[{}:{}]: DataPush runtime maintenance enabled (60s interval)", __class__, __func__);
+        spdlog::info("[{}:{}]: DataPush runtime maintenance scheduler enabled (60s tick)", __class__, __func__);
     }
 
     // Register SSE channels through repository-backed snapshot service.
@@ -828,6 +834,36 @@ void http_handler::handle_v1_admin_data_push_config(const HttpRequest &req, Http
     else
     {
         result = controller.get_data_push_config(config_id);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_data_push_maintenance(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_data_push_maintenance_config(req.body);
+    }
+    else if (req.method == EVHTTP_REQ_POST)
+    {
+        const auto action = req.query_params.find("action");
+        if (action != req.query_params.end() && action->second == "run")
+        {
+            const auto period = req.query_params.find("period");
+            result = controller.run_data_push_maintenance(period == req.query_params.end() ? std::string{} : period->second, req.body);
+        }
+        else
+        {
+            result.status_code = 404;
+            result.body = R"({"error":"Not found"})";
+        }
+    }
+    else
+    {
+        result = controller.data_push_maintenance_config();
     }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
@@ -2046,8 +2082,9 @@ void http_handler::on_data_push_runtime_timer(evutil_socket_t /*fd*/, short /*wh
 
 void http_handler::maintain_data_push_runtime()
 {
-    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
-    auto result = controller.maintain_data_push_jobs_runtime(current_period_yyyymm(), 300);
+    const auto now = current_unix_seconds();
+    navcaster::http_api::OperationsController controller(auth_redis_client(), now);
+    auto result = controller.scheduled_data_push_maintenance(current_period_yyyymm(), _last_data_push_runtime_maintenance_time);
     if (result.status_code != 200)
     {
         spdlog::warn("[{}:{}]: DataPush runtime maintenance failed: status={}", __class__, __func__, result.status_code);
@@ -2057,6 +2094,15 @@ void http_handler::maintain_data_push_runtime()
     try
     {
         const auto body = nlohmann::json::parse(result.body);
+        if (!body.value("executed", true))
+        {
+            spdlog::debug("[{}:{}]: DataPush runtime maintenance skipped: reason={}",
+                          __class__,
+                          __func__,
+                          body.value("skip_reason", std::string{}));
+            return;
+        }
+        _last_data_push_runtime_maintenance_time = now;
         spdlog::debug("[{}:{}]: DataPush runtime maintenance period={} updated={} failed={}",
                       __class__,
                       __func__,

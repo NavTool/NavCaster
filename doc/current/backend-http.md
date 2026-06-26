@@ -71,10 +71,15 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   `DATA:PUSH:JOB:<period>` 的 `relay_state_snapshot`、`relay_status`、
   `runtime_reconcile_time` 等字段；终态任务不会被重新打开。
 - NC-067 起 HTTP 服务增加 DataPush runtime maintenance timer。该 timer 每 60s
-  扫描当前 `yyyyMM` 账期的 relay_push DataPushJob，自动沉淀运行态快照；连续
-  300s 缺失 `PUSH:STAT` 或 `state!=1` 的 queued/running 任务会标记为 `failed`，
-  记录 `failure_reason` / `failure_time`，并禁用受管 `PUSH:RECORD`。该能力是
-  后续告警、补偿计费和真实 relay_push e2e 的最小状态机基础。
+  tick 当前 `yyyyMM` 账期的 relay_push DataPushJob，自动沉淀运行态快照；NC-068 起
+  实际执行由 `DATA:PUSH:MAINTENANCE[default]` 配置控制。配置默认
+  `enabled=true`、`interval_seconds=60`、`unhealthy_after_seconds=300`，管理员可通过
+  `GET/PUT /api/v1/admin/data-push-maintenance` 查询和更新，也可通过
+  `POST /api/v1/admin/data-push-maintenance?action=run&period=yyyyMM` 手动维护并覆盖
+  `unhealthy_after_seconds`。连续超过阈值缺失 `PUSH:STAT` 或 `state!=1` 的
+  queued/running 任务会标记为 `failed`，记录 `failure_reason` / `failure_time`，
+  并禁用受管 `PUSH:RECORD`。该能力是后续告警、补偿计费和真实 relay_push e2e 的
+  最小状态机基础。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和

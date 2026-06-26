@@ -494,6 +494,106 @@ ControllerResponse OperationsController::reconcile_data_push_jobs_runtime(const 
     return repository_result(200, result);
 }
 
+ControllerResponse OperationsController::data_push_maintenance_config()
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.get_data_push_maintenance_config(_now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::update_data_push_maintenance_config(const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_data_push_maintenance_config(std::move(body), _now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::run_data_push_maintenance(const std::string &period, const std::string &body_text)
+{
+    nlohmann::json body = nlohmann::json::object();
+    if (!body_text.empty() && !parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+
+    storage::AccountDomainRepository repo(_redis);
+    auto config = repo.get_data_push_maintenance_config(_now);
+    if (config.status != storage::RepositoryStatus::Ok)
+    {
+        return repository_error(config.status, config.error);
+    }
+
+    const std::string resolved_period = request_period(body.value("period", period));
+    const std::int64_t default_threshold = json_record::as_i64(config.record.value("unhealthy_after_seconds", 300), 300);
+    auto result = repo.maintain_data_push_jobs_runtime(
+        resolved_period,
+        {
+            {"period", resolved_period},
+            {"unhealthy_after_seconds", json_record::as_i64(body.value("unhealthy_after_seconds", default_threshold), default_threshold)},
+        },
+        _now);
+    if (result.record.is_object())
+    {
+        result.record["config"] = config.record;
+        result.record["manual"] = true;
+    }
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::scheduled_data_push_maintenance(const std::string &period, std::int64_t last_run_time)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto config = repo.get_data_push_maintenance_config(_now);
+    if (config.status != storage::RepositoryStatus::Ok)
+    {
+        return repository_error(config.status, config.error);
+    }
+
+    const std::string resolved_period = request_period(period);
+    if (!config.record.value("enabled", true))
+    {
+        return json_response(200, {
+            {"period", resolved_period},
+            {"executed", false},
+            {"skip_reason", "disabled"},
+            {"config", config.record},
+        });
+    }
+
+    const auto interval_seconds = json_record::as_i64(config.record.value("interval_seconds", 60), 60);
+    if (last_run_time > 0 && _now - last_run_time < interval_seconds)
+    {
+        return json_response(200, {
+            {"period", resolved_period},
+            {"executed", false},
+            {"skip_reason", "interval"},
+            {"elapsed_seconds", _now - last_run_time},
+            {"interval_seconds", interval_seconds},
+            {"config", config.record},
+        });
+    }
+
+    const auto unhealthy_after_seconds = json_record::as_i64(config.record.value("unhealthy_after_seconds", 300), 300);
+    auto result = repo.maintain_data_push_jobs_runtime(
+        resolved_period,
+        {
+            {"period", resolved_period},
+            {"unhealthy_after_seconds", unhealthy_after_seconds},
+        },
+        _now);
+    if (result.record.is_object())
+    {
+        result.record["config"] = config.record;
+        result.record["executed"] = true;
+    }
+    return repository_result(200, result);
+}
+
 ControllerResponse OperationsController::maintain_data_push_jobs_runtime(const std::string &period, std::int64_t unhealthy_after_seconds)
 {
     storage::AccountDomainRepository repo(_redis);

@@ -87,6 +87,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/usage
 /api/v1/admin/data-push-configs
 /api/v1/admin/data-push-jobs
+/api/v1/admin/data-push-maintenance
 /api/v1/admin/data-push-usage
 /api/v1/admin/supply-usage
 /api/v1/admin/supplier-settlements
@@ -137,6 +138,11 @@ NC-066 起管理员和用户数据推送任务表增加运行态同步操作，�
 NC-067 起管理员和用户数据推送任务表展示自动维护时间、异常持续时间和失败原因。
 当后台 runtime maintenance 将 relay_push 任务标记为 failed 时，运营台可直接看到
 失败原因和最近维护时间。
+
+NC-068 起管理员数据推送任务页增加 runtime maintenance 配置控件。管理员可在任务表上方
+切换自动维护、调整执行周期和失败阈值，并可对当前账期立即执行一次维护；操作分别调用
+`GET/PUT /api/v1/admin/data-push-maintenance` 和
+`POST /api/v1/admin/data-push-maintenance?action=run&period=<yyyyMM>`。
 
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加

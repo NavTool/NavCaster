@@ -4,6 +4,7 @@
 #include "http_server.h"
 #include "redis_adapter.h"
 #include "sse_manager.h"
+#include <cstdint>
 #include <string>
 #include <unordered_set>
 
@@ -75,6 +76,7 @@ private:
     void handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_configs(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_config(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_data_push_maintenance(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_jobs(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_job(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_usage(const HttpRequest &req, HttpResponse &resp);
@@ -251,6 +253,7 @@ private:
 
     // DataPush runtime maintenance timer
     event *_data_push_runtime_timer = nullptr;
+    std::int64_t _last_data_push_runtime_maintenance_time = 0;
     static void on_data_push_runtime_timer(evutil_socket_t fd, short what, void *arg);
     void maintain_data_push_runtime();
 };
