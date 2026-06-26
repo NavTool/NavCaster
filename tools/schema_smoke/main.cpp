@@ -2634,11 +2634,72 @@ int main()
         expect_eq(response_body.value("usage_id", std::string{}), "usage:data_push:self-push-job", "self service data push job owns usage id");
         expect_eq_int(response_body.value("actual_debit_cents", 0), 30, "self service data push job cost");
         expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 113, "self service data push job debits account");
+        expect_eq(response_body.value("status", std::string{}), "completed", "self service ledger data push job completed");
+        expect_eq(response_body.value("execution_mode", std::string{}), "ledger_only", "self service ledger data push job mode");
         response = self_service.data_push_jobs(user_subject, "202606");
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("self-push-job"), "self service data push jobs filtered");
         expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "usage:data_push:self-push-job").is_object(), "self service data push job writes usage");
         expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:usage:data_push:self-push-job").is_object(), "self service data push job writes ledger");
+        auto invalid_relay_config = domain_repo.create_data_push_config({
+            {"config_id", "self-invalid-relay-push-cfg"},
+            {"name", "Invalid Relay Push"},
+            {"target_mountpoint", "REMOTEBASE"},
+            {"fixed_hourly_price_cents", 10},
+            {"execution_mode", "relay_push"},
+            {"source_mountpoint", "SELFBASE"},
+        }, 7026);
+        expect_true(invalid_relay_config.status == navcaster::storage::RepositoryStatus::Invalid, "data push relay config requires target host");
+        expect_true(domain_repo.create_data_push_config({
+            {"config_id", "self-relay-push-cfg"},
+            {"name", "Self Relay Push"},
+            {"target_mountpoint", "REMOTEBASE"},
+            {"fixed_hourly_price_cents", 60},
+            {"execution_mode", "relay_push"},
+            {"source_mountpoint", "SELFBASE"},
+            {"relay_target_host", "caster.example.test"},
+            {"relay_target_port", 2101},
+            {"relay_target_mountpoint", "REMOTEBASE"},
+            {"relay_target_account", "target-user"},
+            {"relay_target_password", "target-secret"},
+            {"relay_push_type", 1},
+        }, 7027).status == navcaster::storage::RepositoryStatus::Ok, "self service relay data push config fixture");
+        response = self_service.create_data_push_job(user_subject, R"({"job_id":"self-relay-push-job","config_id":"self-relay-push-cfg","used_seconds":1800,"period":"202606"})");
+        expect_eq_int(response.status_code, 201, "self service create relay data push job");
+        response_body = nlohmann::json::parse(response.body);
+        const std::string relay_uid = response_body.value("relay_uid", std::string{});
+        expect_eq(response_body.value("status", std::string{}), "queued", "self service relay data push job queued");
+        expect_eq(response_body.value("execution_mode", std::string{}), "relay_push", "self service relay data push job mode");
+        expect_eq(relay_uid, "data_push:self-relay-push-job", "self service relay data push job uid");
+        expect_missing(response_body["config_snapshot"], "relay_target_password", "self service relay job config snapshot strips password");
+        expect_missing(response_body["relay_push_record"], "target_password", "self service relay job record strips password");
+        auto relay_record = self_redis.hget(navcaster::redis_keys::PUSH_RECORD, relay_uid.c_str());
+        expect_eq(relay_record.value("login_mpt", std::string{}), "SELFBASE", "data push relay record source mountpoint");
+        expect_eq(relay_record.value("target_ip", std::string{}), "caster.example.test", "data push relay record target host");
+        expect_eq_int(relay_record.value("target_port", 0), 2101, "data push relay record target port");
+        expect_eq(relay_record.value("target_mpt", std::string{}), "REMOTEBASE", "data push relay record target mountpoint");
+        expect_eq(relay_record.value("target_account", std::string{}), "target-user", "data push relay record target account");
+        expect_eq(relay_record.value("target_password", std::string{}), "target-secret", "data push relay record stores target password");
+        expect_true(relay_record.value("enabled", false), "data push relay record enabled");
+        auto stored_relay_job = self_redis.hget(navcaster::redis_keys::data_push_job("202606").c_str(), "self-relay-push-job");
+        expect_missing(stored_relay_job["config_snapshot"], "relay_target_password", "stored relay job config snapshot strips password");
+        expect_missing(stored_relay_job["relay_push_record"], "target_password", "stored relay job record snapshot strips password");
+        expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "usage:data_push:self-relay-push-job").is_object(), "relay data push job writes usage");
+        expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:usage:data_push:self-relay-push-job").is_object(), "relay data push job writes ledger");
+        self_redis.hset(navcaster::redis_keys::PUSH_STAT, relay_uid.c_str(), nlohmann::json{{"uid", relay_uid}, {"state", 1}, {"connect_key", "relay-connect"}, {"node_uid", "node-relay"}, {"node_name", "Relay Node"}}.dump());
+        response = self_service.data_push_jobs(user_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body["self-relay-push-job"].value("status", std::string{}), "running", "self service relay data push job runtime status");
+        expect_eq(response_body["self-relay-push-job"].value("relay_status", std::string{}), "running", "self service relay data push job relay status");
+        expect_missing(response_body["self-relay-push-job"]["config_snapshot"], "relay_target_password", "self service relay list strips config password");
+        expect_missing(response_body["self-relay-push-job"]["relay_push_record"], "target_password", "self service relay list strips record password");
+        navcaster::http_api::OperationsController ops_self(self_redis, 7030);
+        response = ops_self.list_data_push_jobs("202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body["self-relay-push-job"].value("status", std::string{}), "running", "operations relay data push job runtime status");
+        expect_eq(response_body["self-relay-push-job"].value("relay_status", std::string{}), "running", "operations relay data push job relay status");
+        expect_missing(response_body["self-relay-push-job"]["config_snapshot"], "relay_target_password", "operations relay list strips config password");
+        expect_missing(response_body["self-relay-push-job"]["relay_push_record"], "target_password", "operations relay list strips record password");
         response = self_service.append_data_push_usage(user_subject, R"({"usage_id":"self-overdraw","target_mountpoint":"SELFBASE","actual_debit_cents":200,"period":"202606"})");
         expect_eq_int(response.status_code, 409, "self service data push rejects insufficient balance");
         expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "self-overdraw").is_null(), "self service data push insufficient no usage write");

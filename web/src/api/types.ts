@@ -534,6 +534,14 @@ export interface DataPushConfig {
   target_mountpoint: string;
   group_id?: string;
   status: ResourceStatus;
+  execution_mode?: 'ledger_only' | 'relay_push';
+  source_mountpoint?: string;
+  relay_target_host?: string;
+  relay_target_port?: number;
+  relay_target_mountpoint?: string;
+  relay_target_account?: string;
+  relay_target_password?: string;
+  relay_push_type?: PushType;
   fixed_hourly_price_cents?: number;
   description?: string;
   create_time?: number;
@@ -555,6 +563,12 @@ export interface DataPushJob {
   balance_after_cents?: number;
   ledger_id?: string;
   status?: string;
+  execution_mode?: 'ledger_only' | 'relay_push';
+  relay_uid?: string;
+  relay_status?: string;
+  relay_state?: PushState;
+  relay_record_key?: string;
+  relay_status_key?: string;
   operator_note?: string;
   create_time?: number;
   update_time?: number;

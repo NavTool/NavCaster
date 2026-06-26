@@ -26,10 +26,29 @@ nlohmann::json sanitized_record(nlohmann::json record)
         "password_algo",
         "password_salt",
         "password_iterations",
+        "target_password",
+        "relay_target_password",
     };
     for (const auto *field : sensitive_fields)
     {
         record.erase(field);
+    }
+    for (auto it = record.begin(); it != record.end(); ++it)
+    {
+        if (it.value().is_object())
+        {
+            it.value() = sanitized_record(it.value());
+        }
+        else if (it.value().is_array())
+        {
+            for (auto &item : it.value())
+            {
+                if (item.is_object())
+                {
+                    item = sanitized_record(item);
+                }
+            }
+        }
     }
     return record;
 }
@@ -62,6 +81,54 @@ bool is_supplier_settlement_owner(const nlohmann::json &account)
 {
     const std::string role = account.value("role", std::string{});
     return role == account_domain::ROLE_SUPPLIER || role == account_domain::ROLE_ADMIN;
+}
+
+std::string relay_status_text(const nlohmann::json &state)
+{
+    if (!state.is_object())
+    {
+        return "pending";
+    }
+    return json_record::as_i64(state.value("state", 0), 0) == 1 ? "running" : "stopped";
+}
+
+nlohmann::json data_push_job_with_runtime(nlohmann::json job, storage::RedisHashClient &redis)
+{
+    if (!job.is_object())
+    {
+        return job;
+    }
+    const std::string relay_uid = job.value("relay_uid", std::string{});
+    if (relay_uid.empty())
+    {
+        return job;
+    }
+    const auto state = redis.hget(redis_keys::PUSH_STAT, relay_uid.c_str());
+    job["relay_status"] = relay_status_text(state);
+    if (state.is_object())
+    {
+        job["relay_state"] = state;
+        if (json_record::as_i64(state.value("state", 0), 0) == 1 &&
+            job.value("status", std::string{}) == "queued")
+        {
+            job["status"] = "running";
+        }
+    }
+    return job;
+}
+
+nlohmann::json data_push_jobs_with_runtime(const nlohmann::json &records, storage::RedisHashClient &redis)
+{
+    if (!records.is_object())
+    {
+        return nlohmann::json::object();
+    }
+    nlohmann::json result = nlohmann::json::object();
+    for (auto it = records.begin(); it != records.end(); ++it)
+    {
+        result[it.key()] = data_push_job_with_runtime(it.value(), redis);
+    }
+    return result;
 }
 } // namespace
 
@@ -389,7 +456,7 @@ ControllerResponse OperationsController::delete_data_push_config(const std::stri
 ControllerResponse OperationsController::list_data_push_jobs(const std::string &period)
 {
     const std::string key = redis_keys::data_push_job(request_period(period));
-    return list_limited_hash(key.c_str());
+    return json_response(200, sanitized_collection(data_push_jobs_with_runtime(_redis.hgetall(key.c_str()), _redis)));
 }
 
 ControllerResponse OperationsController::list_data_push_usage(const std::string &period)

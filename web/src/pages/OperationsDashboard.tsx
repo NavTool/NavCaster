@@ -46,6 +46,7 @@ import type {
   SupplierSettlementRecord,
   SupplierSupplyUsage,
 } from '../api/types';
+import { PushType } from '../api/types';
 import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../utils/format';
 
 type AdminView =
@@ -98,6 +99,23 @@ function settlementStatusTag(status?: string) {
           ? 'default'
           : 'blue';
   return <Tag color={color}>{status || 'pending_payment'}</Tag>;
+}
+
+function dataPushExecutionTag(mode?: string) {
+  return <Tag color={mode === 'relay_push' ? 'blue' : 'default'}>{mode || 'ledger_only'}</Tag>;
+}
+
+function dataPushJobStatusTag(status?: string) {
+  const color = status === 'completed'
+    ? 'green'
+    : status === 'running'
+      ? 'blue'
+      : status === 'queued'
+        ? 'gold'
+        : status === 'failed'
+          ? 'red'
+          : 'default';
+  return <Tag color={color}>{status || '-'}</Tag>;
 }
 
 function recordCount<T extends object>(records: HashRecord<T> | null): number {
@@ -300,7 +318,10 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     dataPushConfigForm.setFieldsValue({
       config_id: `dpc_${Date.now()}`,
       status: 'active',
+      execution_mode: 'ledger_only',
       fixed_hourly_price_cents: 0,
+      relay_target_port: 2101,
+      relay_push_type: PushType.PUSH_TYPE_NTRIP_1_0,
     });
     setDataPushConfigOpen(true);
   };
@@ -465,7 +486,10 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const dataPushConfigColumns: ColumnsType<DataPushConfig & { key: string }> = [
     { title: 'Config ID', dataIndex: 'config_id', key: 'config_id', width: 190 },
     { title: '名称', dataIndex: 'name', key: 'name', width: 180 },
+    { title: '执行模式', key: 'execution_mode', width: 130, render: (_, row) => dataPushExecutionTag(row.execution_mode) },
+    { title: '源挂载点', dataIndex: 'source_mountpoint', key: 'source_mountpoint', width: 150, render: (value) => value || '-' },
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 170 },
+    { title: 'Relay 目标', key: 'relay_target_host', width: 190, render: (_, row) => row.execution_mode === 'relay_push' ? `${row.relay_target_host || '-'}:${row.relay_target_port || 2101}` : '-' },
     { title: '分组', dataIndex: 'group_id', key: 'group_id', width: 160, render: (value) => value || '-' },
     { title: '小时价格', key: 'fixed_hourly_price_cents', width: 120, render: (_, row) => formatCents(row.fixed_hourly_price_cents) },
     { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
@@ -483,12 +507,15 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: 'Job ID', dataIndex: 'job_id', key: 'job_id', width: 260 },
     { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
     { title: '配置', dataIndex: 'config_id', key: 'config_id', width: 160 },
+    { title: '执行模式', key: 'execution_mode', width: 130, render: (_, row) => dataPushExecutionTag(row.execution_mode) },
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
+    { title: 'Relay UID', dataIndex: 'relay_uid', key: 'relay_uid', width: 250, render: (value) => value || '-' },
+    { title: 'Relay 状态', dataIndex: 'relay_status', key: 'relay_status', width: 120, render: (value) => <Tag color={value === 'running' ? 'blue' : value === 'stopped' ? 'default' : 'gold'}>{value || '-'}</Tag> },
     { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
     { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
     { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'completed' ? 'green' : 'red'}>{value || '-'}</Tag> },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => dataPushJobStatusTag(value) },
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
@@ -565,10 +592,10 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       return <Table columns={redeemColumns} dataSource={redeemRows} loading={redeemQuery.loading} rowKey="key" size="small" scroll={{ x: 1000 }} />;
     }
     if (view === 'data-push-configs') {
-      return <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1260 }} />;
+      return <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
     }
     if (view === 'data-push-jobs') {
-      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1450 }} />;
+      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1900 }} />;
     }
     if (view === 'data-push-usage') {
       return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
@@ -812,15 +839,23 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
         </Form>
       </Modal>
 
-      <Modal title="创建数据推送配置" open={dataPushConfigOpen} onOk={submitDataPushConfig} onCancel={() => setDataPushConfigOpen(false)} width={620}>
+      <Modal title="创建数据推送配置" open={dataPushConfigOpen} onOk={submitDataPushConfig} onCancel={() => setDataPushConfigOpen(false)} width={760}>
         <Form form={dataPushConfigForm} layout="vertical" size="small">
           <Row gutter={16}>
             <Col span={12}><Form.Item name="config_id" label="Config ID" rules={[{ required: true }]}><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="execution_mode" label="执行模式" rules={[{ required: true }]}><Select options={[{ value: 'ledger_only', label: 'ledger_only' }, { value: 'relay_push', label: 'relay_push' }]} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="source_mountpoint" label="源挂载点"><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="target_mountpoint" label="目标挂载点" rules={[{ required: true }]}><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="group_id" label="分组"><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="status" label="状态"><Select options={[{ value: 'active' }, { value: 'disabled' }]} /></Form.Item></Col>
             <Col span={12}><Form.Item name="fixed_hourly_price_cents" label="小时价格(分)" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="relay_target_host" label="Relay 目标主机"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="relay_target_port" label="Relay 目标端口"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="relay_target_mountpoint" label="Relay 目标挂载点"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="relay_push_type" label="Relay 协议"><Select options={[{ value: PushType.PUSH_TYPE_NTRIP_1_0, label: 'NTRIP 1.0' }, { value: PushType.PUSH_TYPE_NTRIP_2_0, label: 'NTRIP 2.0' }]} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="relay_target_account" label="Relay 账号"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="relay_target_password" label="Relay 密码"><Input.Password /></Form.Item></Col>
           </Row>
           <Form.Item name="description" label="描述"><Input.TextArea rows={2} /></Form.Item>
         </Form>

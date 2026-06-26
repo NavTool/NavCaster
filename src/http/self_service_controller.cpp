@@ -27,10 +27,29 @@ nlohmann::json sanitized_record(nlohmann::json record)
         "password_algo",
         "password_salt",
         "password_iterations",
+        "target_password",
+        "relay_target_password",
     };
     for (const auto *field : fields)
     {
         record.erase(field);
+    }
+    for (auto it = record.begin(); it != record.end(); ++it)
+    {
+        if (it.value().is_object())
+        {
+            it.value() = sanitized_record(it.value());
+        }
+        else if (it.value().is_array())
+        {
+            for (auto &item : it.value())
+            {
+                if (item.is_object())
+                {
+                    item = sanitized_record(item);
+                }
+            }
+        }
     }
     return record;
 }
@@ -64,6 +83,40 @@ bool contains_string(const nlohmann::json &items, const std::string &value)
         }
     }
     return false;
+}
+
+std::string relay_status_text(const nlohmann::json &state)
+{
+    if (!state.is_object())
+    {
+        return "pending";
+    }
+    return json_record::as_i64(state.value("state", 0), 0) == 1 ? "running" : "stopped";
+}
+
+nlohmann::json data_push_job_with_runtime(nlohmann::json job, storage::RedisHashClient &redis)
+{
+    if (!job.is_object())
+    {
+        return job;
+    }
+    const std::string relay_uid = job.value("relay_uid", std::string{});
+    if (relay_uid.empty())
+    {
+        return job;
+    }
+    const auto state = redis.hget(redis_keys::PUSH_STAT, relay_uid.c_str());
+    job["relay_status"] = relay_status_text(state);
+    if (state.is_object())
+    {
+        job["relay_state"] = state;
+        if (json_record::as_i64(state.value("state", 0), 0) == 1 &&
+            job.value("status", std::string{}) == "queued")
+        {
+            job["status"] = "running";
+        }
+    }
+    return job;
 }
 } // namespace
 
@@ -503,7 +556,7 @@ nlohmann::json SelfServiceController::filter_data_push_jobs(const std::string &a
     {
         if (it.value().is_object() && it.value().value("account_id", std::string{}) == account_id)
         {
-            records[it.key()] = sanitized_record(it.value());
+            records[it.key()] = sanitized_record(data_push_job_with_runtime(it.value(), _redis));
         }
     }
     return records;

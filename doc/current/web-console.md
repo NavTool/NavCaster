@@ -123,6 +123,11 @@ NC-062 起运营台增加 `/admin/data-push-configs` 和 `/admin/data-push-jobs`
 管理员可创建/删除推送配置并查看全局任务；用户 `/me/data-push` 扩展为数据推送工作区，
 同时展示可用配置、自己的任务和扣费用量，并可创建按配置计价的推送任务。
 
+NC-064 起数据推送配置表单支持 `ledger_only` / `relay_push` 执行模式。
+`relay_push` 配置可填写源挂载点、远端 Caster host/port、远端挂载点、账号、密码和协议。
+管理员和用户任务表展示执行模式、relay uid、relay 状态和任务状态；后端响应会剥离
+`relay_target_password` / `target_password`，Web 不展示远端密码。
+
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加
 `/me/subscriptions` 和 `/me/redeem-redemptions`，只展示当前 session Account 的

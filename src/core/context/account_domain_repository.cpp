@@ -28,6 +28,29 @@ bool same_fingerprint_or_empty(const nlohmann::json &existing, const std::string
     }
     return existing.value("fingerprint", std::string{}) == fingerprint;
 }
+
+std::string data_push_relay_uid(const std::string &job_id)
+{
+    return "data_push:" + job_id;
+}
+
+nlohmann::json data_push_relay_record(const nlohmann::json &config, const std::string &relay_uid, std::int64_t now)
+{
+    return {
+        {"uid", relay_uid},
+        {"create_time", now},
+        {"update_time", now},
+        {"login_mpt", config.value("source_mountpoint", std::string{})},
+        {"type", json_record::as_i64(config.value("relay_push_type", 1), 1)},
+        {"target_ip", config.value("relay_target_host", std::string{})},
+        {"target_port", json_record::as_i64(config.value("relay_target_port", 2101), 2101)},
+        {"target_mpt", config.value("relay_target_mountpoint", config.value("target_mountpoint", std::string{}))},
+        {"target_account", config.value("relay_target_account", std::string{})},
+        {"target_password", config.value("relay_target_password", std::string{})},
+        {"enabled", true},
+        {"managed_by", "data_push_job"},
+    };
+}
 } // namespace
 
 AccountDomainRepository::AccountDomainRepository(RedisHashClient &redis)
@@ -1325,6 +1348,14 @@ AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json
         return make_result(RepositoryStatus::Conflict, job_id, "DataPushJob already exists");
     }
 
+    const std::string execution_mode = config.value("execution_mode", std::string(account_domain::DATA_PUSH_EXECUTION_LEDGER_ONLY));
+    const bool relay_push = execution_mode == account_domain::DATA_PUSH_EXECUTION_RELAY_PUSH;
+    const std::string relay_uid = relay_push ? data_push_relay_uid(job_id) : std::string{};
+    if (relay_push && _redis.hget(redis_keys::PUSH_RECORD, relay_uid.c_str()).is_object())
+    {
+        return make_result(RepositoryStatus::Conflict, relay_uid, "Managed PushRecord already exists");
+    }
+
     nlohmann::json usage = {
         {"usage_id", usage_id},
         {"account_id", account_id},
@@ -1335,10 +1366,15 @@ AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json
         {"used_seconds", used_seconds},
         {"stat_cost_cents", stat_cost_cents},
         {"actual_debit_cents", actual_debit_cents},
+        {"execution_mode", execution_mode},
         {"price_snapshot", {
             {"fixed_hourly_price_cents", fixed_hourly_price_cents},
         }},
     };
+    if (relay_push)
+    {
+        usage["relay_uid"] = relay_uid;
+    }
     if (request.contains("request_id"))
     {
         usage["request_id"] = request["request_id"];
@@ -1354,6 +1390,8 @@ AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json
         return usage_result;
     }
 
+    nlohmann::json config_snapshot = config;
+    config_snapshot.erase("relay_target_password");
     nlohmann::json job = {
         {"job_id", job_id},
         {"account_id", account_id},
@@ -1365,12 +1403,24 @@ AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json
         {"used_seconds", used_seconds},
         {"stat_cost_cents", stat_cost_cents},
         {"actual_debit_cents", actual_debit_cents},
-        {"status", "completed"},
-        {"config_snapshot", config},
+        {"status", relay_push ? "queued" : "completed"},
+        {"execution_mode", execution_mode},
+        {"config_snapshot", config_snapshot},
         {"price_snapshot", {
             {"fixed_hourly_price_cents", fixed_hourly_price_cents},
         }},
     };
+    nlohmann::json relay_record;
+    if (relay_push)
+    {
+        relay_record = data_push_relay_record(config, relay_uid, now);
+        auto relay_snapshot = relay_record;
+        relay_snapshot.erase("target_password");
+        job["relay_uid"] = relay_uid;
+        job["relay_record_key"] = redis_keys::PUSH_RECORD;
+        job["relay_status_key"] = redis_keys::PUSH_STAT;
+        job["relay_push_record"] = std::move(relay_snapshot);
+    }
     if (usage_result.record.contains("ledger_id"))
     {
         job["ledger_id"] = usage_result.record["ledger_id"];
@@ -1398,8 +1448,21 @@ AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json
         }
         return invalid(error);
     }
+    if (relay_push && !hsetnx_json(redis_keys::PUSH_RECORD, relay_uid, relay_record))
+    {
+        _redis.hdel(redis_keys::data_push(resolved_period).c_str(), usage_id.c_str());
+        if (usage_result.record.contains("ledger_id"))
+        {
+            _redis.hdel(redis_keys::acc_balance_ledger(resolved_period).c_str(), usage_result.record.value("ledger_id", std::string{}).c_str());
+        }
+        return make_result(RepositoryStatus::Conflict, relay_uid, "Managed PushRecord already exists");
+    }
     if (!hsetnx_json(job_key.c_str(), job_id, job))
     {
+        if (relay_push)
+        {
+            _redis.hdel(redis_keys::PUSH_RECORD, relay_uid.c_str());
+        }
         return make_result(RepositoryStatus::Conflict, job_id, "DataPushJob already exists");
     }
 

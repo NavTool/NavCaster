@@ -183,7 +183,7 @@
 | `GET` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 查询数据推送配置 |
 | `PUT` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 更新数据推送配置 |
 | `DELETE` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 软删除数据推送配置 |
-| `GET` | `/api/v1/admin/data-push-jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` | 列出数据推送任务 |
+| `GET` | `/api/v1/admin/data-push-jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 列出数据推送任务并补充 relay 运行态 |
 | `GET` | `/api/v1/admin/data-push-usage?period=yyyyMM` | `DATA:PUSH:{period}` | 列出数据推送用量和扣费事实 |
 | `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
 | `GET` | `/api/v1/admin/supplier-settlements?period=yyyyMM&supplier_account_id=...` | `SUPPLY:EARNING:{account_id}:{period}` | 列出供应商结算批次；未传 supplier 时扫描供应商/admin 账号当期结算 |
@@ -212,8 +212,8 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `GET` | `/api/v1/me/subscriptions` | `SUB:ACCOUNT:{account_id}` | 当前用户订阅权益 |
 | `GET` | `/api/v1/me/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 当前用户计费用量事实 |
 | `GET` | `/api/v1/me/data-push/configs` | `DATA:PUSH:CONFIG` | 当前用户可用数据推送配置 |
-| `GET` | `/api/v1/me/data-push/jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` | 当前用户数据推送任务 |
-| `POST` | `/api/v1/me/data-push/jobs` | `DATA:PUSH:JOB:{period}` / `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 创建当前用户数据推送任务并扣费 |
+| `GET` | `/api/v1/me/data-push/jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 当前用户数据推送任务并补充 relay 运行态 |
+| `POST` | `/api/v1/me/data-push/jobs` | `DATA:PUSH:JOB:{period}` / `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` / `PUSH:RECORD` | 创建当前用户数据推送任务并扣费 |
 | `GET` | `/api/v1/me/data-push?period=yyyyMM` | `DATA:PUSH:{period}` | 当前用户数据推送用量和扣费事实 |
 | `POST` | `/api/v1/me/data-push` | `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 追加当前用户数据推送用量，按 `actual_debit_cents` 扣费 |
 | `GET` | `/api/v1/me/redeem-redemptions` | `REDEEM:ACCOUNT:{account_id}` | 当前用户兑换记录 |
@@ -240,6 +240,15 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 `fixed_hourly_price_cents` 计算扣费，并覆盖 `account_id`、`usage_id`、`ledger_id`、
 `balance_after_cents`、`stat_cost_cents` 和 `actual_debit_cents` 等客户端提交字段。
 余额不足或配置禁用时返回错误，不写入 job、usage 或 ledger。
+
+`DATA:PUSH:CONFIG.execution_mode` 默认为 `ledger_only`，任务创建后 `status=completed`。
+当配置为 `relay_push` 时，配置还需要 `source_mountpoint`、`relay_target_host`，
+并可设置 `relay_target_port`、`relay_target_mountpoint`、`relay_target_account`、
+`relay_target_password` 和 `relay_push_type`。创建任务会额外写入
+`PUSH:RECORD[data_push:<job_id>]`，任务初始 `status=queued`，响应包含
+`execution_mode`、`relay_uid`、`relay_record_key`、`relay_status_key`。任务列表会读取
+`PUSH:STAT[relay_uid]` 补充 `relay_status` / `relay_state`；返回 JSON 会剥离
+`relay_target_password` / `target_password`，`DATA:PUSH:JOB` 中的配置和 relay 快照也不保存远端密码。
 
 `POST /api/v1/admin/redeem-codes/{code}/redeem` 可通过 query 参数或 JSON body 传入
 `account_id`。兑换成功会生成兑换记录和余额 ledger，增加 Account 余额；同一 Account 对

@@ -50,6 +50,13 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   `GET/POST /api/v1/me/data-push/jobs` 创建和查看自己的任务。任务按配置小时价
   和 `used_seconds` 计算扣费，写 `DATA:PUSH:JOB:<period>`、
   `DATA:PUSH:<period>`、余额 ledger 和 Account 余额。
+- NC-064 起 `DATA:PUSH:CONFIG.execution_mode` 支持 `ledger_only` 和
+  `relay_push`。`relay_push` 配置会在用户创建任务时额外生成受管
+  `PUSH:RECORD[data_push:<job_id>]`，字段映射为
+  `source_mountpoint -> login_mpt`、`relay_target_* -> target_*`，由现有
+  RelayScheduler/relay_push 数据平面执行。Admin/User 任务列表会读取
+  `PUSH:STAT[relay_uid]` 补充 `relay_status`、`relay_state`，并在运行态把
+  queued 任务展示为 running；查询响应会递归剥离 relay target 密码。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和
