@@ -148,6 +148,8 @@ NC-051 在 Core 层新增 AccountDomainRepository，用于账户/接入账号/�
 | `BILL:ENTRY:<yyyyMM>` | HASH | billing_id | BillingUsageEntry JSON | 持久 | AccountDomainRepository |
 | `BILL:ACCOUNT:<account_id>:<yyyyMM>` | LIST | billing_id | billing_id | 持久或后续归档 | AccountDomainRepository |
 | `BILL:IDEMPOTENT` | HASH | billing_id | fingerprint JSON | 持久或后续归档 | AccountDomainRepository |
+| `DATA:PUSH:CONFIG` | HASH | config_id | DataPushConfig JSON | 持久 | AccountDomainRepository |
+| `DATA:PUSH:JOB:<yyyyMM>` | HASH | job_id | DataPushJob JSON | 持久 | AccountDomainRepository |
 | `DATA:PUSH:<yyyyMM>` | HASH | usage_id | DataPushUsage JSON | 持久 | AccountDomainRepository |
 | `SUPPLY:USAGE:<yyyyMM>` | HASH | usage_id | SupplierSupplyUsage JSON | 持久 | AccountDomainRepository |
 | `SUPPLY:ACCOUNT:<account_id>:<yyyyMM>` | LIST | usage_id | usage_id | 持久或后续归档 | AccountDomainRepository |
@@ -227,6 +229,19 @@ NC-057 数据推送用量：
 account_id 由 HTTP session 推导，不能由请求体覆盖。
 actual_debit_cents > 0 时写 ACC:BALANCE:LEDGER:<yyyyMM>，同步更新 ACC:RECORD.balance_cents。
 余额不足返回 Conflict，不写 DATA:PUSH 或 ledger。
+```
+
+NC-062 数据推送任务：
+
+```text
+管理员维护 DATA:PUSH:CONFIG[config_id]，配置包含 name、target_mountpoint、
+fixed_hourly_price_cents、status 和可选 group_id/description。
+用户通过 /api/v1/me/data-push/jobs 创建任务时，服务端从 session 覆盖 account_id，
+按 config.fixed_hourly_price_cents 和 used_seconds 计算扣费，写
+DATA:PUSH:JOB:<yyyyMM>[job_id]、DATA:PUSH:<yyyyMM>[usage_id]、
+ACC:BALANCE:LEDGER:<yyyyMM>[ledger_id] 并同步 ACC:RECORD.balance_cents。
+用户不能覆盖 usage_id、ledger_id、balance_after_cents、stat_cost_cents 或
+actual_debit_cents。余额不足时不写 job、usage 或 ledger。
 ```
 
 `ONLINE:SESSION:<account_id>` 当前 JSON 字段：

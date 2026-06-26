@@ -39,7 +39,9 @@ bool normalize_station_record(nlohmann::json &record, std::int64_t now, std::str
 bool normalize_station_event(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_balance_ledger_entry(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_billing_usage_entry(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
+bool normalize_data_push_config(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_data_push_usage(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
+bool normalize_data_push_job(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_supplier_supply_usage(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_supplier_settlement(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 

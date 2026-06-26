@@ -20,6 +20,7 @@ import {
   LockOutlined,
   PlusOutlined,
   ProfileOutlined,
+  SwapOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -33,6 +34,8 @@ import type {
   AccessAccountRecord,
   AccountGroupGrant,
   BillingUsageEntry,
+  DataPushConfig,
+  DataPushJob,
   DataPushUsage,
   HashRecord,
   MountPointRecord,
@@ -78,9 +81,11 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const api = scopeApi(scope);
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
+  const [dataPushJobForm] = Form.useForm();
   const [editing, setEditing] = useState<AccessAccountRecord | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [passwordTarget, setPasswordTarget] = useState<AccessAccountRecord | null>(null);
+  const [dataPushJobOpen, setDataPushJobOpen] = useState(false);
 
   const dashboardQuery = usePolling(() => api.dashboard(), 5000, view === 'dashboard');
   const profileQuery = usePolling(() => api.profile(), 5000, view === 'dashboard' || view === 'profile');
@@ -90,6 +95,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const usageQuery = usePolling(() => meApi.usage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'usage'));
   const subscriptionQuery = usePolling(() => meApi.subscriptions(), 5000, scope === 'me' && (view === 'dashboard' || view === 'subscriptions'));
   const redemptionQuery = usePolling(() => meApi.redeemRedemptions(), 5000, scope === 'me' && (view === 'dashboard' || view === 'redeem-redemptions'));
+  const dataPushConfigQuery = usePolling(() => meApi.dataPushConfigs(), 5000, scope === 'me' && (view === 'dashboard' || view === 'data-push'));
+  const dataPushJobQuery = usePolling(() => meApi.dataPushJobs(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'data-push'));
   const dataPushQuery = usePolling(() => meApi.dataPushUsage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'data-push'));
   const stationsQuery = usePolling(() => supplierApi.stations(), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'stations'));
   const supplyQuery = usePolling(() => supplierApi.supplyUsage(currentPeriod()), 5000, scope === 'supplier' && (view === 'dashboard' || view === 'supply-usage' || view === 'earnings'));
@@ -102,6 +109,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
   const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
   const redemptionRows = useMemo(() => rowsFromHash(redemptionQuery.data), [redemptionQuery.data]);
+  const dataPushConfigRows = useMemo(() => rowsFromHash(dataPushConfigQuery.data), [dataPushConfigQuery.data]);
+  const dataPushJobRows = useMemo(() => rowsFromHash(dataPushJobQuery.data), [dataPushJobQuery.data]);
   const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
@@ -110,6 +119,10 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const groupOptions = groupRows.map((grant) => ({
     value: grant.group_id,
     label: grant.group?.name ? `${grant.group.name} (${grant.group_id})` : grant.group_id,
+  }));
+  const dataPushConfigOptions = dataPushConfigRows.map((config) => ({
+    value: config.config_id,
+    label: `${config.name || config.config_id} -> ${config.target_mountpoint}`,
   }));
 
   const openCreate = () => {
@@ -179,6 +192,26 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     await api.deleteAccessAccount(record.access_account_id);
     message.success('接入账号已删除');
     accessQuery.refresh();
+  };
+
+  const openDataPushJob = () => {
+    dataPushJobForm.resetFields();
+    dataPushJobForm.setFieldsValue({
+      period: currentPeriod(),
+      used_seconds: 3600,
+    });
+    setDataPushJobOpen(true);
+  };
+
+  const submitDataPushJob = async () => {
+    const values = await dataPushJobForm.validateFields();
+    await meApi.createDataPushJob(values);
+    message.success('推送任务已完成');
+    setDataPushJobOpen(false);
+    dataPushJobQuery.refresh();
+    dataPushQuery.refresh();
+    profileQuery.refresh();
+    dashboardQuery.refresh();
   };
 
   const accessColumns: ColumnsType<AccessAccountRecord & { key: string }> = [
@@ -252,11 +285,34 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
 
   const dataPushColumns: ColumnsType<DataPushUsage & { key: string }> = [
     { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
+    { title: '配置', dataIndex: 'config_id', key: 'config_id', width: 160, render: (value) => value || '-' },
+    { title: '任务', dataIndex: 'job_id', key: 'job_id', width: 220, render: (value) => value || '-' },
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
     { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '统计费用', key: 'stat_cost_cents', width: 120, render: (_, row) => formatCents(row.stat_cost_cents) },
     { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
     { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
+    { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+  ];
+
+  const dataPushConfigColumns: ColumnsType<DataPushConfig & { key: string }> = [
+    { title: 'Config ID', dataIndex: 'config_id', key: 'config_id', width: 180 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 180 },
+    { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
+    { title: '小时价格', key: 'fixed_hourly_price_cents', width: 120, render: (_, row) => formatCents(row.fixed_hourly_price_cents) },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true, render: (value) => value || '-' },
+  ];
+
+  const dataPushJobColumns: ColumnsType<DataPushJob & { key: string }> = [
+    { title: 'Job ID', dataIndex: 'job_id', key: 'job_id', width: 260 },
+    { title: '配置', dataIndex: 'config_id', key: 'config_id', width: 160 },
+    { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
+    { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
+    { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
+    { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
+    { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'completed' ? 'green' : 'red'}>{value || '-'}</Tag> },
     { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
@@ -307,6 +363,28 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     </Descriptions>
   );
 
+  const renderDataPush = () => {
+    const totalDebit = dataPushRows.reduce((sum, row) => sum + Number(row.actual_debit_cents ?? 0), 0);
+    const totalSeconds = dataPushRows.reduce((sum, row) => sum + Number(row.used_seconds ?? 0), 0);
+    return (
+      <Row gutter={[16, 16]}>
+        <Col xs={12} md={6}><MetricCard title="可用配置" value={dataPushConfigRows.length} prefix={<SwapOutlined />} /></Col>
+        <Col xs={12} md={6}><MetricCard title="推送任务" value={dataPushJobRows.length} prefix={<BranchesOutlined />} /></Col>
+        <Col xs={12} md={6}><MetricCard title="推送时长" value={formatDuration(totalSeconds)} prefix={<CloudServerOutlined />} /></Col>
+        <Col xs={12} md={6}><MetricCard title="推送扣费" value={formatCents(totalDebit)} prefix={<WalletOutlined />} /></Col>
+        <Col span={24}>
+          <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 980 }} />
+        </Col>
+        <Col span={24}>
+          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />
+        </Col>
+        <Col span={24}>
+          <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1340 }} />
+        </Col>
+      </Row>
+    );
+  };
+
   const renderTable = () => {
     if (view === 'access-accounts') {
       return (
@@ -337,7 +415,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
       return <Table columns={redemptionColumns} dataSource={redemptionRows} loading={redemptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
     }
     if (scope === 'me' && view === 'data-push') {
-      return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
+      return renderDataPush();
     }
     if (scope === 'supplier' && view === 'stations') {
       return <Table columns={stationColumns} dataSource={stationRows} loading={stationsQuery.loading} rowKey="key" size="small" scroll={{ x: 900 }} />;
@@ -372,7 +450,9 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
 
   const extra = view === 'access-accounts'
     ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{accessTitle}</Button>
-    : undefined;
+    : scope === 'me' && view === 'data-push'
+      ? <Button type="primary" icon={<PlusOutlined />} onClick={openDataPushJob}>推送任务</Button>
+      : undefined;
 
   const viewTitle = (() => {
     if (view === 'dashboard') return title;
@@ -474,6 +554,34 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
             </Col>
           </Row>
           <Form.Item name="private_remark" label="备注">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="创建数据推送任务" open={dataPushJobOpen} onOk={submitDataPushJob} onCancel={() => setDataPushJobOpen(false)} width={560}>
+        <Form form={dataPushJobForm} layout="vertical" size="small">
+          <Form.Item name="config_id" label="推送配置" rules={[{ required: true }]}>
+            <Select
+              showSearch
+              options={dataPushConfigOptions}
+              placeholder="选择可用推送配置"
+              notFoundContent="暂无可用推送配置"
+            />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="used_seconds" label="推送时长(秒)" rules={[{ required: true }]}>
+                <InputNumber min={1} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="period" label="账期" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="operator_note" label="备注">
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>

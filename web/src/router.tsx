@@ -143,6 +143,8 @@ export default function AppRouter() {
           <Route path="usage" element={<OperationsDashboard scope="admin" view="usage" />} />
           <Route path="subscriptions" element={<OperationsDashboard scope="admin" view="subscriptions" />} />
           <Route path="redeem-codes" element={<OperationsDashboard scope="admin" view="redeem-codes" />} />
+          <Route path="data-push-configs" element={<OperationsDashboard scope="admin" view="data-push-configs" />} />
+          <Route path="data-push-jobs" element={<OperationsDashboard scope="admin" view="data-push-jobs" />} />
           <Route path="data-push-usage" element={<OperationsDashboard scope="admin" view="data-push-usage" />} />
           <Route path="supply-usage" element={<OperationsDashboard scope="admin" view="supply-usage" />} />
           <Route path="supplier-settlements" element={<OperationsDashboard scope="admin" view="supplier-settlements" />} />

@@ -1075,6 +1075,88 @@ AccountDomainResult AccountDomainRepository::append_billing_usage(nlohmann::json
     return result;
 }
 
+AccountDomainResult AccountDomainRepository::get_data_push_config(const std::string &config_id)
+{
+    const auto record = get_hash_record(redis_keys::DATA_PUSH_CONFIG, config_id);
+    if (!record.is_object() || record.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, config_id, "DataPushConfig not found");
+    }
+    AccountDomainResult result;
+    result.id = config_id;
+    result.record = record;
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::create_data_push_config(nlohmann::json record, std::int64_t now)
+{
+    std::string error;
+    if (!account_domain::normalize_data_push_config(record, now, &error))
+    {
+        return invalid(error);
+    }
+    const std::string config_id = record.value("config_id", std::string{});
+    if (!hsetnx_json(redis_keys::DATA_PUSH_CONFIG, config_id, record))
+    {
+        return make_result(RepositoryStatus::Conflict, config_id, "DataPushConfig already exists");
+    }
+    AccountDomainResult result;
+    result.id = config_id;
+    result.record = std::move(record);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_data_push_config(const std::string &config_id, nlohmann::json record, std::int64_t now)
+{
+    const auto current = get_hash_record(redis_keys::DATA_PUSH_CONFIG, config_id);
+    if (!current.is_object() || current.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, config_id, "DataPushConfig not found");
+    }
+    if (!record.is_object())
+    {
+        record = nlohmann::json::object();
+    }
+    auto updated = current;
+    updated.update(record);
+    updated["config_id"] = config_id;
+    updated["create_time"] = current.value("create_time", now);
+    std::string error;
+    if (!account_domain::normalize_data_push_config(updated, now, &error))
+    {
+        return invalid(error);
+    }
+    if (!hset_json(redis_keys::DATA_PUSH_CONFIG, config_id, updated))
+    {
+        return redis_error(config_id, "Failed to update DataPushConfig");
+    }
+    AccountDomainResult result;
+    result.id = config_id;
+    result.record = std::move(updated);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::delete_data_push_config(const std::string &config_id, std::int64_t now)
+{
+    const auto current = get_hash_record(redis_keys::DATA_PUSH_CONFIG, config_id);
+    if (!current.is_object() || current.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, config_id, "DataPushConfig not found");
+    }
+    auto deleted = current;
+    deleted["status"] = account_domain::STATUS_DELETED;
+    deleted["delete_time"] = now;
+    deleted["update_time"] = now;
+    if (!hset_json(redis_keys::DATA_PUSH_CONFIG, config_id, deleted))
+    {
+        return redis_error(config_id, "Failed to delete DataPushConfig");
+    }
+    AccountDomainResult result;
+    result.id = config_id;
+    result.record = std::move(deleted);
+    return result;
+}
+
 AccountDomainResult AccountDomainRepository::append_data_push_usage(nlohmann::json entry, const std::string &period, std::int64_t now)
 {
     std::string error;
@@ -1176,6 +1258,154 @@ AccountDomainResult AccountDomainRepository::append_data_push_usage_with_balance
     AccountDomainResult result;
     result.id = usage_id;
     result.record = std::move(entry);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json request, const std::string &period, std::int64_t now)
+{
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+    const std::string account_id = request.value("account_id", std::string{});
+    const std::string config_id = request.value("config_id", std::string{});
+    const std::string resolved_period = request.value("period", period.empty() ? std::string("current") : period);
+    const std::int64_t used_seconds = json_record::as_i64(request.value("used_seconds", 0), 0);
+    if (account_id.empty())
+    {
+        return invalid("account_id is required");
+    }
+    if (config_id.empty())
+    {
+        return invalid("config_id is required");
+    }
+    if (used_seconds <= 0)
+    {
+        return invalid("used_seconds must be positive");
+    }
+
+    const auto account = get_hash_record(redis_keys::ACC_RECORD, account_id);
+    if (!account.is_object() || !account_domain::is_active_status(account))
+    {
+        return make_result(RepositoryStatus::NotFound, account_id, "Account not found or inactive");
+    }
+    const std::string role = account.value("role", std::string{});
+    if (role != account_domain::ROLE_USER && role != account_domain::ROLE_ADMIN)
+    {
+        return make_result(RepositoryStatus::Invalid, account_id, "DataPush job account must be user or admin");
+    }
+
+    const auto config = get_hash_record(redis_keys::DATA_PUSH_CONFIG, config_id);
+    if (!config.is_object() || !account_domain::is_active_status(config))
+    {
+        return make_result(RepositoryStatus::NotFound, config_id, "DataPushConfig not found or inactive");
+    }
+
+    const std::int64_t fixed_hourly_price_cents = json_record::as_i64(config.value("fixed_hourly_price_cents", 0), 0);
+    if (fixed_hourly_price_cents < 0)
+    {
+        return invalid("fixed_hourly_price_cents must be non-negative");
+    }
+    const std::int64_t stat_cost_cents = fixed_hourly_price_cents <= 0
+        ? 0
+        : (fixed_hourly_price_cents * used_seconds + 3599) / 3600;
+    const std::int64_t actual_debit_cents = stat_cost_cents;
+    const std::int64_t balance_cents = json_record::as_i64(account.value("balance_cents", 0), 0);
+    const std::int64_t credit_limit_cents = json_record::as_i64(account.value("credit_limit_cents", 0), 0);
+    if (actual_debit_cents > balance_cents + credit_limit_cents)
+    {
+        return make_result(RepositoryStatus::Conflict, account_id, "Balance insufficient");
+    }
+
+    const std::string job_id = request.value("job_id", std::string("job:data_push:") + account_id + ":" + resolved_period + ":" + std::to_string(now));
+    const std::string usage_id = "usage:data_push:" + job_id;
+    const std::string job_key = redis_keys::data_push_job(resolved_period);
+    if (_redis.hget(job_key.c_str(), job_id.c_str()).is_object())
+    {
+        return make_result(RepositoryStatus::Conflict, job_id, "DataPushJob already exists");
+    }
+
+    nlohmann::json usage = {
+        {"usage_id", usage_id},
+        {"account_id", account_id},
+        {"config_id", config_id},
+        {"job_id", job_id},
+        {"target_mountpoint", config.value("target_mountpoint", std::string{})},
+        {"group_id", config.value("group_id", std::string{})},
+        {"used_seconds", used_seconds},
+        {"stat_cost_cents", stat_cost_cents},
+        {"actual_debit_cents", actual_debit_cents},
+        {"price_snapshot", {
+            {"fixed_hourly_price_cents", fixed_hourly_price_cents},
+        }},
+    };
+    if (request.contains("request_id"))
+    {
+        usage["request_id"] = request["request_id"];
+    }
+    if (request.contains("operator_note"))
+    {
+        usage["operator_note"] = request["operator_note"];
+    }
+
+    auto usage_result = append_data_push_usage_with_balance(usage, resolved_period, now);
+    if (usage_result.status != RepositoryStatus::Ok)
+    {
+        return usage_result;
+    }
+
+    nlohmann::json job = {
+        {"job_id", job_id},
+        {"account_id", account_id},
+        {"config_id", config_id},
+        {"target_mountpoint", config.value("target_mountpoint", std::string{})},
+        {"group_id", config.value("group_id", std::string{})},
+        {"usage_id", usage_id},
+        {"period", resolved_period},
+        {"used_seconds", used_seconds},
+        {"stat_cost_cents", stat_cost_cents},
+        {"actual_debit_cents", actual_debit_cents},
+        {"status", "completed"},
+        {"config_snapshot", config},
+        {"price_snapshot", {
+            {"fixed_hourly_price_cents", fixed_hourly_price_cents},
+        }},
+    };
+    if (usage_result.record.contains("ledger_id"))
+    {
+        job["ledger_id"] = usage_result.record["ledger_id"];
+    }
+    if (usage_result.record.contains("balance_after_cents"))
+    {
+        job["balance_after_cents"] = usage_result.record["balance_after_cents"];
+    }
+    if (request.contains("request_id"))
+    {
+        job["request_id"] = request["request_id"];
+    }
+    if (request.contains("operator_note"))
+    {
+        job["operator_note"] = request["operator_note"];
+    }
+
+    std::string error;
+    if (!account_domain::normalize_data_push_job(job, now, &error))
+    {
+        _redis.hdel(redis_keys::data_push(resolved_period).c_str(), usage_id.c_str());
+        if (usage_result.record.contains("ledger_id"))
+        {
+            _redis.hdel(redis_keys::acc_balance_ledger(resolved_period).c_str(), usage_result.record.value("ledger_id", std::string{}).c_str());
+        }
+        return invalid(error);
+    }
+    if (!hsetnx_json(job_key.c_str(), job_id, job))
+    {
+        return make_result(RepositoryStatus::Conflict, job_id, "DataPushJob already exists");
+    }
+
+    AccountDomainResult result;
+    result.id = job_id;
+    result.record = std::move(job);
     return result;
 }
 

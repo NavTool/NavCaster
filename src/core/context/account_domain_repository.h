@@ -51,8 +51,13 @@ public:
     AccountDomainResult append_balance_ledger(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult apply_balance_adjustment(const std::string &account_id, nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_billing_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult get_data_push_config(const std::string &config_id);
+    AccountDomainResult create_data_push_config(nlohmann::json record, std::int64_t now);
+    AccountDomainResult update_data_push_config(const std::string &config_id, nlohmann::json record, std::int64_t now);
+    AccountDomainResult delete_data_push_config(const std::string &config_id, std::int64_t now);
     AccountDomainResult append_data_push_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_data_push_usage_with_balance(nlohmann::json entry, const std::string &period, std::int64_t now);
+    AccountDomainResult create_data_push_job(nlohmann::json request, const std::string &period, std::int64_t now);
     AccountDomainResult append_supplier_supply_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult create_supplier_settlement(nlohmann::json request, const std::string &period, std::int64_t now);
 

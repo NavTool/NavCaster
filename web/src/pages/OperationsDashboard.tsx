@@ -19,6 +19,7 @@ import {
   DatabaseOutlined,
   LockOutlined,
   PlusOutlined,
+  SwapOutlined,
   TeamOutlined,
   WalletOutlined,
 } from '@ant-design/icons';
@@ -30,6 +31,8 @@ import { adminApi } from '../api/operations';
 import type {
   AccessAccountRecord,
   BillingUsageEntry,
+  DataPushConfig,
+  DataPushJob,
   DataPushUsage,
   HashRecord,
   MountPointGroup,
@@ -53,6 +56,8 @@ type AdminView =
   | 'usage'
   | 'subscriptions'
   | 'redeem-codes'
+  | 'data-push-configs'
+  | 'data-push-jobs'
   | 'data-push-usage'
   | 'supply-usage'
   | 'supplier-settlements';
@@ -92,6 +97,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [subscriptionForm] = Form.useForm();
   const [redeemForm] = Form.useForm();
   const [redeemApplyForm] = Form.useForm();
+  const [dataPushConfigForm] = Form.useForm();
   const [settlementForm] = Form.useForm();
   const [accountOpen, setAccountOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
@@ -100,6 +106,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemApplyCode, setRedeemApplyCode] = useState<string | null>(null);
+  const [dataPushConfigOpen, setDataPushConfigOpen] = useState(false);
   const [settlementOpen, setSettlementOpen] = useState(false);
 
   const accountsQuery = usePolling(() => adminApi.accounts(), 5000, view === 'dashboard' || view === 'accounts');
@@ -110,6 +117,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const usageQuery = usePolling(() => adminApi.usage(currentPeriod()), 5000, view === 'dashboard' || view === 'usage');
   const subscriptionQuery = usePolling(() => adminApi.subscriptions(), 5000, view === 'dashboard' || view === 'subscriptions');
   const redeemQuery = usePolling(() => adminApi.redeemCodes(), 5000, view === 'dashboard' || view === 'redeem-codes');
+  const dataPushConfigQuery = usePolling(() => adminApi.dataPushConfigs(), 5000, view === 'dashboard' || view === 'data-push-configs');
+  const dataPushJobQuery = usePolling(() => adminApi.dataPushJobs(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-jobs');
   const dataPushQuery = usePolling(() => adminApi.dataPushUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-usage');
   const supplyQuery = usePolling(() => adminApi.supplyUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'supply-usage');
   const settlementQuery = usePolling(() => adminApi.supplierSettlements(currentPeriod()), 5000, view === 'dashboard' || view === 'supplier-settlements');
@@ -122,6 +131,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
   const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
   const redeemRows = useMemo(() => rowsFromHash(redeemQuery.data), [redeemQuery.data]);
+  const dataPushConfigRows = useMemo(() => rowsFromHash(dataPushConfigQuery.data), [dataPushConfigQuery.data]);
+  const dataPushJobRows = useMemo(() => rowsFromHash(dataPushJobQuery.data), [dataPushJobQuery.data]);
   const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
   const settlementRows = useMemo(() => rowsFromHash(settlementQuery.data), [settlementQuery.data]);
@@ -260,6 +271,30 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     accountsQuery.refresh();
   };
 
+  const openDataPushConfig = () => {
+    dataPushConfigForm.resetFields();
+    dataPushConfigForm.setFieldsValue({
+      config_id: `dpc_${Date.now()}`,
+      status: 'active',
+      fixed_hourly_price_cents: 0,
+    });
+    setDataPushConfigOpen(true);
+  };
+
+  const submitDataPushConfig = async () => {
+    const values = await dataPushConfigForm.validateFields();
+    await adminApi.createDataPushConfig(values);
+    message.success('推送配置已创建');
+    setDataPushConfigOpen(false);
+    dataPushConfigQuery.refresh();
+  };
+
+  const deleteDataPushConfig = async (record: DataPushConfig) => {
+    await adminApi.deleteDataPushConfig(record.config_id);
+    message.success('推送配置已删除');
+    dataPushConfigQuery.refresh();
+  };
+
   const openSupplierSettlement = () => {
     settlementForm.resetFields();
     settlementForm.setFieldsValue({ period: currentPeriod() });
@@ -366,11 +401,43 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const dataPushColumns: ColumnsType<DataPushUsage & { key: string }> = [
     { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
     { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
+    { title: '配置', dataIndex: 'config_id', key: 'config_id', width: 160, render: (value) => value || '-' },
+    { title: '任务', dataIndex: 'job_id', key: 'job_id', width: 220, render: (value) => value || '-' },
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
     { title: '时长', key: 'used_seconds', width: 100, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '统计费用', key: 'stat_cost_cents', width: 120, render: (_, row) => formatCents(row.stat_cost_cents) },
     { title: '实际扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
     { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
+    { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+  ];
+
+  const dataPushConfigColumns: ColumnsType<DataPushConfig & { key: string }> = [
+    { title: 'Config ID', dataIndex: 'config_id', key: 'config_id', width: 190 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 180 },
+    { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 170 },
+    { title: '分组', dataIndex: 'group_id', key: 'group_id', width: 160, render: (value) => value || '-' },
+    { title: '小时价格', key: 'fixed_hourly_price_cents', width: 120, render: (_, row) => formatCents(row.fixed_hourly_price_cents) },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
+    { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true, render: (value) => value || '-' },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 100,
+      render: (_, row) => <Button size="small" danger onClick={() => deleteDataPushConfig(row)}>删除</Button>,
+    },
+  ];
+
+  const dataPushJobColumns: ColumnsType<DataPushJob & { key: string }> = [
+    { title: 'Job ID', dataIndex: 'job_id', key: 'job_id', width: 260 },
+    { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
+    { title: '配置', dataIndex: 'config_id', key: 'config_id', width: 160 },
+    { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
+    { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
+    { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
+    { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
+    { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => <Tag color={value === 'completed' ? 'green' : 'red'}>{value || '-'}</Tag> },
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
@@ -431,8 +498,14 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     if (view === 'redeem-codes') {
       return <Table columns={redeemColumns} dataSource={redeemRows} loading={redeemQuery.loading} rowKey="key" size="small" scroll={{ x: 1000 }} />;
     }
+    if (view === 'data-push-configs') {
+      return <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1260 }} />;
+    }
+    if (view === 'data-push-jobs') {
+      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1450 }} />;
+    }
     if (view === 'data-push-usage') {
-      return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
+      return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
     }
     if (view === 'supply-usage') {
       return <Table columns={supplyColumns} dataSource={supplyRows} loading={supplyQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
@@ -453,6 +526,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     usage: '计费用量',
     subscriptions: '订阅',
     'redeem-codes': '兑换码',
+    'data-push-configs': '数据推送配置',
+    'data-push-jobs': '数据推送任务',
     'data-push-usage': '数据推送用量',
     'supply-usage': '供应事实',
     'supplier-settlements': '供应商结算',
@@ -465,6 +540,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       {view === 'mount-points' && <Button type="primary" icon={<PlusOutlined />} onClick={openMountPoint}>挂载点</Button>}
       {view === 'subscriptions' && <Button type="primary" icon={<PlusOutlined />} onClick={openSubscription}>订阅</Button>}
       {view === 'redeem-codes' && <Button type="primary" icon={<PlusOutlined />} onClick={openRedeemCode}>兑换码</Button>}
+      {view === 'data-push-configs' && <Button type="primary" icon={<PlusOutlined />} onClick={openDataPushConfig}>推送配置</Button>}
       {view === 'supplier-settlements' && <Button type="primary" icon={<PlusOutlined />} onClick={openSupplierSettlement}>结算</Button>}
     </Space>
   );
@@ -494,6 +570,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="数据推送扣费" value={formatCents(currentDataPushDebit)} prefix={<WalletOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="推送配置" value={recordCount(dataPushConfigQuery.data)} prefix={<SwapOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="推送任务" value={recordCount(dataPushJobQuery.data)} prefix={<SwapOutlined />} />
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="供应时长" value={formatDuration(totalSupplySeconds)} prefix={<BranchesOutlined />} />
@@ -655,6 +737,20 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
           <Form.Item name="account_id" label="Account ID" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="period" label="账期"><Input /></Form.Item>
           <Form.Item name="operator_note" label="备注"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="创建数据推送配置" open={dataPushConfigOpen} onOk={submitDataPushConfig} onCancel={() => setDataPushConfigOpen(false)} width={620}>
+        <Form form={dataPushConfigForm} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="config_id" label="Config ID" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="target_mountpoint" label="目标挂载点" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="group_id" label="分组"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="status" label="状态"><Select options={[{ value: 'active' }, { value: 'disabled' }]} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="fixed_hourly_price_cents" label="小时价格(分)" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+          </Row>
+          <Form.Item name="description" label="描述"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
 

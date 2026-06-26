@@ -473,6 +473,42 @@ nlohmann::json SelfServiceController::filter_data_push_usage(const std::string &
     return records;
 }
 
+nlohmann::json SelfServiceController::active_data_push_configs() const
+{
+    const auto all = _redis.hgetall(redis_keys::DATA_PUSH_CONFIG);
+    nlohmann::json records = nlohmann::json::object();
+    if (!all.is_object())
+    {
+        return records;
+    }
+    for (auto it = all.begin(); it != all.end(); ++it)
+    {
+        if (it.value().is_object() && navcaster::account_domain::is_active_status(it.value()))
+        {
+            records[it.key()] = sanitized_record(it.value());
+        }
+    }
+    return records;
+}
+
+nlohmann::json SelfServiceController::filter_data_push_jobs(const std::string &account_id, const std::string &period) const
+{
+    const auto all = _redis.hgetall(redis_keys::data_push_job(request_period(period)).c_str());
+    nlohmann::json records = nlohmann::json::object();
+    if (!all.is_object())
+    {
+        return records;
+    }
+    for (auto it = all.begin(); it != all.end(); ++it)
+    {
+        if (it.value().is_object() && it.value().value("account_id", std::string{}) == account_id)
+        {
+            records[it.key()] = sanitized_record(it.value());
+        }
+    }
+    return records;
+}
+
 ControllerResponse SelfServiceController::usage(const AuthSessionSubject &subject, const std::string &period)
 {
     auto guard = subject_error(subject, "me");
@@ -513,6 +549,51 @@ ControllerResponse SelfServiceController::redeem_redemptions(const AuthSessionSu
         return guard;
     }
     return json_response(200, owner_redeem_redemptions(subject.account_id));
+}
+
+ControllerResponse SelfServiceController::data_push_configs(const AuthSessionSubject &subject)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    return json_response(200, active_data_push_configs());
+}
+
+ControllerResponse SelfServiceController::data_push_jobs(const AuthSessionSubject &subject, const std::string &period)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    return json_response(200, filter_data_push_jobs(subject.account_id, period));
+}
+
+ControllerResponse SelfServiceController::create_data_push_job(const AuthSessionSubject &subject, const std::string &body_text)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    body["account_id"] = subject.account_id;
+    body.erase("usage_id");
+    body.erase("ledger_id");
+    body.erase("balance_after_cents");
+    body.erase("stat_cost_cents");
+    body.erase("actual_debit_cents");
+    const std::string period = request_period(body.value("period", std::string{}));
+    body["period"] = period;
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.create_data_push_job(std::move(body), period, _now);
+    return repository_result(201, result);
 }
 
 ControllerResponse SelfServiceController::data_push_usage(const AuthSessionSubject &subject, const std::string &period)

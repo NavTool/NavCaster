@@ -42,6 +42,14 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   session Account。POST 会覆盖请求体 `account_id`，按 `actual_debit_cents`
   写 `ACC:BALANCE:LEDGER:<yyyyMM>` 并同步 `ACC:RECORD.balance_cents`；余额不足
   返回 409 且不留下半写事实。
+- NC-062 新增数据推送配置和任务 API：管理员通过
+  `GET/POST /api/v1/admin/data-push-configs`、`GET/PUT/DELETE
+  /api/v1/admin/data-push-configs/{config_id}` 维护 `DATA:PUSH:CONFIG`，
+  通过 `GET /api/v1/admin/data-push-jobs?period=yyyyMM` 查看全局任务。
+  用户通过 `GET /api/v1/me/data-push/configs` 查看 active 配置，通过
+  `GET/POST /api/v1/me/data-push/jobs` 创建和查看自己的任务。任务按配置小时价
+  和 `used_seconds` 计算扣费，写 `DATA:PUSH:JOB:<period>`、
+  `DATA:PUSH:<period>`、余额 ledger 和 Account 余额。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和

@@ -405,6 +405,28 @@ bool normalize_billing_usage_entry(nlohmann::json &record, std::int64_t now, std
     return true;
 }
 
+bool normalize_data_push_config(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    if (!require_string(record, "config_id", error) ||
+        !require_string(record, "name", error) ||
+        !require_string(record, "target_mountpoint", error))
+    {
+        return false;
+    }
+    default_status(record);
+    if (!validate_status(record, error))
+    {
+        return false;
+    }
+    record["fixed_hourly_price_cents"] = record.value("fixed_hourly_price_cents", 0);
+    if (!is_nonnegative_number(record["fixed_hourly_price_cents"]))
+    {
+        return fail(error, "fixed_hourly_price_cents must be non-negative");
+    }
+    touch(record, now);
+    return true;
+}
+
 bool normalize_data_push_usage(nlohmann::json &record, std::int64_t now, std::string *error)
 {
     if (!normalize_append_fact(record, "usage_id", now, error) ||
@@ -416,6 +438,35 @@ bool normalize_data_push_usage(nlohmann::json &record, std::int64_t now, std::st
     record["used_seconds"] = record.value("used_seconds", 0);
     record["stat_cost_cents"] = record.value("stat_cost_cents", 0);
     record["actual_debit_cents"] = record.value("actual_debit_cents", 0);
+    return true;
+}
+
+bool normalize_data_push_job(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    if (!normalize_append_fact(record, "job_id", now, error) ||
+        !require_string(record, "account_id", error) ||
+        !require_string(record, "config_id", error) ||
+        !require_string(record, "target_mountpoint", error) ||
+        !require_string(record, "usage_id", error))
+    {
+        return false;
+    }
+    record["period"] = record.value("period", std::string("current"));
+    record["used_seconds"] = record.value("used_seconds", 0);
+    record["stat_cost_cents"] = record.value("stat_cost_cents", 0);
+    record["actual_debit_cents"] = record.value("actual_debit_cents", 0);
+    record["status"] = record.value("status", std::string("completed"));
+    if (string_value(record, "status") != "completed" && string_value(record, "status") != "failed")
+    {
+        return fail(error, "invalid data push job status");
+    }
+    if (!is_nonnegative_number(record["used_seconds"]) ||
+        !is_nonnegative_number(record["stat_cost_cents"]) ||
+        !is_nonnegative_number(record["actual_debit_cents"]))
+    {
+        return fail(error, "data push job numeric fields must be non-negative");
+    }
+    touch(record, now);
     return true;
 }
 

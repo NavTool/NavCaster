@@ -150,6 +150,18 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_stations(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/usage", [this](auto &req, auto &resp)
                   { handle_v1_admin_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-configs", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_configs(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/data-push-configs", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_configs(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-configs/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_config(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/data-push-configs/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_config(req, resp); });
+    _server.route(EVHTTP_REQ_DELETE, "/api/v1/admin/data-push-configs/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_config(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-jobs", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_jobs(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-usage", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_usage(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supply-usage", [this](auto &req, auto &resp)
@@ -186,6 +198,12 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_me_subscriptions(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/redeem-redemptions", [this](auto &req, auto &resp)
                   { handle_v1_me_redeem_redemptions(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/data-push/configs", [this](auto &req, auto &resp)
+                  { handle_v1_me_data_push_configs(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/data-push/jobs", [this](auto &req, auto &resp)
+                  { handle_v1_me_data_push_jobs(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/me/data-push/jobs", [this](auto &req, auto &resp)
+                  { handle_v1_me_data_push_jobs(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/data-push", [this](auto &req, auto &resp)
                   { handle_v1_me_data_push(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/v1/me/data-push", [this](auto &req, auto &resp)
@@ -739,6 +757,46 @@ void http_handler::handle_v1_admin_usage(const HttpRequest &req, HttpResponse &r
     resp.body = std::move(result.body);
 }
 
+void http_handler::handle_v1_admin_data_push_configs(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = req.method == EVHTTP_REQ_POST
+        ? controller.create_data_push_config(req.body)
+        : controller.list_data_push_configs();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_data_push_config(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    const std::string config_id = get_path_segment(req, 4);
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_data_push_config(config_id, req.body);
+    }
+    else if (req.method == EVHTTP_REQ_DELETE)
+    {
+        result = controller.delete_data_push_config(config_id);
+    }
+    else
+    {
+        result = controller.get_data_push_config(config_id);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_data_push_jobs(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.list_data_push_jobs(period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
 void http_handler::handle_v1_admin_data_push_usage(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
@@ -902,6 +960,36 @@ void http_handler::handle_v1_me_redeem_redemptions(const HttpRequest &req, HttpR
     const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
     navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.redeem_redemptions(_auth_sessions.lookup_subject(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_data_push_configs(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.data_push_configs(_auth_sessions.lookup_subject(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_data_push_jobs(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_POST)
+    {
+        result = controller.create_data_push_job(subject, req.body);
+    }
+    else
+    {
+        auto period = req.query_params.find("period");
+        result = controller.data_push_jobs(subject, period == req.query_params.end() ? std::string{} : period->second);
+    }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }
