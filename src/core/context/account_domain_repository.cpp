@@ -51,6 +51,18 @@ nlohmann::json data_push_relay_record(const nlohmann::json &config, const std::s
         {"managed_by", "data_push_job"},
     };
 }
+
+nlohmann::json sanitized_relay_snapshot(nlohmann::json relay_record)
+{
+    relay_record.erase("target_password");
+    return relay_record;
+}
+
+nlohmann::json data_push_config_from_job(const nlohmann::json &job)
+{
+    const auto it = job.find("config_snapshot");
+    return it != job.end() && it->is_object() ? *it : nlohmann::json::object();
+}
 } // namespace
 
 AccountDomainRepository::AccountDomainRepository(RedisHashClient &redis)
@@ -1414,12 +1426,10 @@ AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json
     if (relay_push)
     {
         relay_record = data_push_relay_record(config, relay_uid, now);
-        auto relay_snapshot = relay_record;
-        relay_snapshot.erase("target_password");
         job["relay_uid"] = relay_uid;
         job["relay_record_key"] = redis_keys::PUSH_RECORD;
         job["relay_status_key"] = redis_keys::PUSH_STAT;
-        job["relay_push_record"] = std::move(relay_snapshot);
+        job["relay_push_record"] = sanitized_relay_snapshot(relay_record);
     }
     if (usage_result.record.contains("ledger_id"))
     {
@@ -1464,6 +1474,152 @@ AccountDomainResult AccountDomainRepository::create_data_push_job(nlohmann::json
             _redis.hdel(redis_keys::PUSH_RECORD, relay_uid.c_str());
         }
         return make_result(RepositoryStatus::Conflict, job_id, "DataPushJob already exists");
+    }
+
+    AccountDomainResult result;
+    result.id = job_id;
+    result.record = std::move(job);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_data_push_job_control(const std::string &job_id,
+                                                                          const std::string &period,
+                                                                          nlohmann::json request,
+                                                                          std::int64_t now)
+{
+    if (job_id.empty())
+    {
+        return invalid("job_id is required");
+    }
+    const std::string resolved_period = request.is_object()
+        ? request.value("period", period.empty() ? std::string("current") : period)
+        : (period.empty() ? std::string("current") : period);
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+    const std::string action = request.value("action", request.value("status", std::string{}));
+    if (action.empty())
+    {
+        return invalid("action is required");
+    }
+
+    const std::string job_key = redis_keys::data_push_job(resolved_period);
+    auto job = get_hash_record(job_key.c_str(), job_id);
+    if (!job.is_object())
+    {
+        return make_result(RepositoryStatus::NotFound, job_id, "DataPushJob not found");
+    }
+    const std::string execution_mode = job.value("execution_mode", std::string(account_domain::DATA_PUSH_EXECUTION_LEDGER_ONLY));
+    const bool relay_push = execution_mode == account_domain::DATA_PUSH_EXECUTION_RELAY_PUSH;
+    const std::string relay_uid = job.value("relay_uid", std::string{});
+    if ((action == "cancel" || action == "retry") && (!relay_push || relay_uid.empty()))
+    {
+        return make_result(RepositoryStatus::Invalid, job_id, "DataPushJob is not relay_push");
+    }
+
+    if (action == "cancel")
+    {
+        auto relay_record = get_hash_record(redis_keys::PUSH_RECORD, relay_uid);
+        if (relay_record.is_object())
+        {
+            relay_record["enabled"] = false;
+            relay_record["update_time"] = now;
+            if (!hset_json(redis_keys::PUSH_RECORD, relay_uid, relay_record))
+            {
+                return redis_error(relay_uid, "Failed to disable PushRecord");
+            }
+            job["relay_push_record"] = sanitized_relay_snapshot(relay_record);
+        }
+        _redis.hdel(redis_keys::PUSH_STAT, relay_uid.c_str());
+        job["status"] = "cancelled";
+        job["cancel_time"] = now;
+    }
+    else if (action == "retry")
+    {
+        auto relay_record = get_hash_record(redis_keys::PUSH_RECORD, relay_uid);
+        if (!relay_record.is_object())
+        {
+            const auto config = data_push_config_from_job(job);
+            if (!config.is_object() || config.empty())
+            {
+                return make_result(RepositoryStatus::Invalid, job_id, "DataPushJob config snapshot is missing");
+            }
+            relay_record = data_push_relay_record(config, relay_uid, now);
+            if (!hsetnx_json(redis_keys::PUSH_RECORD, relay_uid, relay_record))
+            {
+                return make_result(RepositoryStatus::Conflict, relay_uid, "Managed PushRecord already exists");
+            }
+        }
+        else
+        {
+            relay_record["enabled"] = true;
+            relay_record["update_time"] = now;
+            if (!hset_json(redis_keys::PUSH_RECORD, relay_uid, relay_record))
+            {
+                return redis_error(relay_uid, "Failed to enable PushRecord");
+            }
+        }
+        _redis.hdel(redis_keys::PUSH_STAT, relay_uid.c_str());
+        job["relay_push_record"] = sanitized_relay_snapshot(relay_record);
+        job["status"] = "queued";
+        job["retry_time"] = now;
+    }
+    else if (action == "mark_failed" || action == "failed")
+    {
+        job["status"] = "failed";
+        job["failed_time"] = now;
+        if (relay_push && !relay_uid.empty())
+        {
+            auto relay_record = get_hash_record(redis_keys::PUSH_RECORD, relay_uid);
+            if (relay_record.is_object())
+            {
+                relay_record["enabled"] = false;
+                relay_record["update_time"] = now;
+                if (!hset_json(redis_keys::PUSH_RECORD, relay_uid, relay_record))
+                {
+                    return redis_error(relay_uid, "Failed to disable PushRecord");
+                }
+                job["relay_push_record"] = sanitized_relay_snapshot(relay_record);
+            }
+            _redis.hdel(redis_keys::PUSH_STAT, relay_uid.c_str());
+        }
+    }
+    else if (action == "mark_completed" || action == "completed")
+    {
+        job["status"] = "completed";
+        job["complete_time"] = now;
+        if (relay_push && !relay_uid.empty())
+        {
+            _redis.hdel(redis_keys::PUSH_STAT, relay_uid.c_str());
+        }
+    }
+    else
+    {
+        return invalid("invalid data push job control action");
+    }
+
+    job["period"] = resolved_period;
+    job["control_action"] = action;
+    job["control_time"] = now;
+    if (request.contains("operator_note"))
+    {
+        job["operator_note"] = request["operator_note"];
+        job["control_note"] = request["operator_note"];
+    }
+    if (request.contains("request_id"))
+    {
+        job["request_id"] = request["request_id"];
+    }
+
+    std::string error;
+    if (!account_domain::normalize_data_push_job(job, now, &error))
+    {
+        return invalid(error);
+    }
+    if (!hset_json(job_key.c_str(), job_id, job))
+    {
+        return redis_error(job_id, "Failed to update DataPushJob");
     }
 
     AccountDomainResult result;

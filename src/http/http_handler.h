@@ -76,6 +76,7 @@ private:
     void handle_v1_admin_data_push_configs(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_config(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_jobs(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_data_push_job(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_usage(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_supply_usage(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_supplier_settlements(const HttpRequest &req, HttpResponse &resp);
@@ -93,6 +94,7 @@ private:
     void handle_v1_me_redeem_redemptions(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_data_push_configs(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_data_push_jobs(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_data_push_job(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_data_push(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_supplier_profile(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_supplier_dashboard(const HttpRequest &req, HttpResponse &resp);

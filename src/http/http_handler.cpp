@@ -162,6 +162,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_data_push_config(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-jobs", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_jobs(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/data-push-jobs/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_data_push_job(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-usage", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_usage(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/supply-usage", [this](auto &req, auto &resp)
@@ -206,6 +208,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_me_data_push_jobs(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/v1/me/data-push/jobs", [this](auto &req, auto &resp)
                   { handle_v1_me_data_push_jobs(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/me/data-push/jobs/*", [this](auto &req, auto &resp)
+                  { handle_v1_me_data_push_job(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/data-push", [this](auto &req, auto &resp)
                   { handle_v1_me_data_push(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/v1/me/data-push", [this](auto &req, auto &resp)
@@ -799,6 +803,26 @@ void http_handler::handle_v1_admin_data_push_jobs(const HttpRequest &req, HttpRe
     resp.body = std::move(result.body);
 }
 
+void http_handler::handle_v1_admin_data_push_job(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    const std::string job_id = get_path_segment(req, 4);
+    const std::string action = get_path_segment(req, 5);
+    navcaster::http_api::ControllerResponse result;
+    if (action == "control")
+    {
+        auto period = req.query_params.find("period");
+        result = controller.update_data_push_job_control(job_id, period == req.query_params.end() ? std::string{} : period->second, req.body);
+    }
+    else
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not found"})";
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
 void http_handler::handle_v1_admin_data_push_usage(const HttpRequest &req, HttpResponse &resp)
 {
     navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
@@ -1007,6 +1031,29 @@ void http_handler::handle_v1_me_data_push_jobs(const HttpRequest &req, HttpRespo
     {
         auto period = req.query_params.find("period");
         result = controller.data_push_jobs(subject, period == req.query_params.end() ? std::string{} : period->second);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_data_push_job(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    const std::string job_id = get_path_segment(req, 5);
+    const std::string action = get_path_segment(req, 6);
+    navcaster::http_api::ControllerResponse result;
+    if (action == "control")
+    {
+        auto period = req.query_params.find("period");
+        result = controller.update_data_push_job_control(subject, job_id, period == req.query_params.end() ? std::string{} : period->second, req.body);
+    }
+    else
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not found"})";
     }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);

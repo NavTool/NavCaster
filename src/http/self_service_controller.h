@@ -38,6 +38,10 @@ public:
     ControllerResponse data_push_configs(const AuthSessionSubject &subject);
     ControllerResponse data_push_jobs(const AuthSessionSubject &subject, const std::string &period);
     ControllerResponse create_data_push_job(const AuthSessionSubject &subject, const std::string &body_text);
+    ControllerResponse update_data_push_job_control(const AuthSessionSubject &subject,
+                                                    const std::string &job_id,
+                                                    const std::string &period,
+                                                    const std::string &body_text);
     ControllerResponse data_push_usage(const AuthSessionSubject &subject, const std::string &period);
     ControllerResponse append_data_push_usage(const AuthSessionSubject &subject, const std::string &body_text);
     ControllerResponse supplier_stations(const AuthSessionSubject &subject);

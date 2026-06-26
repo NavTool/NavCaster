@@ -58,6 +58,10 @@ public:
     AccountDomainResult append_data_push_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult append_data_push_usage_with_balance(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult create_data_push_job(nlohmann::json request, const std::string &period, std::int64_t now);
+    AccountDomainResult update_data_push_job_control(const std::string &job_id,
+                                                     const std::string &period,
+                                                     nlohmann::json request,
+                                                     std::int64_t now);
     AccountDomainResult append_supplier_supply_usage(nlohmann::json entry, const std::string &period, std::int64_t now);
     AccountDomainResult create_supplier_settlement(nlohmann::json request, const std::string &period, std::int64_t now);
     AccountDomainResult update_supplier_settlement_payment(const std::string &settlement_id,

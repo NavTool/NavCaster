@@ -57,6 +57,12 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   RelayScheduler/relay_push 数据平面执行。Admin/User 任务列表会读取
   `PUSH:STAT[relay_uid]` 补充 `relay_status`、`relay_state`，并在运行态把
   queued 任务展示为 running；查询响应会递归剥离 relay target 密码。
+- NC-065 起新增 DataPushJob 控制 API：
+  `POST /api/v1/admin/data-push-jobs/{job_id}/control` 支持
+  `cancel`、`retry`、`mark_failed`、`mark_completed`；
+  `POST /api/v1/me/data-push/jobs/{job_id}/control` 仅允许当前用户对自己的
+  relay_push 任务执行 `cancel` / `retry`。cancel 会禁用受管 `PUSH:RECORD` 并清
+  `PUSH:STAT`；retry 会重新启用或重建受管 `PUSH:RECORD`。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和

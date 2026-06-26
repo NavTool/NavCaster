@@ -459,6 +459,20 @@ ControllerResponse OperationsController::list_data_push_jobs(const std::string &
     return json_response(200, sanitized_collection(data_push_jobs_with_runtime(_redis.hgetall(key.c_str()), _redis)));
 }
 
+ControllerResponse OperationsController::update_data_push_job_control(const std::string &job_id, const std::string &period, const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    body["period"] = request_period(body.value("period", period));
+    const std::string resolved_period = body.value("period", std::string("current"));
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_data_push_job_control(job_id, resolved_period, std::move(body), _now);
+    return repository_result(200, result);
+}
+
 ControllerResponse OperationsController::list_data_push_usage(const std::string &period)
 {
     const std::string key = redis_keys::data_push(request_period(period));
