@@ -242,6 +242,17 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     dashboardQuery.refresh();
   };
 
+  const controlDataPushJob = async (record: DataPushJob, action: 'cancel' | 'retry') => {
+    await meApi.controlDataPushJob(record.job_id, {
+      action,
+      period: record.period || currentPeriod(),
+      operator_note: `self ${action}`,
+    });
+    message.success('推送任务状态已更新');
+    dataPushJobQuery.refresh();
+    dashboardQuery.refresh();
+  };
+
   const accessColumns: ColumnsType<AccessAccountRecord & { key: string }> = [
     { title: 'AccessAccount ID', dataIndex: 'access_account_id', key: 'access_account_id', width: 210 },
     { title: '接入用户名', dataIndex: 'username', key: 'username', width: 150 },
@@ -347,6 +358,17 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
     { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => dataPushJobStatusTag(value) },
     { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 130,
+      render: (_, row) => (
+        <Space>
+          <Button size="small" onClick={() => controlDataPushJob(row, 'retry')}>重试</Button>
+          <Button size="small" danger onClick={() => controlDataPushJob(row, 'cancel')}>取消</Button>
+        </Space>
+      ),
+    },
   ];
 
   const stationColumns: ColumnsType<StationRecord & { key: string }> = [
@@ -412,7 +434,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
           <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1160 }} />
         </Col>
         <Col span={24}>
-          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1700 }} />
+          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1900 }} />
         </Col>
         <Col span={24}>
           <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1340 }} />

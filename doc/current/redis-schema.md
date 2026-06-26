@@ -264,6 +264,18 @@ HTTP 查询任务时读取 PUSH:STAT[relay_uid] 补充 relay_status/relay_state�
 直接回写 DATA:PUSH:JOB。
 ```
 
+NC-065 DataPush 任务控制：
+
+```text
+cancel relay_push 任务会把 DATA:PUSH:JOB:<yyyyMM>[job_id].status 更新为 cancelled，
+写 cancel_time/control_time，并把 PUSH:RECORD[relay_uid].enabled=false，同时删除
+PUSH:STAT[relay_uid]。
+retry relay_push 任务会重新启用或重建受管 PUSH:RECORD[relay_uid]，删除旧 PUSH:STAT，
+并把任务 status 更新为 queued，写 retry_time/control_time。
+mark_failed 写 status=failed、failed_time/control_time，并禁用受管 PUSH:RECORD。
+mark_completed 写 status=completed、complete_time/control_time，并清理 PUSH:STAT。
+```
+
 `ONLINE:SESSION:<account_id>` 当前 JSON 字段：
 
 ```json

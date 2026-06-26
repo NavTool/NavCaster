@@ -184,6 +184,7 @@
 | `PUT` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 更新数据推送配置 |
 | `DELETE` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 软删除数据推送配置 |
 | `GET` | `/api/v1/admin/data-push-jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 列出数据推送任务并补充 relay 运行态 |
+| `POST` | `/api/v1/admin/data-push-jobs/{job_id}/control` | `DATA:PUSH:JOB:{period}` / `PUSH:RECORD` / `PUSH:STAT` | 控制数据推送任务：cancel/retry/mark_failed/mark_completed |
 | `GET` | `/api/v1/admin/data-push-usage?period=yyyyMM` | `DATA:PUSH:{period}` | 列出数据推送用量和扣费事实 |
 | `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
 | `GET` | `/api/v1/admin/supplier-settlements?period=yyyyMM&supplier_account_id=...` | `SUPPLY:EARNING:{account_id}:{period}` | 列出供应商结算批次；未传 supplier 时扫描供应商/admin 账号当期结算 |
@@ -214,6 +215,7 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `GET` | `/api/v1/me/data-push/configs` | `DATA:PUSH:CONFIG` | 当前用户可用数据推送配置 |
 | `GET` | `/api/v1/me/data-push/jobs?period=yyyyMM` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 当前用户数据推送任务并补充 relay 运行态 |
 | `POST` | `/api/v1/me/data-push/jobs` | `DATA:PUSH:JOB:{period}` / `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` / `PUSH:RECORD` | 创建当前用户数据推送任务并扣费 |
+| `POST` | `/api/v1/me/data-push/jobs/{job_id}/control` | `DATA:PUSH:JOB:{period}` / `PUSH:RECORD` / `PUSH:STAT` | 当前用户取消或重试自己的 relay_push 任务 |
 | `GET` | `/api/v1/me/data-push?period=yyyyMM` | `DATA:PUSH:{period}` | 当前用户数据推送用量和扣费事实 |
 | `POST` | `/api/v1/me/data-push` | `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 追加当前用户数据推送用量，按 `actual_debit_cents` 扣费 |
 | `GET` | `/api/v1/me/redeem-redemptions` | `REDEEM:ACCOUNT:{account_id}` | 当前用户兑换记录 |
@@ -249,6 +251,14 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 `execution_mode`、`relay_uid`、`relay_record_key`、`relay_status_key`。任务列表会读取
 `PUSH:STAT[relay_uid]` 补充 `relay_status` / `relay_state`；返回 JSON 会剥离
 `relay_target_password` / `target_password`，`DATA:PUSH:JOB` 中的配置和 relay 快照也不保存远端密码。
+
+`POST /api/v1/me/data-push/jobs/{job_id}/control` 请求体包含 `action` 和可选
+`period`、`operator_note`。用户侧只允许 `cancel` / `retry` 且只能控制自己的
+`relay_push` 任务。`cancel` 会设置任务 `status=cancelled`、禁用
+`PUSH:RECORD[relay_uid].enabled=false` 并清理 `PUSH:STAT[relay_uid]`；`retry` 会重新启用或重建
+受管 `PUSH:RECORD`，并把任务置回 `status=queued`。管理员
+`POST /api/v1/admin/data-push-jobs/{job_id}/control` 额外允许 `mark_failed` 和
+`mark_completed`。
 
 `POST /api/v1/admin/redeem-codes/{code}/redeem` 可通过 query 参数或 JSON body 传入
 `account_id`。兑换成功会生成兑换记录和余额 ledger，增加 Account 余额；同一 Account 对

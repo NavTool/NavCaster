@@ -125,6 +125,10 @@ export const adminApi = {
     const { data } = await api.get('/api/v1/admin/data-push-jobs', { params: period ? { period } : undefined });
     return data;
   },
+  async controlDataPushJob(jobId: string, body: { action: 'cancel' | 'retry' | 'mark_failed' | 'mark_completed'; period?: string; operator_note?: string }) {
+    const { data } = await api.post(`/api/v1/admin/data-push-jobs/${encodeURIComponent(jobId)}/control`, body, { params: body.period ? { period: body.period } : undefined });
+    return data as DataPushJob;
+  },
   async dataPushUsage(period?: string): Promise<HashRecord<DataPushUsage>> {
     const { data } = await api.get('/api/v1/admin/data-push-usage', { params: period ? { period } : undefined });
     return data;
@@ -229,6 +233,10 @@ export const meApi = {
   },
   async createDataPushJob(body: { config_id: string; used_seconds: number; period?: string; operator_note?: string }) {
     const { data } = await api.post('/api/v1/me/data-push/jobs', body);
+    return data as DataPushJob;
+  },
+  async controlDataPushJob(jobId: string, body: { action: 'cancel' | 'retry'; period?: string; operator_note?: string }) {
+    const { data } = await api.post(`/api/v1/me/data-push/jobs/${encodeURIComponent(jobId)}/control`, body, { params: body.period ? { period: body.period } : undefined });
     return data as DataPushJob;
   },
 };

@@ -649,6 +649,44 @@ ControllerResponse SelfServiceController::create_data_push_job(const AuthSession
     return repository_result(201, result);
 }
 
+ControllerResponse SelfServiceController::update_data_push_job_control(const AuthSessionSubject &subject,
+                                                                       const std::string &job_id,
+                                                                       const std::string &period,
+                                                                       const std::string &body_text)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    const std::string resolved_period = request_period(body.value("period", period));
+    const auto current = _redis.hget(redis_keys::data_push_job(resolved_period).c_str(), job_id.c_str());
+    if (!current.is_object() || current.value("account_id", std::string{}) != subject.account_id)
+    {
+        return error_response(404, "DataPushJob not found");
+    }
+    const std::string action = body.value("action", body.value("status", std::string{}));
+    if (action != "cancel" && action != "retry")
+    {
+        return error_response(400, "action is not allowed");
+    }
+    body["period"] = resolved_period;
+    body.erase("account_id");
+    body.erase("usage_id");
+    body.erase("ledger_id");
+    body.erase("balance_after_cents");
+    body.erase("stat_cost_cents");
+    body.erase("actual_debit_cents");
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_data_push_job_control(job_id, resolved_period, std::move(body), _now);
+    return repository_result(200, result);
+}
+
 ControllerResponse SelfServiceController::data_push_usage(const AuthSessionSubject &subject, const std::string &period)
 {
     auto guard = subject_error(subject, "me");

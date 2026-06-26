@@ -51,6 +51,7 @@ public:
     ControllerResponse update_data_push_config(const std::string &config_id, const std::string &body_text);
     ControllerResponse delete_data_push_config(const std::string &config_id);
     ControllerResponse list_data_push_jobs(const std::string &period);
+    ControllerResponse update_data_push_job_control(const std::string &job_id, const std::string &period, const std::string &body_text);
     ControllerResponse list_data_push_usage(const std::string &period);
     ControllerResponse list_supply_usage(const std::string &period);
     ControllerResponse list_supplier_settlements(const std::string &period, const std::string &supplier_account_id);

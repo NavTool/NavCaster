@@ -340,6 +340,16 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     dataPushConfigQuery.refresh();
   };
 
+  const controlDataPushJob = async (record: DataPushJob, action: 'cancel' | 'retry' | 'mark_failed' | 'mark_completed') => {
+    await adminApi.controlDataPushJob(record.job_id, {
+      action,
+      period: record.period || currentPeriod(),
+      operator_note: `admin ${action}`,
+    });
+    message.success('推送任务状态已更新');
+    dataPushJobQuery.refresh();
+  };
+
   const openSupplierSettlement = () => {
     settlementForm.resetFields();
     settlementForm.setFieldsValue({ period: currentPeriod() });
@@ -517,6 +527,19 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => formatCents(row.balance_after_cents) },
     { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (value) => dataPushJobStatusTag(value) },
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 260,
+      render: (_, row) => (
+        <Space>
+          <Button size="small" onClick={() => controlDataPushJob(row, 'mark_completed')}>完成</Button>
+          <Button size="small" onClick={() => controlDataPushJob(row, 'mark_failed')}>失败</Button>
+          <Button size="small" onClick={() => controlDataPushJob(row, 'retry')}>重试</Button>
+          <Button size="small" danger onClick={() => controlDataPushJob(row, 'cancel')}>取消</Button>
+        </Space>
+      ),
+    },
   ];
 
   const supplyColumns: ColumnsType<SupplierSupplyUsage & { key: string }> = [
@@ -595,7 +618,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       return <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
     }
     if (view === 'data-push-jobs') {
-      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1900 }} />;
+      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2180 }} />;
     }
     if (view === 'data-push-usage') {
       return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
