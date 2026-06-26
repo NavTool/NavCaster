@@ -471,6 +471,8 @@ export interface BillingUsageEntry {
   group_id?: string;
   session_id?: string;
   billing_mode?: string;
+  subscription_id?: string;
+  subscription_snapshot?: SubscriptionRecord;
   used_seconds?: number;
   stat_cost_cents?: number;
   actual_debit_cents?: number;

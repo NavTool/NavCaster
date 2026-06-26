@@ -71,6 +71,7 @@ struct auth_ctx
     json group_record;
     json member_record;
     json mount_record;
+    json subscription_records;
     VerifyCallback cb = nullptr;
     void *arg = nullptr;
 };
@@ -146,6 +147,9 @@ public:
     std::int64_t _hourly_price_cents = 0;
     double _billing_multiplier = 1.0;
     std::string _billing_mode = "payg";
+    std::string _subscription_id;
+    std::int64_t _subscription_expire_time = 0;
+    json _subscription_snapshot = json::object();
 
 public:
     int fromString(const std::string &str);
@@ -172,6 +176,9 @@ public:
     std::int64_t hourly_price_cents = 0;
     double billing_multiplier = 1.0;
     std::string billing_mode = "payg";
+    std::string subscription_id;
+    std::int64_t subscription_expire_time = 0;
+    json subscription_snapshot = json::object();
     VerifyCallback cb;
     void *arg;
 };
@@ -308,6 +315,7 @@ public:
     static void Redis_Verify_Access_Group_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Verify_Access_Member_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Verify_Access_Mount_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Subscription_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Verify_Access_Accept(auth_ctx *ctx);
 
     // 添加匿名账户的回调
@@ -322,4 +330,5 @@ public:
     // 获取激活用户信息状态的回调
     static void Redis_Update_Active_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Revalidate_Access_Runtime_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Revalidate_Access_Subscription_Callback(redisAsyncContext *c, void *r, void *privdata);
 };

@@ -180,7 +180,16 @@ NC-058 运行中连接重验：
 Auth 周期续期会对 access_runtime_enabled 的实名连接重读 AACC:ACTIVE[access_username]。
 重验 access_status、owner_status、expire_time、access_kind、mount_point_group_id 和 user_client 下一计费切片余额。
 不合规则通过 AUTH:BROADCAST 断连，并复用断开 finalization 写 BILL:ENTRY / ledger / ONLINE:SESSION 清理。
-subscription snapshot / subscription_expired 断连尚未接入。
+```
+
+NC-059 订阅和供应收益：
+
+```text
+user_client 登录时读取 SUB:ACCOUNT:<owner_account_id>，选择覆盖 mount_point_group_id 且有效的 subscription。
+命中后 ONLINE:SESSION / BILL:ENTRY 写 subscription_id 和 subscription_snapshot，billing_mode=subscription。
+subscription 模式保留 stat_cost_cents，但 actual_debit_cents=0，不写 ACC:BALANCE:LEDGER。
+Auth 周期续期会重读 SUB:ACCOUNT:<owner_account_id>[subscription_id]，过期断连 reason=subscription_expired，禁用/不覆盖 group 断连 reason=subscription_revoked。
+supplier_station 断开时 SUPPLY:USAGE:<yyyyMM> 写 earning_cents 和 earning_rule_snapshot。
 ```
 
 NC-057 数据推送用量：
@@ -230,7 +239,9 @@ actual_debit_cents > 0 时写 ACC:BALANCE:LEDGER:<yyyyMM>，同步更新 ACC:REC
   "start_time": 1710000000,
   "end_time": 1710000060,
   "used_seconds": 60,
-  "billing_mode": "payg",
+  "billing_mode": "payg|subscription",
+  "subscription_id": "<subscription_id when subscription>",
+  "subscription_snapshot": {},
   "stat_cost_cents": 100,
   "actual_debit_cents": 100,
   "disconnect_reason": "client_closed"
@@ -250,8 +261,8 @@ actual_debit_cents > 0 时写 ACC:BALANCE:LEDGER:<yyyyMM>，同步更新 ACC:REC
   "start_time": 1710000000,
   "end_time": 1710000060,
   "used_seconds": 60,
-  "earning_rule_snapshot": "fixed_hourly_rate:0",
-  "earning_cents": 0,
+  "earning_rule_snapshot": "runtime_price_snapshot:hourly_price_cents=...",
+  "earning_cents": 100,
   "status": "pending"
 }
 ```

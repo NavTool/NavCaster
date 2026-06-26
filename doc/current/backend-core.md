@@ -1,7 +1,7 @@
 # Backend Core 当前实现说明
 
 更新时间：2026-06-26
-来源：NC-035 backend-core 文档审计、源码和 NC-017 至 NC-058 任务记录。
+来源：NC-035 backend-core 文档审计、源码和 NC-017 至 NC-059 任务记录。
 
 ## 负责范围
 
@@ -21,7 +21,11 @@ proto         连接、配置、状态、监控和管理结构契约。
 - NC-058 后 Auth 周期续期会对运行中的 AccessAccount 连接重读 `AACC:ACTIVE`，
   复验 access/owner 状态、AccessAccount 过期和 user_client 下一计费切片余额。
   不合规则通过既有 `AUTH:BROADCAST` 断连，断连后仍走 NC-055 的用量和 ledger
-  finalization。subscription 命中快照和过期扫描尚未接入。
+  finalization。
+- NC-059 后 user_client 登录会命中 `SUB:ACCOUNT:<owner_account_id>` 的有效订阅并保存
+  subscription snapshot；subscription 模式写 `BILL:ENTRY` 但不扣余额，周期重验发现
+  subscription 过期/禁用/不覆盖 group 时通过 `AUTH:BROADCAST` 断连。supplier_station
+  finalization 会按运行时价格快照写入 `SUPPLY:USAGE.earning_cents`。
 - `/api/accounts/active` 和 SSE `account_actives` 的展示来源是 `ACT:SESSION:*`，并兼容 legacy `STR:ACTIVE` fallback；`ACT:ACTIVE` 是登录索引，不是在线会话来源。
 - 新 AccessAccount 运行时在线视图写入 `ONLINE:SESSION:<owner_account_id>`；断开时写 `BILL:ENTRY:<yyyyMM>`、必要的 `ACC:BALANCE:LEDGER:<yyyyMM>`，供应商站点写 `SUPPLY:USAGE:<yyyyMM>`、`STATION:RECORD` 和 `STATION:EVENT:<mountpoint>`。
 - `MPGRP:*` 是新运营挂载点分组；NC-055 会同步同名 `ACCESS:GROUP` 和 `ACCESS:ITEM:<group_id>`，让旧 Caster AccessPolicy 能识别新分组成员。
@@ -39,7 +43,7 @@ proto         连接、配置、状态、监控和管理结构契约。
 | Relay start/stop/data forwarding | NC-026、NC-027、NC-028 任务、QA、Review。 |
 | Master lease / Cluster / Relay failover | NC-029、NC-030、NC-031、NC-033 任务、QA、Review。 |
 | Ninja 构建默认口径 | NC-034 任务、QA、Review。 |
-| Account/AccessAccount runtime | NC-051、NC-054、NC-055、NC-058 任务、QA、Review。 |
+| Account/AccessAccount runtime | NC-051、NC-054、NC-055、NC-058、NC-059 任务、QA、Review。 |
 
 ## 不要误用
 
