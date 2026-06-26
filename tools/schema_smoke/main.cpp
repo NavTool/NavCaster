@@ -1,5 +1,6 @@
 #include "account_repository.h"
 #include "account_controller.h"
+#include "account_domain_repository.h"
 #include "account_schema.h"
 #include "audit_log_service.h"
 #include "auth_session_service.h"
@@ -1796,6 +1797,234 @@ int main()
     expect_missing(active_sessions["conflict"], "password", "repository active sessions strips legacy password");
     expect_missing(active_sessions["conflict"], "password_salt", "repository active sessions strips session salt");
     expect_missing(active_sessions["session-1"], "password_hash", "repository active sessions strips session hash");
+
+    {
+        FakeRedisHashClient domain_redis;
+        navcaster::storage::AccountDomainRepository domain_repo(domain_redis);
+
+        auto domain_result = domain_repo.create_account({
+            {"account_id", "acc-user"},
+            {"username", "customer-a"},
+            {"role", "user"},
+            {"status", "active"},
+            {"balance_cents", 10000},
+            {"concurrency_limit", 3},
+        }, 5000);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain account create user ok");
+        expect_eq(domain_result.id, "acc-user", "domain account id");
+        expect_true(domain_redis.hget(navcaster::redis_keys::ACC_RECORD, "acc-user").is_object(), "domain account writes ACC:RECORD");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::ACC_USERNAME, "customer-a").value("id", std::string{}), "acc-user", "domain account username index");
+        expect_true(domain_repo.create_account({{"account_id", "acc-bad"}, {"username", "bad"}, {"role", "operator"}}, 5001).status == navcaster::storage::RepositoryStatus::Invalid, "domain rejects invalid role");
+        expect_true(domain_repo.create_account({{"account_id", "acc-other"}, {"username", "customer-a"}, {"role", "user"}}, 5001).status == navcaster::storage::RepositoryStatus::Conflict, "domain account username unique");
+        expect_true(domain_repo.create_account({{"account_id", "acc-user"}, {"username", "new-failed-name"}, {"role", "user"}}, 5001).status == navcaster::storage::RepositoryStatus::Conflict, "domain duplicate account id rejected");
+        expect_true(domain_redis.hget(navcaster::redis_keys::ACC_USERNAME, "new-failed-name").is_null(), "domain failed account create does not tombstone username");
+
+        domain_result = domain_repo.create_account({
+            {"account_id", "acc-supplier"},
+            {"username", "supplier-a"},
+            {"role", "supplier"},
+            {"status", "active"},
+            {"concurrency_limit", 2},
+        }, 5002);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain supplier account create ok");
+
+        domain_result = domain_repo.create_account({
+            {"account_id", "acc-admin"},
+            {"username", "admin-a"},
+            {"role", "admin"},
+            {"status", "active"},
+        }, 5003);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain admin account create ok");
+
+        expect_true(domain_repo.create_mount_point_group({
+            {"group_id", "mpg-basic"},
+            {"name", "Basic"},
+            {"billing_multiplier", 1.25},
+        }, 5010).status == navcaster::storage::RepositoryStatus::Ok, "domain mount point group create");
+        expect_true(domain_repo.create_mount_point({{"mountpoint", "BASE01"}, {"hourly_price_cents", 120}}, 5011).status == navcaster::storage::RepositoryStatus::Ok, "domain mount point create");
+        expect_true(domain_repo.add_mount_point_group_member("mpg-basic", {{"mountpoint", "BASE01"}}, 5012).status == navcaster::storage::RepositoryStatus::Ok, "domain group member create");
+        expect_true(domain_redis.hget(navcaster::redis_keys::mpgrp_member("mpg-basic").c_str(), "BASE01").is_object(), "domain group member key");
+        expect_true(domain_repo.grant_account_group("acc-user", {{"group_id", "mpg-basic"}}, 5013).status == navcaster::storage::RepositoryStatus::Ok, "domain user group grant");
+        expect_true(domain_repo.grant_account_group("acc-supplier", {{"group_id", "mpg-basic"}}, 5014).status == navcaster::storage::RepositoryStatus::Ok, "domain supplier group grant");
+        expect_true(domain_repo.grant_account_group("acc-admin", {{"group_id", "mpg-basic"}}, 5015).status == navcaster::storage::RepositoryStatus::Ok, "domain admin group grant");
+
+        domain_result = domain_repo.create_access_account({
+            {"access_account_id", "aacc-user-1"},
+            {"owner_account_id", "acc-user"},
+            {"username", "rover-user"},
+            {"kind", "user_client"},
+            {"status", "active"},
+            {"mount_point_group_id", "mpg-basic"},
+            {"concurrency_limit", 1},
+        }, 5020);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain user access account create ok");
+        expect_true(domain_redis.hget(navcaster::redis_keys::AACC_RECORD, "aacc-user-1").is_object(), "domain access account writes AACC:RECORD");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::AACC_USERNAME, "rover-user").value("id", std::string{}), "aacc-user-1", "domain access username index");
+        auto active_access = domain_redis.hget(navcaster::redis_keys::AACC_ACTIVE, "rover-user");
+        expect_eq(active_access.value("owner_account_id", std::string{}), "acc-user", "domain access active owner");
+        expect_eq(active_access.value("owner_role", std::string{}), "user", "domain access active owner role");
+        expect_true(domain_redis.hget(navcaster::redis_keys::aacc_owner("acc-user").c_str(), "aacc-user-1").is_object(), "domain owner access summary");
+
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-user-bad-kind"},
+            {"owner_account_id", "acc-user"},
+            {"username", "bad-station"},
+            {"kind", "supplier_station"},
+            {"mount_point_group_id", "mpg-basic"},
+        }, 5021).status == navcaster::storage::RepositoryStatus::Invalid, "domain user cannot create supplier station");
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-no-grant"},
+            {"owner_account_id", "acc-user"},
+            {"username", "no-grant"},
+            {"kind", "user_client"},
+            {"mount_point_group_id", "mpg-missing"},
+        }, 5022).status == navcaster::storage::RepositoryStatus::Invalid, "domain access account requires granted group");
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-over-limit"},
+            {"owner_account_id", "acc-user"},
+            {"username", "over-limit"},
+            {"kind", "user_client"},
+            {"mount_point_group_id", "mpg-basic"},
+            {"concurrency_limit", 4},
+        }, 5022).status == navcaster::storage::RepositoryStatus::Invalid, "domain access concurrency cannot exceed owner");
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-dup-username"},
+            {"owner_account_id", "acc-user"},
+            {"username", "rover-user"},
+            {"kind", "user_client"},
+            {"mount_point_group_id", "mpg-basic"},
+        }, 5023).status == navcaster::storage::RepositoryStatus::Conflict, "domain access username unique");
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-user-1"},
+            {"owner_account_id", "acc-user"},
+            {"username", "new-failed-access-name"},
+            {"kind", "user_client"},
+            {"mount_point_group_id", "mpg-basic"},
+        }, 5023).status == navcaster::storage::RepositoryStatus::Conflict, "domain duplicate access account id rejected");
+        expect_true(domain_redis.hget(navcaster::redis_keys::AACC_USERNAME, "new-failed-access-name").is_null(), "domain failed access create does not tombstone username");
+
+        domain_result = domain_repo.create_access_account({
+            {"access_account_id", "aacc-supplier-1"},
+            {"owner_account_id", "acc-supplier"},
+            {"username", "station-supplier"},
+            {"kind", "supplier_station"},
+            {"mount_point_group_id", "mpg-basic"},
+        }, 5024);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain supplier station create ok");
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-admin-station"},
+            {"owner_account_id", "acc-admin"},
+            {"username", "admin-station"},
+            {"kind", "supplier_station"},
+            {"mount_point_group_id", "mpg-basic"},
+        }, 5025).status == navcaster::storage::RepositoryStatus::Ok, "domain admin super role creates own station access account");
+
+        expect_true(domain_repo.delete_access_account("aacc-user-1", 5030).status == navcaster::storage::RepositoryStatus::Ok, "domain delete access tombstones");
+        expect_true(domain_redis.hget(navcaster::redis_keys::AACC_ACTIVE, "rover-user").is_null(), "domain delete access removes active index");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::AACC_USERNAME, "rover-user").value("status", std::string{}), "deleted", "domain access username tombstone");
+        expect_true(domain_repo.create_access_account({
+            {"access_account_id", "aacc-user-2"},
+            {"owner_account_id", "acc-user"},
+            {"username", "rover-user"},
+            {"kind", "user_client"},
+            {"mount_point_group_id", "mpg-basic"},
+        }, 5031).status == navcaster::storage::RepositoryStatus::Conflict, "domain deleted access username cannot be reused");
+
+        expect_true(domain_repo.create_subscription({
+            {"subscription_id", "sub-user-1"},
+            {"account_id", "acc-user"},
+            {"group_ids", nlohmann::json::array({"mpg-basic"})},
+            {"status", "active"},
+            {"expire_time", 7000},
+        }, 5040).status == navcaster::storage::RepositoryStatus::Ok, "domain subscription create");
+        expect_true(domain_redis.hget(navcaster::redis_keys::sub_account("acc-user").c_str(), "sub-user-1").is_object(), "domain subscription account index");
+
+        domain_result = domain_repo.upsert_station_record({
+            {"mountpoint", "BASE01"},
+            {"station_id", "station-base01"},
+            {"last_access_account_id", "aacc-supplier-1"},
+            {"last_supplier_account_id", "acc-supplier"},
+            {"current_online", true},
+        }, 5050);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain station record upsert");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::STATION_RECORD, "BASE01").value("last_supplier_account_id", std::string{}), "acc-supplier", "domain station supplier snapshot");
+        expect_true(domain_repo.append_station_event({
+            {"event_id", "station-event-1"},
+            {"mountpoint", "BASE01"},
+            {"event_type", "login"},
+            {"supplier_account_id", "acc-supplier"},
+            {"access_account_id", "aacc-supplier-1"},
+            {"session_id", "session-1"},
+        }, 5051).status == navcaster::storage::RepositoryStatus::Ok, "domain station event append");
+        auto station_events = domain_redis.lrange(navcaster::redis_keys::station_event("BASE01").c_str(), 0, 0);
+        expect_eq(station_events[0].value("access_account_id", std::string{}), "aacc-supplier-1", "domain station event trace access account");
+        domain_result = domain_repo.upsert_station_record({
+            {"mountpoint", "BASE01"},
+            {"last_access_account_id", "aacc-supplier-1"},
+            {"current_online", false},
+        }, 5052);
+        expect_eq(domain_result.record.value("station_id", std::string{}), "station-base01", "domain station upsert preserves station id");
+        expect_eq_int(domain_result.record.value("first_seen_time", 0), 5050, "domain station upsert preserves first seen");
+
+        expect_true(domain_repo.append_balance_ledger({
+            {"ledger_id", "ledger-1"},
+            {"account_id", "acc-user"},
+            {"delta_cents", -10},
+            {"balance_after_cents", 9990},
+            {"source", "billing_tick"},
+        }, "202606", 5060).status == navcaster::storage::RepositoryStatus::Ok, "domain balance ledger append");
+        expect_true(domain_repo.append_balance_ledger({
+            {"ledger_id", "ledger-1"},
+            {"account_id", "acc-user"},
+        }, "202606", 5061).status == navcaster::storage::RepositoryStatus::Conflict, "domain balance ledger duplicate");
+
+        nlohmann::json billing_entry = {
+            {"billing_id", "bill-1"},
+            {"fingerprint", "fp-1"},
+            {"account_id", "acc-user"},
+            {"access_account_id", "aacc-user-1"},
+            {"mountpoint", "BASE01"},
+            {"used_seconds", 60},
+            {"stat_cost_cents", 2},
+            {"actual_debit_cents", 2},
+        };
+        expect_true(domain_repo.append_billing_usage(billing_entry, "202606", 5070).status == navcaster::storage::RepositoryStatus::Ok, "domain billing append");
+        expect_true(domain_repo.append_billing_usage(billing_entry, "202606", 5071).status == navcaster::storage::RepositoryStatus::Ok, "domain billing idempotent replay");
+        billing_entry["fingerprint"] = "fp-2";
+        expect_true(domain_repo.append_billing_usage(billing_entry, "202606", 5072).status == navcaster::storage::RepositoryStatus::Conflict, "domain billing fingerprint mismatch rejected");
+        expect_true(domain_redis.hget(navcaster::redis_keys::bill_entry("202606").c_str(), "bill-1").is_object(), "domain billing entry key");
+        auto bill_account_ids = domain_redis.lrange(navcaster::redis_keys::bill_account("acc-user", "202606").c_str(), 0, 0);
+        expect_eq(bill_account_ids[0].get<std::string>(), "bill-1", "domain billing account index");
+
+        expect_true(domain_repo.append_data_push_usage({
+            {"usage_id", "push-usage-1"},
+            {"account_id", "acc-user"},
+            {"target_mountpoint", "BASE01"},
+            {"used_seconds", 30},
+        }, "202606", 5080).status == navcaster::storage::RepositoryStatus::Ok, "domain data push append");
+        expect_true(domain_repo.append_supplier_supply_usage({
+            {"usage_id", "supply-1"},
+            {"supplier_account_id", "acc-supplier"},
+            {"access_account_id", "aacc-supplier-1"},
+            {"mountpoint", "BASE01"},
+            {"used_seconds", 120},
+            {"earning_cents", 5},
+        }, "202606", 5081).status == navcaster::storage::RepositoryStatus::Ok, "domain supplier supply append");
+        expect_true(domain_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "push-usage-1").is_object(), "domain data push key");
+        expect_true(domain_redis.hget(navcaster::redis_keys::supply_usage("202606").c_str(), "supply-1").is_object(), "domain supply key");
+
+        expect_true(domain_repo.delete_account("acc-user", 5090).status == navcaster::storage::RepositoryStatus::Ok, "domain account delete tombstones");
+        expect_eq(domain_redis.hget(navcaster::redis_keys::ACC_USERNAME, "customer-a").value("status", std::string{}), "deleted", "domain account username tombstone");
+        expect_true(domain_repo.create_account({
+            {"account_id", "acc-user-reuse"},
+            {"username", "customer-a"},
+            {"role", "user"},
+        }, 5091).status == navcaster::storage::RepositoryStatus::Conflict, "domain deleted account username cannot be reused");
+        expect_true(domain_repo.update_account("acc-user", {
+            {"role", "user"},
+            {"balance_cents", 12000},
+        }, 5092).status == navcaster::storage::RepositoryStatus::NotFound, "domain deleted account cannot be updated");
+    }
 
     FakeRedisHashClient account_controller_redis;
     navcaster::http_api::AccountController account_controller(account_controller_redis, 12000);
