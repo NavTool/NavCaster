@@ -283,6 +283,7 @@ private:
     int update_access_online_session(const auth_cb_item &item, std::time_t update_time);
     int write_access_runtime_login(const auth_cb_item &item, std::time_t update_time);
     int finalize_access_runtime_session(const auth_cb_item &item, const char *disconnect_reason);
+    int revalidate_access_runtime_session(const auth_cb_item &item, std::time_t update_time);
 
     int broadcast_response(std::string req_str); // 从节点执行：Relay任务响应
 
@@ -320,4 +321,5 @@ public:
 
     // 获取激活用户信息状态的回调
     static void Redis_Update_Active_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Revalidate_Access_Runtime_Callback(redisAsyncContext *c, void *r, void *privdata);
 };

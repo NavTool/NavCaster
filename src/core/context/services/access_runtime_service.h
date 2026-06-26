@@ -49,6 +49,17 @@ struct AccessRuntimeRecordInput
     std::string disconnect_reason;
 };
 
+struct AccessRuntimeSessionRevalidationInput
+{
+    nlohmann::json active_record;
+    std::string auth_type;
+    std::string mountpoint;
+    std::int64_t now = 0;
+    std::int64_t next_slice_seconds = 60;
+    std::int64_t hourly_price_cents = 0;
+    double billing_multiplier = 1.0;
+};
+
 inline bool is_access_runtime_auth_index(const nlohmann::json &record)
 {
     return record.is_object() &&
@@ -170,6 +181,37 @@ inline std::int64_t calculate_runtime_cost_cents(std::int64_t used_seconds,
                         static_cast<double>(hourly_price_cents) *
                         billing_multiplier;
     return static_cast<std::int64_t>(std::llround(cost));
+}
+
+inline AccessRuntimeValidation revalidate_access_runtime_session(const AccessRuntimeSessionRevalidationInput &input)
+{
+    const bool require_mountpoint = input.auth_type != "source";
+    auto validation = validate_access_auth_index(
+        input.active_record,
+        input.auth_type,
+        input.mountpoint,
+        input.now,
+        require_mountpoint);
+    if (!validation.ok)
+    {
+        return validation;
+    }
+
+    const std::string kind = json_record::string_field(input.active_record, "access_kind");
+    if (kind == ACCESS_RUNTIME_KIND_USER_CLIENT)
+    {
+        const std::int64_t balance = json_record::as_i64(input.active_record.value("balance_cents", 0), 0);
+        const std::int64_t credit = json_record::as_i64(input.active_record.value("credit_limit_cents", 0), 0);
+        const auto next_slice_cost = calculate_runtime_cost_cents(
+            input.next_slice_seconds,
+            input.hourly_price_cents,
+            input.billing_multiplier);
+        if (next_slice_cost > 0 && next_slice_cost > balance + credit)
+        {
+            return {false, "balance_insufficient"};
+        }
+    }
+    return {true, ""};
 }
 
 inline std::string runtime_billing_id(const AccessRuntimeRecordInput &input)
