@@ -1,5 +1,6 @@
 #include "account_domain.h"
 
+#include "account_schema.h"
 #include "json_record.h"
 
 #include <utility>
@@ -151,6 +152,7 @@ bool normalize_account_record(nlohmann::json &record, std::int64_t now, std::str
     {
         return fail(error, "account numeric fields must be non-negative");
     }
+    normalize_password_material(record);
     touch(record, now);
     return true;
 }
@@ -220,8 +222,61 @@ bool normalize_access_account(nlohmann::json &record, std::int64_t now, std::str
     {
         return fail(error, "access account numeric fields must be non-negative");
     }
+    normalize_password_material(record);
     touch(record, now);
     return true;
+}
+
+void normalize_password_material(nlohmann::json &record)
+{
+    if (!json_record::has_nonempty_string_field(record, "password"))
+    {
+        if (json_record::has_nonempty_string_field(record, "password_hash"))
+        {
+            record.erase("password");
+        }
+        else
+        {
+            record.erase("password");
+        }
+        return;
+    }
+
+    const std::string password = record.value("password", std::string{});
+    const std::string salt = record.value("password_salt", std::string("access-account-salt"));
+    const int iterations = record.value("password_iterations", account_schema::DEFAULT_PASSWORD_ITERATIONS);
+    const int normalized_iterations = iterations <= 0 ? account_schema::DEFAULT_PASSWORD_ITERATIONS : iterations;
+    record["password_hash"] = account_schema::make_password_hash(password, salt, normalized_iterations);
+    record["password_algo"] = account_schema::PASSWORD_ALGO_PBKDF2_SHA256;
+    record["password_salt"] = salt;
+    record["password_iterations"] = normalized_iterations;
+    record.erase("password");
+}
+
+void preserve_existing_password_material(nlohmann::json &record, const nlohmann::json &existing)
+{
+    if (json_record::has_nonempty_string_field(record, "password") ||
+        json_record::has_nonempty_string_field(record, "password_hash"))
+    {
+        return;
+    }
+    record.erase("password");
+    if (existing.contains("password_hash"))
+    {
+        record["password_hash"] = existing["password_hash"];
+    }
+    if (existing.contains("password_algo"))
+    {
+        record["password_algo"] = existing["password_algo"];
+    }
+    if (existing.contains("password_salt"))
+    {
+        record["password_salt"] = existing["password_salt"];
+    }
+    if (existing.contains("password_iterations"))
+    {
+        record["password_iterations"] = existing["password_iterations"];
+    }
 }
 
 bool normalize_subscription(nlohmann::json &record, std::int64_t now, std::string *error)

@@ -48,7 +48,8 @@ param(
     [switch]$IncludeRelayPushFailover,
     [switch]$IncludeNtripDisabledAccount,
     [switch]$IncludeRedisReconnect,
-    [switch]$IncludeOperationsApi
+    [switch]$IncludeOperationsApi,
+    [switch]$IncludeSelfServiceApi
 )
 
 $ErrorActionPreference = "Stop"
@@ -2635,11 +2636,13 @@ function Invoke-E2eLoginWithHeaders {
     param(
         [string]$Base,
         [hashtable]$ExtraHeaders = @{},
-        [string]$Context = "login"
+        [string]$Context = "login",
+        [string]$Username = $AdminUser,
+        [string]$Password = $AdminPassword
     )
 
-    Say "logging in as $AdminUser ($Context)"
-    $loginBody = @{ username = $AdminUser; password = $AdminPassword } | ConvertTo-Json -Compress
+    Say "logging in as $Username ($Context)"
+    $loginBody = @{ username = $Username; password = $Password } | ConvertTo-Json -Compress
     $requestHeaders = Copy-E2eHeaders $ExtraHeaders
     $login = Invoke-RestMethod -Method Post -Headers $requestHeaders -ContentType "application/json" -Body $loginBody -Uri "$Base/api/auth/login" -TimeoutSec 10
     if (-not $login.token) {
@@ -2810,6 +2813,166 @@ function Invoke-OperationsApiSmoke {
     $supply = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/supply-usage?period=202606" -TimeoutSec 10
     if ($null -eq $supply) {
         Fail "operations supply usage list returned null"
+    }
+}
+
+function Get-HttpStatusCode {
+    param(
+        [scriptblock]$Request,
+        [string]$Context
+    )
+
+    try {
+        & $Request | Out-Null
+        return 200
+    }
+    catch {
+        if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+            return [int]$_.Exception.Response.StatusCode
+        }
+        Fail "$Context failed without HTTP status: $($_.Exception.Message)"
+    }
+}
+
+function Invoke-SelfServiceApiSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$AdminHeaders
+    )
+
+    Say "validating /api/v1 self-service API"
+    $prefix = "nc054_$PID"
+    $userAccountId = "${prefix}_user_acc"
+    $supplierAccountId = "${prefix}_supplier_acc"
+    $adminAccountId = "${prefix}_admin_acc"
+    $userName = "${prefix}_user"
+    $supplierName = "${prefix}_supplier"
+    $adminName = "${prefix}_admin"
+    $password = "self-service-pass"
+    $groupId = "${prefix}_grp"
+    $otherGroupId = "${prefix}_other_grp"
+    $mount = "${prefix}_MPT"
+    $userAccessId = "${prefix}_user_aacc"
+    $supplierAccessId = "${prefix}_supplier_aacc"
+
+    foreach ($body in @(
+        @{ account_id = $userAccountId; username = $userName; role = "user"; password = $password; balance_cents = 5000; concurrency_limit = 2 },
+        @{ account_id = $supplierAccountId; username = $supplierName; role = "supplier"; password = $password; balance_cents = 0; concurrency_limit = 2 },
+        @{ account_id = $adminAccountId; username = $adminName; role = "admin"; password = $password; balance_cents = 0; concurrency_limit = 2 }
+    )) {
+        $created = Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body ($body | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts" -TimeoutSec 10
+        if ($created.account_id -ne $body.account_id -or $created.PSObject.Properties["password_hash"]) {
+            Fail "self-service fixture account create mismatch: $(ConvertTo-CompactJson $created)"
+        }
+    }
+
+    foreach ($body in @(
+        @{ group_id = $groupId; name = "NC-054 group"; billing_multiplier = 1.0 },
+        @{ group_id = $otherGroupId; name = "NC-054 other group"; billing_multiplier = 1.0 }
+    )) {
+        Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body ($body | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-point-groups" -TimeoutSec 10 | Out-Null
+    }
+    Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ hourly_price_cents = 100 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-points/$mount" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ mountpoint = $mount } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-point-groups/$groupId/members" -TimeoutSec 10 | Out-Null
+    foreach ($accountId in @($userAccountId, $supplierAccountId, $adminAccountId)) {
+        Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ group_id = $groupId } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts/$accountId/group-grants" -TimeoutSec 10 | Out-Null
+    }
+
+    $userLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "self-service user" -Username $userName -Password $password
+    $supplierLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "self-service supplier" -Username $supplierName -Password $password
+    $adminLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "self-service admin" -Username $adminName -Password $password
+
+    $session = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/auth/session" -TimeoutSec 10
+    if ($session.role -ne "user" -or $session.account_id -ne $userAccountId -or $session.compat_admin -ne $false) {
+        Fail "self-service user session mismatch: $(ConvertTo-CompactJson $session)"
+    }
+
+    $adminStatus = Get-HttpStatusCode -Context "user calling admin API" -Request {
+        Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/admin/accounts" -TimeoutSec 10
+    }
+    if ($adminStatus -ne 403) {
+        Fail "self-service user admin API expected 403, got $adminStatus"
+    }
+
+    $supplierScopeStatus = Get-HttpStatusCode -Context "user calling supplier API" -Request {
+        Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/supplier/profile" -TimeoutSec 10
+    }
+    if ($supplierScopeStatus -ne 403) {
+        Fail "self-service user supplier API expected 403, got $supplierScopeStatus"
+    }
+
+    $groups = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/allowed-groups" -TimeoutSec 10
+    if (-not $groups.PSObject.Properties[$groupId]) {
+        Fail "self-service user allowed groups missing $groupId"
+    }
+
+    $mounts = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/mount-points" -TimeoutSec 10
+    if (-not $mounts.PSObject.Properties[$mount]) {
+        Fail "self-service user mount-points missing $mount"
+    }
+
+    $badGroupStatus = Get-HttpStatusCode -Context "self-service user ungranted group" -Request {
+        $badBody = @{
+            access_account_id = "${prefix}_bad_group"
+            username = "${prefix}_bad_group_user"
+            mount_point_group_id = $otherGroupId
+        } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body $badBody -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10
+    }
+    if ($badGroupStatus -ne 400) {
+        Fail "self-service ungranted group expected 400, got $badGroupStatus"
+    }
+
+    $userAccessBody = @{
+        access_account_id = $userAccessId
+        owner_account_id = $supplierAccountId
+        username = "${prefix}_rover"
+        kind = "supplier_station"
+        password = "rover-pass"
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+    } | ConvertTo-Json -Compress
+    $userAccess = Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body $userAccessBody -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10
+    if ($userAccess.owner_account_id -ne $userAccountId -or $userAccess.kind -ne "user_client" -or $userAccess.PSObject.Properties["password_hash"]) {
+        Fail "self-service user access create mismatch: $(ConvertTo-CompactJson $userAccess)"
+    }
+
+    $userAccessList = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10
+    if (-not $userAccessList.PSObject.Properties[$userAccessId]) {
+        Fail "self-service user access list missing $userAccessId"
+    }
+
+    $supplierAccessBody = @{
+        access_account_id = $supplierAccessId
+        username = "${prefix}_station"
+        kind = "user_client"
+        password = "station-pass"
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+    } | ConvertTo-Json -Compress
+    $supplierAccess = Invoke-RestMethod -Method Post -Headers $supplierLogin.Headers -ContentType "application/json" -Body $supplierAccessBody -Uri "$Base/api/v1/supplier/access-accounts" -TimeoutSec 10
+    if ($supplierAccess.owner_account_id -ne $supplierAccountId -or $supplierAccess.kind -ne "supplier_station") {
+        Fail "self-service supplier access create mismatch: $(ConvertTo-CompactJson $supplierAccess)"
+    }
+
+    $crossReadStatus = Get-HttpStatusCode -Context "user reading supplier access account" -Request {
+        Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/access-accounts/$supplierAccessId" -TimeoutSec 10
+    }
+    if ($crossReadStatus -ne 404) {
+        Fail "self-service cross-owner read expected 404, got $crossReadStatus"
+    }
+
+    $updated = Invoke-RestMethod -Method Put -Headers $userLogin.Headers -ContentType "application/json" -Body (@{ owner_account_id = $supplierAccountId; kind = "supplier_station"; status = "disabled"; mount_point_group_id = $groupId; concurrency_limit = 1 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts/$userAccessId" -TimeoutSec 10
+    if ($updated.owner_account_id -ne $userAccountId -or $updated.kind -ne "user_client" -or $updated.status -ne "disabled") {
+        Fail "self-service user access update mismatch: $(ConvertTo-CompactJson $updated)"
+    }
+
+    Invoke-RestMethod -Method Put -Headers $userLogin.Headers -ContentType "application/json" -Body (@{ password = "rotated-pass" } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts/$userAccessId/password" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Delete -Headers $userLogin.Headers -Uri "$Base/api/v1/me/access-accounts/$userAccessId" -TimeoutSec 10 | Out-Null
+
+    $adminSelfAccess = Invoke-RestMethod -Method Post -Headers $adminLogin.Headers -ContentType "application/json" -Body (@{ access_account_id = "${prefix}_admin_station"; username = "${prefix}_admin_station"; password = "admin-station-pass"; mount_point_group_id = $groupId } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/supplier/access-accounts" -TimeoutSec 10
+    if ($adminSelfAccess.owner_account_id -ne $adminAccountId -or $adminSelfAccess.kind -ne "supplier_station") {
+        Fail "self-service admin supplier scope mismatch: $(ConvertTo-CompactJson $adminSelfAccess)"
     }
 }
 
@@ -6160,7 +6323,7 @@ try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
 
     if ($IncludeDockerBridgeCluster) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi
         if ($otherIncludes) {
             Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
         }
@@ -6190,7 +6353,7 @@ try {
     }
 
     if ($IncludeHttpIngressStrategy) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi
         if ($otherIncludes) {
             Fail "HTTP ingress strategy smoke must run in a separate lifecycle because it creates its own Docker network, Redis, NavCaster containers, and nginx proxy."
         }
@@ -6498,6 +6661,10 @@ try {
 
     if ($IncludeOperationsApi) {
         Invoke-OperationsApiSmoke $base $headers
+    }
+
+    if ($IncludeSelfServiceApi) {
+        Invoke-SelfServiceApiSmoke $base $headers
     }
 
     Say "PASS health/login/status/cluster smoke"

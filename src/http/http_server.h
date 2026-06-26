@@ -65,6 +65,12 @@ public:
     // Set auth token validator
     void set_auth_validator(std::function<bool(const std::string &token)> validator);
 
+    // Set authenticated request authorizer. Called after token validation for
+    // non-public paths and can return a JSON response such as 403.
+    void set_access_authorizer(std::function<bool(const HttpRequest &request,
+                                                  const std::string &token,
+                                                  HttpResponse &response)> authorizer);
+
     // Resolve actor (user name) from a bearer token. Returns empty if not
     // resolvable. Used by audit logging.
     void set_actor_resolver(std::function<std::string(const std::string &token)> resolver);
@@ -111,6 +117,7 @@ private:
     std::vector<RouteEntry> _routes;
     std::string _cors_origin;
     std::function<bool(const std::string &)> _auth_validator;
+    std::function<bool(const HttpRequest &, const std::string &, HttpResponse &)> _access_authorizer;
     std::function<std::string(const std::string &)> _actor_resolver;
     AuditSink _audit_sink;
     std::vector<std::string> _public_paths;

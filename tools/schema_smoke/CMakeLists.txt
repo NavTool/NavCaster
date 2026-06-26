@@ -64,6 +64,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/http/node_log_level_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/node_history_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/operations_controller.cpp
+    ${CMAKE_SOURCE_DIR}/src/http/self_service_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/relay_controller.cpp
     ${CMAKE_SOURCE_DIR}/src/http/redis_monitor_service.cpp
     ${CMAKE_SOURCE_DIR}/src/http/ring_log_service.cpp

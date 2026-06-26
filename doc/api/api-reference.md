@@ -173,6 +173,37 @@
 | `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
 | `GET` | `/api/v1/admin/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 列出供应事实 |
 
+### Self-Service APIs
+
+`/api/v1/me/*` 允许 `role=user` 或 `role=admin`，`/api/v1/supplier/*`
+允许 `role=supplier` 或 `role=admin`。owner Account 一律从 Bearer token
+subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 owner/scope。
+
+| Method | Path | Redis | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/me/profile` | `ACC:RECORD` | 当前用户 Account 脱敏资料 |
+| `GET` | `/api/v1/me/dashboard` | `ACC:*` / `AACC:*` | 当前用户余额、授权和接入账号摘要 |
+| `GET` | `/api/v1/me/allowed-groups` | `ACC:GROUP:{account_id}` / `MPGRP:RECORD` | 当前用户已授权分组 |
+| `GET` | `/api/v1/me/mount-points` | `MPGRP:MEMBER:*` / `MOUNT:RECORD` | 当前用户可见挂载点 |
+| `GET` | `/api/v1/me/access-accounts` | `AACC:RECORD` | 当前用户 `user_client` 接入账号 |
+| `POST` | `/api/v1/me/access-accounts` | `AACC:*` | 创建当前用户 `user_client` 接入账号 |
+| `GET` | `/api/v1/me/access-accounts/{id}` | `AACC:RECORD` | 查询自己的接入账号 |
+| `PUT` | `/api/v1/me/access-accounts/{id}` | `AACC:*` | 更新自己的接入账号状态、分组、并发等 |
+| `PUT` | `/api/v1/me/access-accounts/{id}/password` | `AACC:*` | 更新自己的接入账号密码 |
+| `DELETE` | `/api/v1/me/access-accounts/{id}` | `AACC:*` | 软删除自己的接入账号并 tombstone username |
+| `GET` | `/api/v1/me/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 当前用户计费用量事实 |
+| `GET` | `/api/v1/supplier/profile` | `ACC:RECORD` | 当前供应商 Account 脱敏资料 |
+| `GET` | `/api/v1/supplier/dashboard` | `ACC:*` / `SUPPLY:*` | 当前供应商供应摘要 |
+| `GET` | `/api/v1/supplier/access-accounts` | `AACC:RECORD` | 当前供应商 `supplier_station` 接入账号 |
+| `POST` | `/api/v1/supplier/access-accounts` | `AACC:*` | 创建当前供应商 `supplier_station` 接入账号 |
+| `GET` | `/api/v1/supplier/access-accounts/{id}` | `AACC:RECORD` | 查询自己的供应接入账号 |
+| `PUT` | `/api/v1/supplier/access-accounts/{id}` | `AACC:*` | 更新自己的供应接入账号 |
+| `PUT` | `/api/v1/supplier/access-accounts/{id}/password` | `AACC:*` | 更新自己的供应接入账号密码 |
+| `DELETE` | `/api/v1/supplier/access-accounts/{id}` | `AACC:*` | 软删除自己的供应接入账号 |
+| `GET` | `/api/v1/supplier/stations` | `STATION:RECORD` | 当前供应商最近供应过的站点 |
+| `GET` | `/api/v1/supplier/supply-usage?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 当前供应商供应事实 |
+| `GET` | `/api/v1/supplier/earnings?period=yyyyMM` | `SUPPLY:USAGE:{period}` | 当前供应商收益摘要 |
+
 通用错误：
 
 ```json

@@ -56,6 +56,7 @@ private:
     void handle_login(const HttpRequest &req, HttpResponse &resp);
     void handle_logout(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_session(const HttpRequest &req, HttpResponse &resp);
+    bool authorize_request(const HttpRequest &req, const std::string &token, HttpResponse &resp);
 
     // Operations domain endpoints (ACC:* / AACC:* / billing keys)
     void handle_v1_admin_accounts(const HttpRequest &req, HttpResponse &resp);
@@ -70,6 +71,22 @@ private:
     void handle_v1_admin_stations(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_supply_usage(const HttpRequest &req, HttpResponse &resp);
+
+    // Self-service domain endpoints
+    void handle_v1_me_profile(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_dashboard(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_allowed_groups(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_mount_points(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_access_accounts(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_access_account(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_profile(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_dashboard(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_access_accounts(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_access_account(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_stations(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_supply_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_supplier_earnings(const HttpRequest &req, HttpResponse &resp);
 
     // Account endpoints (ACT:RECORD) — uses auth_redis
     void handle_get_accounts(const HttpRequest &req, HttpResponse &resp);

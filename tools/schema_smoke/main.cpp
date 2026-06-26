@@ -49,6 +49,7 @@
 #include "sse_snapshot_service.h"
 #include "status_service.h"
 #include "system_event_service.h"
+#include "self_service_controller.h"
 #include "source_table_service.h"
 #include "auth_record_limit.h"
 #include "auth_session_record.h"
@@ -2110,6 +2111,169 @@ int main()
 
         expect_eq_int(operations.delete_account("op-user").status_code, 200, "operations delete account");
         expect_true(operations.create_account(R"({"account_id":"op-reuse","username":"op-customer","role":"user"})").status_code == 409, "operations deleted username cannot be reused");
+    }
+
+    {
+        FakeRedisHashClient self_redis;
+        navcaster::storage::AccountDomainRepository domain_repo(self_redis);
+        navcaster::http_api::SelfServiceController self_service(self_redis, 7000);
+
+        expect_true(domain_repo.create_account({
+            {"account_id", "self-user"},
+            {"username", "self-user-login"},
+            {"role", "user"},
+            {"password", "user-pass"},
+            {"concurrency_limit", 2},
+        }, 7001).status == navcaster::storage::RepositoryStatus::Ok, "self service user account fixture");
+        expect_true(domain_repo.create_account({
+            {"account_id", "self-supplier"},
+            {"username", "self-supplier-login"},
+            {"role", "supplier"},
+            {"password", "supplier-pass"},
+            {"concurrency_limit", 2},
+        }, 7002).status == navcaster::storage::RepositoryStatus::Ok, "self service supplier account fixture");
+        expect_true(domain_repo.create_account({
+            {"account_id", "self-admin"},
+            {"username", "self-admin-login"},
+            {"role", "admin"},
+            {"password", "admin-pass"},
+            {"concurrency_limit", 3},
+        }, 7003).status == navcaster::storage::RepositoryStatus::Ok, "self service admin account fixture");
+        expect_missing(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user"), "password", "domain account password stripped");
+        expect_has(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user"), "password_hash", "domain account password hashed");
+
+        expect_true(domain_repo.create_mount_point_group({{"group_id", "self-group"}, {"name", "Self Group"}}, 7010).status == navcaster::storage::RepositoryStatus::Ok, "self service group fixture");
+        expect_true(domain_repo.create_mount_point_group({{"group_id", "other-group"}, {"name", "Other Group"}}, 7011).status == navcaster::storage::RepositoryStatus::Ok, "self service other group fixture");
+        expect_true(domain_repo.create_mount_point({{"mountpoint", "SELFBASE"}, {"hourly_price_cents", 100}}, 7012).status == navcaster::storage::RepositoryStatus::Ok, "self service mount fixture");
+        expect_true(domain_repo.add_mount_point_group_member("self-group", {{"mountpoint", "SELFBASE"}}, 7013).status == navcaster::storage::RepositoryStatus::Ok, "self service group member fixture");
+        expect_true(domain_repo.grant_account_group("self-user", {{"group_id", "self-group"}}, 7014).status == navcaster::storage::RepositoryStatus::Ok, "self service user group grant");
+        expect_true(domain_repo.grant_account_group("self-supplier", {{"group_id", "self-group"}}, 7015).status == navcaster::storage::RepositoryStatus::Ok, "self service supplier group grant");
+        expect_true(domain_repo.grant_account_group("self-admin", {{"group_id", "self-group"}}, 7016).status == navcaster::storage::RepositoryStatus::Ok, "self service admin group grant");
+
+        int self_token_id = 0;
+        navcaster::http_api::AuthSessionService sessions([&]() {
+            return std::string("self-token-") + std::to_string(++self_token_id);
+        });
+        auto login_response = sessions.login(
+            R"({"username":"self-user-login","password":"user-pass"})",
+            {"admin", "admin"},
+            nlohmann::json::object(),
+            &self_redis);
+        expect_eq_int(login_response.status_code, 200, "self service user login ok");
+        auto login_body = nlohmann::json::parse(login_response.body);
+        expect_eq(login_body.value("role", std::string{}), "user", "self service user login role");
+        expect_eq(login_body.value("account_id", std::string{}), "self-user", "self service user login account");
+        expect_missing(login_body["account"], "password_hash", "self service login strips account hash");
+        const auto user_subject = sessions.lookup_subject(login_body.value("token", std::string{}));
+        expect_eq(user_subject.role, "user", "self service lookup subject role");
+        expect_eq(sessions.lookup_user(login_body.value("token", std::string{})), "self-user-login", "self service lookup user");
+
+        login_response = sessions.login(
+            R"({"username":"self-supplier-login","password":"supplier-pass"})",
+            {"admin", "admin"},
+            nlohmann::json::object(),
+            &self_redis);
+        expect_eq_int(login_response.status_code, 200, "self service supplier login ok");
+        const auto supplier_subject = sessions.lookup_subject(nlohmann::json::parse(login_response.body).value("token", std::string{}));
+
+        login_response = sessions.login(
+            R"({"username":"admin","password":"admin"})",
+            {"admin", "admin"},
+            nlohmann::json::object(),
+            &self_redis);
+        expect_eq_int(login_response.status_code, 200, "self service compat admin login ok");
+        auto compat_subject = sessions.lookup_subject(nlohmann::json::parse(login_response.body).value("token", std::string{}));
+        expect_true(compat_subject.compat_admin, "self service compat admin subject");
+        expect_eq(compat_subject.role, "admin", "self service compat admin role");
+
+        auto response = self_service.profile(user_subject, "me");
+        expect_eq_int(response.status_code, 200, "self service user profile");
+        auto response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service profile account id");
+        expect_missing(response_body, "password_hash", "self service profile strips hash");
+
+        response = self_service.allowed_groups(user_subject);
+        expect_eq_int(response.status_code, 200, "self service allowed groups");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-group"), "self service allowed groups contains grant");
+        response = self_service.mount_points(user_subject);
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("SELFBASE"), "self service mount points visible");
+
+        response = self_service.create_access_account(user_subject, "me", R"({"access_account_id":"self-aacc","owner_account_id":"self-supplier","username":"self-rover","kind":"supplier_station","password":"rover-pass","mount_point_group_id":"self-group","concurrency_limit":1})");
+        expect_eq_int(response.status_code, 201, "self service user creates own access account");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("owner_account_id", std::string{}), "self-user", "self service overrides owner");
+        expect_eq(response_body.value("kind", std::string{}), "user_client", "self service overrides kind");
+        expect_missing(response_body, "password_hash", "self service create strips access hash");
+        auto stored_access = self_redis.hget(navcaster::redis_keys::AACC_RECORD, "self-aacc");
+        expect_eq(stored_access.value("owner_account_id", std::string{}), "self-user", "self service stored owner");
+        expect_eq(stored_access.value("kind", std::string{}), "user_client", "self service stored kind");
+        expect_has(stored_access, "password_hash", "self service stored password hash");
+        expect_missing(stored_access, "password", "self service stored no plaintext password");
+
+        response = self_service.create_access_account(user_subject, "me", R"({"access_account_id":"self-bad-group","username":"bad-group","mount_point_group_id":"other-group"})");
+        expect_eq_int(response.status_code, 400, "self service rejects ungranted group");
+        response = self_service.create_access_account(user_subject, "supplier", R"({"access_account_id":"self-bad-scope","username":"bad-scope","mount_point_group_id":"self-group"})");
+        expect_eq_int(response.status_code, 403, "self service user rejected supplier scope");
+
+        response = self_service.create_access_account(supplier_subject, "supplier", R"({"access_account_id":"self-station","username":"self-station","kind":"user_client","password":"station-pass","mount_point_group_id":"self-group"})");
+        expect_eq_int(response.status_code, 201, "self service supplier creates station access account");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("kind", std::string{}), "supplier_station", "self service supplier kind forced");
+        response = self_service.get_access_account(user_subject, "me", "self-station");
+        expect_eq_int(response.status_code, 404, "self service user cannot read supplier access account");
+
+        response = self_service.update_access_account(user_subject, "me", "self-aacc", R"({"owner_account_id":"self-supplier","kind":"supplier_station","mount_point_group_id":"self-group","status":"disabled","concurrency_limit":1})");
+        expect_eq_int(response.status_code, 200, "self service user updates own access account");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("status", std::string{}), "disabled", "self service update status");
+        expect_eq(response_body.value("owner_account_id", std::string{}), "self-user", "self service update preserves owner");
+        expect_eq(response_body.value("kind", std::string{}), "user_client", "self service update preserves kind");
+        expect_true(self_redis.hget(navcaster::redis_keys::AACC_ACTIVE, "self-rover").is_null(), "self service disabled removes active index");
+        response = self_service.update_access_account_password(user_subject, "me", "self-aacc", R"({"password":"rotated","password_salt":"salt","password_iterations":2})");
+        expect_eq_int(response.status_code, 200, "self service user rotates access password");
+        auto rotated_access = self_redis.hget(navcaster::redis_keys::AACC_RECORD, "self-aacc");
+        expect_eq(rotated_access.value("password_hash", std::string{}), navcaster::account_schema::make_password_hash("rotated", "salt", 2), "self service access password hash");
+
+        expect_true(domain_repo.append_billing_usage({
+            {"billing_id", "self-bill"},
+            {"fingerprint", "self-bill-fp"},
+            {"account_id", "self-user"},
+            {"access_account_id", "self-aacc"},
+            {"mountpoint", "SELFBASE"},
+        }, "202606", 7020).status == navcaster::storage::RepositoryStatus::Ok, "self service billing fixture");
+        response = self_service.usage(user_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-bill"), "self service user usage filtered");
+
+        expect_true(domain_repo.upsert_station_record({
+            {"mountpoint", "SELFBASE"},
+            {"station_id", "self-station-record"},
+            {"last_supplier_account_id", "self-supplier"},
+        }, 7030).status == navcaster::storage::RepositoryStatus::Ok, "self service station fixture");
+        expect_true(domain_repo.append_supplier_supply_usage({
+            {"usage_id", "self-supply"},
+            {"supplier_account_id", "self-supplier"},
+            {"access_account_id", "self-station"},
+            {"mountpoint", "SELFBASE"},
+            {"used_seconds", 120},
+            {"earning_cents", 25},
+        }, "202606", 7031).status == navcaster::storage::RepositoryStatus::Ok, "self service supply fixture");
+        response = self_service.supplier_stations(supplier_subject);
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("SELFBASE"), "self service supplier station filtered");
+        response = self_service.supplier_supply_usage(supplier_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-supply"), "self service supplier usage filtered");
+        response = self_service.supplier_earnings(supplier_subject, "202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body.value("total_earning_cents", 0), 25, "self service supplier earnings total");
+        expect_eq_int(response_body.value("total_supply_seconds", 0), 120, "self service supplier earnings seconds");
+
+        response = self_service.delete_access_account(user_subject, "me", "self-aacc");
+        expect_eq_int(response.status_code, 200, "self service delete own access account");
+        expect_eq(self_redis.hget(navcaster::redis_keys::AACC_USERNAME, "self-rover").value("status", std::string{}), "deleted", "self service access username tombstone");
     }
 
     FakeRedisHashClient account_controller_redis;
