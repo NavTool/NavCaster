@@ -215,6 +215,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: 'Billing ID', dataIndex: 'billing_id', key: 'billing_id', width: 230 },
     { title: 'AccessAccount', dataIndex: 'access_account_id', key: 'access_account_id', width: 210 },
     { title: '挂载点', dataIndex: 'mountpoint', key: 'mountpoint', width: 150 },
+    { title: '模式', dataIndex: 'billing_mode', key: 'billing_mode', width: 110, render: (value) => value || 'payg' },
+    { title: '订阅', dataIndex: 'subscription_id', key: 'subscription_id', width: 170, render: (value) => value || '-' },
     { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '统计费用', key: 'stat_cost_cents', width: 120, render: (_, row) => formatCents(row.stat_cost_cents) },
     { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },

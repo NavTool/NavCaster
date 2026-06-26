@@ -890,6 +890,37 @@ int main()
         supplier_auth_index["balance_cents"] = 0;
         runtime_check = revalidate_access_runtime_session({supplier_auth_index, "server", "RUNTIME", 1782432000, 60, 1200, 1.0});
         expect_true(runtime_check.ok, "access runtime revalidation does not debit supplier station");
+        runtime_check = revalidate_access_runtime_session({low_balance_auth_index, "client", "RUNTIME", 1782432000, 60, 1200, 1.0, ACCESS_RUNTIME_BILLING_MODE_SUBSCRIPTION});
+        expect_true(runtime_check.ok, "access runtime subscription revalidation skips balance precheck");
+
+        const nlohmann::json subscription_records = {
+            {"sub-late", {
+                {"subscription_id", "sub-late"},
+                {"account_id", "acc-runtime"},
+                {"group_ids", nlohmann::json::array({"mpg-other"})},
+                {"status", "active"},
+                {"start_time", 1782431000},
+                {"expire_time", 1782433000},
+            }},
+            {"sub-runtime", {
+                {"subscription_id", "sub-runtime"},
+                {"account_id", "acc-runtime"},
+                {"group_ids", nlohmann::json::array({"mpg-runtime"})},
+                {"status", "active"},
+                {"start_time", 1782431000},
+                {"expire_time", 1782432500},
+            }},
+        };
+        const auto selected_subscription = select_runtime_subscription(subscription_records, "mpg-runtime", 1782432000);
+        expect_eq(selected_subscription.value("subscription_id", std::string{}), "sub-runtime", "access runtime selects covering subscription");
+        runtime_check = validate_runtime_subscription(selected_subscription, "mpg-runtime", 1782432000);
+        expect_true(runtime_check.ok, "access runtime validates active subscription");
+        runtime_check = validate_runtime_subscription(selected_subscription, "mpg-runtime", 1782432600);
+        expect_true(!runtime_check.ok && runtime_check.reason == "subscription_expired", "access runtime rejects expired subscription");
+        auto revoked_subscription = selected_subscription;
+        revoked_subscription["status"] = "disabled";
+        runtime_check = validate_runtime_subscription(revoked_subscription, "mpg-runtime", 1782432000);
+        expect_true(!runtime_check.ok && runtime_check.reason == "subscription_revoked", "access runtime rejects disabled subscription");
 
         AccessRuntimeRecordInput runtime_input;
         runtime_input.owner_account_id = "acc-runtime";
@@ -909,6 +940,8 @@ int main()
         runtime_input.stat_cost_cents = 2;
         runtime_input.actual_debit_cents = 2;
         runtime_input.balance_after_cents = 498;
+        runtime_input.hourly_price_cents = 120;
+        runtime_input.billing_multiplier = 1.0;
         runtime_input.disconnect_reason = "client_closed";
         const auto online_session = build_online_session_record(runtime_input);
         expect_eq(online_session.value("access_account_id", std::string{}), "aacc-runtime", "access runtime online session access id");
@@ -917,11 +950,23 @@ int main()
         expect_eq_int(billing.value("actual_debit_cents", 0), 2, "access runtime billing debit");
         const auto ledger = build_balance_ledger_entry(runtime_input);
         expect_eq_int(ledger.value("delta_cents", 0), -2, "access runtime ledger delta");
+        runtime_input.billing_mode = ACCESS_RUNTIME_BILLING_MODE_SUBSCRIPTION;
+        runtime_input.subscription_id = "sub-runtime";
+        runtime_input.subscription_snapshot = selected_subscription;
+        runtime_input.actual_debit_cents = 0;
+        const auto subscription_billing = build_billing_usage_entry(runtime_input);
+        expect_eq(subscription_billing.value("subscription_id", std::string{}), "sub-runtime", "access runtime billing stores subscription id");
+        expect_eq_int(subscription_billing.value("actual_debit_cents", -1), 0, "access runtime subscription billing does not debit");
 
         runtime_input.access_kind = "supplier_station";
         runtime_input.auth_type = "server";
+        runtime_input.billing_mode = ACCESS_RUNTIME_BILLING_MODE_PAYG;
+        runtime_input.subscription_id.clear();
+        runtime_input.subscription_snapshot = nlohmann::json::object();
+        runtime_input.earning_cents = runtime_input.stat_cost_cents;
         const auto supply = build_supplier_supply_usage(runtime_input);
         expect_eq(supply.value("supplier_account_id", std::string{}), "acc-runtime", "access runtime supply owner");
+        expect_eq_int(supply.value("earning_cents", 0), 2, "access runtime supply earning");
         const auto station = build_station_record(runtime_input, true);
         expect_true(station.value("current_online", false), "access runtime station online");
         const auto station_event = build_station_event(runtime_input, "login");

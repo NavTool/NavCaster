@@ -156,10 +156,14 @@ navcaster::core::AccessRuntimeRecordInput runtime_input_from_item(const auth_cb_
     input.user_agent = item.runtime.user_agent;
     input.ntrip_version = item.runtime.ntrip_version;
     input.billing_mode = item.billing_mode.empty() ? navcaster::core::ACCESS_RUNTIME_BILLING_MODE_PAYG : item.billing_mode;
+    input.subscription_id = item.subscription_id;
+    input.subscription_snapshot = item.subscription_snapshot;
     input.start_time = item.online_time;
     input.update_time = update_time;
     input.end_time = update_time;
     input.used_seconds = std::max<std::int64_t>(0, static_cast<std::int64_t>(update_time - item.online_time));
+    input.hourly_price_cents = item.hourly_price_cents;
+    input.billing_multiplier = item.billing_multiplier;
     input.stat_cost_cents = navcaster::core::calculate_runtime_cost_cents(input.used_seconds, item.hourly_price_cents, item.billing_multiplier);
     input.actual_debit_cents =
         item.access_kind == navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT &&
@@ -167,6 +171,10 @@ navcaster::core::AccessRuntimeRecordInput runtime_input_from_item(const auth_cb_
             ? input.stat_cost_cents
             : 0;
     input.balance_after_cents = item.balance_cents - input.actual_debit_cents;
+    input.earning_cents =
+        item.access_kind == navcaster::core::ACCESS_RUNTIME_KIND_SUPPLIER_STATION
+            ? input.stat_cost_cents
+            : 0;
     input.disconnect_reason = disconnect_reason && *disconnect_reason ? disconnect_reason : item.runtime.disconnect_reason;
     if (input.disconnect_reason.empty())
     {
@@ -181,6 +189,61 @@ std::int64_t json_i64_value(const json &record, const char *field, std::int64_t 
     return it == record.end() ? fallback : navcaster::json_record::as_i64(*it, fallback);
 }
 
+bool access_payg_next_slice_allowed(auth_ctx *ctx)
+{
+    if (!ctx || !ctx->active_info)
+    {
+        return false;
+    }
+    const auto next_slice_cost = navcaster::core::calculate_runtime_cost_cents(
+        60,
+        ctx->active_info->_hourly_price_cents,
+        ctx->active_info->_billing_multiplier);
+    if (next_slice_cost > 0 && next_slice_cost > ctx->active_info->_balance_cents + ctx->active_info->_credit_limit_cents)
+    {
+        reject_auth_ctx(ctx, "balance_insufficient");
+        return false;
+    }
+    return true;
+}
+
+void continue_access_payg_or_accept(auth_ctx *ctx)
+{
+    if (!access_payg_next_slice_allowed(ctx))
+    {
+        return;
+    }
+    verify_internal::Redis_Verify_Access_Accept(ctx);
+}
+
+void continue_access_subscription_or_payg(redisAsyncContext *c, auth_ctx *ctx)
+{
+    if (!ctx || !ctx->active_info)
+    {
+        return;
+    }
+    if (ctx->active_info->_access_kind != navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT)
+    {
+        verify_internal::Redis_Verify_Access_Accept(ctx);
+        return;
+    }
+
+    const std::string subscription_key = navcaster::redis_keys::sub_account(ctx->active_info->_owner_account_id);
+    const int ret = redisAsyncCommand(c,
+                                      verify_internal::Redis_Verify_Access_Subscription_Callback,
+                                      ctx,
+                                      "HGETALL %s",
+                                      subscription_key.c_str());
+    if (ret == REDIS_OK)
+    {
+        return;
+    }
+    spdlog::warn("[auth]: event=subscription_lookup_command_failed operation=verify_access_account account={} access_account_id={} reason=redis_command_failed",
+                 ctx->user_name,
+                 ctx->active_info->_access_account_id);
+    continue_access_payg_or_accept(ctx);
+}
+
 struct access_runtime_revalidation_ctx
 {
     std::string user_name;
@@ -191,6 +254,10 @@ struct access_runtime_revalidation_ctx
     std::int64_t now = 0;
     std::int64_t hourly_price_cents = 0;
     double billing_multiplier = 1.0;
+    std::string billing_mode;
+    std::string mount_point_group_id;
+    std::string owner_account_id;
+    std::string subscription_id;
 };
 }
 
@@ -809,6 +876,10 @@ int verify_internal::revalidate_access_runtime_session(const auth_cb_item &item,
     ctx->now = update_time;
     ctx->hourly_price_cents = item.hourly_price_cents;
     ctx->billing_multiplier = item.billing_multiplier;
+    ctx->billing_mode = item.billing_mode;
+    ctx->mount_point_group_id = item.mount_point_group_id;
+    ctx->owner_account_id = item.owner_account_id;
+    ctx->subscription_id = item.subscription_id;
     const int ret = redisAsyncCommand(_pub_context,
                                       Redis_Revalidate_Access_Runtime_Callback,
                                       ctx,
@@ -1454,7 +1525,7 @@ void verify_internal::Redis_Verify_Access_Mount_Callback(redisAsyncContext *c, v
     if (reply && reply->type == REDIS_REPLY_NIL)
     {
         ctx->mount_record = json::object();
-        Redis_Verify_Access_Accept(ctx);
+        continue_access_subscription_or_payg(c, ctx);
         return;
     }
 
@@ -1470,15 +1541,63 @@ void verify_internal::Redis_Verify_Access_Mount_Callback(redisAsyncContext *c, v
         return;
     }
     ctx->active_info->_hourly_price_cents = json_i64_value(ctx->mount_record, "hourly_price_cents", 0);
-    if (ctx->active_info->_access_kind == navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT)
+    continue_access_subscription_or_payg(c, ctx);
+}
+
+void verify_internal::Redis_Verify_Access_Subscription_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    (void)c;
+    auto reply = static_cast<redisReply *>(r);
+    auto ctx = static_cast<auth_ctx *>(privdata);
+    if (!ctx)
     {
-        const auto next_slice_cost = navcaster::core::calculate_runtime_cost_cents(
-            60,
-            ctx->active_info->_hourly_price_cents,
-            ctx->active_info->_billing_multiplier);
-        if (next_slice_cost > 0 && next_slice_cost > ctx->active_info->_balance_cents + ctx->active_info->_credit_limit_cents)
+        return;
+    }
+    ctx->subscription_records = json::object();
+    if (reply && reply->type == REDIS_REPLY_ARRAY)
+    {
+        for (std::size_t i = 0; i + 1 < reply->elements; i += 2)
         {
-            reject_auth_ctx(ctx, "balance_insufficient");
+            auto *field = reply->element[i];
+            auto *value = reply->element[i + 1];
+            if (!field || !value || !field->str || !value->str)
+            {
+                continue;
+            }
+            try
+            {
+                ctx->subscription_records[field->str] = json::parse(value->str);
+            }
+            catch (const std::exception &e)
+            {
+                spdlog::warn("[auth]: event=subscription_snapshot_parse_failed operation=verify_access_account account={} subscription_id={} reason={}",
+                             ctx->user_name,
+                             field->str,
+                             e.what());
+            }
+        }
+    }
+
+    const auto subscription = navcaster::core::select_runtime_subscription(
+        ctx->subscription_records,
+        ctx->active_info->_mount_point_group_id,
+        util_get_time_stamp());
+    if (subscription.is_object())
+    {
+        ctx->active_info->_subscription_snapshot = subscription;
+        ctx->active_info->_subscription_id = subscription.value("subscription_id", std::string{});
+        ctx->active_info->_subscription_expire_time = json_i64_value(subscription, "expire_time", 0);
+        ctx->active_info->_billing_mode = navcaster::core::ACCESS_RUNTIME_BILLING_MODE_SUBSCRIPTION;
+        spdlog::info("[auth]: event=subscription_matched operation=verify_access_account account={} access_account_id={} subscription_id={} group_id={}",
+                     ctx->user_name,
+                     ctx->active_info->_access_account_id,
+                     ctx->active_info->_subscription_id,
+                     ctx->active_info->_mount_point_group_id);
+    }
+    else
+    {
+        if (!access_payg_next_slice_allowed(ctx))
+        {
             return;
         }
     }
@@ -1534,7 +1653,68 @@ void verify_internal::Redis_Revalidate_Access_Runtime_Callback(redisAsyncContext
             60,
             ctx->hourly_price_cents,
             ctx->billing_multiplier,
+            ctx->billing_mode,
         });
+        if (validation.ok)
+        {
+            if (ctx->billing_mode == navcaster::core::ACCESS_RUNTIME_BILLING_MODE_SUBSCRIPTION &&
+                !ctx->subscription_id.empty())
+            {
+                const std::string subscription_key = navcaster::redis_keys::sub_account(ctx->owner_account_id);
+                const int ret = redisAsyncCommand(verify_internal::getInstance()->_pub_context,
+                                                  Redis_Revalidate_Access_Subscription_Callback,
+                                                  ctx,
+                                                  "HGET %s %s",
+                                                  subscription_key.c_str(),
+                                                  ctx->subscription_id.c_str());
+                if (ret == REDIS_OK)
+                {
+                    return;
+                }
+                reason = "subscription_revalidation_command_failed";
+            }
+            else
+            {
+                delete ctx;
+                return;
+            }
+        }
+        else
+        {
+            reason = validation.reason;
+        }
+    }
+
+    spdlog::warn("[auth]: event=access_runtime_revalidation_failed operation=revalidate_access_runtime_session account={} access_username={} connect_key={} reason={}",
+                 ctx->user_name,
+                 ctx->access_username,
+                 ctx->connect_key,
+                 reason);
+    verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), ctx->connect_key.c_str(), AuthReply::ERR, reason.c_str());
+    delete ctx;
+}
+
+void verify_internal::Redis_Revalidate_Access_Subscription_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    (void)c;
+    auto *ctx = static_cast<access_runtime_revalidation_ctx *>(privdata);
+    if (!ctx)
+    {
+        return;
+    }
+
+    std::string reason;
+    json subscription_record;
+    if (!redis_reply_to_json_object(static_cast<redisReply *>(r), subscription_record, reason))
+    {
+        reason = "subscription_revoked";
+    }
+    else
+    {
+        const auto validation = navcaster::core::validate_runtime_subscription(
+            subscription_record,
+            ctx->mount_point_group_id,
+            ctx->now);
         if (validation.ok)
         {
             delete ctx;
@@ -1543,9 +1723,10 @@ void verify_internal::Redis_Revalidate_Access_Runtime_Callback(redisAsyncContext
         reason = validation.reason;
     }
 
-    spdlog::warn("[auth]: event=access_runtime_revalidation_failed operation=revalidate_access_runtime_session account={} access_username={} connect_key={} reason={}",
+    spdlog::warn("[auth]: event=subscription_revalidation_failed operation=revalidate_access_runtime_session account={} access_username={} subscription_id={} connect_key={} reason={}",
                  ctx->user_name,
                  ctx->access_username,
+                 ctx->subscription_id,
                  ctx->connect_key,
                  reason);
     verify_internal::getInstance()->send_change_auth_status(ctx->user_name.c_str(), ctx->connect_key.c_str(), AuthReply::ERR, reason.c_str());
@@ -1748,6 +1929,9 @@ void verify_internal::Redis_Add_Login_Callback(redisAsyncContext *c, void *r, vo
                 cb_item->second.hourly_price_cents = limit_item->second._hourly_price_cents;
                 cb_item->second.billing_multiplier = limit_item->second._billing_multiplier;
                 cb_item->second.billing_mode = limit_item->second._billing_mode;
+                cb_item->second.subscription_id = limit_item->second._subscription_id;
+                cb_item->second.subscription_expire_time = limit_item->second._subscription_expire_time;
+                cb_item->second.subscription_snapshot = limit_item->second._subscription_snapshot;
                 if (cb_item->second.runtime.mountpoint.empty() && ctx->has_runtime)
                 {
                     cb_item->second.runtime = ctx->runtime;
@@ -1932,6 +2116,12 @@ int auth_limit::fromString(const std::string &str)
             _hourly_price_cents = json_i64_value(info, "hourly_price_cents", 0);
             _billing_multiplier = info.value("billing_multiplier", 1.0);
             _billing_mode = info.value("billing_mode", std::string(navcaster::core::ACCESS_RUNTIME_BILLING_MODE_PAYG));
+            _subscription_id = info.value("subscription_id", std::string{});
+            _subscription_expire_time = json_i64_value(info, "subscription_expire_time", 0);
+            if (info.contains("subscription_snapshot") && info["subscription_snapshot"].is_object())
+            {
+                _subscription_snapshot = info["subscription_snapshot"];
+            }
         }
     }
     catch (const std::exception &e)

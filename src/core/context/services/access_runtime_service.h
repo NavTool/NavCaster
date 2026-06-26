@@ -39,6 +39,8 @@ struct AccessRuntimeRecordInput
     std::string user_agent;
     std::string ntrip_version;
     std::string billing_mode = ACCESS_RUNTIME_BILLING_MODE_PAYG;
+    std::string subscription_id;
+    nlohmann::json subscription_snapshot;
     std::int64_t start_time = 0;
     std::int64_t update_time = 0;
     std::int64_t end_time = 0;
@@ -46,6 +48,9 @@ struct AccessRuntimeRecordInput
     std::int64_t stat_cost_cents = 0;
     std::int64_t actual_debit_cents = 0;
     std::int64_t balance_after_cents = 0;
+    std::int64_t earning_cents = 0;
+    std::int64_t hourly_price_cents = 0;
+    double billing_multiplier = 1.0;
     std::string disconnect_reason;
 };
 
@@ -58,6 +63,7 @@ struct AccessRuntimeSessionRevalidationInput
     std::int64_t next_slice_seconds = 60;
     std::int64_t hourly_price_cents = 0;
     double billing_multiplier = 1.0;
+    std::string billing_mode = ACCESS_RUNTIME_BILLING_MODE_PAYG;
 };
 
 inline bool is_access_runtime_auth_index(const nlohmann::json &record)
@@ -155,6 +161,80 @@ inline AccessRuntimeValidation validate_access_dependencies(const nlohmann::json
     return {true, ""};
 }
 
+inline bool subscription_covers_group(const nlohmann::json &record, const std::string &group_id)
+{
+    if (group_id.empty() || !record.is_object() || !record.contains("group_ids") || !record["group_ids"].is_array())
+    {
+        return false;
+    }
+    for (const auto &group : record["group_ids"])
+    {
+        if (group.is_string() && group.get<std::string>() == group_id)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline AccessRuntimeValidation validate_runtime_subscription(const nlohmann::json &record,
+                                                             const std::string &group_id,
+                                                             std::int64_t now)
+{
+    if (!record.is_object())
+    {
+        return {false, "subscription_revoked"};
+    }
+    if (json_record::string_field(record, "status") != ACCESS_RUNTIME_STATUS_ACTIVE)
+    {
+        return {false, "subscription_revoked"};
+    }
+    const std::int64_t start_time = json_record::as_i64(record.value("start_time", 0), 0);
+    if (start_time > 0 && now < start_time)
+    {
+        return {false, "subscription_revoked"};
+    }
+    const std::int64_t expire_time = json_record::as_i64(record.value("expire_time", 0), 0);
+    if (expire_time > 0 && now > expire_time)
+    {
+        return {false, "subscription_expired"};
+    }
+    if (!subscription_covers_group(record, group_id))
+    {
+        return {false, "subscription_revoked"};
+    }
+    return {true, ""};
+}
+
+inline nlohmann::json select_runtime_subscription(const nlohmann::json &records,
+                                                  const std::string &group_id,
+                                                  std::int64_t now)
+{
+    if (!records.is_object())
+    {
+        return nullptr;
+    }
+    nlohmann::json selected = nullptr;
+    std::int64_t selected_expire = 0;
+    for (auto it = records.begin(); it != records.end(); ++it)
+    {
+        const auto &record = it.value();
+        if (!validate_runtime_subscription(record, group_id, now).ok)
+        {
+            continue;
+        }
+        const std::int64_t expire_time = json_record::as_i64(record.value("expire_time", 0), 0);
+        if (selected.is_null() ||
+            (selected_expire == 0 && expire_time > 0) ||
+            (expire_time > 0 && selected_expire > 0 && expire_time < selected_expire))
+        {
+            selected = record;
+            selected_expire = expire_time;
+        }
+    }
+    return selected;
+}
+
 inline std::string runtime_period_from_unix(std::int64_t ts)
 {
     std::time_t time_value = static_cast<std::time_t>(ts);
@@ -198,7 +278,7 @@ inline AccessRuntimeValidation revalidate_access_runtime_session(const AccessRun
     }
 
     const std::string kind = json_record::string_field(input.active_record, "access_kind");
-    if (kind == ACCESS_RUNTIME_KIND_USER_CLIENT)
+    if (kind == ACCESS_RUNTIME_KIND_USER_CLIENT && input.billing_mode != ACCESS_RUNTIME_BILLING_MODE_SUBSCRIPTION)
     {
         const std::int64_t balance = json_record::as_i64(input.active_record.value("balance_cents", 0), 0);
         const std::int64_t credit = json_record::as_i64(input.active_record.value("credit_limit_cents", 0), 0);
@@ -223,12 +303,12 @@ inline std::string runtime_billing_fingerprint(const AccessRuntimeRecordInput &i
 {
     return input.owner_account_id + "|" + input.access_account_id + "|" + input.mountpoint + "|" +
            input.group_id + "|" + std::to_string(input.used_seconds) + "|" +
-           input.billing_mode + "|" + std::to_string(input.stat_cost_cents);
+           input.billing_mode + "|" + input.subscription_id + "|" + std::to_string(input.stat_cost_cents);
 }
 
 inline nlohmann::json build_online_session_record(const AccessRuntimeRecordInput &input)
 {
-    return {
+    nlohmann::json record = {
         {"connect_key", input.connect_key},
         {"account_id", input.owner_account_id},
         {"owner_account_id", input.owner_account_id},
@@ -246,12 +326,21 @@ inline nlohmann::json build_online_session_record(const AccessRuntimeRecordInput
         {"user_agent", input.user_agent},
         {"ntrip_version", input.ntrip_version},
     };
+    if (!input.subscription_id.empty())
+    {
+        record["subscription_id"] = input.subscription_id;
+    }
+    if (input.subscription_snapshot.is_object() && !input.subscription_snapshot.empty())
+    {
+        record["subscription_snapshot"] = input.subscription_snapshot;
+    }
+    return record;
 }
 
 inline nlohmann::json build_billing_usage_entry(const AccessRuntimeRecordInput &input)
 {
     const std::string billing_id = runtime_billing_id(input);
-    return {
+    nlohmann::json record = {
         {"billing_id", billing_id},
         {"fingerprint", runtime_billing_fingerprint(input)},
         {"account_id", input.owner_account_id},
@@ -268,6 +357,15 @@ inline nlohmann::json build_billing_usage_entry(const AccessRuntimeRecordInput &
         {"actual_debit_cents", input.actual_debit_cents},
         {"disconnect_reason", input.disconnect_reason},
     };
+    if (!input.subscription_id.empty())
+    {
+        record["subscription_id"] = input.subscription_id;
+    }
+    if (input.subscription_snapshot.is_object() && !input.subscription_snapshot.empty())
+    {
+        record["subscription_snapshot"] = input.subscription_snapshot;
+    }
+    return record;
 }
 
 inline nlohmann::json build_balance_ledger_entry(const AccessRuntimeRecordInput &input)
@@ -288,6 +386,10 @@ inline nlohmann::json build_balance_ledger_entry(const AccessRuntimeRecordInput 
 inline nlohmann::json build_supplier_supply_usage(const AccessRuntimeRecordInput &input)
 {
     const std::string billing_id = runtime_billing_id(input);
+    const std::string earning_rule = "runtime_price_snapshot:hourly_price_cents=" +
+                                     std::to_string(input.hourly_price_cents) +
+                                     ";billing_multiplier=" + std::to_string(input.billing_multiplier) +
+                                     ";used_seconds=" + std::to_string(input.used_seconds);
     return {
         {"usage_id", "supply:" + billing_id},
         {"supplier_account_id", input.owner_account_id},
@@ -298,8 +400,8 @@ inline nlohmann::json build_supplier_supply_usage(const AccessRuntimeRecordInput
         {"start_time", input.start_time},
         {"end_time", input.end_time},
         {"used_seconds", input.used_seconds},
-        {"earning_rule_snapshot", "fixed_hourly_rate:0"},
-        {"earning_cents", 0},
+        {"earning_rule_snapshot", earning_rule},
+        {"earning_cents", input.earning_cents},
         {"status", "pending"},
     };
 }
