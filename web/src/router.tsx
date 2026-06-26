@@ -141,6 +141,8 @@ export default function AppRouter() {
           <Route path="mount-points" element={<OperationsDashboard scope="admin" view="mount-points" />} />
           <Route path="stations" element={<OperationsDashboard scope="admin" view="stations" />} />
           <Route path="usage" element={<OperationsDashboard scope="admin" view="usage" />} />
+          <Route path="subscriptions" element={<OperationsDashboard scope="admin" view="subscriptions" />} />
+          <Route path="redeem-codes" element={<OperationsDashboard scope="admin" view="redeem-codes" />} />
           <Route path="data-push-usage" element={<OperationsDashboard scope="admin" view="data-push-usage" />} />
           <Route path="supply-usage" element={<OperationsDashboard scope="admin" view="supply-usage" />} />
           <Route path="legacy">
@@ -180,6 +182,8 @@ export default function AppRouter() {
           <Route path="groups" element={<SelfServiceWorkspace scope="me" view="groups" />} />
           <Route path="mount-points" element={<SelfServiceWorkspace scope="me" view="mount-points" />} />
           <Route path="usage" element={<SelfServiceWorkspace scope="me" view="usage" />} />
+          <Route path="subscriptions" element={<SelfServiceWorkspace scope="me" view="subscriptions" />} />
+          <Route path="redeem-redemptions" element={<SelfServiceWorkspace scope="me" view="redeem-redemptions" />} />
           <Route path="data-push" element={<SelfServiceWorkspace scope="me" view="data-push" />} />
         </Route>
         <Route

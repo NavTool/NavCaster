@@ -143,6 +143,8 @@ NC-051 在 Core 层新增 AccountDomainRepository，用于账户/接入账号/�
 | `MOUNT:RECORD` | HASH | mountpoint | MountPoint JSON | 持久 | AccountDomainRepository |
 | `SUB:RECORD` | HASH | subscription_id | Subscription JSON | 持久 | AccountDomainRepository |
 | `SUB:ACCOUNT:<account_id>` | HASH | subscription_id | Subscription JSON summary | 持久 | AccountDomainRepository |
+| `REDEEM:CODE` | HASH | code | RedeemCode JSON | 持久 | AccountDomainRepository |
+| `REDEEM:ACCOUNT:<account_id>` | HASH | redemption_id | RedeemRedemption JSON | 持久 | AccountDomainRepository |
 | `BILL:ENTRY:<yyyyMM>` | HASH | billing_id | BillingUsageEntry JSON | 持久 | AccountDomainRepository |
 | `BILL:ACCOUNT:<account_id>:<yyyyMM>` | LIST | billing_id | billing_id | 持久或后续归档 | AccountDomainRepository |
 | `BILL:IDEMPOTENT` | HASH | billing_id | fingerprint JSON | 持久或后续归档 | AccountDomainRepository |
@@ -190,6 +192,20 @@ user_client 登录时读取 SUB:ACCOUNT:<owner_account_id>，选择覆盖 mount_
 subscription 模式保留 stat_cost_cents，但 actual_debit_cents=0，不写 ACC:BALANCE:LEDGER。
 Auth 周期续期会重读 SUB:ACCOUNT:<owner_account_id>[subscription_id]，过期断连 reason=subscription_expired，禁用/不覆盖 group 断连 reason=subscription_revoked。
 supplier_station 断开时 SUPPLY:USAGE:<yyyyMM> 写 earning_cents 和 earning_rule_snapshot。
+```
+
+NC-060 订阅运营和兑换入账：
+
+```text
+管理员可通过 /api/v1/admin/subscriptions 创建、更新和删除订阅。
+update 会同步 SUB:RECORD 和 SUB:ACCOUNT:<account_id>；跨 account_id 迁移时会删除旧 account index。
+delete 会把 SUB:RECORD 标记为 deleted，并删除 SUB:ACCOUNT:<account_id>[subscription_id]。
+运行时周期重验读不到 SUB:ACCOUNT 索引时按 subscription_revoked 断连。
+
+管理员可通过 /api/v1/admin/redeem-codes 创建兑换码，并把兑换码兑换到指定 account。
+兑换成功写 REDEEM:ACCOUNT:<account_id>[redemption_id] 和 ACC:BALANCE:LEDGER:<yyyyMM>[ledger_id]，
+同步增加 ACC:RECORD.balance_cents，刷新 AACC:ACTIVE owner 余额快照，并递增 REDEEM:CODE.redeemed_count。
+同一 account 对同一 code 只能兑换一次；禁用、过期、超过 max_redemptions 或余额 ledger 冲突会拒绝写入。
 ```
 
 NC-057 数据推送用量：

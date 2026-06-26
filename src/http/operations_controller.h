@@ -33,8 +33,15 @@ public:
 
     ControllerResponse list_access_accounts();
     ControllerResponse list_subscriptions();
+    ControllerResponse get_subscription(const std::string &subscription_id);
     ControllerResponse create_subscription(const std::string &body_text);
+    ControllerResponse update_subscription(const std::string &subscription_id, const std::string &body_text);
+    ControllerResponse delete_subscription(const std::string &subscription_id);
     ControllerResponse append_balance_adjustment(const std::string &account_id, const std::string &body_text);
+    ControllerResponse list_redeem_codes();
+    ControllerResponse get_redeem_code(const std::string &code);
+    ControllerResponse create_redeem_code(const std::string &body_text);
+    ControllerResponse redeem_code(const std::string &code, const std::string &account_id, const std::string &body_text);
 
     ControllerResponse list_stations();
     ControllerResponse list_usage(const std::string &period);

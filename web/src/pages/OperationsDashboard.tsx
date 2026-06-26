@@ -35,7 +35,9 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  RedeemCodeRecord,
   StationRecord,
+  SubscriptionRecord,
   SupplierSupplyUsage,
 } from '../api/types';
 import { currentPeriod, formatCents, formatDuration, getLocalTime } from '../utils/format';
@@ -48,6 +50,8 @@ type AdminView =
   | 'mount-points'
   | 'stations'
   | 'usage'
+  | 'subscriptions'
+  | 'redeem-codes'
   | 'data-push-usage'
   | 'supply-usage';
 
@@ -83,10 +87,16 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [groupForm] = Form.useForm();
   const [memberForm] = Form.useForm();
   const [mountForm] = Form.useForm();
+  const [subscriptionForm] = Form.useForm();
+  const [redeemForm] = Form.useForm();
+  const [redeemApplyForm] = Form.useForm();
   const [accountOpen, setAccountOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
   const [memberGroupId, setMemberGroupId] = useState<string | null>(null);
   const [mountOpen, setMountOpen] = useState(false);
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false);
+  const [redeemOpen, setRedeemOpen] = useState(false);
+  const [redeemApplyCode, setRedeemApplyCode] = useState<string | null>(null);
 
   const accountsQuery = usePolling(() => adminApi.accounts(), 5000, view === 'dashboard' || view === 'accounts');
   const accessAccountsQuery = usePolling(() => adminApi.accessAccounts(), 5000, view === 'dashboard' || view === 'access-accounts');
@@ -94,6 +104,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountsQuery = usePolling(() => adminApi.mountPoints(), 5000, view === 'dashboard' || view === 'mount-points');
   const stationsQuery = usePolling(() => adminApi.stations(), 5000, view === 'dashboard' || view === 'stations');
   const usageQuery = usePolling(() => adminApi.usage(currentPeriod()), 5000, view === 'dashboard' || view === 'usage');
+  const subscriptionQuery = usePolling(() => adminApi.subscriptions(), 5000, view === 'dashboard' || view === 'subscriptions');
+  const redeemQuery = usePolling(() => adminApi.redeemCodes(), 5000, view === 'dashboard' || view === 'redeem-codes');
   const dataPushQuery = usePolling(() => adminApi.dataPushUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-usage');
   const supplyQuery = usePolling(() => adminApi.supplyUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'supply-usage');
 
@@ -103,6 +115,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
+  const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
+  const redeemRows = useMemo(() => rowsFromHash(redeemQuery.data), [redeemQuery.data]);
   const dataPushRows = useMemo(() => rowsFromHash(dataPushQuery.data), [dataPushQuery.data]);
   const supplyRows = useMemo(() => rowsFromHash(supplyQuery.data), [supplyQuery.data]);
 
@@ -175,6 +189,70 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     mountsQuery.refresh();
   };
 
+  const openSubscription = () => {
+    subscriptionForm.resetFields();
+    subscriptionForm.setFieldsValue({
+      subscription_id: `sub_${Date.now()}`,
+      status: 'active',
+      start_time: 0,
+      expire_time: 0,
+      group_ids_text: '',
+    });
+    setSubscriptionOpen(true);
+  };
+
+  const submitSubscription = async () => {
+    const values = await subscriptionForm.validateFields();
+    await adminApi.createSubscription({
+      subscription_id: values.subscription_id,
+      account_id: values.account_id,
+      group_ids: String(values.group_ids_text || '').split(',').map((item) => item.trim()).filter(Boolean),
+      status: values.status,
+      start_time: values.start_time,
+      expire_time: values.expire_time,
+      remark: values.remark,
+    });
+    message.success('订阅已创建');
+    setSubscriptionOpen(false);
+    subscriptionQuery.refresh();
+  };
+
+  const disableSubscription = async (record: SubscriptionRecord) => {
+    await adminApi.updateSubscription(record.subscription_id, { status: 'disabled' });
+    message.success('订阅已禁用');
+    subscriptionQuery.refresh();
+  };
+
+  const openRedeemCode = () => {
+    redeemForm.resetFields();
+    redeemForm.setFieldsValue({ code: `RC${Date.now()}`, amount_cents: 1000, status: 'active', max_redemptions: 1, expire_time: 0 });
+    setRedeemOpen(true);
+  };
+
+  const submitRedeemCode = async () => {
+    const values = await redeemForm.validateFields();
+    await adminApi.createRedeemCode(values);
+    message.success('兑换码已创建');
+    setRedeemOpen(false);
+    redeemQuery.refresh();
+  };
+
+  const openRedeemApply = (code: string) => {
+    redeemApplyForm.resetFields();
+    redeemApplyForm.setFieldsValue({ period: currentPeriod() });
+    setRedeemApplyCode(code);
+  };
+
+  const submitRedeemApply = async () => {
+    if (!redeemApplyCode) return;
+    const values = await redeemApplyForm.validateFields();
+    await adminApi.redeemCode(redeemApplyCode, values);
+    message.success('兑换码已核销');
+    setRedeemApplyCode(null);
+    redeemQuery.refresh();
+    accountsQuery.refresh();
+  };
+
   const accountColumns: ColumnsType<OperationsAccount & { key: string }> = [
     { title: 'Account ID', dataIndex: 'account_id', key: 'account_id', width: 190 },
     { title: '用户名', dataIndex: 'username', key: 'username', width: 140 },
@@ -242,6 +320,27 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const subscriptionColumns: ColumnsType<SubscriptionRecord & { key: string }> = [
+    { title: 'Subscription ID', dataIndex: 'subscription_id', key: 'subscription_id', width: 210 },
+    { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '分组', key: 'group_ids', width: 220, render: (_, row) => (row.group_ids || []).join(', ') || '-' },
+    { title: '开始', key: 'start_time', width: 170, render: (_, row) => row.start_time ? getLocalTime(row.start_time) : '立即' },
+    { title: '过期', key: 'expire_time', width: 170, render: (_, row) => row.expire_time ? getLocalTime(row.expire_time) : '长期' },
+    { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
+    { title: '操作', key: 'actions', width: 100, render: (_, row) => <Button size="small" danger onClick={() => disableSubscription(row)}>禁用</Button> },
+  ];
+
+  const redeemColumns: ColumnsType<RedeemCodeRecord & { key: string }> = [
+    { title: 'Code', dataIndex: 'code', key: 'code', width: 180 },
+    { title: '金额', key: 'amount_cents', width: 120, render: (_, row) => formatCents(row.amount_cents) },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '次数', key: 'count', width: 100, render: (_, row) => `${row.redeemed_count ?? 0}/${row.max_redemptions ?? 1}` },
+    { title: '过期', key: 'expire_time', width: 170, render: (_, row) => row.expire_time ? getLocalTime(row.expire_time) : '长期' },
+    { title: '最近核销', dataIndex: 'last_redeemed_account_id', key: 'last_redeemed_account_id', width: 190, render: (value) => value || '-' },
+    { title: '操作', key: 'actions', width: 100, render: (_, row) => <Button size="small" onClick={() => openRedeemApply(row.code)}>核销</Button> },
+  ];
+
   const dataPushColumns: ColumnsType<DataPushUsage & { key: string }> = [
     { title: 'Usage ID', dataIndex: 'usage_id', key: 'usage_id', width: 230 },
     { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
@@ -292,6 +391,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     if (view === 'usage') {
       return <Table columns={usageColumns} dataSource={usageRows} loading={usageQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
+    if (view === 'subscriptions') {
+      return <Table columns={subscriptionColumns} dataSource={subscriptionRows} loading={subscriptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1400 }} />;
+    }
+    if (view === 'redeem-codes') {
+      return <Table columns={redeemColumns} dataSource={redeemRows} loading={redeemQuery.loading} rowKey="key" size="small" scroll={{ x: 1000 }} />;
+    }
     if (view === 'data-push-usage') {
       return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
@@ -309,6 +414,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     'mount-points': '挂载点记录',
     stations: '历史站点',
     usage: '计费用量',
+    subscriptions: '订阅',
+    'redeem-codes': '兑换码',
     'data-push-usage': '数据推送用量',
     'supply-usage': '供应事实',
   };
@@ -318,6 +425,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       {view === 'accounts' && <Button type="primary" icon={<PlusOutlined />} onClick={openCreateAccount}>账号</Button>}
       {view === 'mount-point-groups' && <Button type="primary" icon={<PlusOutlined />} onClick={openCreateGroup}>分组</Button>}
       {view === 'mount-points' && <Button type="primary" icon={<PlusOutlined />} onClick={openMountPoint}>挂载点</Button>}
+      {view === 'subscriptions' && <Button type="primary" icon={<PlusOutlined />} onClick={openSubscription}>订阅</Button>}
+      {view === 'redeem-codes' && <Button type="primary" icon={<PlusOutlined />} onClick={openRedeemCode}>兑换码</Button>}
     </Space>
   );
 
@@ -468,6 +577,42 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
           <Form.Item name="source_record_mount" label="源记录挂载点">
             <Input />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="创建订阅" open={subscriptionOpen} onOk={submitSubscription} onCancel={() => setSubscriptionOpen(false)} width={640}>
+        <Form form={subscriptionForm} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="subscription_id" label="Subscription ID" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="account_id" label="Account ID" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={24}><Form.Item name="group_ids_text" label="覆盖分组，逗号分隔" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item name="status" label="状态"><Select options={[{ value: 'active' }, { value: 'disabled' }]} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="start_time" label="开始 UTC 秒"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="expire_time" label="过期 UTC 秒"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+          </Row>
+          <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="创建兑换码" open={redeemOpen} onOk={submitRedeemCode} onCancel={() => setRedeemOpen(false)} width={560}>
+        <Form form={redeemForm} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="code" label="Code" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="amount_cents" label="金额(分)" rules={[{ required: true }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="status" label="状态"><Select options={[{ value: 'active' }, { value: 'disabled' }]} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="max_redemptions" label="可核销次数"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="expire_time" label="过期 UTC 秒"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+          </Row>
+          <Form.Item name="batch_id" label="批次"><Input /></Form.Item>
+          <Form.Item name="note" label="备注"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="核销兑换码" open={!!redeemApplyCode} onOk={submitRedeemApply} onCancel={() => setRedeemApplyCode(null)} width={480}>
+        <Form form={redeemApplyForm} layout="vertical" size="small">
+          <Form.Item name="account_id" label="Account ID" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="period" label="账期"><Input /></Form.Item>
+          <Form.Item name="operator_note" label="备注"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
     </PageContainer>

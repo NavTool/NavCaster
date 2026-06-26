@@ -220,6 +220,13 @@ ControllerResponse OperationsController::list_subscriptions()
     return empty_or_records(redis_keys::SUB_RECORD);
 }
 
+ControllerResponse OperationsController::get_subscription(const std::string &subscription_id)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.get_subscription(subscription_id);
+    return repository_result(200, result);
+}
+
 ControllerResponse OperationsController::create_subscription(const std::string &body_text)
 {
     nlohmann::json body;
@@ -230,6 +237,25 @@ ControllerResponse OperationsController::create_subscription(const std::string &
     storage::AccountDomainRepository repo(_redis);
     auto result = repo.create_subscription(std::move(body), _now);
     return repository_result(201, result);
+}
+
+ControllerResponse OperationsController::update_subscription(const std::string &subscription_id, const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_subscription(subscription_id, std::move(body), _now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::delete_subscription(const std::string &subscription_id)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.delete_subscription(subscription_id, _now);
+    return repository_result(200, result);
 }
 
 ControllerResponse OperationsController::append_balance_adjustment(const std::string &account_id, const std::string &body_text)
@@ -246,7 +272,52 @@ ControllerResponse OperationsController::append_balance_adjustment(const std::st
     }
     const std::string period = body.value("period", std::string("manual"));
     storage::AccountDomainRepository repo(_redis);
-    auto result = repo.append_balance_ledger(std::move(body), period, _now);
+    auto result = repo.apply_balance_adjustment(account_id, std::move(body), period, _now);
+    return repository_result(201, result);
+}
+
+ControllerResponse OperationsController::list_redeem_codes()
+{
+    return empty_or_records(redis_keys::REDEEM_CODE);
+}
+
+ControllerResponse OperationsController::get_redeem_code(const std::string &code)
+{
+    const auto record = _redis.hget(redis_keys::REDEEM_CODE, code.c_str());
+    if (!record.is_object())
+    {
+        return error_response(404, "RedeemCode not found");
+    }
+    return json_response(200, sanitized_record(record));
+}
+
+ControllerResponse OperationsController::create_redeem_code(const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.create_redeem_code(std::move(body), _now);
+    return repository_result(201, result);
+}
+
+ControllerResponse OperationsController::redeem_code(const std::string &code, const std::string &account_id, const std::string &body_text)
+{
+    nlohmann::json body = nlohmann::json::object();
+    if (!body_text.empty() && !parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    const std::string target_account_id = account_id.empty() ? body.value("account_id", std::string{}) : account_id;
+    if (target_account_id.empty())
+    {
+        return error_response(400, "account_id is required");
+    }
+    const std::string period = body.value("period", std::string("manual"));
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.redeem_code(code, target_account_id, std::move(body), period, _now);
     return repository_result(201, result);
 }
 
