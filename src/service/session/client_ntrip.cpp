@@ -40,7 +40,8 @@ int client_ntrip::start()
 {
     _stopped = false;
     connect_bev::getInstance()->set_bev(_connect_key, nullptr, nullptr, EventCallback, this);
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), AuthLoginCallback, this, _auth_type);
+    const auto runtime = auth_runtime_context();
+    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), AuthLoginCallback, this, _auth_type, &runtime);
     return 0;
 }
 
@@ -55,7 +56,8 @@ int client_ntrip::stop()
     connect_bev::getInstance()->set_bev(_connect_key, nullptr, nullptr, nullptr, nullptr);
     connect_bev::getInstance()->del_timer(_connect_key);
 
-    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), _auth_type);
+    const auto runtime = auth_runtime_context("client_closed");
+    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), _auth_type, &runtime);
     if (_registered)
     {
         const std::string &unsub_mpt = _alias_mpt.empty() ? _mount_point : _alias_mpt;
@@ -92,6 +94,19 @@ int client_ntrip::send_reply()
     bufferevent_write(_bev, reply.data(), reply.size());
     spdlog::info("[{}]: running, user [{}], mount [{}], addr:[{}:{}]", __class__, _user_name, _mount_point, _info.addr(), _info.port());
     return 0;
+}
+
+AuthRuntimeContext client_ntrip::auth_runtime_context(const char *reason) const
+{
+    AuthRuntimeContext runtime;
+    runtime.connect_key = _connect_key;
+    runtime.mountpoint = _mount_point;
+    runtime.addr = _info.addr();
+    runtime.port = _info.port();
+    runtime.user_agent = _info.user_agent();
+    runtime.ntrip_version = _info.ntrip_version();
+    runtime.disconnect_reason = reason && *reason ? reason : "client_closed";
+    return runtime;
 }
 
 int client_ntrip::transfer_sub_raw_data(const char *data, size_t length)

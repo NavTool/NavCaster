@@ -1,6 +1,6 @@
 # NavCaster Redis Schema V2
 
-生成时间：2026-06-12
+生成时间：2026-06-26
 
 本文档定义目标 Redis 数据模型。当前代码中已有部分 key 与本文档不完全一致，后续迭代以本文档为目标逐步迁移。
 
@@ -163,6 +163,80 @@ NC-051 约束：
 - `STATION:*` 是站点历史资产，不等同于 `MPT:RECORD` 或 `MPT:SOURCE`。
 - usage、ledger、supply、station event 均为只追加事实；主状态不能从这些日志反推。
 - `BILL:IDEMPOTENT` 使用 `billing_id + fingerprint` 防止 tick 重放重复扣费。
+
+NC-055 运行时接入状态：
+
+```text
+Auth/NTRIP 运行时已优先读取 AACC:ACTIVE，并保留 ACT:ACTIVE fallback。
+MPGRP 创建和成员添加会同步同名 ACCESS:GROUP / ACCESS:ITEM:<group_id>，用于让旧 Caster AccessPolicy 识别新运营分组。
+AccessAccount 登录成功后继续写旧 ACT:REC / ACT:SESSION 兼容桶，同时写新 ONLINE:SESSION:<owner_account_id>。
+连接断开时写 BILL:ENTRY、BILL:IDEMPOTENT、BILL:ACCOUNT；按量扣费写 ACC:BALANCE:LEDGER，并同步更新 ACC:RECORD.balance_cents 与 AACC:ACTIVE.balance_cents 快照。
+supplier_station 断开时写 SUPPLY:USAGE、SUPPLY:ACCOUNT、STATION:RECORD 和 STATION:EVENT:<mountpoint>。
+```
+
+`ONLINE:SESSION:<account_id>` 当前 JSON 字段：
+
+```json
+{
+  "connect_key": "<connect_key>",
+  "account_id": "<owner_account_id>",
+  "owner_account_id": "<owner_account_id>",
+  "access_account_id": "<access_account_id>",
+  "access_username": "<access_username>",
+  "kind": "user_client|supplier_station",
+  "mountpoint": "<mountpoint>",
+  "group_id": "<group_id>",
+  "billing_mode": "payg|subscription",
+  "auth_type": "client|server|source|unknown",
+  "start_time": 1710000000,
+  "update_time": 1710000005,
+  "addr": "127.0.0.1",
+  "port": 2101,
+  "user_agent": "NTRIP ...",
+  "ntrip_version": "Ntrip/2.0"
+}
+```
+
+`BILL:ENTRY:<yyyyMM>` 当前 JSON 字段：
+
+```json
+{
+  "billing_id": "<connect_key>:<start_time>:<end_time>",
+  "fingerprint": "<owner>|<access>|<mount>|<group>|<seconds>|<mode>|<cost>",
+  "account_id": "<owner_account_id>",
+  "access_account_id": "<access_account_id>",
+  "access_username": "<access_username>",
+  "mountpoint": "<mountpoint>",
+  "group_id": "<group_id>",
+  "connect_key": "<connect_key>",
+  "start_time": 1710000000,
+  "end_time": 1710000060,
+  "used_seconds": 60,
+  "billing_mode": "payg",
+  "stat_cost_cents": 100,
+  "actual_debit_cents": 100,
+  "disconnect_reason": "client_closed"
+}
+```
+
+`SUPPLY:USAGE:<yyyyMM>` 当前 JSON 字段：
+
+```json
+{
+  "usage_id": "supply:<billing_id>",
+  "supplier_account_id": "<owner_account_id>",
+  "access_account_id": "<access_account_id>",
+  "station_id": "st_<mountpoint>",
+  "mountpoint": "<mountpoint>",
+  "session_id": "<connect_key>",
+  "start_time": 1710000000,
+  "end_time": 1710000060,
+  "used_seconds": 60,
+  "earning_rule_snapshot": "fixed_hourly_rate:0",
+  "earning_cents": 0,
+  "status": "pending"
+}
+```
 
 V2 建议：
 

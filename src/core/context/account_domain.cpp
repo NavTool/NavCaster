@@ -409,7 +409,10 @@ nlohmann::json access_account_owner_summary(const nlohmann::json &record)
 
 nlohmann::json access_account_auth_index(const nlohmann::json &record, const nlohmann::json &owner)
 {
-    return {
+    nlohmann::json index = {
+        {"schema_version", record.value("schema_version", CURRENT_SCHEMA_VERSION)},
+        {"uid", record.value("username", std::string{})},
+        {"account", record.value("username", std::string{})},
         {"access_account_id", record.value("access_account_id", std::string{})},
         {"access_username", record.value("username", std::string{})},
         {"access_kind", record.value("kind", std::string{})},
@@ -418,10 +421,32 @@ nlohmann::json access_account_auth_index(const nlohmann::json &record, const nlo
         {"owner_role", owner.value("role", std::string{})},
         {"owner_status", owner.value("status", std::string{})},
         {"mount_point_group_id", record.value("mount_point_group_id", std::string{})},
+        {"group_uid", record.value("mount_point_group_id", std::string{})},
+        {"connection_limit", record.value("concurrency_limit", 0)},
         {"account_concurrency_limit", owner.value("concurrency_limit", 0)},
         {"access_concurrency_limit", record.value("concurrency_limit", 0)},
+        {"balance_cents", owner.value("balance_cents", 0)},
+        {"credit_limit_cents", owner.value("credit_limit_cents", 0)},
+        {"type", 0},
+        {"state", string_value(record, "status") == STATUS_ACTIVE && string_value(owner, "status") == STATUS_ACTIVE ? 1 : 2},
+        {"active", string_value(record, "status") == STATUS_ACTIVE && string_value(owner, "status") == STATUS_ACTIVE ? 1 : 0},
         {"expire_time", record.value("expire_time", 0LL)},
     };
+
+    if (record.contains("password_hash"))
+    {
+        index["password_hash"] = record["password_hash"];
+        index["password_algo"] = record.value("password_algo", std::string{});
+        if (record.contains("password_salt"))
+        {
+            index["password_salt"] = record["password_salt"];
+        }
+        if (record.contains("password_iterations"))
+        {
+            index["password_iterations"] = record["password_iterations"];
+        }
+    }
+    return index;
 }
 
 } // namespace navcaster::account_domain

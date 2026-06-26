@@ -17,6 +17,18 @@
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
+static AuthRuntimeContext build_auth_runtime_context(const ConnectInfo &req)
+{
+    AuthRuntimeContext runtime;
+    runtime.connect_key = req.connect_key();
+    runtime.mountpoint = req.mount_point();
+    runtime.addr = req.addr();
+    runtime.port = req.port();
+    runtime.user_agent = req.user_agent();
+    runtime.ntrip_version = req.ntrip_version();
+    return runtime;
+}
+
 // 解析 NMEA GGA 语句中的经纬度（ddmm.mmmmm 格式 → 十进制度）
 static bool parse_gga_to_latlon(const std::string &gga, double &lat, double &lon)
 {
@@ -469,12 +481,14 @@ int ntrip_listener::Process_GET_Request(bufferevent *bev, std::string connect_ke
         }
 
         auto ctx = new std::pair<ntrip_listener *, ConnectInfo>(this, req);
-        AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SOURCE);
+        const auto runtime = build_auth_runtime_context(req);
+        AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SOURCE, &runtime);
     }
     else
     {
         auto ctx = new std::pair<ntrip_listener *, ConnectInfo>(this, req);
-        AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::CLIENT);
+        const auto runtime = build_auth_runtime_context(req);
+        AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::CLIENT, &runtime);
     }
     return 0;
 }
@@ -514,7 +528,8 @@ int ntrip_listener::Process_POST_Request(bufferevent *bev, std::string connect_k
     std::string user_name = req.user_name();
     std::string user_pwd = req.user_pwd();
     auto ctx = new std::pair<ntrip_listener *, ConnectInfo>(this, req);
-    AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
+    const auto runtime = build_auth_runtime_context(req);
+    AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER, &runtime);
     return 0;
 }
 
@@ -560,7 +575,8 @@ int ntrip_listener::Process_SOURCE_Request(bufferevent *bev, std::string connect
     std::string user_name = req.user_name();
     std::string user_pwd = req.user_pwd();
     auto ctx = new std::pair<ntrip_listener *, ConnectInfo>(this, req);
-    AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER);
+    const auto runtime = build_auth_runtime_context(req);
+    AUTH::Verify(user_name.c_str(), user_pwd.c_str(), Auth_Verify_Cb, ctx, AuthType::SERVER, &runtime);
     return 0;
 }
 

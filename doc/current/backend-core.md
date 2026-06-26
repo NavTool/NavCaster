@@ -1,7 +1,7 @@
 # Backend Core 当前实现说明
 
-更新时间：2026-06-16
-来源：NC-035 backend-core 文档审计、源码和 NC-017 至 NC-034 任务记录。
+更新时间：2026-06-26
+来源：NC-035 backend-core 文档审计、源码和 NC-017 至 NC-055 任务记录。
 
 ## 负责范围
 
@@ -17,7 +17,10 @@ proto         连接、配置、状态、监控和管理结构契约。
 
 - Redis key registry 在 `src/core/context/redis_keys.*`，覆盖 `CASTER:MASTER`、`CASTER:NODE`、`MPT:*`、`USR:*`、`PULL:*`、`PUSH:*`、`ACT:*`、`LOG:*`、`NODE:HISTORY:*`、`MONITOR:REDIS:HISTORY`、`STAT:DAILY:*` 和 Pub/Sub channel。
 - Auth 写侧维护 `ACT:REC:<account>`、`ACT:UND:<name>`、`ACT:SESSION:<account>`，并使用 `HSETEX`、`HEXPIRE`、`HDEL` 和 `AUTH:BROADCAST`。
+- NC-055 后 Auth 会优先查 `AACC:ACTIVE`；命中 AccessAccount 运行时索引时按 owner/account/group/mount/balance/kind 校验，缺失时回退旧 `ACT:ACTIVE` 兼容路径。
 - `/api/accounts/active` 和 SSE `account_actives` 的展示来源是 `ACT:SESSION:*`，并兼容 legacy `STR:ACTIVE` fallback；`ACT:ACTIVE` 是登录索引，不是在线会话来源。
+- 新 AccessAccount 运行时在线视图写入 `ONLINE:SESSION:<owner_account_id>`；断开时写 `BILL:ENTRY:<yyyyMM>`、必要的 `ACC:BALANCE:LEDGER:<yyyyMM>`，供应商站点写 `SUPPLY:USAGE:<yyyyMM>`、`STATION:RECORD` 和 `STATION:EVENT:<mountpoint>`。
+- `MPGRP:*` 是新运营挂载点分组；NC-055 会同步同名 `ACCESS:GROUP` 和 `ACCESS:ITEM:<group_id>`，让旧 Caster AccessPolicy 能识别新分组成员。
 - NTRIP listener 解析 `SOURCE`、`GET`、`POST`、Basic Auth、`Ntrip-Version`、chunked 相关字段。现役 session 在 `src/service/session`。
 - `doc/archive/code-snapshots/session` 是旧源码快照，不参与当前构建。
 - Master lease 使用 `CASTER:MASTER`：首次抢占走 `SET ... NX EX`，续租走 `SET ... IFEQ ... EX`；状态规划由 `src/core/context/services/master_lease_service.*` 承担。
@@ -28,10 +31,11 @@ proto         连接、配置、状态、监控和管理结构契约。
 
 | 范围 | 证据 |
 | --- | --- |
-| Auth/NTRIP session | NC-017 至 NC-023 任务、QA、Review。 |
+| Auth/NTRIP session | NC-017 至 NC-023、NC-055 任务、QA、Review。 |
 | Relay start/stop/data forwarding | NC-026、NC-027、NC-028 任务、QA、Review。 |
 | Master lease / Cluster / Relay failover | NC-029、NC-030、NC-031、NC-033 任务、QA、Review。 |
 | Ninja 构建默认口径 | NC-034 任务、QA、Review。 |
+| Account/AccessAccount runtime | NC-051、NC-054、NC-055 任务、QA、Review。 |
 
 ## 不要误用
 

@@ -48,7 +48,8 @@ int server_ntrip::start()
 {
     _stopped = false;
     connect_bev::getInstance()->set_bev(_connect_key, nullptr, nullptr, EventCallback, this);
-    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), AuthLoginCallback, this, _auth_type);
+    const auto runtime = auth_runtime_context();
+    AUTH::Add_Login_Record(_user_name.c_str(), _connect_key.c_str(), AuthLoginCallback, this, _auth_type, &runtime);
     return 0;
 }
 
@@ -68,7 +69,8 @@ int server_ntrip::stop()
         event_del(_timeout_ev);
         _timeout_ev_flag = false;
     }
-    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), _auth_type);
+    const auto runtime = auth_runtime_context("client_closed");
+    AUTH::Add_Logout_Record(_user_name.c_str(), _connect_key.c_str(), _auth_type, &runtime);
     if (_registered)
     {
         CASTER::Withdraw_Record(_connect_key.c_str(), _mount_point.c_str(), _user_name.c_str(), _register_type);
@@ -107,6 +109,19 @@ int server_ntrip::send_reply()
     auto reply = build_nrtip_reply(CONNECT_TYPE_SERVER, _ntrip_version2, _transfer_with_chunked);
     bufferevent_write(_bev, reply.data(), reply.size());
     return 0;
+}
+
+AuthRuntimeContext server_ntrip::auth_runtime_context(const char *reason) const
+{
+    AuthRuntimeContext runtime;
+    runtime.connect_key = _connect_key;
+    runtime.mountpoint = _mount_point;
+    runtime.addr = _info.addr();
+    runtime.port = _info.port();
+    runtime.user_agent = _info.user_agent();
+    runtime.ntrip_version = _info.ntrip_version();
+    runtime.disconnect_reason = reason && *reason ? reason : "client_closed";
+    return runtime;
 }
 
 int server_ntrip::send_heart_beat_to_server()

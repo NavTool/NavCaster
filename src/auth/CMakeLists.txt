@@ -17,6 +17,7 @@ endif()
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/include)
 include_directories(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/src)
 include_directories(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/src/core/context)
+include_directories(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/src/core/context/services)
 
 set(SOURCES
     include/Auth_Verify.h

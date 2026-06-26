@@ -85,6 +85,115 @@ bool AccountDomainRepository::group_is_active(const std::string &group_id)
     return group.is_object() && account_domain::is_active_status(group);
 }
 
+bool AccountDomainRepository::sync_legacy_access_group(const nlohmann::json &group, std::int64_t now)
+{
+    const std::string group_id = group.value("group_id", std::string{});
+    if (group_id.empty())
+    {
+        return false;
+    }
+    const nlohmann::json legacy_group = {
+        {"uid", group_id},
+        {"group_name", group.value("name", group_id)},
+        {"create_time", group.value("create_time", now)},
+        {"update_time", now},
+        {"nearest_mpt_enable", false},
+        {"nearest_mpt_source_name", ""},
+        {"allow_visible_inside_group", true},
+        {"allow_access_inside_group", true},
+        {"allow_nearby_inside_group", true},
+        {"allow_visible_outside_group", false},
+        {"allow_access_outside_group", false},
+        {"allow_nearby_outside_group", false},
+    };
+    if (!hset_json(redis_keys::ACCESS_GROUP, group_id, legacy_group))
+    {
+        return false;
+    }
+    _redis.publish(redis_keys::CASTER_CONF, "ACCESS");
+    return true;
+}
+
+bool AccountDomainRepository::sync_legacy_access_item(const std::string &group_id, const nlohmann::json &member)
+{
+    const std::string mountpoint = member.value("mountpoint", std::string{});
+    if (group_id.empty() || mountpoint.empty())
+    {
+        return false;
+    }
+    const bool active = account_domain::is_active_status(member);
+    const int state = active ? 1 : 2;
+    const nlohmann::json legacy_item = {
+        {"uid", mountpoint},
+        {"mount_point_name", mountpoint},
+        {"allow_visible", state},
+        {"allow_access", state},
+        {"allow_nearby", state},
+    };
+    const std::string key = redis_keys::access_item(group_id);
+    if (!hset_json(key.c_str(), mountpoint, legacy_item))
+    {
+        return false;
+    }
+    _redis.publish(redis_keys::CASTER_CONF, "ACCESS");
+    return true;
+}
+
+void AccountDomainRepository::publish_access_status_update(const std::string &username, const std::string &reason)
+{
+    if (username.empty())
+    {
+        return;
+    }
+    const nlohmann::json message = {
+        {"type", 1},
+        {"connect_key", ""},
+        {"channel", username},
+        {"Para", ""},
+        {"status", -1},
+        {"reason", reason.empty() ? "access_account_status_changed" : reason},
+    };
+    _redis.publish(redis_keys::AUTH_BROADCAST, json_record::dump_record(message));
+}
+
+void AccountDomainRepository::refresh_owner_access_indexes(const nlohmann::json &owner, std::int64_t now, const std::string &reason)
+{
+    const std::string owner_account_id = owner.value("account_id", std::string{});
+    if (owner_account_id.empty())
+    {
+        return;
+    }
+    const std::string owner_key = redis_keys::aacc_owner(owner_account_id);
+    const auto summaries = _redis.hgetall(owner_key.c_str());
+    if (!summaries.is_object())
+    {
+        return;
+    }
+    for (auto it = summaries.begin(); it != summaries.end(); ++it)
+    {
+        const std::string access_account_id = it.key();
+        const auto access = get_hash_record(redis_keys::AACC_RECORD, access_account_id);
+        if (!access.is_object())
+        {
+            continue;
+        }
+        const auto summary = account_domain::access_account_owner_summary(access);
+        hset_json(owner_key.c_str(), access_account_id, summary);
+
+        const std::string username = access.value("username", std::string{});
+        if (account_domain::is_active_status(access) && account_domain::is_active_status(owner))
+        {
+            hset_json(redis_keys::AACC_ACTIVE, username, account_domain::access_account_auth_index(access, owner));
+        }
+        else
+        {
+            _redis.hdel(redis_keys::AACC_ACTIVE, username.c_str());
+            publish_access_status_update(username, reason.empty() ? "owner_account_disabled" : reason);
+        }
+    }
+    (void)now;
+}
+
 AccountDomainResult AccountDomainRepository::create_account(nlohmann::json record, std::int64_t now)
 {
     std::string error;
@@ -173,6 +282,7 @@ AccountDomainResult AccountDomainRepository::update_account(const std::string &a
         return redis_error(account_id, "Failed to update account");
     }
     hset_json(redis_keys::ACC_USERNAME, record.value("username", std::string{}), account_domain::username_index_record(account_id, record.value("status", std::string{}), now));
+    refresh_owner_access_indexes(record, now, account_domain::is_active_status(record) ? "" : "owner_account_disabled");
 
     AccountDomainResult result;
     result.id = account_id;
@@ -195,6 +305,7 @@ AccountDomainResult AccountDomainRepository::delete_account(const std::string &a
         return redis_error(account_id, "Failed to tombstone account");
     }
     hset_json(redis_keys::ACC_USERNAME, current.value("username", std::string{}), deleted_username_marker(account_id, now));
+    refresh_owner_access_indexes(current, now, "owner_account_deleted");
 
     AccountDomainResult result;
     result.id = account_id;
@@ -213,6 +324,10 @@ AccountDomainResult AccountDomainRepository::create_mount_point_group(nlohmann::
     if (!hsetnx_json(redis_keys::MPGRP_RECORD, group_id, record))
     {
         return make_result(RepositoryStatus::Conflict, group_id, "MountPointGroup already exists");
+    }
+    if (!sync_legacy_access_group(record, now))
+    {
+        return redis_error(group_id, "Failed to sync legacy access group");
     }
     AccountDomainResult result;
     result.id = group_id;
@@ -239,6 +354,10 @@ AccountDomainResult AccountDomainRepository::add_mount_point_group_member(const 
     if (!hset_json(key.c_str(), mountpoint, member))
     {
         return redis_error(mountpoint, "Failed to write MountPointGroup member");
+    }
+    if (!sync_legacy_access_item(group_id, member))
+    {
+        return redis_error(mountpoint, "Failed to sync legacy access item");
     }
     AccountDomainResult result;
     result.id = mountpoint;
@@ -296,6 +415,11 @@ AccountDomainResult AccountDomainRepository::create_access_account(nlohmann::jso
     if (!account_domain::normalize_access_account(record, now, &error))
     {
         return invalid(error);
+    }
+    if (!json_record::has_nonempty_string_field(record, "password_hash") &&
+        !json_record::has_nonempty_string_field(record, "password"))
+    {
+        return invalid("access account password is required");
     }
     const std::string access_account_id = record.value("access_account_id", std::string{});
     const std::string owner_account_id = record.value("owner_account_id", std::string{});
@@ -455,6 +579,7 @@ AccountDomainResult AccountDomainRepository::update_access_account(const std::st
     else
     {
         _redis.hdel(redis_keys::AACC_ACTIVE, username.c_str());
+        publish_access_status_update(username, "access_account_disabled");
     }
 
     AccountDomainResult result;
@@ -480,6 +605,7 @@ AccountDomainResult AccountDomainRepository::delete_access_account(const std::st
     const std::string username = current.value("username", std::string{});
     hset_json(redis_keys::AACC_USERNAME, username, deleted_username_marker(access_account_id, now));
     _redis.hdel(redis_keys::AACC_ACTIVE, username.c_str());
+    publish_access_status_update(username, "access_account_deleted");
     const std::string owner_key = redis_keys::aacc_owner(current.value("owner_account_id", std::string{}));
     _redis.hdel(owner_key.c_str(), access_account_id.c_str());
 
