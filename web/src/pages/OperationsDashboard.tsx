@@ -350,6 +350,15 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     dataPushJobQuery.refresh();
   };
 
+  const reconcileDataPushJob = async (record: DataPushJob) => {
+    await adminApi.reconcileDataPushJob(record.job_id, {
+      period: record.period || currentPeriod(),
+      operator_note: 'admin reconcile',
+    });
+    message.success('推送任务运行态已同步');
+    dataPushJobQuery.refresh();
+  };
+
   const openSupplierSettlement = () => {
     settlementForm.resetFields();
     settlementForm.setFieldsValue({ period: currentPeriod() });
@@ -521,6 +530,8 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
     { title: 'Relay UID', dataIndex: 'relay_uid', key: 'relay_uid', width: 250, render: (value) => value || '-' },
     { title: 'Relay 状态', dataIndex: 'relay_status', key: 'relay_status', width: 120, render: (value) => <Tag color={value === 'running' ? 'blue' : value === 'stopped' ? 'default' : 'gold'}>{value || '-'}</Tag> },
+    { title: '执行节点', key: 'relay_node_uid', width: 170, render: (_, row) => row.relay_node_name || row.relay_node_uid || '-' },
+    { title: '同步时间', key: 'runtime_reconcile_time', width: 170, render: (_, row) => row.runtime_reconcile_time ? getLocalTime(row.runtime_reconcile_time) : '-' },
     { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
     { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
@@ -530,9 +541,10 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     {
       title: '操作',
       key: 'actions',
-      width: 260,
+      width: 330,
       render: (_, row) => (
         <Space>
+          <Button size="small" onClick={() => reconcileDataPushJob(row)}>同步</Button>
           <Button size="small" onClick={() => controlDataPushJob(row, 'mark_completed')}>完成</Button>
           <Button size="small" onClick={() => controlDataPushJob(row, 'mark_failed')}>失败</Button>
           <Button size="small" onClick={() => controlDataPushJob(row, 'retry')}>重试</Button>
@@ -618,7 +630,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       return <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;
     }
     if (view === 'data-push-jobs') {
-      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2180 }} />;
+      return <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2520 }} />;
     }
     if (view === 'data-push-usage') {
       return <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1600 }} />;

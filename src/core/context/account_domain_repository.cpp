@@ -63,6 +63,63 @@ nlohmann::json data_push_config_from_job(const nlohmann::json &job)
     const auto it = job.find("config_snapshot");
     return it != job.end() && it->is_object() ? *it : nlohmann::json::object();
 }
+
+std::string relay_runtime_status(const nlohmann::json &state)
+{
+    if (!state.is_object())
+    {
+        return "stopped";
+    }
+    return json_record::as_i64(state.value("state", 0), 0) == 1 ? "running" : "stopped";
+}
+
+bool data_push_terminal_status(const std::string &status)
+{
+    return status == "cancelled" || status == "failed" || status == "completed";
+}
+
+nlohmann::json reconcile_data_push_job_runtime_record(nlohmann::json job, RedisHashClient &redis, std::int64_t now)
+{
+    const std::string relay_uid = job.value("relay_uid", std::string{});
+    const auto state = relay_uid.empty() ? nlohmann::json{} : redis.hget(redis_keys::PUSH_STAT, relay_uid.c_str());
+    const std::string runtime_status = relay_runtime_status(state);
+    job["relay_status"] = runtime_status;
+    job["runtime_reconcile_action"] = "reconcile";
+    job["runtime_reconcile_time"] = now;
+    if (state.is_object())
+    {
+        job["relay_state"] = state;
+        job["relay_state_snapshot"] = state;
+        if (state.contains("connect_key"))
+        {
+            job["relay_connect_key"] = state["connect_key"];
+        }
+        if (state.contains("node_uid"))
+        {
+            job["relay_node_uid"] = state["node_uid"];
+        }
+        if (state.contains("node_name"))
+        {
+            job["relay_node_name"] = state["node_name"];
+        }
+    }
+    else
+    {
+        job.erase("relay_state");
+        job.erase("relay_state_snapshot");
+        job.erase("relay_connect_key");
+        job.erase("relay_node_uid");
+        job.erase("relay_node_name");
+    }
+
+    const std::string current_status = job.value("status", std::string{});
+    if (runtime_status == "running" && !data_push_terminal_status(current_status))
+    {
+        job["status"] = "running";
+        job["running_time"] = job.value("running_time", now);
+    }
+    return job;
+}
 } // namespace
 
 AccountDomainRepository::AccountDomainRepository(RedisHashClient &redis)
@@ -1625,6 +1682,104 @@ AccountDomainResult AccountDomainRepository::update_data_push_job_control(const 
     AccountDomainResult result;
     result.id = job_id;
     result.record = std::move(job);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::reconcile_data_push_job_runtime(const std::string &job_id,
+                                                                             const std::string &period,
+                                                                             nlohmann::json request,
+                                                                             std::int64_t now)
+{
+    if (job_id.empty())
+    {
+        return invalid("job_id is required");
+    }
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+    const std::string resolved_period = request.value("period", period.empty() ? std::string("current") : period);
+    const std::string job_key = redis_keys::data_push_job(resolved_period);
+    auto job = get_hash_record(job_key.c_str(), job_id);
+    if (!job.is_object())
+    {
+        return make_result(RepositoryStatus::NotFound, job_id, "DataPushJob not found");
+    }
+    if (job.value("execution_mode", std::string(account_domain::DATA_PUSH_EXECUTION_LEDGER_ONLY)) != account_domain::DATA_PUSH_EXECUTION_RELAY_PUSH ||
+        job.value("relay_uid", std::string{}).empty())
+    {
+        return make_result(RepositoryStatus::Invalid, job_id, "DataPushJob is not relay_push");
+    }
+
+    job["period"] = resolved_period;
+    job = reconcile_data_push_job_runtime_record(std::move(job), _redis, now);
+    if (request.contains("operator_note"))
+    {
+        job["operator_note"] = request["operator_note"];
+        job["runtime_reconcile_note"] = request["operator_note"];
+    }
+
+    std::string error;
+    if (!account_domain::normalize_data_push_job(job, now, &error))
+    {
+        return invalid(error);
+    }
+    if (!hset_json(job_key.c_str(), job_id, job))
+    {
+        return redis_error(job_id, "Failed to reconcile DataPushJob runtime");
+    }
+
+    AccountDomainResult result;
+    result.id = job_id;
+    result.record = std::move(job);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::reconcile_data_push_jobs_runtime(const std::string &period, std::int64_t now)
+{
+    const std::string resolved_period = period.empty() ? "current" : period;
+    const std::string job_key = redis_keys::data_push_job(resolved_period);
+    const auto records = _redis.hgetall(job_key.c_str());
+    if (!records.is_object())
+    {
+        AccountDomainResult result;
+        result.id = resolved_period;
+        result.record = {{"period", resolved_period}, {"updated_count", 0}, {"items", nlohmann::json::object()}};
+        return result;
+    }
+
+    int updated_count = 0;
+    nlohmann::json items = nlohmann::json::object();
+    for (auto it = records.begin(); it != records.end(); ++it)
+    {
+        if (!it.value().is_object())
+        {
+            continue;
+        }
+        auto job = it.value();
+        if (job.value("execution_mode", std::string(account_domain::DATA_PUSH_EXECUTION_LEDGER_ONLY)) != account_domain::DATA_PUSH_EXECUTION_RELAY_PUSH ||
+            job.value("relay_uid", std::string{}).empty())
+        {
+            continue;
+        }
+        job["period"] = resolved_period;
+        job = reconcile_data_push_job_runtime_record(std::move(job), _redis, now);
+        std::string error;
+        if (!account_domain::normalize_data_push_job(job, now, &error))
+        {
+            return invalid(error);
+        }
+        if (!hset_json(job_key.c_str(), it.key(), job))
+        {
+            return redis_error(it.key(), "Failed to reconcile DataPushJob runtime");
+        }
+        items[it.key()] = job;
+        ++updated_count;
+    }
+
+    AccountDomainResult result;
+    result.id = resolved_period;
+    result.record = {{"period", resolved_period}, {"updated_count", updated_count}, {"items", std::move(items)}};
     return result;
 }
 

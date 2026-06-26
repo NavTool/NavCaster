@@ -687,6 +687,33 @@ ControllerResponse SelfServiceController::update_data_push_job_control(const Aut
     return repository_result(200, result);
 }
 
+ControllerResponse SelfServiceController::reconcile_data_push_job_runtime(const AuthSessionSubject &subject,
+                                                                          const std::string &job_id,
+                                                                          const std::string &period,
+                                                                          const std::string &body_text)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    nlohmann::json body = nlohmann::json::object();
+    if (!body_text.empty() && !parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    const std::string resolved_period = request_period(body.value("period", period));
+    const auto current = _redis.hget(redis_keys::data_push_job(resolved_period).c_str(), job_id.c_str());
+    if (!current.is_object() || current.value("account_id", std::string{}) != subject.account_id)
+    {
+        return error_response(404, "DataPushJob not found");
+    }
+    body["period"] = resolved_period;
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.reconcile_data_push_job_runtime(job_id, resolved_period, std::move(body), _now);
+    return repository_result(200, result);
+}
+
 ControllerResponse SelfServiceController::data_push_usage(const AuthSessionSubject &subject, const std::string &period)
 {
     auto guard = subject_error(subject, "me");

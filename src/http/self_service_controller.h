@@ -42,6 +42,10 @@ public:
                                                     const std::string &job_id,
                                                     const std::string &period,
                                                     const std::string &body_text);
+    ControllerResponse reconcile_data_push_job_runtime(const AuthSessionSubject &subject,
+                                                       const std::string &job_id,
+                                                       const std::string &period,
+                                                       const std::string &body_text);
     ControllerResponse data_push_usage(const AuthSessionSubject &subject, const std::string &period);
     ControllerResponse append_data_push_usage(const AuthSessionSubject &subject, const std::string &body_text);
     ControllerResponse supplier_stations(const AuthSessionSubject &subject);

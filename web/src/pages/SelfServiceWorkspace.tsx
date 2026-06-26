@@ -253,6 +253,16 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     dashboardQuery.refresh();
   };
 
+  const reconcileDataPushJob = async (record: DataPushJob) => {
+    await meApi.reconcileDataPushJob(record.job_id, {
+      period: record.period || currentPeriod(),
+      operator_note: 'self reconcile',
+    });
+    message.success('推送任务运行态已同步');
+    dataPushJobQuery.refresh();
+    dashboardQuery.refresh();
+  };
+
   const accessColumns: ColumnsType<AccessAccountRecord & { key: string }> = [
     { title: 'AccessAccount ID', dataIndex: 'access_account_id', key: 'access_account_id', width: 210 },
     { title: '接入用户名', dataIndex: 'username', key: 'username', width: 150 },
@@ -352,6 +362,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: '目标挂载点', dataIndex: 'target_mountpoint', key: 'target_mountpoint', width: 160 },
     { title: 'Relay UID', dataIndex: 'relay_uid', key: 'relay_uid', width: 250, render: (value) => value || '-' },
     { title: 'Relay 状态', dataIndex: 'relay_status', key: 'relay_status', width: 120, render: (value) => <Tag color={value === 'running' ? 'blue' : value === 'stopped' ? 'default' : 'gold'}>{value || '-'}</Tag> },
+    { title: '执行节点', key: 'relay_node_uid', width: 170, render: (_, row) => row.relay_node_name || row.relay_node_uid || '-' },
+    { title: '同步时间', key: 'runtime_reconcile_time', width: 170, render: (_, row) => row.runtime_reconcile_time ? getLocalTime(row.runtime_reconcile_time) : '-' },
     { title: '账期', dataIndex: 'period', key: 'period', width: 100 },
     { title: '时长', key: 'used_seconds', width: 110, render: (_, row) => formatDuration(row.used_seconds ?? 0) },
     { title: '扣费', key: 'actual_debit_cents', width: 120, render: (_, row) => formatCents(row.actual_debit_cents) },
@@ -361,9 +373,10 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     {
       title: '操作',
       key: 'actions',
-      width: 130,
+      width: 190,
       render: (_, row) => (
         <Space>
+          <Button size="small" onClick={() => reconcileDataPushJob(row)}>同步</Button>
           <Button size="small" onClick={() => controlDataPushJob(row, 'retry')}>重试</Button>
           <Button size="small" danger onClick={() => controlDataPushJob(row, 'cancel')}>取消</Button>
         </Space>
@@ -434,7 +447,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
           <Table columns={dataPushConfigColumns} dataSource={dataPushConfigRows} loading={dataPushConfigQuery.loading} rowKey="key" size="small" scroll={{ x: 1160 }} />
         </Col>
         <Col span={24}>
-          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 1900 }} />
+          <Table columns={dataPushJobColumns} dataSource={dataPushJobRows} loading={dataPushJobQuery.loading} rowKey="key" size="small" scroll={{ x: 2300 }} />
         </Col>
         <Col span={24}>
           <Table columns={dataPushColumns} dataSource={dataPushRows} loading={dataPushQuery.loading} rowKey="key" size="small" scroll={{ x: 1340 }} />

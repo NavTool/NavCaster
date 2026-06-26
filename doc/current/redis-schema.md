@@ -276,6 +276,19 @@ mark_failed 写 status=failed、failed_time/control_time，并禁用受管 PUSH:
 mark_completed 写 status=completed、complete_time/control_time，并清理 PUSH:STAT。
 ```
 
+NC-066 DataPush 运行态同步：
+
+```text
+reconcile relay_push 任务会读取 PUSH:STAT[relay_uid]，把 relay_status、
+relay_state_snapshot、relay_connect_key、relay_node_uid、relay_node_name、
+runtime_reconcile_action 和 runtime_reconcile_time 写回
+DATA:PUSH:JOB:<yyyyMM>[job_id]。
+PUSH:STAT state=1 且任务非 cancelled/failed/completed 时，任务 status 固化为
+running；终态任务只更新运行态审计快照，不会被重新打开。
+管理员可按 period 批量 reconcile 当期 relay_push 任务；用户只能 reconcile 自己的
+relay_push 任务。
+```
+
 `ONLINE:SESSION:<account_id>` 当前 JSON 字段：
 
 ```json

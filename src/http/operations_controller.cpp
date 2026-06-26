@@ -473,6 +473,27 @@ ControllerResponse OperationsController::update_data_push_job_control(const std:
     return repository_result(200, result);
 }
 
+ControllerResponse OperationsController::reconcile_data_push_job_runtime(const std::string &job_id, const std::string &period, const std::string &body_text)
+{
+    nlohmann::json body = nlohmann::json::object();
+    if (!body_text.empty() && !parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    body["period"] = request_period(body.value("period", period));
+    const std::string resolved_period = body.value("period", std::string("current"));
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.reconcile_data_push_job_runtime(job_id, resolved_period, std::move(body), _now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::reconcile_data_push_jobs_runtime(const std::string &period)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.reconcile_data_push_jobs_runtime(request_period(period), _now);
+    return repository_result(200, result);
+}
+
 ControllerResponse OperationsController::list_data_push_usage(const std::string &period)
 {
     const std::string key = redis_keys::data_push(request_period(period));
