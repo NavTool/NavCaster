@@ -2752,8 +2752,55 @@ int main()
         response = self_service.subscriptions(user_subject);
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("self-sub"), "self service user subscriptions filtered");
+        expect_true(domain_repo.create_subscription_plan({
+            {"plan_id", "self-plan"},
+            {"name", "Self Plan"},
+            {"group_ids", nlohmann::json::array({"self-group"})},
+            {"price_cents", 30},
+            {"duration_days", 7},
+        }, 7022).status == navcaster::storage::RepositoryStatus::Ok, "self service subscription plan fixture");
+        expect_true(domain_repo.create_subscription_plan({
+            {"plan_id", "self-over-balance-plan"},
+            {"name", "Self Over Balance Plan"},
+            {"group_ids", nlohmann::json::array({"self-group"})},
+            {"price_cents", 1000},
+            {"duration_days", 30},
+        }, 7022).status == navcaster::storage::RepositoryStatus::Ok, "self service over balance subscription plan fixture");
+        expect_true(domain_repo.create_subscription_plan({
+            {"plan_id", "self-disabled-plan"},
+            {"name", "Self Disabled Plan"},
+            {"group_ids", nlohmann::json::array({"self-group"})},
+            {"price_cents", 5},
+            {"duration_days", 1},
+            {"status", "disabled"},
+        }, 7022).status == navcaster::storage::RepositoryStatus::Ok, "self service disabled subscription plan fixture");
+        response = self_service.subscription_plans(user_subject);
+        expect_eq_int(response.status_code, 200, "self service subscription plans list");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("self-plan"), "self service subscription plans contains active");
+        expect_true(!response_body.contains("self-disabled-plan"), "self service subscription plans hide disabled");
+        response = self_service.purchase_subscription_plan(user_subject, "self-plan", R"({"period":"202606","subscription_id":"self-plan-purchase","ledger_id":"self-plan-ledger","operator_note":"buy"})");
+        expect_eq_int(response.status_code, 201, "self service purchase subscription plan");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service purchase owner from subject");
+        expect_eq(response_body.value("plan_id", std::string{}), "self-plan", "self service purchase plan id");
+        expect_eq(response_body.value("ledger_id", std::string{}), "self-plan-ledger", "self service purchase ledger id");
+        expect_eq_int(response_body.value("balance_after_cents", 0), 70, "self service purchase balance after");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 70, "self service purchase debits account");
+        expect_true(self_redis.hget(navcaster::redis_keys::SUB_RECORD, "self-plan-purchase").is_object(), "self service purchase writes subscription");
+        expect_true(self_redis.hget(navcaster::redis_keys::sub_account("self-user").c_str(), "self-plan-purchase").is_object(), "self service purchase writes account subscription index");
+        expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "self-plan-ledger").is_object(), "self service purchase writes balance ledger");
+        response = self_service.purchase_subscription_plan(user_subject, "self-over-balance-plan", R"({"period":"202606","subscription_id":"self-over-balance-sub","ledger_id":"self-over-balance-ledger"})");
+        expect_eq_int(response.status_code, 409, "self service purchase rejects insufficient balance");
+        expect_true(self_redis.hget(navcaster::redis_keys::SUB_RECORD, "self-over-balance-sub").is_null(), "self service failed purchase has no subscription");
+        expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "self-over-balance-ledger").is_null(), "self service failed purchase has no ledger");
         expect_true(domain_repo.create_redeem_code({{"code", "RC-SELF"}, {"amount_cents", 50}}, 7022).status == navcaster::storage::RepositoryStatus::Ok, "self service redeem fixture");
-        expect_true(domain_repo.redeem_code("RC-SELF", "self-user", {}, "202606", 7023).status == navcaster::storage::RepositoryStatus::Ok, "self service redeem redemption fixture");
+        response = self_service.redeem_code(user_subject, "RC-SELF", R"({"period":"202606","operator_note":"self topup","account_id":"self-supplier","amount_cents":999})");
+        expect_eq_int(response.status_code, 201, "self service redeem code");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service redeem owner from subject");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 120, "self service redeem updates balance");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-supplier").value("balance_cents", 0), 0, "self service redeem ignores body account");
         response = self_service.redeem_redemptions(user_subject);
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("redeem:RC-SELF:self-user"), "self service user redeem redemptions filtered");
@@ -2763,8 +2810,8 @@ int main()
         response_body = nlohmann::json::parse(response.body);
         expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service data push overrides account id");
         expect_eq(response_body.value("ledger_id", std::string{}), "ledger:data_push:self-data-push", "self service data push overrides ledger id");
-        expect_eq_int(response_body.value("balance_after_cents", 0), 143, "self service data push response balance");
-        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 143, "self service data push debits account");
+        expect_eq_int(response_body.value("balance_after_cents", 0), 113, "self service data push response balance");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 113, "self service data push debits account");
         expect_true(self_redis.hget(navcaster::redis_keys::data_push("202606").c_str(), "self-data-push").is_object(), "self service data push writes usage");
         expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "ledger:data_push:self-data-push").is_object(), "self service data push writes ledger");
         expect_true(self_redis.hget(navcaster::redis_keys::acc_balance_ledger("202606").c_str(), "client-ledger").is_null(), "self service data push ignores client ledger id");
@@ -2794,7 +2841,7 @@ int main()
         expect_eq(response_body.value("account_id", std::string{}), "self-user", "self service data push job overrides account id");
         expect_eq(response_body.value("usage_id", std::string{}), "usage:data_push:self-push-job", "self service data push job owns usage id");
         expect_eq_int(response_body.value("actual_debit_cents", 0), 30, "self service data push job cost");
-        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 113, "self service data push job debits account");
+        expect_eq_int(self_redis.hget(navcaster::redis_keys::ACC_RECORD, "self-user").value("balance_cents", 0), 83, "self service data push job debits account");
         expect_eq(response_body.value("status", std::string{}), "completed", "self service ledger data push job completed");
         expect_eq(response_body.value("execution_mode", std::string{}), "ledger_only", "self service ledger data push job mode");
         response = self_service.data_push_jobs(user_subject, "202606");

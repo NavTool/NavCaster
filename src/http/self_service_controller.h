@@ -33,7 +33,10 @@ public:
     ControllerResponse delete_access_account(const AuthSessionSubject &subject, const std::string &scope, const std::string &access_account_id);
 
     ControllerResponse usage(const AuthSessionSubject &subject, const std::string &period);
+    ControllerResponse subscription_plans(const AuthSessionSubject &subject);
+    ControllerResponse purchase_subscription_plan(const AuthSessionSubject &subject, const std::string &plan_id, const std::string &body_text);
     ControllerResponse subscriptions(const AuthSessionSubject &subject);
+    ControllerResponse redeem_code(const AuthSessionSubject &subject, const std::string &code, const std::string &body_text);
     ControllerResponse redeem_redemptions(const AuthSessionSubject &subject);
     ControllerResponse data_push_configs(const AuthSessionSubject &subject);
     ControllerResponse data_push_jobs(const AuthSessionSubject &subject, const std::string &period);
@@ -65,6 +68,7 @@ private:
     nlohmann::json owner_group_grants(const AuthSessionSubject &subject) const;
     nlohmann::json visible_mount_points(const AuthSessionSubject &subject) const;
     nlohmann::json filter_billing_usage(const std::string &account_id, const std::string &period) const;
+    nlohmann::json active_subscription_plans() const;
     nlohmann::json owner_subscriptions(const std::string &account_id) const;
     nlohmann::json owner_redeem_redemptions(const std::string &account_id) const;
     nlohmann::json active_data_push_configs() const;

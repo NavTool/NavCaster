@@ -475,6 +475,10 @@ export interface SubscriptionRecord {
   plan_snapshot?: SubscriptionPlan;
   price_cents?: number;
   duration_days?: number;
+  ledger_id?: string;
+  balance_after_cents?: number;
+  purchase_time?: number;
+  source?: string;
   start_time?: number;
   expire_time?: number;
   granted_by?: string;

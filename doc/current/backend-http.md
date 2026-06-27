@@ -107,7 +107,15 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   `GET/PUT/DELETE /api/v1/admin/subscription-plans/{plan_id}`。套餐写入 `SUB:PLAN`，
   创建订阅时可传 `plan_id`，后端会把套餐 `group_ids`、`price_cents`、
   `duration_days` 和 `plan_snapshot` 固化进 `SUB:RECORD` / `SUB:ACCOUNT:<account_id>`。
-  该能力只提供套餐运营基础，不接真实支付、购买或续费。
+  该能力提供套餐运营基础，不接真实支付或自动续费。
+- NC-076 新增用户自助套餐购买和兑换入口：
+  `GET /api/v1/me/subscription-plans`、`POST
+  /api/v1/me/subscription-plans/{plan_id}/purchase` 和 `POST
+  /api/v1/me/redeem-codes/{code}/redeem`。用户购买套餐时，account_id 从 session
+  推导，后端校验套餐 active、分组有效和余额足够后，写 `SUB:RECORD`、
+  `SUB:ACCOUNT:<account_id>`、`ACC:BALANCE:LEDGER:<yyyyMM>` 并同步扣减
+  `ACC:RECORD.balance_cents`；余额不足时不写订阅或账本半成品。用户自助兑换同样从
+  session 推导 account_id，复用兑换码核销规则并刷新余额。
 - NC-061/NC-063 新增并扩展供应商结算 API：`GET/POST
   /api/v1/admin/supplier-settlements`、`GET
   /api/v1/admin/supplier-settlements/{settlement_id}`、`POST

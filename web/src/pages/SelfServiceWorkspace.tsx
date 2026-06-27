@@ -43,6 +43,7 @@ import type {
   RedeemRedemptionRecord,
   RoleDashboard,
   StationRecord,
+  SubscriptionPlan,
   SubscriptionRecord,
   SupplierEarningsSummary,
   SupplierSettlementRecord,
@@ -110,10 +111,14 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const [dataPushJobForm] = Form.useForm();
+  const [purchaseForm] = Form.useForm();
+  const [redeemForm] = Form.useForm();
   const [editing, setEditing] = useState<AccessAccountRecord | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [passwordTarget, setPasswordTarget] = useState<AccessAccountRecord | null>(null);
   const [dataPushJobOpen, setDataPushJobOpen] = useState(false);
+  const [purchaseTarget, setPurchaseTarget] = useState<SubscriptionPlan | null>(null);
+  const [redeemOpen, setRedeemOpen] = useState(false);
 
   const dashboardQuery = usePolling(() => api.dashboard(), 5000, view === 'dashboard');
   const profileQuery = usePolling(() => api.profile(), 5000, view === 'dashboard' || view === 'profile');
@@ -121,6 +126,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const groupsQuery = usePolling(() => meApi.allowedGroups(), 5000, scope === 'me' && (view === 'dashboard' || view === 'groups' || view === 'access-accounts'));
   const mountsQuery = usePolling(() => meApi.mountPoints(), 5000, scope === 'me' && (view === 'dashboard' || view === 'mount-points'));
   const usageQuery = usePolling(() => meApi.usage(currentPeriod()), 5000, scope === 'me' && (view === 'dashboard' || view === 'usage'));
+  const subscriptionPlanQuery = usePolling(() => meApi.subscriptionPlans(), 5000, scope === 'me' && (view === 'dashboard' || view === 'subscriptions'));
   const subscriptionQuery = usePolling(() => meApi.subscriptions(), 5000, scope === 'me' && (view === 'dashboard' || view === 'subscriptions'));
   const redemptionQuery = usePolling(() => meApi.redeemRedemptions(), 5000, scope === 'me' && (view === 'dashboard' || view === 'redeem-redemptions'));
   const dataPushConfigQuery = usePolling(() => meApi.dataPushConfigs(), 5000, scope === 'me' && (view === 'dashboard' || view === 'data-push'));
@@ -135,6 +141,7 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
   const groupRows = useMemo(() => rowsFromHash(groupsQuery.data), [groupsQuery.data]);
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
+  const subscriptionPlanRows = useMemo(() => rowsFromHash(subscriptionPlanQuery.data), [subscriptionPlanQuery.data]);
   const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
   const redemptionRows = useMemo(() => rowsFromHash(redemptionQuery.data), [redemptionQuery.data]);
   const dataPushConfigRows = useMemo(() => rowsFromHash(dataPushConfigQuery.data), [dataPushConfigQuery.data]);
@@ -263,6 +270,40 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     dashboardQuery.refresh();
   };
 
+  const openPurchasePlan = (record: SubscriptionPlan) => {
+    setPurchaseTarget(record);
+    purchaseForm.resetFields();
+    purchaseForm.setFieldsValue({
+      period: currentPeriod(),
+      operator_note: record.name,
+    });
+  };
+
+  const submitPurchasePlan = async () => {
+    if (!purchaseTarget) return;
+    const values = await purchaseForm.validateFields();
+    await meApi.purchaseSubscriptionPlan(purchaseTarget.plan_id, values);
+    message.success('套餐已购买');
+    setPurchaseTarget(null);
+    subscriptionQuery.refresh();
+    subscriptionPlanQuery.refresh();
+    profileQuery.refresh();
+    dashboardQuery.refresh();
+  };
+
+  const submitRedeemCode = async () => {
+    const values = await redeemForm.validateFields();
+    await meApi.redeemCode(values.code, {
+      period: values.period,
+      operator_note: values.operator_note,
+    });
+    message.success('兑换已入账');
+    setRedeemOpen(false);
+    redemptionQuery.refresh();
+    profileQuery.refresh();
+    dashboardQuery.refresh();
+  };
+
   const accessColumns: ColumnsType<AccessAccountRecord & { key: string }> = [
     { title: 'AccessAccount ID', dataIndex: 'access_account_id', key: 'access_account_id', width: 210 },
     { title: '接入用户名', dataIndex: 'username', key: 'username', width: 150 },
@@ -314,10 +355,29 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     { title: '时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const subscriptionPlanColumns: ColumnsType<SubscriptionPlan & { key: string }> = [
+    { title: 'Plan ID', dataIndex: 'plan_id', key: 'plan_id', width: 180 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 180 },
+    { title: '分组', key: 'group_ids', width: 220, render: (_, row) => (row.group_ids || []).join(', ') || '-' },
+    { title: '价格', key: 'price_cents', width: 120, render: (_, row) => formatCents(row.price_cents) },
+    { title: '周期', key: 'duration_days', width: 100, render: (_, row) => row.duration_days ? `${row.duration_days} 天` : '长期' },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '说明', dataIndex: 'description', key: 'description', ellipsis: true, render: (value) => value || '-' },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 110,
+      render: (_, row) => <Button size="small" type="primary" onClick={() => openPurchasePlan(row)}>购买</Button>,
+    },
+  ];
+
   const subscriptionColumns: ColumnsType<SubscriptionRecord & { key: string }> = [
     { title: 'Subscription ID', dataIndex: 'subscription_id', key: 'subscription_id', width: 210 },
     { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '套餐', dataIndex: 'plan_id', key: 'plan_id', width: 170, render: (value) => value || '-' },
     { title: '分组', key: 'group_ids', width: 220, render: (_, row) => (row.group_ids || []).join(', ') || '-' },
+    { title: '价格', key: 'price_cents', width: 120, render: (_, row) => formatCents(row.price_cents) },
+    { title: '扣后余额', key: 'balance_after_cents', width: 120, render: (_, row) => row.balance_after_cents === undefined ? '-' : formatCents(row.balance_after_cents) },
     { title: '开始', key: 'start_time', width: 170, render: (_, row) => row.start_time ? getLocalTime(row.start_time) : '立即' },
     { title: '过期', key: 'expire_time', width: 170, render: (_, row) => row.expire_time ? getLocalTime(row.expire_time) : '长期' },
     { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
@@ -483,7 +543,23 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
       return <Table columns={usageColumns} dataSource={usageRows} loading={usageQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
     }
     if (scope === 'me' && view === 'subscriptions') {
-      return <Table columns={subscriptionColumns} dataSource={subscriptionRows} loading={subscriptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
+      return (
+        <Row gutter={[16, 16]}>
+          <Col span={24}>
+            <Table
+              columns={subscriptionPlanColumns}
+              dataSource={subscriptionPlanRows}
+              loading={subscriptionPlanQuery.loading}
+              rowKey="key"
+              size="small"
+              scroll={{ x: 1260 }}
+            />
+          </Col>
+          <Col span={24}>
+            <Table columns={subscriptionColumns} dataSource={subscriptionRows} loading={subscriptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1450 }} />
+          </Col>
+        </Row>
+      );
     }
     if (scope === 'me' && view === 'redeem-redemptions') {
       return <Table columns={redemptionColumns} dataSource={redemptionRows} loading={redemptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1120 }} />;
@@ -528,6 +604,8 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
     ? <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{accessTitle}</Button>
     : scope === 'me' && view === 'data-push'
       ? <Button type="primary" icon={<PlusOutlined />} onClick={openDataPushJob}>推送任务</Button>
+      : scope === 'me' && view === 'redeem-redemptions'
+        ? <Button type="primary" icon={<PlusOutlined />} onClick={() => { redeemForm.resetFields(); redeemForm.setFieldsValue({ period: currentPeriod() }); setRedeemOpen(true); }}>兑换</Button>
       : undefined;
 
   const viewTitle = (() => {
@@ -657,6 +735,37 @@ const SelfServiceWorkspace: React.FC<SelfServiceWorkspaceProps> = ({ scope, view
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="operator_note" label="备注">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="购买订阅套餐" open={!!purchaseTarget} onOk={submitPurchasePlan} onCancel={() => setPurchaseTarget(null)} width={520}>
+        <Descriptions column={1} bordered size="small" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="套餐">{purchaseTarget?.name || '-'}</Descriptions.Item>
+          <Descriptions.Item label="价格">{formatCents(purchaseTarget?.price_cents)}</Descriptions.Item>
+          <Descriptions.Item label="周期">{purchaseTarget?.duration_days ? `${purchaseTarget.duration_days} 天` : '长期'}</Descriptions.Item>
+          <Descriptions.Item label="分组">{(purchaseTarget?.group_ids || []).join(', ') || '-'}</Descriptions.Item>
+        </Descriptions>
+        <Form form={purchaseForm} layout="vertical" size="small">
+          <Form.Item name="period" label="账期" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="operator_note" label="备注">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="兑换充值码" open={redeemOpen} onOk={submitRedeemCode} onCancel={() => setRedeemOpen(false)} width={480}>
+        <Form form={redeemForm} layout="vertical" size="small">
+          <Form.Item name="code" label="兑换码" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="period" label="账期" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
           <Form.Item name="operator_note" label="备注">
             <Input.TextArea rows={2} />
           </Form.Item>

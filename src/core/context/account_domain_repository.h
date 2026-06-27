@@ -44,6 +44,11 @@ public:
     AccountDomainResult update_subscription_plan(const std::string &plan_id, nlohmann::json record, std::int64_t now);
     AccountDomainResult delete_subscription_plan(const std::string &plan_id, std::int64_t now);
     AccountDomainResult create_subscription(nlohmann::json record, std::int64_t now);
+    AccountDomainResult purchase_subscription_plan(const std::string &plan_id,
+                                                   const std::string &account_id,
+                                                   nlohmann::json request,
+                                                   const std::string &period,
+                                                   std::int64_t now);
     AccountDomainResult get_subscription(const std::string &subscription_id);
     AccountDomainResult update_subscription(const std::string &subscription_id, nlohmann::json record, std::int64_t now);
     AccountDomainResult delete_subscription(const std::string &subscription_id, std::int64_t now);

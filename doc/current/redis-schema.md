@@ -239,7 +239,7 @@ delete 会把 SUB:RECORD 标记为 deleted，并删除 SUB:ACCOUNT:<account_id>[
 同一 account 对同一 code 只能兑换一次；禁用、过期、超过 max_redemptions 或余额 ledger 冲突会拒绝写入。
 ```
 
-NC-075 订阅套餐模板：
+NC-075/NC-076 订阅套餐模板和自助购买：
 
 ```text
 SUB:PLAN[plan_id] 保存套餐模板，字段包含 plan_id、name、group_ids、price_cents、
@@ -249,6 +249,14 @@ group_ids 必须引用 active MPGRP:RECORD。
 duration_days 和 plan_snapshot 固化进 SUB:RECORD 与 SUB:ACCOUNT:<account_id>。
 duration_days > 0 且请求未显式设置 expire_time 时，expire_time = start_time + duration_days * 86400。
 后续更新或删除 SUB:PLAN 不会回写已创建订阅的 plan_snapshot。
+
+用户通过 /api/v1/me/subscription-plans/{plan_id}/purchase 购买套餐时，后端从 HTTP
+session 推导 account_id。购买成功写 SUB:RECORD[subscription_id]、
+SUB:ACCOUNT:<account_id>[subscription_id] 和
+ACC:BALANCE:LEDGER:<yyyyMM>[ledger:subscription_purchase:*]，并同步扣减
+ACC:RECORD.balance_cents、刷新 AACC:ACTIVE owner 余额快照。余额不足、套餐禁用/删除、
+套餐引用失效分组或 ledger/subscription id 冲突时拒绝写入；余额不足场景不留下订阅或
+账本半成品。
 ```
 
 NC-057 数据推送用量：
