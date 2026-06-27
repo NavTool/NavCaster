@@ -55,7 +55,8 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor — handle 401/403 (auth failure -> force re-login)
+// Response interceptor: 401 means the token is invalid. 403 is a valid
+// authenticated authorization boundary and must not clear a role session.
 function redirectToLogin() {
   // Avoid double-redirect when already on login page
   if (window.location.hash.startsWith('#/login')) return;
@@ -68,7 +69,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       redirectToLogin();
     }
     return Promise.reject(error);
@@ -85,7 +86,7 @@ export async function probeBackend(): Promise<boolean> {
     return true;
   } catch (err: any) {
     const status = err?.response?.status;
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       // interceptor already redirected
       return false;
     }
