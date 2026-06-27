@@ -32,6 +32,11 @@ public:
     ControllerResponse grant_account_group(const std::string &account_id, const std::string &body_text);
 
     ControllerResponse list_access_accounts();
+    ControllerResponse list_subscription_plans();
+    ControllerResponse get_subscription_plan(const std::string &plan_id);
+    ControllerResponse create_subscription_plan(const std::string &body_text);
+    ControllerResponse update_subscription_plan(const std::string &plan_id, const std::string &body_text);
+    ControllerResponse delete_subscription_plan(const std::string &plan_id);
     ControllerResponse list_subscriptions();
     ControllerResponse get_subscription(const std::string &subscription_id);
     ControllerResponse create_subscription(const std::string &body_text);

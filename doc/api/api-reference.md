@@ -167,8 +167,13 @@
 | Method | Path | Redis | 说明 |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/admin/access-accounts` | `AACC:RECORD` | 全局只读 AccessAccount；管理员不代建 |
+| `GET` | `/api/v1/admin/subscription-plans` | `SUB:PLAN` | 列出订阅套餐模板 |
+| `POST` | `/api/v1/admin/subscription-plans` | `SUB:PLAN` | 创建订阅套餐模板 |
+| `GET` | `/api/v1/admin/subscription-plans/{plan_id}` | `SUB:PLAN` | 查询订阅套餐模板 |
+| `PUT` | `/api/v1/admin/subscription-plans/{plan_id}` | `SUB:PLAN` | 更新订阅套餐模板 |
+| `DELETE` | `/api/v1/admin/subscription-plans/{plan_id}` | `SUB:PLAN` | 软删除订阅套餐模板 |
 | `GET` | `/api/v1/admin/subscriptions` | `SUB:RECORD` | 列出订阅 |
-| `POST` | `/api/v1/admin/subscriptions` | `SUB:RECORD` / `SUB:ACCOUNT:{account_id}` | 创建订阅 |
+| `POST` | `/api/v1/admin/subscriptions` | `SUB:PLAN` / `SUB:RECORD` / `SUB:ACCOUNT:{account_id}` | 创建订阅，可引用套餐模板 |
 | `GET` | `/api/v1/admin/subscriptions/{subscription_id}` | `SUB:RECORD` | 查询订阅 |
 | `PUT` | `/api/v1/admin/subscriptions/{subscription_id}` | `SUB:RECORD` / `SUB:ACCOUNT:{account_id}` | 更新订阅并同步 account index |
 | `DELETE` | `/api/v1/admin/subscriptions/{subscription_id}` | `SUB:RECORD` / `SUB:ACCOUNT:{account_id}` | 软删除订阅并移除 account index |
@@ -284,6 +289,15 @@ admin v1 命名空间入口，不引入新 Redis key。在线连接复用
 `STR:ACTIVE` fallback；审计日志复用 `AuditLogService::list()`，读取 `LOG:AUDIT`
 并按 `limit`、`cursor`、`actor`、`action`、`target` 过滤。旧
 `/api/accounts/active` 与 `/api/audit` 继续保留。
+
+`GET/POST/PUT/DELETE /api/v1/admin/subscription-plans` 管理 `SUB:PLAN[plan_id]`。
+套餐字段包含 `plan_id`、`name`、`group_ids`、`price_cents`、`duration_days`、
+`status` 和 `description`。`group_ids` 必须引用 active MountPointGroup。
+`POST /api/v1/admin/subscriptions` 可传入 `plan_id`；服务端会校验套餐 active，并把
+套餐的 `group_ids`、`price_cents`、`duration_days` 和完整 `plan_snapshot` 固化到
+`SUB:RECORD` / `SUB:ACCOUNT:<account_id>`。`duration_days > 0` 且请求未显式传入
+`expire_time` 时，后端按 `start_time + duration_days * 86400` 生成过期时间。后续修改
+套餐不会回写已创建订阅的快照。
 
 `POST /api/v1/me/data-push/jobs/{job_id}/control` 请求体包含 `action` 和可选
 `period`、`operator_note`。用户侧只允许 `cancel` / `retry` 且只能控制自己的

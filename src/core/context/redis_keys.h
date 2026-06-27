@@ -57,6 +57,7 @@ inline constexpr const char *AACC_OWNER_PREFIX = "AACC:OWNER:";
 inline constexpr const char *MPGRP_RECORD = "MPGRP:RECORD";
 inline constexpr const char *MPGRP_MEMBER_PREFIX = "MPGRP:MEMBER:";
 inline constexpr const char *MOUNT_RECORD = "MOUNT:RECORD";
+inline constexpr const char *SUB_PLAN = "SUB:PLAN";
 inline constexpr const char *SUB_RECORD = "SUB:RECORD";
 inline constexpr const char *SUB_ACCOUNT_PREFIX = "SUB:ACCOUNT:";
 inline constexpr const char *REDEEM_CODE = "REDEEM:CODE";

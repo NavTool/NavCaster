@@ -1987,6 +1987,22 @@ int main()
         expect_true(domain_repo.grant_account_group("acc-user", {{"group_id", "mpg-basic"}}, 5013).status == navcaster::storage::RepositoryStatus::Ok, "domain user group grant");
         expect_true(domain_repo.grant_account_group("acc-supplier", {{"group_id", "mpg-basic"}}, 5014).status == navcaster::storage::RepositoryStatus::Ok, "domain supplier group grant");
         expect_true(domain_repo.grant_account_group("acc-admin", {{"group_id", "mpg-basic"}}, 5015).status == navcaster::storage::RepositoryStatus::Ok, "domain admin group grant");
+        expect_true(domain_repo.create_subscription_plan({
+            {"plan_id", "plan-basic"},
+            {"name", "Basic Plan"},
+            {"group_ids", nlohmann::json::array({"mpg-basic"})},
+            {"price_cents", 9900},
+            {"duration_days", 30},
+        }, 5016).status == navcaster::storage::RepositoryStatus::Ok, "domain subscription plan create");
+        expect_true(domain_redis.hget(navcaster::redis_keys::SUB_PLAN, "plan-basic").is_object(), "domain subscription plan key");
+        expect_true(domain_repo.create_subscription_plan({
+            {"plan_id", "plan-unknown-group"},
+            {"name", "Bad Plan"},
+            {"group_ids", nlohmann::json::array({"missing-group"})},
+        }, 5017).status == navcaster::storage::RepositoryStatus::Invalid, "domain subscription plan rejects unknown group");
+        auto plan_update = domain_repo.update_subscription_plan("plan-basic", {{"price_cents", 12900}, {"duration_days", 45}}, 5018);
+        expect_true(plan_update.status == navcaster::storage::RepositoryStatus::Ok, "domain subscription plan update");
+        expect_eq_int(plan_update.record.value("price_cents", 0), 12900, "domain subscription plan price updates");
 
         domain_result = domain_repo.create_access_account({
             {"access_account_id", "aacc-user-1"},
@@ -2102,6 +2118,25 @@ int main()
             {"expire_time", 7000},
         }, 5040).status == navcaster::storage::RepositoryStatus::Ok, "domain subscription create");
         expect_true(domain_redis.hget(navcaster::redis_keys::sub_account("acc-user").c_str(), "sub-user-1").is_object(), "domain subscription account index");
+        domain_result = domain_repo.create_subscription({
+            {"subscription_id", "sub-plan-user"},
+            {"account_id", "acc-user"},
+            {"plan_id", "plan-basic"},
+            {"status", "active"},
+        }, 5040);
+        expect_true(domain_result.status == navcaster::storage::RepositoryStatus::Ok, "domain subscription create from plan");
+        expect_eq(domain_result.record.value("plan_id", std::string{}), "plan-basic", "domain subscription stores plan id");
+        expect_eq_int(domain_result.record.value("price_cents", 0), 12900, "domain subscription inherits plan price");
+        expect_eq_int(domain_result.record.value("duration_days", 0), 45, "domain subscription inherits plan duration");
+        expect_eq_int(domain_result.record.value("expire_time", 0), 5040 + 45 * 86400, "domain subscription plan computes expire time");
+        expect_true(domain_result.record["plan_snapshot"].is_object(), "domain subscription stores plan snapshot");
+        expect_true(domain_redis.hget(navcaster::redis_keys::sub_account("acc-user").c_str(), "sub-plan-user").is_object(), "domain subscription plan account index");
+        expect_true(domain_repo.delete_subscription_plan("plan-basic", 5040).status == navcaster::storage::RepositoryStatus::Ok, "domain subscription plan delete");
+        expect_true(domain_repo.create_subscription({
+            {"subscription_id", "sub-deleted-plan"},
+            {"account_id", "acc-user"},
+            {"plan_id", "plan-basic"},
+        }, 5040).status == navcaster::storage::RepositoryStatus::NotFound, "domain subscription rejects deleted plan");
         expect_true(domain_repo.update_subscription("sub-user-1", {
             {"group_ids", nlohmann::json::array({"mpg-basic"})},
             {"status", "disabled"},
@@ -2342,6 +2377,22 @@ int main()
         expect_true(response_body.contains("op-aacc"), "operations access account read-only list");
 
         expect_eq_int(operations.create_subscription(R"({"subscription_id":"op-sub","account_id":"op-user","group_ids":["op-group"],"expire_time":9000})").status_code, 201, "operations create subscription");
+        response = operations.create_subscription_plan(R"({"plan_id":"op-plan","name":"OP Plan","group_ids":["op-group"],"price_cents":19900,"duration_days":60})");
+        expect_eq_int(response.status_code, 201, "operations create subscription plan");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("plan_id", std::string{}), "op-plan", "operations subscription plan id");
+        expect_eq_int(operations.update_subscription_plan("op-plan", R"({"price_cents":24900})").status_code, 200, "operations update subscription plan");
+        response = operations.list_subscription_plans();
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-plan"), "operations list subscription plans");
+        response = operations.create_subscription(R"({"subscription_id":"op-plan-sub","account_id":"op-user","plan_id":"op-plan"})");
+        expect_eq_int(response.status_code, 201, "operations create subscription from plan");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq(response_body.value("plan_id", std::string{}), "op-plan", "operations subscription plan id stored");
+        expect_eq_int(response_body.value("price_cents", 0), 24900, "operations subscription inherits updated plan price");
+        expect_true(response_body["plan_snapshot"].is_object(), "operations subscription stores plan snapshot");
+        expect_eq_int(operations.delete_subscription_plan("op-plan").status_code, 200, "operations delete subscription plan");
+        expect_eq_int(operations.create_subscription(R"({"subscription_id":"op-deleted-plan-sub","account_id":"op-user","plan_id":"op-plan"})").status_code, 404, "operations subscription rejects deleted plan");
         expect_eq_int(operations.update_subscription("op-sub", R"({"group_ids":["op-group"],"status":"disabled","expire_time":9100})").status_code, 200, "operations update subscription");
         expect_eq(operations_redis.hget(navcaster::redis_keys::sub_account("op-user").c_str(), "op-sub").value("status", std::string{}), "disabled", "operations subscription account index sync");
         response = operations.list_subscriptions();

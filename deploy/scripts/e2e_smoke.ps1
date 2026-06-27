@@ -2729,6 +2729,8 @@ function Invoke-OperationsApiSmoke {
     $groupId = "${prefix}_grp"
     $mount = "${prefix}_MPT"
     $subscriptionId = "${prefix}_sub"
+    $planId = "${prefix}_plan"
+    $planSubscriptionId = "${prefix}_plan_sub"
     $ledgerId = "${prefix}_ledger"
 
     $session = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/auth/session" -TimeoutSec 10
@@ -2777,6 +2779,29 @@ function Invoke-OperationsApiSmoke {
         Fail "operations account grant response mismatch: $(ConvertTo-CompactJson $grant)"
     }
 
+    $planBody = @{
+        plan_id = $planId
+        name = "NC-075 plan"
+        group_ids = @($groupId)
+        price_cents = 9900
+        duration_days = 30
+    } | ConvertTo-Json -Compress
+    $plan = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $planBody -Uri "$Base/api/v1/admin/subscription-plans" -TimeoutSec 10
+    if ($plan.plan_id -ne $planId -or $plan.price_cents -ne 9900) {
+        Fail "operations subscription plan response mismatch: $(ConvertTo-CompactJson $plan)"
+    }
+    $plan = Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body (@{
+        price_cents = 12900
+        duration_days = 45
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscription-plans/$planId" -TimeoutSec 10
+    if ($plan.price_cents -ne 12900 -or $plan.duration_days -ne 45) {
+        Fail "operations subscription plan update mismatch: $(ConvertTo-CompactJson $plan)"
+    }
+    $plans = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/subscription-plans" -TimeoutSec 10
+    if (-not $plans.PSObject.Properties[$planId]) {
+        Fail "operations subscription plan list missing $planId"
+    }
+
     $subscriptionBody = @{
         subscription_id = $subscriptionId
         account_id = $accountId
@@ -2786,6 +2811,31 @@ function Invoke-OperationsApiSmoke {
     $subscription = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body $subscriptionBody -Uri "$Base/api/v1/admin/subscriptions" -TimeoutSec 10
     if ($subscription.subscription_id -ne $subscriptionId) {
         Fail "operations subscription response mismatch: $(ConvertTo-CompactJson $subscription)"
+    }
+    $planSubscription = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body (@{
+        subscription_id = $planSubscriptionId
+        account_id = $accountId
+        plan_id = $planId
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscriptions" -TimeoutSec 10
+    if ($planSubscription.subscription_id -ne $planSubscriptionId -or $planSubscription.plan_id -ne $planId -or $planSubscription.price_cents -ne 12900) {
+        Fail "operations plan subscription response mismatch: $(ConvertTo-CompactJson $planSubscription)"
+    }
+    if ($null -eq $planSubscription.plan_snapshot -or $planSubscription.plan_snapshot.plan_id -ne $planId) {
+        Fail "operations plan subscription missing plan snapshot: $(ConvertTo-CompactJson $planSubscription)"
+    }
+    $deletedPlan = Invoke-RestMethod -Method Delete -Headers $Headers -Uri "$Base/api/v1/admin/subscription-plans/$planId" -TimeoutSec 10
+    if ($deletedPlan.status -ne "deleted") {
+        Fail "operations subscription plan delete mismatch: $(ConvertTo-CompactJson $deletedPlan)"
+    }
+    $deletedPlanSubStatus = Get-HttpStatusCode -Context "subscription from deleted plan" -Request {
+        Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body (@{
+            subscription_id = "${prefix}_deleted_plan_sub"
+            account_id = $accountId
+            plan_id = $planId
+        } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscriptions" -TimeoutSec 10
+    }
+    if ($deletedPlanSubStatus -ne 404) {
+        Fail "subscription from deleted plan expected 404, got $deletedPlanSubStatus"
     }
 
     $ledgerBody = @{

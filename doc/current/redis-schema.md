@@ -141,6 +141,7 @@ NC-051 在 Core 层新增 AccountDomainRepository，用于账户/接入账号/�
 | `MPGRP:RECORD` | HASH | group_id | MountPointGroup JSON | 持久 | AccountDomainRepository |
 | `MPGRP:MEMBER:<group_id>` | HASH | mountpoint | member JSON | 持久 | AccountDomainRepository |
 | `MOUNT:RECORD` | HASH | mountpoint | MountPoint JSON | 持久 | AccountDomainRepository |
+| `SUB:PLAN` | HASH | plan_id | SubscriptionPlan JSON | 持久 | AccountDomainRepository |
 | `SUB:RECORD` | HASH | subscription_id | Subscription JSON | 持久 | AccountDomainRepository |
 | `SUB:ACCOUNT:<account_id>` | HASH | subscription_id | Subscription JSON summary | 持久 | AccountDomainRepository |
 | `REDEEM:CODE` | HASH | code | RedeemCode JSON | 持久 | AccountDomainRepository |
@@ -236,6 +237,18 @@ delete 会把 SUB:RECORD 标记为 deleted，并删除 SUB:ACCOUNT:<account_id>[
 兑换成功写 REDEEM:ACCOUNT:<account_id>[redemption_id] 和 ACC:BALANCE:LEDGER:<yyyyMM>[ledger_id]，
 同步增加 ACC:RECORD.balance_cents，刷新 AACC:ACTIVE owner 余额快照，并递增 REDEEM:CODE.redeemed_count。
 同一 account 对同一 code 只能兑换一次；禁用、过期、超过 max_redemptions 或余额 ledger 冲突会拒绝写入。
+```
+
+NC-075 订阅套餐模板：
+
+```text
+SUB:PLAN[plan_id] 保存套餐模板，字段包含 plan_id、name、group_ids、price_cents、
+duration_days、status、description、create_time、update_time。
+group_ids 必须引用 active MPGRP:RECORD。
+管理员创建订阅时可传 plan_id；后端校验套餐 active 后，把套餐 group_ids、price_cents、
+duration_days 和 plan_snapshot 固化进 SUB:RECORD 与 SUB:ACCOUNT:<account_id>。
+duration_days > 0 且请求未显式设置 expire_time 时，expire_time = start_time + duration_days * 86400。
+后续更新或删除 SUB:PLAN 不会回写已创建订阅的 plan_snapshot。
 ```
 
 NC-057 数据推送用量：

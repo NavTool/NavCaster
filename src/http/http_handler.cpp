@@ -156,6 +156,16 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_mount_points(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/access-accounts", [this](auto &req, auto &resp)
                   { handle_v1_admin_access_accounts(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/subscription-plans", [this](auto &req, auto &resp)
+                  { handle_v1_admin_subscription_plans(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/subscription-plans", [this](auto &req, auto &resp)
+                  { handle_v1_admin_subscription_plans(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/subscription-plans/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_subscription_plan(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/subscription-plans/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_subscription_plan(req, resp); });
+    _server.route(EVHTTP_REQ_DELETE, "/api/v1/admin/subscription-plans/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_subscription_plan(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/subscriptions", [this](auto &req, auto &resp)
                   { handle_v1_admin_subscriptions(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/v1/admin/subscriptions", [this](auto &req, auto &resp)
@@ -737,6 +747,35 @@ void http_handler::handle_v1_admin_access_accounts(const HttpRequest &req, HttpR
 {
     navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.list_access_accounts();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_subscription_plans(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto result = req.method == EVHTTP_REQ_POST ? controller.create_subscription_plan(req.body) : controller.list_subscription_plans();
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_subscription_plan(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    const std::string plan_id = get_path_segment(req, 4);
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_subscription_plan(plan_id, req.body);
+    }
+    else if (req.method == EVHTTP_REQ_DELETE)
+    {
+        result = controller.delete_subscription_plan(plan_id);
+    }
+    else
+    {
+        result = controller.get_subscription_plan(plan_id);
+    }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

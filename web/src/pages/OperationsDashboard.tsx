@@ -51,6 +51,7 @@ import type {
   OperationsMonitorRiskAccount,
   RedeemCodeRecord,
   StationRecord,
+  SubscriptionPlan,
   SubscriptionRecord,
   SupplierSettlementRecord,
   SupplierSupplyUsage,
@@ -69,6 +70,7 @@ type AdminView =
   | 'mount-points'
   | 'stations'
   | 'usage'
+  | 'subscription-plans'
   | 'subscriptions'
   | 'redeem-codes'
   | 'data-push-configs'
@@ -150,6 +152,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [groupForm] = Form.useForm();
   const [memberForm] = Form.useForm();
   const [mountForm] = Form.useForm();
+  const [subscriptionPlanForm] = Form.useForm();
   const [subscriptionForm] = Form.useForm();
   const [redeemForm] = Form.useForm();
   const [redeemApplyForm] = Form.useForm();
@@ -162,6 +165,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [groupOpen, setGroupOpen] = useState(false);
   const [memberGroupId, setMemberGroupId] = useState<string | null>(null);
   const [mountOpen, setMountOpen] = useState(false);
+  const [subscriptionPlanOpen, setSubscriptionPlanOpen] = useState(false);
   const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemApplyCode, setRedeemApplyCode] = useState<string | null>(null);
@@ -192,6 +196,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountsQuery = usePolling(() => adminApi.mountPoints(), 5000, view === 'dashboard' || view === 'mount-points');
   const stationsQuery = usePolling(() => adminApi.stations(), 5000, view === 'dashboard' || view === 'stations');
   const usageQuery = usePolling(() => adminApi.usage(currentPeriod()), 5000, view === 'dashboard' || view === 'usage');
+  const subscriptionPlanQuery = usePolling(() => adminApi.subscriptionPlans(), 5000, view === 'dashboard' || view === 'subscription-plans' || view === 'subscriptions');
   const subscriptionQuery = usePolling(() => adminApi.subscriptions(), 5000, view === 'dashboard' || view === 'subscriptions');
   const redeemQuery = usePolling(() => adminApi.redeemCodes(), 5000, view === 'dashboard' || view === 'redeem-codes');
   const dataPushConfigQuery = usePolling(() => adminApi.dataPushConfigs(), 5000, view === 'dashboard' || view === 'data-push-configs');
@@ -213,6 +218,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
+  const subscriptionPlanRows = useMemo(() => rowsFromHash(subscriptionPlanQuery.data), [subscriptionPlanQuery.data]);
   const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
   const redeemRows = useMemo(() => rowsFromHash(redeemQuery.data), [redeemQuery.data]);
   const dataPushConfigRows = useMemo(() => rowsFromHash(dataPushConfigQuery.data), [dataPushConfigQuery.data]);
@@ -357,6 +363,40 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     mountsQuery.refresh();
   };
 
+  const openSubscriptionPlan = () => {
+    subscriptionPlanForm.resetFields();
+    subscriptionPlanForm.setFieldsValue({
+      plan_id: `plan_${Date.now()}`,
+      status: 'active',
+      price_cents: 0,
+      duration_days: 30,
+      group_ids_text: '',
+    });
+    setSubscriptionPlanOpen(true);
+  };
+
+  const submitSubscriptionPlan = async () => {
+    const values = await subscriptionPlanForm.validateFields();
+    await adminApi.createSubscriptionPlan({
+      plan_id: values.plan_id,
+      name: values.name,
+      group_ids: String(values.group_ids_text || '').split(',').map((item) => item.trim()).filter(Boolean),
+      status: values.status,
+      price_cents: values.price_cents,
+      duration_days: values.duration_days,
+      description: values.description,
+    });
+    message.success('订阅套餐已创建');
+    setSubscriptionPlanOpen(false);
+    subscriptionPlanQuery.refresh();
+  };
+
+  const disableSubscriptionPlan = async (record: SubscriptionPlan) => {
+    await adminApi.updateSubscriptionPlan(record.plan_id, { status: 'disabled' });
+    message.success('订阅套餐已禁用');
+    subscriptionPlanQuery.refresh();
+  };
+
   const openSubscription = () => {
     subscriptionForm.resetFields();
     subscriptionForm.setFieldsValue({
@@ -371,10 +411,12 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
 
   const submitSubscription = async () => {
     const values = await subscriptionForm.validateFields();
+    const groupIds = String(values.group_ids_text || '').split(',').map((item) => item.trim()).filter(Boolean);
     await adminApi.createSubscription({
       subscription_id: values.subscription_id,
       account_id: values.account_id,
-      group_ids: String(values.group_ids_text || '').split(',').map((item) => item.trim()).filter(Boolean),
+      plan_id: values.plan_id,
+      ...(groupIds.length ? { group_ids: groupIds } : {}),
       status: values.status,
       start_time: values.start_time,
       expire_time: values.expire_time,
@@ -383,6 +425,16 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     message.success('订阅已创建');
     setSubscriptionOpen(false);
     subscriptionQuery.refresh();
+  };
+
+  const applySubscriptionPlanToForm = (planId?: string) => {
+    const plan = subscriptionPlanRows.find((item) => item.plan_id === planId);
+    if (!plan) return;
+    subscriptionForm.setFieldsValue({
+      group_ids_text: (plan.group_ids || []).join(', '),
+      expire_time: 0,
+      remark: plan.name,
+    });
   };
 
   const disableSubscription = async (record: SubscriptionRecord) => {
@@ -629,12 +681,27 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const subscriptionColumns: ColumnsType<SubscriptionRecord & { key: string }> = [
     { title: 'Subscription ID', dataIndex: 'subscription_id', key: 'subscription_id', width: 210 },
     { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
+    { title: '套餐', dataIndex: 'plan_id', key: 'plan_id', width: 170, render: (value) => value || '-' },
     { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
     { title: '分组', key: 'group_ids', width: 220, render: (_, row) => (row.group_ids || []).join(', ') || '-' },
+    { title: '价格', key: 'price_cents', width: 110, render: (_, row) => formatCents(row.price_cents) },
+    { title: '周期', key: 'duration_days', width: 100, render: (_, row) => row.duration_days ? `${row.duration_days} 天` : '长期' },
     { title: '开始', key: 'start_time', width: 170, render: (_, row) => row.start_time ? getLocalTime(row.start_time) : '立即' },
     { title: '过期', key: 'expire_time', width: 170, render: (_, row) => row.expire_time ? getLocalTime(row.expire_time) : '长期' },
     { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
     { title: '操作', key: 'actions', width: 100, render: (_, row) => <Button size="small" danger onClick={() => disableSubscription(row)}>禁用</Button> },
+  ];
+
+  const subscriptionPlanColumns: ColumnsType<SubscriptionPlan & { key: string }> = [
+    { title: 'Plan ID', dataIndex: 'plan_id', key: 'plan_id', width: 190 },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 180 },
+    { title: '状态', key: 'status', width: 100, render: (_, row) => statusTag(row.status) },
+    { title: '分组', key: 'group_ids', width: 260, render: (_, row) => (row.group_ids || []).join(', ') || '-' },
+    { title: '价格', key: 'price_cents', width: 120, render: (_, row) => formatCents(row.price_cents) },
+    { title: '周期', key: 'duration_days', width: 100, render: (_, row) => row.duration_days ? `${row.duration_days} 天` : '长期' },
+    { title: '更新时间', key: 'update_time', width: 170, render: (_, row) => getLocalTime(row.update_time ?? 0) },
+    { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true, render: (value) => value || '-' },
+    { title: '操作', key: 'actions', width: 100, render: (_, row) => <Button size="small" danger onClick={() => disableSubscriptionPlan(row)}>禁用</Button> },
   ];
 
   const redeemColumns: ColumnsType<RedeemCodeRecord & { key: string }> = [
@@ -1023,8 +1090,11 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     if (view === 'usage') {
       return <Table columns={usageColumns} dataSource={usageRows} loading={usageQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
+    if (view === 'subscription-plans') {
+      return <Table columns={subscriptionPlanColumns} dataSource={subscriptionPlanRows} loading={subscriptionPlanQuery.loading} rowKey="key" size="small" scroll={{ x: 1320 }} />;
+    }
     if (view === 'subscriptions') {
-      return <Table columns={subscriptionColumns} dataSource={subscriptionRows} loading={subscriptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1400 }} />;
+      return <Table columns={subscriptionColumns} dataSource={subscriptionRows} loading={subscriptionQuery.loading} rowKey="key" size="small" scroll={{ x: 1680 }} />;
     }
     if (view === 'redeem-codes') {
       return <Table columns={redeemColumns} dataSource={redeemRows} loading={redeemQuery.loading} rowKey="key" size="small" scroll={{ x: 1000 }} />;
@@ -1063,6 +1133,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     'mount-points': '挂载点记录',
     stations: '历史站点',
     usage: '计费用量',
+    'subscription-plans': '订阅套餐',
     subscriptions: '订阅',
     'redeem-codes': '兑换码',
     'data-push-configs': '数据推送配置',
@@ -1077,6 +1148,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       {view === 'accounts' && <Button type="primary" icon={<PlusOutlined />} onClick={openCreateAccount}>账号</Button>}
       {view === 'mount-point-groups' && <Button type="primary" icon={<PlusOutlined />} onClick={openCreateGroup}>分组</Button>}
       {view === 'mount-points' && <Button type="primary" icon={<PlusOutlined />} onClick={openMountPoint}>挂载点</Button>}
+      {view === 'subscription-plans' && <Button type="primary" icon={<PlusOutlined />} onClick={openSubscriptionPlan}>套餐</Button>}
       {view === 'subscriptions' && <Button type="primary" icon={<PlusOutlined />} onClick={openSubscription}>订阅</Button>}
       {view === 'redeem-codes' && <Button type="primary" icon={<PlusOutlined />} onClick={openRedeemCode}>兑换码</Button>}
       {view === 'data-push-configs' && <Button type="primary" icon={<PlusOutlined />} onClick={openDataPushConfig}>推送配置</Button>}
@@ -1257,12 +1329,37 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
           <Row gutter={16}>
             <Col span={12}><Form.Item name="subscription_id" label="Subscription ID" rules={[{ required: true }]}><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="account_id" label="Account ID" rules={[{ required: true }]}><Input /></Form.Item></Col>
-            <Col span={24}><Form.Item name="group_ids_text" label="覆盖分组，逗号分隔" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}>
+              <Form.Item name="plan_id" label="套餐">
+                <Select
+                  allowClear
+                  onChange={applySubscriptionPlanToForm}
+                  options={subscriptionPlanRows
+                    .filter((plan) => plan.status === 'active')
+                    .map((plan) => ({ value: plan.plan_id, label: `${plan.name} (${plan.plan_id})` }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}><Form.Item name="group_ids_text" label="覆盖分组，逗号分隔" rules={[{ required: true }]}><Input /></Form.Item></Col>
             <Col span={8}><Form.Item name="status" label="状态"><Select options={[{ value: 'active' }, { value: 'disabled' }]} /></Form.Item></Col>
             <Col span={8}><Form.Item name="start_time" label="开始 UTC 秒"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
             <Col span={8}><Form.Item name="expire_time" label="过期 UTC 秒"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
           </Row>
           <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal title="创建订阅套餐" open={subscriptionPlanOpen} onOk={submitSubscriptionPlan} onCancel={() => setSubscriptionPlanOpen(false)} width={640}>
+        <Form form={subscriptionPlanForm} layout="vertical" size="small">
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="plan_id" label="Plan ID" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="name" label="名称" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={24}><Form.Item name="group_ids_text" label="覆盖分组，逗号分隔" rules={[{ required: true }]}><Input /></Form.Item></Col>
+            <Col span={8}><Form.Item name="status" label="状态"><Select options={[{ value: 'active' }, { value: 'disabled' }]} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="price_cents" label="价格(分)"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+            <Col span={8}><Form.Item name="duration_days" label="周期(天)"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item></Col>
+          </Row>
+          <Form.Item name="description" label="描述"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
 
