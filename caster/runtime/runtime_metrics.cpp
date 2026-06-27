@@ -45,6 +45,13 @@ std::string runtime_metrics_to_json(const RuntimeMetricsSnapshot &snapshot)
         out << ",\"fanout_write_count\":" << worker.fanout_write_count;
         out << ",\"redis_publish_count\":" << worker.redis_publish_count;
         out << ",\"redis_publish_bytes\":" << worker.redis_publish_bytes;
+        out << ",\"redis_publish_error_count\":" << worker.redis_publish_error_count;
+        out << ",\"redis_subscribe_message_count\":" << worker.redis_subscribe_message_count;
+        out << ",\"redis_subscribe_bytes\":" << worker.redis_subscribe_bytes;
+        out << ",\"redis_remote_fanout_write_count\":" << worker.redis_remote_fanout_write_count;
+        out << ",\"redis_remote_fanout_bytes\":" << worker.redis_remote_fanout_bytes;
+        out << ",\"redis_error_count\":" << worker.redis_error_count;
+        out << ",\"redis_subscribed_mount_count\":" << worker.redis_subscribed_mount_count;
         out << ",\"slow_client_disconnect_count\":" << worker.slow_client_disconnect_count;
         out << ",\"output_buffer_limit_count\":" << worker.output_buffer_limit_count;
         out << ",\"redis_contexts_reserved\":" << worker.redis_contexts_reserved;

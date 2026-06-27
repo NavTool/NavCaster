@@ -344,6 +344,18 @@ source -> owner Worker -> Redis publish
 Redis Pub/Sub -> subscribed Worker -> local clients
 ```
 
+最小 Redis bus 契约：
+
+```text
+channel: v2:stream:mount:<mount>
+payload: NCV2BUS1 envelope + raw bytes
+origin_runtime_id: envelope field; subscribed runtime ignores its own messages
+```
+
+本 channel 不兼容旧 `MPT:<mount>` channel。Worker 只在本地 client 订阅 mount 时订阅
+对应 v2 channel；source 数据进入后先本地 fan-out，再发布到 Redis。Redis subscribe 回调
+只能在该 Worker 的 event loop 内向本 Worker client fan-out，不得跨 Worker 访问 session map。
+
 第一版保留普通 Pub/Sub。只有当指标显示 Redis 成为共享瓶颈时，再评估 Sharded Pub/Sub。
 
 ## 9. Worker Count 调整

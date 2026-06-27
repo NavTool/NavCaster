@@ -19,6 +19,13 @@ struct WorkerMetricsSnapshot {
     std::uint64_t fanout_write_count = 0;
     std::uint64_t redis_publish_count = 0;
     std::uint64_t redis_publish_bytes = 0;
+    std::uint64_t redis_publish_error_count = 0;
+    std::uint64_t redis_subscribe_message_count = 0;
+    std::uint64_t redis_subscribe_bytes = 0;
+    std::uint64_t redis_remote_fanout_write_count = 0;
+    std::uint64_t redis_remote_fanout_bytes = 0;
+    std::uint64_t redis_error_count = 0;
+    std::uint64_t redis_subscribed_mount_count = 0;
     std::uint64_t slow_client_disconnect_count = 0;
     std::uint64_t output_buffer_limit_count = 0;
     std::uint64_t redis_contexts_reserved = 0;

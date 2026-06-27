@@ -237,12 +237,30 @@ curl.exe -fsS http://127.0.0.1:19080/metrics
 7. Redis Pub/Sub 或 runtime projection 没有写入旧 key 作为 v2 通过证据。
 ```
 
+双 Runtime Redis Pub/Sub smoke：
+
+```powershell
+.\deploy\scripts\v2_caster_redis_pubsub_smoke.ps1 -RedisHost 127.0.0.1 -RedisPort 6379
+```
+
+检查点：
+
+```text
+1. 启动 Runtime A 和 Runtime B，共用同一个 Redis。
+2. Runtime B 先打开 client 订阅同一 mount，metrics 出现 redis_subscribed_mount_count>=1。
+3. Runtime A 打开 source 并写入确定性 payload。
+4. Runtime B client 收到完全相同 payload。
+5. Runtime A publisher worker 的 redis_publish_count>=1 且 redis_publish_error_count=0。
+6. Runtime B subscriber worker 的 redis_subscribe_message_count>=1、redis_remote_fanout_write_count>=1 且 redis_error_count=0。
+7. 只使用 `v2:stream:mount:<mount>`，不把旧 `MPT:<mount>` channel/key 作为通过证据。
+```
+
 通过标准：
 
 - Runtime health 不依赖 AdminService 存活。
 - Worker 独立 event loop 和 Redis context 的指标可见。
 - 同 mount source/client 优先同 worker 本地 fan-out。
-- Redis publish 可观测，错误计数为 0。
+- Redis publish、subscribe 和 remote fan-out 可区分观测，错误计数为 0。
 - 慢客户端阈值、output buffer 指标和断开计数可采集。
 
 阻断项：

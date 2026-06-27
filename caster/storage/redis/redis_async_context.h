@@ -27,6 +27,7 @@ public:
     const std::string &role() const { return role_; }
     const std::string &host() const { return host_; }
     int port() const { return port_; }
+    redisAsyncContext *raw() const { return context_; }
 
 private:
     std::string role_;

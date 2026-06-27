@@ -25,7 +25,7 @@ bool WorkerManager::start()
     workers_.reserve(config_.worker_count);
     for (std::uint32_t index = 0; index < config_.worker_count; ++index) {
         const std::uint32_t worker_id = index + 1;
-        auto worker = std::make_unique<CasterWorker>(worker_id, config_.redis);
+        auto worker = std::make_unique<CasterWorker>(worker_id, config_.runtime_id, config_.redis);
         if (!worker->start()) {
             log_error("failed to start worker " + std::to_string(worker_id));
             stop();

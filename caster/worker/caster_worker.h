@@ -19,7 +19,7 @@ namespace navcaster::caster {
 
 class CasterWorker {
 public:
-    CasterWorker(std::uint32_t worker_id, RedisEndpoint redis);
+    CasterWorker(std::uint32_t worker_id, std::string runtime_id, RedisEndpoint redis);
     ~CasterWorker();
 
     CasterWorker(const CasterWorker &) = delete;
@@ -42,6 +42,7 @@ private:
     bool wait_until_ready();
 
     std::uint32_t worker_id_ = 0;
+    std::string runtime_id_;
     RedisEndpoint redis_endpoint_;
     std::thread thread_;
     EventBasePtr base_;
