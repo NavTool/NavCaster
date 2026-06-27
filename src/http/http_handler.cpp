@@ -254,8 +254,14 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_me_access_account(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/usage", [this](auto &req, auto &resp)
                   { handle_v1_me_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/me/subscription-plans", [this](auto &req, auto &resp)
+                  { handle_v1_me_subscription_plans(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/me/subscription-plans/*", [this](auto &req, auto &resp)
+                  { handle_v1_me_subscription_plan(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/subscriptions", [this](auto &req, auto &resp)
                   { handle_v1_me_subscriptions(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/me/redeem-codes/*", [this](auto &req, auto &resp)
+                  { handle_v1_me_redeem_code(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/redeem-redemptions", [this](auto &req, auto &resp)
                   { handle_v1_me_redeem_redemptions(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/me/data-push/configs", [this](auto &req, auto &resp)
@@ -1171,12 +1177,66 @@ void http_handler::handle_v1_me_usage(const HttpRequest &req, HttpResponse &resp
     resp.body = std::move(result.body);
 }
 
+void http_handler::handle_v1_me_subscription_plans(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    auto result = controller.subscription_plans(_auth_sessions.lookup_subject(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_subscription_plan(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    const std::string plan_id = get_path_segment(req, 4);
+    const std::string action = get_path_segment(req, 5);
+    navcaster::http_api::ControllerResponse result;
+    if (action == "purchase")
+    {
+        result = controller.purchase_subscription_plan(subject, plan_id, req.body);
+    }
+    else
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not found"})";
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
 void http_handler::handle_v1_me_subscriptions(const HttpRequest &req, HttpResponse &resp)
 {
     auto it = req.headers.find("Authorization");
     const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
     navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
     auto result = controller.subscriptions(_auth_sessions.lookup_subject(token));
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_me_redeem_code(const HttpRequest &req, HttpResponse &resp)
+{
+    auto it = req.headers.find("Authorization");
+    const std::string token = navcaster::http_api::bearer_token_from_authorization(it != req.headers.end() ? it->second : std::string());
+    navcaster::http_api::SelfServiceController controller(auth_redis_client(), current_unix_seconds());
+    const auto subject = _auth_sessions.lookup_subject(token);
+    const std::string code = get_path_segment(req, 4);
+    const std::string action = get_path_segment(req, 5);
+    navcaster::http_api::ControllerResponse result;
+    if (action == "redeem")
+    {
+        result = controller.redeem_code(subject, code, req.body);
+    }
+    else
+    {
+        result.status_code = 404;
+        result.body = R"({"error":"Not found"})";
+    }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

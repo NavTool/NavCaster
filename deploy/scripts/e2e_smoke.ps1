@@ -2971,6 +2971,28 @@ function Invoke-SelfServiceApiSmoke {
     foreach ($accountId in @($userAccountId, $supplierAccountId, $adminAccountId)) {
         Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{ group_id = $groupId } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts/$accountId/group-grants" -TimeoutSec 10 | Out-Null
     }
+    $planId = "${prefix}_plan"
+    $overBalancePlanId = "${prefix}_over_balance_plan"
+    Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        plan_id = $planId
+        name = "NC-076 self plan"
+        group_ids = @($groupId)
+        price_cents = 1200
+        duration_days = 30
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscription-plans" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        plan_id = $overBalancePlanId
+        name = "NC-076 over balance plan"
+        group_ids = @($groupId)
+        price_cents = 999999
+        duration_days = 30
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/subscription-plans" -TimeoutSec 10 | Out-Null
+    $redeemCode = "${prefix}_RC"
+    Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        code = $redeemCode
+        amount_cents = 700
+        max_redemptions = 1
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/redeem-codes" -TimeoutSec 10 | Out-Null
 
     $userLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "self-service user" -Username $userName -Password $password
     $supplierLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "self-service supplier" -Username $supplierName -Password $password
@@ -3003,6 +3025,54 @@ function Invoke-SelfServiceApiSmoke {
     $mounts = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/mount-points" -TimeoutSec 10
     if (-not $mounts.PSObject.Properties[$mount]) {
         Fail "self-service user mount-points missing $mount"
+    }
+
+    $plans = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/subscription-plans" -TimeoutSec 10
+    if (-not $plans.PSObject.Properties[$planId]) {
+        Fail "self-service subscription plans missing $planId"
+    }
+    $purchase = Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+        period = "202606"
+        subscription_id = "${prefix}_purchase_sub"
+        ledger_id = "${prefix}_purchase_ledger"
+        account_id = $supplierAccountId
+        operator_note = "self purchase"
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/subscription-plans/$planId/purchase" -TimeoutSec 10
+    if ($purchase.account_id -ne $userAccountId -or $purchase.plan_id -ne $planId -or $purchase.ledger_id -ne "${prefix}_purchase_ledger" -or [int64]$purchase.balance_after_cents -ne 3800) {
+        Fail "self-service purchase response mismatch: $(ConvertTo-CompactJson $purchase)"
+    }
+    $subs = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/subscriptions" -TimeoutSec 10
+    if (-not $subs.PSObject.Properties["${prefix}_purchase_sub"]) {
+        Fail "self-service subscriptions missing purchase"
+    }
+    $overBalanceStatus = Get-HttpStatusCode -Context "self-service purchase insufficient balance" -Request {
+        Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+            period = "202606"
+            subscription_id = "${prefix}_over_balance_sub"
+            ledger_id = "${prefix}_over_balance_ledger"
+        } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/subscription-plans/$overBalancePlanId/purchase" -TimeoutSec 10
+    }
+    if ($overBalanceStatus -ne 409) {
+        Fail "self-service insufficient balance expected 409, got $overBalanceStatus"
+    }
+    $redeemed = Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+        period = "202606"
+        account_id = $supplierAccountId
+        amount_cents = 999999
+        operator_note = "self redeem"
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/redeem-codes/$redeemCode/redeem" -TimeoutSec 10
+    if ($redeemed.account_id -ne $userAccountId -or $redeemed.code -ne $redeemCode -or [int64]$redeemed.balance_after_cents -ne 4500) {
+        Fail "self-service redeem response mismatch: $(ConvertTo-CompactJson $redeemed)"
+    }
+    $duplicateRedeemStatus = Get-HttpStatusCode -Context "self-service duplicate redeem" -Request {
+        Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{ period = "202606" } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/redeem-codes/$redeemCode/redeem" -TimeoutSec 10
+    }
+    if ($duplicateRedeemStatus -ne 409) {
+        Fail "self-service duplicate redeem expected 409, got $duplicateRedeemStatus"
+    }
+    $redemptions = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$Base/api/v1/me/redeem-redemptions" -TimeoutSec 10
+    if (-not $redemptions.PSObject.Properties["redeem:${redeemCode}:${userAccountId}"]) {
+        Fail "self-service redeem redemptions missing code"
     }
 
     $badGroupStatus = Get-HttpStatusCode -Context "self-service user ungranted group" -Request {

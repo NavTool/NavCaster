@@ -285,6 +285,18 @@ export const meApi = {
     const { data } = await api.get('/api/v1/me/subscriptions');
     return data;
   },
+  async subscriptionPlans(): Promise<HashRecord<SubscriptionPlan>> {
+    const { data } = await api.get('/api/v1/me/subscription-plans');
+    return data;
+  },
+  async purchaseSubscriptionPlan(planId: string, body: { period?: string; operator_note?: string; subscription_id?: string } = {}) {
+    const { data } = await api.post(`/api/v1/me/subscription-plans/${encodeURIComponent(planId)}/purchase`, body);
+    return data as SubscriptionRecord;
+  },
+  async redeemCode(code: string, body: { period?: string; operator_note?: string } = {}) {
+    const { data } = await api.post(`/api/v1/me/redeem-codes/${encodeURIComponent(code)}/redeem`, body);
+    return data as RedeemRedemptionRecord;
+  },
   async redeemRedemptions(): Promise<HashRecord<RedeemRedemptionRecord>> {
     const { data } = await api.get('/api/v1/me/redeem-redemptions');
     return data;

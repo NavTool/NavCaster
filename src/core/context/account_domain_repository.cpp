@@ -1130,6 +1130,145 @@ AccountDomainResult AccountDomainRepository::create_subscription(nlohmann::json 
     return result;
 }
 
+AccountDomainResult AccountDomainRepository::purchase_subscription_plan(const std::string &plan_id,
+                                                                        const std::string &account_id,
+                                                                        nlohmann::json request,
+                                                                        const std::string &period,
+                                                                        std::int64_t now)
+{
+    if (!request.is_object())
+    {
+        request = nlohmann::json::object();
+    }
+    auto plan = get_hash_record(redis_keys::SUB_PLAN, plan_id);
+    if (!plan.is_object() || plan.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, plan_id, "SubscriptionPlan not found");
+    }
+    if (!account_domain::is_active_status(plan))
+    {
+        return make_result(RepositoryStatus::Conflict, plan_id, "SubscriptionPlan is not active");
+    }
+    for (const auto &group_id : plan.value("group_ids", nlohmann::json::array()))
+    {
+        if (!group_id.is_string() || !group_is_active(group_id.get<std::string>()))
+        {
+            return make_result(RepositoryStatus::Invalid, plan_id, "SubscriptionPlan references unknown group");
+        }
+    }
+
+    auto account = get_hash_record(redis_keys::ACC_RECORD, account_id);
+    if (!account.is_object() || !account_domain::is_active_status(account))
+    {
+        return make_result(RepositoryStatus::NotFound, account_id, "Account not found or inactive");
+    }
+    const std::int64_t price_cents = json_record::as_i64(plan.value("price_cents", 0), 0);
+    const std::int64_t balance_cents = json_record::as_i64(account.value("balance_cents", 0), 0);
+    const std::int64_t credit_limit_cents = json_record::as_i64(account.value("credit_limit_cents", 0), 0);
+    const std::int64_t balance_after_cents = balance_cents - price_cents;
+    if (price_cents > 0 && balance_after_cents + credit_limit_cents < 0)
+    {
+        return make_result(RepositoryStatus::Conflict, account_id, "Balance insufficient");
+    }
+
+    const std::string subscription_id = request.value("subscription_id",
+        std::string("sub:purchase:") + plan_id + ":" + account_id + ":" + std::to_string(now));
+    const std::string ledger_id = request.value("ledger_id",
+        std::string("ledger:subscription_purchase:") + subscription_id);
+    const std::string ledger_key = redis_keys::acc_balance_ledger(period);
+    if (!_redis.hget(redis_keys::SUB_RECORD, subscription_id.c_str()).is_null())
+    {
+        return make_result(RepositoryStatus::Conflict, subscription_id, "Subscription already exists");
+    }
+    if (!_redis.hget(ledger_key.c_str(), ledger_id.c_str()).is_null())
+    {
+        return make_result(RepositoryStatus::Conflict, ledger_id, "Balance ledger entry already exists");
+    }
+
+    nlohmann::json subscription = {
+        {"subscription_id", subscription_id},
+        {"account_id", account_id},
+        {"status", account_domain::STATUS_ACTIVE},
+        {"source", "self_service_purchase"},
+        {"purchase_time", now},
+    };
+    if (request.contains("start_time"))
+    {
+        subscription["start_time"] = request["start_time"];
+    }
+    if (request.contains("expire_time"))
+    {
+        subscription["expire_time"] = request["expire_time"];
+    }
+    if (request.contains("operator_note"))
+    {
+        subscription["operator_note"] = request["operator_note"];
+    }
+    apply_subscription_plan_snapshot(subscription, plan, now);
+
+    std::string error;
+    if (!account_domain::normalize_subscription(subscription, now, &error))
+    {
+        return invalid(error);
+    }
+
+    nlohmann::json ledger = {
+        {"ledger_id", ledger_id},
+        {"account_id", account_id},
+        {"delta_cents", -price_cents},
+        {"balance_after_cents", balance_after_cents},
+        {"source", "subscription_purchase"},
+        {"plan_id", plan_id},
+        {"subscription_id", subscription_id},
+        {"price_cents", price_cents},
+    };
+    if (request.contains("operator_note"))
+    {
+        ledger["operator_note"] = request["operator_note"];
+    }
+    if (!account_domain::normalize_balance_ledger_entry(ledger, now, &error))
+    {
+        return invalid(error);
+    }
+
+    if (!hsetnx_json(redis_keys::SUB_RECORD, subscription_id, subscription))
+    {
+        return make_result(RepositoryStatus::Conflict, subscription_id, "Subscription already exists");
+    }
+    const std::string subscription_account_key = redis_keys::sub_account(account_id);
+    if (!hset_json(subscription_account_key.c_str(), subscription_id, subscription))
+    {
+        _redis.hdel(redis_keys::SUB_RECORD, subscription_id.c_str());
+        return redis_error(subscription_id, "Failed to write Subscription account index");
+    }
+    if (!hsetnx_json(ledger_key.c_str(), ledger_id, ledger))
+    {
+        _redis.hdel(redis_keys::SUB_RECORD, subscription_id.c_str());
+        _redis.hdel(subscription_account_key.c_str(), subscription_id.c_str());
+        return make_result(RepositoryStatus::Conflict, ledger_id, "Balance ledger entry already exists");
+    }
+
+    auto updated_account = account;
+    updated_account["balance_cents"] = balance_after_cents;
+    updated_account["update_time"] = now;
+    if (!hset_json(redis_keys::ACC_RECORD, account_id, updated_account))
+    {
+        _redis.hdel(redis_keys::SUB_RECORD, subscription_id.c_str());
+        _redis.hdel(subscription_account_key.c_str(), subscription_id.c_str());
+        _redis.hdel(ledger_key.c_str(), ledger_id.c_str());
+        return redis_error(account_id, "Failed to update account balance");
+    }
+    refresh_owner_access_indexes(updated_account, now);
+
+    subscription["ledger_id"] = ledger_id;
+    subscription["balance_after_cents"] = balance_after_cents;
+    subscription["purchase_ledger"] = ledger;
+    AccountDomainResult result;
+    result.id = subscription_id;
+    result.record = std::move(subscription);
+    return result;
+}
+
 AccountDomainResult AccountDomainRepository::get_subscription(const std::string &subscription_id)
 {
     const auto record = get_hash_record(redis_keys::SUB_RECORD, subscription_id);

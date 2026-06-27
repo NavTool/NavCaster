@@ -98,7 +98,10 @@ private:
     void handle_v1_me_access_accounts(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_access_account(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_subscription_plans(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_subscription_plan(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_subscriptions(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_me_redeem_code(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_redeem_redemptions(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_data_push_configs(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_me_data_push_jobs(const HttpRequest &req, HttpResponse &resp);

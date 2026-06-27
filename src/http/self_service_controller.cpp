@@ -526,6 +526,47 @@ nlohmann::json SelfServiceController::filter_data_push_usage(const std::string &
     return records;
 }
 
+nlohmann::json SelfServiceController::active_subscription_plans() const
+{
+    const auto all = _redis.hgetall(redis_keys::SUB_PLAN);
+    nlohmann::json records = nlohmann::json::object();
+    if (!all.is_object())
+    {
+        return records;
+    }
+    for (auto it = all.begin(); it != all.end(); ++it)
+    {
+        const auto &plan = it.value();
+        if (!plan.is_object() || !navcaster::account_domain::is_active_status(plan))
+        {
+            continue;
+        }
+        bool groups_ok = plan.contains("group_ids") && plan["group_ids"].is_array() && !plan["group_ids"].empty();
+        if (groups_ok)
+        {
+            for (const auto &group_id : plan["group_ids"])
+            {
+                if (!group_id.is_string())
+                {
+                    groups_ok = false;
+                    break;
+                }
+                const auto group = _redis.hget(redis_keys::MPGRP_RECORD, group_id.get<std::string>().c_str());
+                if (!group.is_object() || !navcaster::account_domain::is_active_status(group))
+                {
+                    groups_ok = false;
+                    break;
+                }
+            }
+        }
+        if (groups_ok)
+        {
+            records[it.key()] = sanitized_record(plan);
+        }
+    }
+    return records;
+}
+
 nlohmann::json SelfServiceController::active_data_push_configs() const
 {
     const auto all = _redis.hgetall(redis_keys::DATA_PUSH_CONFIG);
@@ -592,6 +633,64 @@ ControllerResponse SelfServiceController::subscriptions(const AuthSessionSubject
         return guard;
     }
     return json_response(200, owner_subscriptions(subject.account_id));
+}
+
+ControllerResponse SelfServiceController::subscription_plans(const AuthSessionSubject &subject)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    return json_response(200, active_subscription_plans());
+}
+
+ControllerResponse SelfServiceController::purchase_subscription_plan(const AuthSessionSubject &subject,
+                                                                     const std::string &plan_id,
+                                                                     const std::string &body_text)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    nlohmann::json body = nlohmann::json::object();
+    if (!body_text.empty() && !parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    body.erase("account_id");
+    body.erase("balance_after_cents");
+    body.erase("price_cents");
+    body.erase("plan_snapshot");
+    const std::string period = request_period(body.value("period", std::string{}));
+    body["account_id"] = subject.account_id;
+    body["period"] = period;
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.purchase_subscription_plan(plan_id, subject.account_id, std::move(body), period, _now);
+    return repository_result(201, result);
+}
+
+ControllerResponse SelfServiceController::redeem_code(const AuthSessionSubject &subject,
+                                                      const std::string &code,
+                                                      const std::string &body_text)
+{
+    auto guard = subject_error(subject, "me");
+    if (guard.status_code != 0)
+    {
+        return guard;
+    }
+    nlohmann::json body = nlohmann::json::object();
+    if (!body_text.empty() && !parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    body.erase("account_id");
+    body.erase("amount_cents");
+    body.erase("balance_after_cents");
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.redeem_code(code, subject.account_id, body, request_period(body.value("period", std::string{})), _now);
+    return repository_result(201, result);
 }
 
 ControllerResponse SelfServiceController::redeem_redemptions(const AuthSessionSubject &subject)

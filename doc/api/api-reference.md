@@ -225,6 +225,8 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `PUT` | `/api/v1/me/access-accounts/{id}` | `AACC:*` | 更新自己的接入账号状态、分组、并发等 |
 | `PUT` | `/api/v1/me/access-accounts/{id}/password` | `AACC:*` | 更新自己的接入账号密码 |
 | `DELETE` | `/api/v1/me/access-accounts/{id}` | `AACC:*` | 软删除自己的接入账号并 tombstone username |
+| `GET` | `/api/v1/me/subscription-plans` | `SUB:PLAN` / `MPGRP:RECORD` | 当前用户可购买 active 订阅套餐 |
+| `POST` | `/api/v1/me/subscription-plans/{plan_id}/purchase` | `SUB:PLAN` / `SUB:RECORD` / `SUB:ACCOUNT:{account_id}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 当前用户使用余额购买套餐并生成订阅 |
 | `GET` | `/api/v1/me/subscriptions` | `SUB:ACCOUNT:{account_id}` | 当前用户订阅权益 |
 | `GET` | `/api/v1/me/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 当前用户计费用量事实 |
 | `GET` | `/api/v1/me/data-push/configs` | `DATA:PUSH:CONFIG` | 当前用户可用数据推送配置 |
@@ -234,6 +236,7 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 | `POST` | `/api/v1/me/data-push/jobs/{job_id}/reconcile` | `DATA:PUSH:JOB:{period}` / `PUSH:STAT` | 当前用户同步自己的 relay_push 任务运行态审计快照 |
 | `GET` | `/api/v1/me/data-push?period=yyyyMM` | `DATA:PUSH:{period}` | 当前用户数据推送用量和扣费事实 |
 | `POST` | `/api/v1/me/data-push` | `DATA:PUSH:{period}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 追加当前用户数据推送用量，按 `actual_debit_cents` 扣费 |
+| `POST` | `/api/v1/me/redeem-codes/{code}/redeem` | `REDEEM:ACCOUNT:{account_id}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 当前用户自助兑换充值码 |
 | `GET` | `/api/v1/me/redeem-redemptions` | `REDEEM:ACCOUNT:{account_id}` | 当前用户兑换记录 |
 | `GET` | `/api/v1/supplier/profile` | `ACC:RECORD` | 当前供应商 Account 脱敏资料 |
 | `GET` | `/api/v1/supplier/dashboard` | `ACC:*` / `SUPPLY:*` | 当前供应商供应摘要 |
@@ -299,6 +302,14 @@ admin v1 命名空间入口，不引入新 Redis key。在线连接复用
 `expire_time` 时，后端按 `start_time + duration_days * 86400` 生成过期时间。后续修改
 套餐不会回写已创建订阅的快照。
 
+`GET /api/v1/me/subscription-plans` 只返回 active 且 `group_ids` 仍引用 active
+MountPointGroup 的套餐。`POST /api/v1/me/subscription-plans/{plan_id}/purchase`
+从 Bearer session 推导 `account_id`，忽略请求体中的 `account_id`、`price_cents`、
+`balance_after_cents` 和 `plan_snapshot`。购买成功会固化套餐快照到
+`SUB:RECORD` / `SUB:ACCOUNT:<account_id>`，写
+`ACC:BALANCE:LEDGER:<period>[ledger_id]`，同步扣减 `ACC:RECORD.balance_cents`，
+并刷新 owner AccessAccount 运行时余额快照。余额不足返回 `409`，不写订阅或账本半成品。
+
 `POST /api/v1/me/data-push/jobs/{job_id}/control` 请求体包含 `action` 和可选
 `period`、`operator_note`。用户侧只允许 `cancel` / `retry` 且只能控制自己的
 `relay_push` 任务。`cancel` 会设置任务 `status=cancelled`、禁用
@@ -337,6 +348,9 @@ HTTP 服务还会每 60 秒 tick 一次 DataPush runtime maintenance 调度。�
 `POST /api/v1/admin/redeem-codes/{code}/redeem` 可通过 query 参数或 JSON body 传入
 `account_id`。兑换成功会生成兑换记录和余额 ledger，增加 Account 余额；同一 Account 对
 同一 code 只能兑换一次，禁用、过期或超过 `max_redemptions` 的兑换码返回 `409`。
+用户自助 `POST /api/v1/me/redeem-codes/{code}/redeem` 复用同一核销规则，但
+`account_id` 始终来自 Bearer session，请求体中的 `account_id`、`amount_cents` 和
+`balance_after_cents` 会被忽略。
 
 `POST /api/v1/admin/supplier-settlements` 请求体至少包含 `supplier_account_id`，
 `period` 缺省为 `current`。服务端会选取该供应商该账期所有未结算 `SUPPLY:USAGE`
