@@ -11,6 +11,7 @@
 
 #include "session/client_session.h"
 #include "session/source_session.h"
+#include "storage/redis/redis_pubsub.h"
 #include "transport/handoff_message.h"
 #include "worker/worker_metrics.h"
 
@@ -18,11 +19,13 @@ namespace navcaster::caster {
 
 class WorkerCore {
 public:
-    WorkerCore(std::uint32_t worker_id, event_base *base);
+    WorkerCore(std::uint32_t worker_id, event_base *base, WorkerRedisBoundary *redis_boundary);
 
     void accept_handoff(HandoffMessage message);
     WorkerMetricsSnapshot snapshot() const;
     void set_draining(bool draining);
+    void handle_redis_mount_data(std::string origin_runtime_id, std::string mount, std::string data);
+    void handle_redis_error(const std::string &operation);
 
 private:
     struct MountSessions {
@@ -39,6 +42,12 @@ private:
     void handle_client_closed(std::uint64_t session_id);
 
     void handle_source_data_locked(std::uint64_t session_id, const std::string &data);
+    void fanout_to_mount_clients_locked(
+        const std::string &mount,
+        const std::string &data,
+        bool remote,
+        std::uint64_t *write_count,
+        std::uint64_t *write_bytes);
     void close_source_locked(std::uint64_t session_id);
     void close_client_locked(std::uint64_t session_id);
     void erase_mount_if_empty_locked(const std::string &mount);
@@ -51,6 +60,7 @@ private:
 
     std::uint32_t worker_id_ = 0;
     event_base *base_ = nullptr;
+    WorkerRedisBoundary *redis_boundary_ = nullptr;
     bool draining_ = false;
     std::uint64_t handoff_received_ = 0;
     std::uint64_t next_session_id_ = 1;
@@ -59,6 +69,13 @@ private:
     std::uint64_t fanout_write_count_ = 0;
     std::uint64_t redis_publish_count_ = 0;
     std::uint64_t redis_publish_bytes_ = 0;
+    std::uint64_t redis_publish_error_count_ = 0;
+    std::uint64_t redis_subscribe_message_count_ = 0;
+    std::uint64_t redis_subscribe_bytes_ = 0;
+    std::uint64_t redis_remote_fanout_write_count_ = 0;
+    std::uint64_t redis_remote_fanout_bytes_ = 0;
+    std::uint64_t redis_error_count_ = 0;
+    std::uint64_t redis_subscribed_mount_count_ = 0;
     std::uint64_t slow_client_disconnect_count_ = 0;
     std::uint64_t output_buffer_limit_count_ = 0;
 

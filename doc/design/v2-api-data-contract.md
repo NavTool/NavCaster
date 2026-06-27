@@ -542,6 +542,17 @@ AccessAccountAuthIndex：
 单个超级热门 mount 的单频道瓶颈不能仅靠 Redis Cluster 自动解决。
 ```
 
+`v2:stream:mount:<mount>` 的最小 Caster payload 为二进制 envelope：
+
+```text
+magic: NCV2BUS1
+fields: origin_runtime_id, mount, payload_length
+body: raw NTRIP/RTCM/NMEA bytes
+```
+
+订阅端必须忽略 `origin_runtime_id` 等于本 runtime 的消息。该 channel 不兼容旧
+`MPT:<mount>` channel，也不写 legacy data key。
+
 ## 9. PG -> Redis 投影
 
 投影流程：

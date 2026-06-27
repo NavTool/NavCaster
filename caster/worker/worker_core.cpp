@@ -13,8 +13,8 @@ constexpr std::size_t kMaxClientOutputBufferBytes = 1024 * 1024;
 
 } // namespace
 
-WorkerCore::WorkerCore(std::uint32_t worker_id, event_base *base)
-    : worker_id_(worker_id), base_(base)
+WorkerCore::WorkerCore(std::uint32_t worker_id, event_base *base, WorkerRedisBoundary *redis_boundary)
+    : worker_id_(worker_id), base_(base), redis_boundary_(redis_boundary)
 {
 }
 
@@ -57,6 +57,13 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
     snapshot.fanout_write_count = fanout_write_count_;
     snapshot.redis_publish_count = redis_publish_count_;
     snapshot.redis_publish_bytes = redis_publish_bytes_;
+    snapshot.redis_publish_error_count = redis_publish_error_count_;
+    snapshot.redis_subscribe_message_count = redis_subscribe_message_count_;
+    snapshot.redis_subscribe_bytes = redis_subscribe_bytes_;
+    snapshot.redis_remote_fanout_write_count = redis_remote_fanout_write_count_;
+    snapshot.redis_remote_fanout_bytes = redis_remote_fanout_bytes_;
+    snapshot.redis_error_count = redis_error_count_;
+    snapshot.redis_subscribed_mount_count = redis_subscribed_mount_count_;
     snapshot.slow_client_disconnect_count = slow_client_disconnect_count_;
     snapshot.output_buffer_limit_count = output_buffer_limit_count_;
     snapshot.redis_contexts_reserved = 2;
@@ -123,8 +130,17 @@ void WorkerCore::create_client_locked(HandoffMessage message)
         return;
     }
 
-    mounts_[mount].client_ids.insert(session_id);
+    auto &mount_state = mounts_[mount];
+    const bool should_subscribe = mount_state.client_ids.empty();
+    mount_state.client_ids.insert(session_id);
     clients_[session_id] = std::move(session);
+    if (redis_boundary_ && should_subscribe) {
+        if (redis_boundary_->subscribe_mount(mount)) {
+            ++redis_subscribed_mount_count_;
+        } else {
+            ++redis_error_count_;
+        }
+    }
 }
 
 void WorkerCore::reject_handoff_locked(HandoffMessage &message, const std::string &reason)
@@ -159,6 +175,33 @@ void WorkerCore::handle_client_closed(std::uint64_t session_id)
     schedule_deferred_cleanup_locked();
 }
 
+void WorkerCore::handle_redis_mount_data(std::string origin_runtime_id, std::string mount, std::string data)
+{
+    (void)origin_runtime_id;
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (mount.empty() || data.empty()) {
+        return;
+    }
+    ++redis_subscribe_message_count_;
+    redis_subscribe_bytes_ += static_cast<std::uint64_t>(data.size());
+
+    std::uint64_t writes = 0;
+    std::uint64_t bytes = 0;
+    fanout_to_mount_clients_locked(mount, data, true, &writes, &bytes);
+    bytes_out_ += bytes;
+    redis_remote_fanout_write_count_ += writes;
+    redis_remote_fanout_bytes_ += bytes;
+}
+
+void WorkerCore::handle_redis_error(const std::string &operation)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++redis_error_count_;
+    if (operation == "publish") {
+        ++redis_publish_error_count_;
+    }
+}
+
 void WorkerCore::handle_source_data_locked(std::uint64_t session_id, const std::string &data)
 {
     const auto source_it = sources_.find(session_id);
@@ -169,13 +212,31 @@ void WorkerCore::handle_source_data_locked(std::uint64_t session_id, const std::
     const std::string mount = source_it->second->mount();
     bytes_in_ += static_cast<std::uint64_t>(data.size());
 
+    std::uint64_t writes = 0;
+    std::uint64_t bytes = 0;
+    fanout_to_mount_clients_locked(mount, data, false, &writes, &bytes);
+    fanout_write_count_ += writes;
+    bytes_out_ += bytes;
+
+    ++redis_publish_count_;
+    redis_publish_bytes_ += static_cast<std::uint64_t>(data.size());
+    if (redis_boundary_ && !redis_boundary_->publish_mount_data(mount, data)) {
+        ++redis_publish_error_count_;
+        ++redis_error_count_;
+    }
+}
+
+void WorkerCore::fanout_to_mount_clients_locked(
+    const std::string &mount,
+    const std::string &data,
+    bool remote,
+    std::uint64_t *write_count,
+    std::uint64_t *write_bytes)
+{
     auto mount_it = mounts_.find(mount);
     if (mount_it == mounts_.end()) {
-        ++redis_publish_count_;
-        redis_publish_bytes_ += static_cast<std::uint64_t>(data.size());
         return;
     }
-
     std::vector<std::uint64_t> client_ids;
     client_ids.reserve(mount_it->second.client_ids.size());
     for (const auto client_id : mount_it->second.client_ids) {
@@ -201,12 +262,16 @@ void WorkerCore::handle_source_data_locked(std::uint64_t session_id, const std::
             close_client_locked(client_id);
             continue;
         }
-        bytes_out_ += static_cast<std::uint64_t>(data.size());
-        ++fanout_write_count_;
+        if (write_bytes) {
+            *write_bytes += static_cast<std::uint64_t>(data.size());
+        }
+        if (write_count) {
+            ++(*write_count);
+        }
     }
-
-    ++redis_publish_count_;
-    redis_publish_bytes_ += static_cast<std::uint64_t>(data.size());
+    if (remote) {
+        return;
+    }
 }
 
 void WorkerCore::close_source_locked(std::uint64_t session_id)
@@ -268,6 +333,14 @@ void WorkerCore::detach_client_locked(std::uint64_t session_id)
     auto mount_it = mounts_.find(mount);
     if (mount_it != mounts_.end()) {
         mount_it->second.client_ids.erase(session_id);
+        if (mount_it->second.client_ids.empty() && redis_boundary_) {
+            if (!redis_boundary_->unsubscribe_mount(mount)) {
+                ++redis_error_count_;
+            }
+            if (redis_subscribed_mount_count_ > 0) {
+                --redis_subscribed_mount_count_;
+            }
+        }
     }
     erase_mount_if_empty_locked(mount);
 }
