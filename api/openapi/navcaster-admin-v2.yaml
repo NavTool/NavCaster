@@ -1,0 +1,366 @@
+openapi: 3.1.0
+info:
+  title: NavCaster AdminService v2
+  version: 0.1.0
+  description: >
+    First HTTP/JSON control-plane contract for navcaster-admin. v2 is not
+    compatible with legacy HTTP APIs, Redis keys, protobufs, or naming rules.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service health and dependency configuration status.
+  /api/v1/agents/register:
+    post:
+      summary: Register a host agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hostname]
+              properties:
+                bootstrap_token:
+                  type: string
+                agent_id:
+                  type: string
+                host_id:
+                  type: string
+                hostname:
+                  type: string
+                machine_id:
+                  type: string
+                os:
+                  type: string
+                arch:
+                  type: string
+                agent_version:
+                  type: string
+                labels:
+                  type: object
+      responses:
+        "201":
+          description: Registered agent identity and heartbeat interval.
+  /api/v1/agents/heartbeat:
+    post:
+      summary: Accept an agent heartbeat and runtime summary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, host_id]
+              properties:
+                agent_id:
+                  type: string
+                host_id:
+                  type: string
+                sequence:
+                  type: integer
+                resources:
+                  type: object
+                runtime_summaries:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        "200":
+          description: Heartbeat accepted.
+  /api/v1/agents/{agent_id}/desired-state:
+    get:
+      summary: Poll desired runtime state for an agent
+      description: Returns desired state from PostgreSQL source-of-truth. When Redis is configured, AdminService also publishes the same host-level projection to v2:control:desired-state:{host_id}.
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: since_version
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Desired state changes after since_version.
+  /api/v1/agents/{agent_id}/runtime-events:
+    post:
+      summary: Ingest runtime events from an agent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, host_id, events]
+              properties:
+                agent_id:
+                  type: string
+                host_id:
+                  type: string
+                events:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuntimeEvent"
+      responses:
+        "202":
+          description: Events persisted or accepted by the configured fallback repository.
+  /api/v1/agents/{agent_id}/runtime-metrics:
+    post:
+      summary: Ingest runtime actual metrics from an agent
+      description: Persists runtime_actual_snapshots when PostgreSQL is configured and returns latest actual state through control runtime APIs.
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, host_id, actual]
+              properties:
+                agent_id:
+                  type: string
+                host_id:
+                  type: string
+                actual:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ActualSnapshot"
+      responses:
+        "202":
+          description: Metrics accepted and latest actual state updated.
+  /api/v1/control/hosts:
+    get:
+      summary: List registered hosts
+      responses:
+        "200":
+          description: Host list.
+  /api/v1/control/hosts/{host_id}:
+    get:
+      summary: Get one host
+      parameters:
+        - name: host_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Host details.
+  /api/v1/control/runtimes:
+    get:
+      summary: List runtimes
+      description: Returns desired state and the latest actual snapshot for each runtime.
+      responses:
+        "200":
+          description: Runtime list.
+    post:
+      summary: Create a runtime desired state
+      description: Creates PostgreSQL desired state and Redis v2 projection when Redis is configured. AdminService does not start processes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RuntimeCreateRequest"
+      responses:
+        "201":
+          description: Runtime desired state created.
+  /api/v1/control/runtimes/{runtime_id}:
+    get:
+      summary: Get one runtime
+      description: Returns PostgreSQL desired state plus the latest actual snapshot ingested from Agent runtime metrics.
+      parameters:
+        - name: runtime_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Runtime details.
+  /api/v1/control/runtimes/{runtime_id}/desired-state:
+    put:
+      summary: Update runtime desired state
+      description: Updates PostgreSQL desired state, increments desired version, writes audit facts, and republishes Redis projection when configured. Execution is left to navcaster-agent.
+      parameters:
+        - name: runtime_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                desired_state:
+                  enum: [running, stopped, draining, deleted]
+                config_version:
+                  type: integer
+                listen_port:
+                  type: integer
+                worker_count:
+                  type: integer
+                max_worker_count:
+                  type: integer
+                restart_policy:
+                  enum: [never, on_failure, always]
+                draining:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated runtime desired state.
+  /api/v1/control/runtimes/{runtime_id}/actions/start:
+    post:
+      summary: Record runtime start action intent
+      description: Persists action intent and bumps desired version; it does not execute a process directly.
+      responses:
+        "202":
+          description: Start intent accepted.
+  /api/v1/control/runtimes/{runtime_id}/actions/stop:
+    post:
+      summary: Record runtime stop action intent
+      responses:
+        "202":
+          description: Stop intent accepted.
+  /api/v1/control/runtimes/{runtime_id}/actions/restart:
+    post:
+      summary: Record runtime restart action intent
+      responses:
+        "202":
+          description: Restart intent accepted.
+  /api/v1/control/runtimes/{runtime_id}/actions/drain:
+    post:
+      summary: Record runtime drain action intent
+      responses:
+        "202":
+          description: Drain intent accepted.
+  /api/v1/control/runtimes/{runtime_id}/actions/undrain:
+    post:
+      summary: Record runtime undrain action intent
+      responses:
+        "202":
+          description: Undrain intent accepted.
+  /api/v1/control/projection-keys:
+    get:
+      summary: List v2 Redis projection key registry
+      responses:
+        "200":
+          description: Redis key registry.
+components:
+  schemas:
+    RuntimeCreateRequest:
+      type: object
+      required: [host_id, config_version, listen_port, worker_count, max_worker_count, restart_policy]
+      properties:
+        host_id:
+          type: string
+        name:
+          type: string
+        desired_state:
+          enum: [running, stopped, draining, deleted]
+        config_version:
+          type: integer
+        listen_port:
+          type: integer
+        worker_count:
+          type: integer
+        max_worker_count:
+          type: integer
+        restart_policy:
+          enum: [never, on_failure, always]
+        start_immediately:
+          type: boolean
+    ActualSnapshot:
+      type: object
+      required: [runtime_id, actual_state]
+      properties:
+        runtime_id:
+          type: string
+        host_id:
+          type: string
+        agent_id:
+          type: string
+        actual_state:
+          type: string
+        process_id:
+          type: integer
+        config_version:
+          type: integer
+        config_path:
+          type: string
+        config_checksum:
+          type: string
+        listen_port:
+          type: integer
+        worker_count:
+          type: integer
+        connections:
+          type: integer
+        mounts:
+          type: integer
+        sources:
+          type: integer
+        clients:
+          type: integer
+        send_bps:
+          type: integer
+        recv_bps:
+          type: integer
+        loop_delay_ms_p95:
+          type: integer
+        redis_connected:
+          type: boolean
+        observed_desired_version:
+          type: integer
+        last_error:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    RuntimeEvent:
+      type: object
+      required: [runtime_id, type]
+      properties:
+        event_id:
+          type: string
+        runtime_id:
+          type: string
+        type:
+          type: string
+        severity:
+          type: string
+        desired_version:
+          type: integer
+        process_id:
+          type: integer
+        message:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string

@@ -169,3 +169,28 @@ NC-040 已把该口径升级为产品化设计决策：当前继续支持固定�
 - `deployment/http-ingress.md`
 - `current/web-console.md`
 - `qa/qa-gates.md`
+
+## v2 AdminService 当前事实
+
+NC-091 起 `admin/` 下的 Go `navcaster-admin` 从 foundation 内存骨架推进到真实控制面闭环：
+
+- 配置 `NAVCASTER_ADMIN_POSTGRES_DSN` 后，启动时会连接 PostgreSQL、执行
+  `admin/migrations/0001_v2_adminservice_foundation.sql`，并把 `hosts`、
+  `agents`、`runtimes`、`runtime_desired_states`、`control_intents`、
+  `operation_audit_logs`、`runtime_events` 和 `runtime_actual_snapshots`
+  作为 v2 source-of-truth / 审计事实。
+- 未配置 PostgreSQL 时仍使用内存仓储，只用于本地开发和 self-check 降级；配置了
+  PostgreSQL 但连接或 migration 失败时服务直接启动失败，不静默回退。
+- 配置 `NAVCASTER_ADMIN_REDIS_ADDR` 后，desired/action/actual/heartbeat 写入会同步
+  发布 v2 Redis projection；未配置 Redis 时 projection disabled，不影响内存或 PG
+  source-of-truth 路径。
+- `GET /api/v1/control/runtimes` 和 `GET /api/v1/control/runtimes/{runtime_id}` 返回
+  desired state 和最新 Agent runtime-metrics ingest 后的 actual snapshot。
+- `POST /api/v1/agents/{agent_id}/runtime-events` 写入 `runtime_events`；
+  `POST /api/v1/agents/{agent_id}/runtime-metrics` 写入
+  `runtime_actual_snapshots`，并刷新 control API 的 actual state。
+- `admin/cmd/navcaster-admin-selfcheck` 是最小 v2 API 自检：health、agent register、
+  runtime create、desired polling、runtime-metrics ingest 和 control actual readback。
+
+v2 AdminService 不兼容旧 `/api/*` HTTP API、旧 Redis key、旧 protobuf 或旧 Web 命名。
+旧 `src/http` 服务和新 `admin/` 服务当前是并行边界。

@@ -4,6 +4,7 @@ project(NavCaster)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.21)
 
 option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
+option(BUILD_NAVCASTER_CASTER "Build v2 navcaster-caster runtime." ON)
 option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 
 include(CTest)
@@ -221,6 +222,9 @@ set(SPDLOG_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
 #rtklib
 add_subdirectory(third_party/rtklib)
 
+if(BUILD_NAVCASTER_CASTER)
+    add_subdirectory(caster)
+endif()
 
 add_subdirectory(src)
 add_subdirectory(tools)
@@ -238,6 +242,7 @@ configure_file(${CMAKE_SOURCE_DIR}/cmake/version.h.in ${CMAKE_BINARY_DIR}/versio
 message("---------------------------- NavTool ----------------------------")
 message("Enable hot reload   : ${HOTLOAD_ENABLED}")
 message("Build Caster Service: ${BUILD_CASTER_SERVICE}")
+message("Build v2 Caster     : ${BUILD_NAVCASTER_CASTER}")
 message("------------------------------------------------------------------")
 
 

@@ -49,6 +49,14 @@ deployment/redis.md
 
 qa/qa-gates.md
   构建、contract check、schema_smoke、e2e smoke 和文档治理 gate。
+
+design/v2-phase2-scope-and-contract-gate.md
+  v2 Phase 2 真实控制面闭环范围、PG/Redis 边界、运行态事件/指标、
+  集成顺序和不兼容旧架构/API/key/protobuf/Web 风格的冻结契约。
+
+qa/v2-phase2-contract-qa-gate.md
+  v2 Phase 2 真实 PG/Redis、Admin-Agent-Caster-Web 系统闭环、Caster
+  Redis Pub/Sub、运行态事件/指标和轻量容量基线 QA gate。
 ```
 
 ## 可信度分层
@@ -107,6 +115,7 @@ qa/qa-gates.md
 | Relay / Cluster / Master lease | `deployment/ops-runbook.md`、`current/backend-core.md`、`current/project-memory.md` |
 | Web 管理台 | `current/web-console.md`、`api/api-contract-sync.md` |
 | QA gate 和 e2e 矩阵 | `qa/qa-gates.md`、`current/qa-and-verification.md` |
+| v2 Phase 2 真实闭环 | `design/v2-phase2-scope-and-contract-gate.md`、`qa/v2-phase2-contract-qa-gate.md`、`qa/v2-qa-matrix.md` |
 | 目标架构方向 | `roadmap/architecture-v2.md`、`roadmap/refactor-plan-v2.md` |
 | NTRIP/PROXY 协议 | `references/protocols/README.md` |
 | 旧需求、旧 Redis、旧 Web 迁移记录 | `references/historical/README.md` |

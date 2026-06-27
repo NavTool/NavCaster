@@ -118,6 +118,25 @@ Redis Open Source 8.4.0+。部署和命令校验见 `deployment/redis.md`。
 - HTTP 账号管理以 `ACT:RECORD` 作为账号主表，并同步维护 `ACT:ACTIVE` 登录索引。
 - NTRIP 鉴权读 `ACT:ACTIVE`；禁用、冻结、过期或删除账号时 HTTP 写侧会清理对应登录索引。
 - 活跃账号 API/SSE 已切换为聚合 `ACT:SESSION:*`，并兼容读取 `STR:ACTIVE` fallback。
+
+## v2 AdminService projection
+
+NC-091 起 `admin/` Go AdminService 使用全新 `v2:` Redis key，不兼容旧 `ACT:*`、
+`MPT:*`、`STR:*`、`PULL:*`、`PUSH:*`、`CASTER:*` key。PostgreSQL 仍是 source of
+truth，Redis 只保存 projection / runtime TTL state / bus。
+
+当前 AdminService 同步投影路径：
+
+| Key | Type | TTL | 写入者 | 读取者 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `v2:config:runtime:<runtime_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | 单 Runtime desired/config projection，字段来自 `runtime_desired_states`。 |
+| `v2:control:desired-state:<host_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent | Host 级 desired-state projection，shape 与 `GET /api/v1/agents/{agent_id}/desired-state` 一致。 |
+| `v2:control:config` | PUB/SUB JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | Runtime / Host desired projection 变更通知。payload 包含 projection key、runtime_id 或 host_id、version。 |
+| `v2:runtime:actual:<runtime_id>` | STRING JSON | 60s | navcaster-admin runtime-metrics ingest | navcaster-admin / Web | 最新 runtime actual snapshot projection。长期事实写 PostgreSQL `runtime_actual_snapshots`。 |
+| `v2:agent:heartbeat:<agent_id>` | STRING JSON | 45s | navcaster-admin heartbeat ingest | navcaster-admin / Web | 最新 Agent heartbeat projection。 |
+
+`GET /api/v1/control/projection-keys` 返回当前 v2 Redis key registry。新增 v2 key 必须先登记
+`admin/internal/storage/redis/registry.go`，并同步本文件。
 - Auth 写侧维护 `ACT:SESSION:<account>`；NC-016 至 NC-023 已覆盖读侧、真实 NTRIP 写入、续期、连接数、匿名、广播踢线和禁用账号矩阵。
 - `STR:ACTIVE` 当前仅作为 legacy fallback；当前源码未发现新的写入路径。
 

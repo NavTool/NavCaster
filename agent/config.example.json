@@ -1,0 +1,13 @@
+{
+  "admin_url": "http://127.0.0.1:8080",
+  "bootstrap_token": "replace-with-bootstrap-token",
+  "agent_id": "",
+  "agent_secret": "",
+  "host_id": "",
+  "state_path": "agent_state.json",
+  "runtime_root": "runtime",
+  "heartbeat_interval": "10s",
+  "poll_interval": "5s",
+  "request_timeout": "5s",
+  "stop_timeout": "5s"
+}
