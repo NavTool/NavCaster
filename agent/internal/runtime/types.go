@@ -36,6 +36,7 @@ type RuntimeKind string
 const (
 	RuntimeKindDummy   RuntimeKind = "dummy"
 	RuntimeKindCommand RuntimeKind = "command"
+	RuntimeKindCaster  RuntimeKind = "caster"
 )
 
 type DesiredState struct {
@@ -44,7 +45,10 @@ type DesiredState struct {
 	DesiredState   DesiredStateValue `json:"desired_state"`
 	RuntimeKind    RuntimeKind       `json:"runtime_kind,omitempty"`
 	ConfigVersion  int               `json:"config_version"`
+	ListenHost     string            `json:"listen_host,omitempty"`
 	ListenPort     int               `json:"listen_port,omitempty"`
+	HealthHost     string            `json:"health_host,omitempty"`
+	HealthPort     int               `json:"health_port,omitempty"`
 	WorkerCount    int               `json:"worker_count,omitempty"`
 	MaxWorkerCount int               `json:"max_worker_count,omitempty"`
 	RestartPolicy  RestartPolicy     `json:"restart_policy,omitempty"`
@@ -107,6 +111,10 @@ type ActualState struct {
 
 func (a ActualState) IsRunning() bool {
 	return a.ActualState == ActualStateRunning || a.ActualState == ActualStateStarting
+}
+
+func (a ActualState) HasLiveProcess() bool {
+	return a.ProcessID > 0 && a.ActualState != ActualStateStopped && a.ActualState != ActualStateMissing
 }
 
 type Event struct {
