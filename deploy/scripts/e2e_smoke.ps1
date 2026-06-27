@@ -52,6 +52,7 @@ param(
     [switch]$IncludeSelfServiceApi,
     [switch]$IncludeAccessRuntimeEnforcement,
     [switch]$IncludeWebThreeRoleBrowserSmoke,
+    [switch]$IncludeDataPushRelayPushE2E,
     [int]$WebPort = 15173,
     [int]$BrowserDebugPort = 19222
 )
@@ -6031,6 +6032,286 @@ function Remove-PushRelayRecord {
     }
 }
 
+function Get-DataPushPeriod {
+    return (Get-Date).ToUniversalTime().ToString("yyyyMM")
+}
+
+function Wait-DataPushJobRuntimeStatus {
+    param(
+        [string]$Base,
+        [hashtable]$Headers,
+        [string]$JobId,
+        [string]$Period,
+        [string]$ExpectedRelayStatus,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $last = $null
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 1000
+        try {
+            $job = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body (@{
+                period = $Period
+                operator_note = "$Context reconcile"
+            } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/data-push-jobs/$JobId/reconcile" -TimeoutSec 10
+            if ($job.relay_status -eq $ExpectedRelayStatus) {
+                return $job
+            }
+            $last = ConvertTo-CompactJson $job
+        }
+        catch {
+            $last = $_.Exception.Message
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGET "DATA:PUSH:JOB:$Period" $JobId)
+    Fail "$Context DataPushJob $JobId did not reach relay_status=$ExpectedRelayStatus before timeout; last=[$last], raw=[$raw]"
+}
+
+function Assert-DataPushUsageAndLedger {
+    param(
+        [string]$AccountId,
+        [string]$JobId,
+        [string]$UsageId,
+        [string]$Period,
+        [int]$ExpectedDebitCents,
+        [string]$Context
+    )
+
+    $usage = Get-RedisJsonHashField "DATA:PUSH:$Period" $UsageId $Context
+    if ($usage.account_id -ne $AccountId -or $usage.job_id -ne $JobId -or $usage.actual_debit_cents -ne $ExpectedDebitCents) {
+        Fail "$Context DataPush usage mismatch: $(ConvertTo-CompactJson $usage)"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$usage.ledger_id)) {
+        Fail "$Context DataPush usage missing ledger_id: $(ConvertTo-CompactJson $usage)"
+    }
+
+    $ledger = Get-RedisJsonHashField "ACC:BALANCE:LEDGER:$Period" $usage.ledger_id $Context
+    if ($ledger.account_id -ne $AccountId -or $ledger.usage_id -ne $UsageId -or $ledger.delta_cents -ne (-1 * $ExpectedDebitCents)) {
+        Fail "$Context DataPush ledger mismatch: usage=$(ConvertTo-CompactJson $usage) ledger=$(ConvertTo-CompactJson $ledger)"
+    }
+    return [pscustomobject]@{
+        Usage = $usage
+        Ledger = $ledger
+    }
+}
+
+function Invoke-DataPushRelayPushE2ESmoke {
+    param(
+        [string]$PrimaryBase,
+        [hashtable]$PrimaryHeaders,
+        [int]$PrimaryNtripPort,
+        [int]$SecondaryHttpPort,
+        [int]$SecondaryNtripPort
+    )
+
+    $secondaryNode = $null
+    $secondaryConfRoot = $null
+    $sourceConnection = $null
+    $forwardClientConnection = $null
+    $seed = $null
+    $relayUid = $null
+    $targetSource = $null
+
+    try {
+        $primaryStatus = Assert-E2eStatusAndCluster $PrimaryBase $PrimaryHeaders "DataPush relay_push primary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $primaryStatus.node_id "DataPush relay_push primary"
+
+        $secondaryConfRoot = Join-Path $env:TEMP ("navcaster-e2e-nc073-" + [guid]::NewGuid().ToString())
+        $secondaryConfDir = Join-Path $secondaryConfRoot "conf"
+        Copy-E2eServiceConfig `
+            -SourceConfDir $confDir `
+            -DestinationConfDir $secondaryConfDir `
+            -HttpPort $SecondaryHttpPort `
+            -NtripPort $SecondaryNtripPort `
+            -HttpBindAddr $HttpBindAddr `
+            -AdminUser $AdminUser `
+            -AdminPassword $AdminPassword `
+            -RedisHost $RedisHost `
+            -RedisPort $RedisPort `
+            -RedisPassword $RedisPassword `
+            -RoverOnlineProtection $true `
+            -RoverAnonymousLogin $false `
+            -BaseAnonymousLogin $false `
+            -SourceAnonymousLogin $false
+
+        $secondaryBase = "http://${HttpBindAddr}:${SecondaryHttpPort}"
+        $secondaryNode = Start-E2eCasterServiceNode "nc073-data-push-relay-target" $serviceExe $releaseDir $secondaryConfDir $secondaryBase $StartupTimeoutSec
+        $secondarySession = Invoke-E2eLogin $secondaryBase
+        $secondaryStatus = Assert-E2eStatusAndCluster $secondaryBase $secondarySession.Headers "DataPush relay_push secondary" -RequireRedisConnected
+        Assert-E2eNodeIdFormat $secondaryStatus.node_id "DataPush relay_push secondary"
+        if ($primaryStatus.node_id -eq $secondaryStatus.node_id) {
+            Fail "DataPush relay_push smoke requires distinct local node ids, both were $($primaryStatus.node_id)"
+        }
+
+        $baselineNode = Wait-ClusterPushCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id 0 $StartupTimeoutSec "DataPush relay_push baseline"
+        $baselinePush = [int]$baselineNode.push
+
+        $seed = New-NtripAuthSessionSeed -Label "nc073_data_push_relay"
+        $script:ntripAuthSeed = $seed
+        Add-NtripAuthAccountSeed $seed
+        Add-NtripSourceAuthAccountSeed $seed
+        $sourceConnection = Open-NtripSourceForSeed $seed $HttpBindAddr $PrimaryNtripPort "data-push-relay-source"
+        $script:ntripSourceConnection = $sourceConnection
+
+        $period = Get-DataPushPeriod
+        $accountId = "$($seed.Prefix)_user_acc"
+        $username = "$($seed.Prefix)_user"
+        $password = "data-push-relay-pass"
+        $configId = "$($seed.Prefix)_cfg"
+        $jobId = "$($seed.Prefix)_job"
+        $expectedDebitCents = 100
+
+        Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -ContentType "application/json" -Body (@{
+            account_id = $accountId
+            username = $username
+            role = "user"
+            password = $password
+            balance_cents = 20000
+            concurrency_limit = 2
+        } | ConvertTo-Json -Compress) -Uri "$PrimaryBase/api/v1/admin/accounts" -TimeoutSec 10 | Out-Null
+
+        $config = Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -ContentType "application/json" -Body (@{
+            config_id = $configId
+            name = "NC-073 relay_push"
+            target_mountpoint = $seed.TargetMount
+            fixed_hourly_price_cents = $expectedDebitCents
+            execution_mode = "relay_push"
+            source_mountpoint = $seed.Mount
+            relay_target_host = $HttpBindAddr
+            relay_target_port = $SecondaryNtripPort
+            relay_target_mountpoint = $seed.TargetMount
+            relay_target_account = $seed.SourceUser
+            relay_target_password = $seed.SourcePassword
+            relay_push_type = 2
+        } | ConvertTo-Json -Compress) -Uri "$PrimaryBase/api/v1/admin/data-push-configs" -TimeoutSec 10
+        if ($config.config_id -ne $configId -or $config.execution_mode -ne "relay_push") {
+            Fail "DataPush relay config create mismatch: $(ConvertTo-CompactJson $config)"
+        }
+
+        $userLogin = Invoke-E2eLoginWithHeaders -Base $PrimaryBase -Context "DataPush relay user" -Username $username -Password $password
+        $userConfigs = Invoke-RestMethod -Headers $userLogin.Headers -Uri "$PrimaryBase/api/v1/me/data-push/configs" -TimeoutSec 10
+        if (-not $userConfigs.PSObject.Properties[$configId]) {
+            Fail "DataPush relay self-service config list missing $configId"
+        }
+
+        $job = Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+            job_id = $jobId
+            config_id = $configId
+            used_seconds = 3600
+            period = $period
+            operator_note = "NC-073 real relay_push"
+        } | ConvertTo-Json -Compress) -Uri "$PrimaryBase/api/v1/me/data-push/jobs" -TimeoutSec 10
+        $relayUid = "data_push:$jobId"
+        if ($job.job_id -ne $jobId -or $job.relay_uid -ne $relayUid -or $job.execution_mode -ne "relay_push" -or $job.status -ne "queued") {
+            Fail "DataPush relay job create mismatch: $(ConvertTo-CompactJson $job)"
+        }
+        if ($job.actual_debit_cents -ne $expectedDebitCents -or [string]::IsNullOrWhiteSpace([string]$job.ledger_id)) {
+            Fail "DataPush relay job missing debit/ledger fields: $(ConvertTo-CompactJson $job)"
+        }
+
+        $ledgerFacts = Assert-DataPushUsageAndLedger $accountId $jobId $job.usage_id $period $expectedDebitCents "DataPush relay job create"
+        if ($ledgerFacts.Usage.relay_uid -ne $relayUid) {
+            Fail "DataPush relay usage missing relay_uid: $(ConvertTo-CompactJson $ledgerFacts.Usage)"
+        }
+
+        $runningStatus = Wait-PushRelayRunning $PrimaryBase $PrimaryHeaders $relayUid $primaryStatus.node_id ($StartupTimeoutSec + 10) "DataPush relay_push"
+        $targetSource = Wait-PushedSourceActive $seed $seed.TargetMount @($seed.SourceConnectKey, $runningStatus.connect_key) $StartupTimeoutSec "DataPush relay target source"
+        if ($targetSource.ConnectKey -eq $seed.SourceConnectKey -or $targetSource.ConnectKey -eq $runningStatus.connect_key) {
+            Fail "DataPush relay target source connect_key must be distinct from source/relay keys: target=$($targetSource.ConnectKey) source=$($seed.SourceConnectKey) relay=$($runningStatus.connect_key)"
+        }
+        $seed.TargetSourceConnectKey = $targetSource.ConnectKey
+        Wait-ClusterPushCountAtLeast $PrimaryBase $PrimaryHeaders $primaryStatus.node_id ($baselinePush + 1) $StartupTimeoutSec "DataPush relay cluster count" | Out-Null
+
+        $reconciled = Wait-DataPushJobRuntimeStatus $PrimaryBase $PrimaryHeaders $jobId $period "running" $StartupTimeoutSec "DataPush relay runtime"
+        if ($reconciled.relay_uid -ne $relayUid -or $reconciled.relay_connect_key -ne $runningStatus.connect_key -or $reconciled.relay_node_uid -ne $primaryStatus.node_id) {
+            Fail "DataPush relay reconcile mismatch: job=$(ConvertTo-CompactJson $reconciled) status=$(ConvertTo-CompactJson $runningStatus)"
+        }
+
+        $maintenance = Invoke-RestMethod -Method Post -Headers $PrimaryHeaders -ContentType "application/json" -Body (@{
+            period = $period
+            unhealthy_after_seconds = 300
+        } | ConvertTo-Json -Compress) -Uri "$PrimaryBase/api/v1/admin/data-push-maintenance?action=run&period=$period" -TimeoutSec 10
+        if ($maintenance.updated_count -lt 1 -or -not $maintenance.items.PSObject.Properties[$jobId]) {
+            Fail "DataPush relay maintenance did not include $jobId`: $(ConvertTo-CompactJson $maintenance)"
+        }
+
+        $forwardClientConnection = Open-NtripClientForMount `
+            -Seed $seed `
+            -Mount $seed.TargetMount `
+            -NtripHost $HttpBindAddr `
+            -NtripPort $SecondaryNtripPort `
+            -Label "data-push-relay-forward-client"
+        $forwardSession = Wait-NtripActiveSession $seed $StartupTimeoutSec
+        $seed.ClientConnectKey = $forwardSession.Field
+        $payload = "NC073-DATA-PUSH-RELAY:$($seed.Prefix):1234567890"
+        Start-Sleep -Milliseconds 500
+        Write-NtripPayload $sourceConnection $payload "DataPush relay data forwarding"
+        Wait-NtripPayload $forwardClientConnection $payload $StartupTimeoutSec "DataPush relay data forwarding"
+        Close-NtripTcpConnection $forwardClientConnection
+        $forwardClientConnection = $null
+        Wait-NtripOnlineExactFields $seed @() $StartupTimeoutSec "DataPush relay client cleanup" | Out-Null
+
+        $cancelled = Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+            action = "cancel"
+            period = $period
+            operator_note = "NC-073 cleanup"
+        } | ConvertTo-Json -Compress) -Uri "$PrimaryBase/api/v1/me/data-push/jobs/$jobId/control?period=$period" -TimeoutSec 10
+        if ($cancelled.status -ne "cancelled") {
+            Fail "DataPush relay cancel mismatch: $(ConvertTo-CompactJson $cancelled)"
+        }
+        Wait-PushRelayNotRunning $PrimaryBase $PrimaryHeaders $relayUid $StartupTimeoutSec "DataPush relay cancel"
+        Wait-PushedSourceGone $seed $seed.TargetMount $targetSource.ConnectKey $StartupTimeoutSec "DataPush relay cancel target source"
+        Wait-ClusterPushCountAtMost $PrimaryBase $PrimaryHeaders $primaryStatus.node_id $baselinePush $StartupTimeoutSec "DataPush relay cancel cluster count" | Out-Null
+        $relayUid = $null
+        $seed.TargetSourceConnectKey = ""
+        $targetSource = $null
+
+        Close-NtripTcpConnection $sourceConnection
+        $sourceConnection = $null
+        $script:ntripSourceConnection = $null
+        Remove-NtripAuthSessionSeed $seed
+        $seed = $null
+        $script:ntripAuthSeed = $null
+
+        Stop-E2eCasterServiceNode $secondaryNode
+        $secondaryNode = $null
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            $secondaryConfRoot = $null
+        }
+
+        Say "PASS DataPush relay_push real e2e"
+    }
+    finally {
+        if ($relayUid) {
+            Remove-PushRelayRecord $PrimaryBase $PrimaryHeaders $relayUid
+        }
+        Close-NtripTcpConnection $forwardClientConnection
+        Close-NtripTcpConnection $sourceConnection
+        if ($script:ntripSourceConnection -eq $sourceConnection) {
+            $script:ntripSourceConnection = $null
+        }
+        if ($script:ntripAuthSeed -eq $seed) {
+            $script:ntripAuthSeed = $null
+        }
+        if ($seed) {
+            Remove-NtripAuthSessionSeed $seed
+        }
+        Stop-E2eCasterServiceNode $secondaryNode
+        if ($secondaryConfRoot -and (Test-Path -LiteralPath $secondaryConfRoot)) {
+            try {
+                Remove-Item -LiteralPath $secondaryConfRoot -Recurse -Force
+            }
+            catch {
+                Write-Warning "failed to remove DataPush relay service config: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
 function Wait-E2eRedisStatusConnected {
     param(
         [string]$Base,
@@ -7429,7 +7710,7 @@ $activeAccountSseClient = $null
 $ntripAuthSeed = $null
 $ntripSourceConnection = $null
 $ntripClientConnection = $null
-$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeAccessRuntimeEnforcement
+$ntripNeedsNamedRover = $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeNtripDisabledAccount -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeAccessRuntimeEnforcement -or $IncludeDataPushRelayPushE2E
 $ntripNeedsAuthFixture = $ntripNeedsNamedRover -or $IncludeNtripAnonymousAuth
 $stdout = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".out.log")
 $stderr = Join-Path $env:TEMP ("navcaster-e2e-" + [guid]::NewGuid().ToString() + ".err.log")
@@ -7439,7 +7720,7 @@ try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
 
     if ($IncludeDockerBridgeCluster) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement -or $IncludeWebThreeRoleBrowserSmoke
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement -or $IncludeWebThreeRoleBrowserSmoke -or $IncludeDataPushRelayPushE2E
         if ($otherIncludes) {
             Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
         }
@@ -7469,7 +7750,7 @@ try {
     }
 
     if ($IncludeHttpIngressStrategy) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement -or $IncludeWebThreeRoleBrowserSmoke
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement -or $IncludeWebThreeRoleBrowserSmoke -or $IncludeDataPushRelayPushE2E
         if ($otherIncludes) {
             Fail "HTTP ingress strategy smoke must run in a separate lifecycle because it creates its own Docker network, Redis, NavCaster containers, and nginx proxy."
         }
@@ -7532,6 +7813,9 @@ try {
     if ($IncludeRelayPushFailover -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover)) {
         Fail "Relay push failover smoke must run separately from other local dual-instance smokes because it stops the current relay executor/master node."
     }
+    if ($IncludeDataPushRelayPushE2E -and ($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeAccessRuntimeEnforcement -or $IncludeWebThreeRoleBrowserSmoke)) {
+        Fail "DataPush relay_push e2e must run in a separate local dual-instance lifecycle."
+    }
     if ($IncludeNtripDisabledAccount -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAuthBroadcast -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover)) {
         Fail "NTRIP disabled account smoke must run in a separate service lifecycle because it mutates account login state through HTTP APIs."
     }
@@ -7541,10 +7825,10 @@ try {
     if ($IncludeWebThreeRoleBrowserSmoke -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeAccessRuntimeEnforcement)) {
         Fail "Web three-role browser smoke must run in an HTTP-only service lifecycle; combine only with OperationsApi/SelfServiceApi/basic smoke checks."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) -and $HttpPort -eq $NtripBroadcastHttpPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeDataPushRelayPushE2E) -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "secondary HTTP port must differ from primary HTTP port."
     }
-    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) -and $NtripPort -eq $NtripBroadcastNtripPort) {
+    if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeDataPushRelayPushE2E) -and $NtripPort -eq $NtripBroadcastNtripPort) {
         Fail "secondary NTRIP port must differ from primary NTRIP port."
     }
 
@@ -7652,7 +7936,7 @@ try {
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "IP" $RedisHost
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Port" ([string]$RedisPort)
     $coreText = Set-YamlValueInSection $coreText "Reids_Connect_Setting" "Requirepass" $RedisPassword
-    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) {
+    if ($ntripNeedsAuthFixture -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeDataPushRelayPushE2E) {
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Update_Intv" "1"
         $coreText = Set-YamlValueInSection $coreText "Caster_Setting" "Key_Expire_Time" "10"
     }
@@ -7777,6 +8061,10 @@ try {
 
     if ($IncludeRelayPushFailover) {
         Invoke-RelayPushFailoverSmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
+    }
+
+    if ($IncludeDataPushRelayPushE2E) {
+        Invoke-DataPushRelayPushE2ESmoke $base $headers $NtripPort $NtripBroadcastHttpPort $NtripBroadcastNtripPort
     }
 
     if ($IncludeNtripDisabledAccount) {
