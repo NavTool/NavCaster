@@ -180,6 +180,7 @@ MPGRP 创建和成员添加会同步同名 ACCESS:GROUP / ACCESS:ITEM:<group_id>
 AccessAccount 登录成功后继续写旧 ACT:REC / ACT:SESSION 兼容桶，同时写新 ONLINE:SESSION:<owner_account_id>。
 连接断开时写 BILL:ENTRY、BILL:IDEMPOTENT、BILL:ACCOUNT；按量扣费写 ACC:BALANCE:LEDGER，并同步更新 ACC:RECORD.balance_cents 与 AACC:ACTIVE.balance_cents 快照。
 supplier_station 断开时写 SUPPLY:USAGE、SUPPLY:ACCOUNT、STATION:RECORD 和 STATION:EVENT:<mountpoint>。
+NC-077 起登录前按 ONLINE:SESSION:<owner_account_id> 统计 Account 和 AccessAccount 当前并发；超过限制时写 RUNTIME:REJECTION:<yyyyMM>，并且不写在线会话、计费用量、余额账本、供应事实或站点事件。
 ```
 
 NC-058 运行中连接重验：
@@ -370,7 +371,34 @@ timer tick 执行。管理员可通过手动 maintenance API 按 period 执行�
   "addr": "127.0.0.1",
   "port": 2101,
   "user_agent": "NTRIP ...",
-  "ntrip_version": "Ntrip/2.0"
+  "ntrip_version": "Ntrip/2.0",
+  "node_id": "<node_id>"
+}
+```
+
+`RUNTIME:REJECTION:<yyyyMM>` 当前 JSON 字段：
+
+```json
+{
+  "rejection_id": "reject:<connect_key>:<reject_time>",
+  "owner_account_id": "<owner_account_id>",
+  "account_id": "<owner_account_id>",
+  "access_account_id": "<access_account_id>",
+  "access_username": "<access_username>",
+  "access_kind": "user_client|supplier_station",
+  "mountpoint": "<mountpoint>",
+  "group_id": "<group_id>",
+  "connect_key": "<connect_key>",
+  "auth_type": "client|server|source|unknown",
+  "addr": "127.0.0.1",
+  "port": 2101,
+  "node_id": "<node_id>",
+  "reason": "account_concurrency_exceeded|access_concurrency_exceeded",
+  "limit": 1,
+  "current_count": 1,
+  "reject_time": 1710000000,
+  "create_time": 1710000000,
+  "source": "access_runtime_concurrency"
 }
 ```
 

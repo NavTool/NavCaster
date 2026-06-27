@@ -1076,6 +1076,12 @@ ControllerResponse OperationsController::list_usage(const std::string &period)
     return list_limited_hash(key.c_str());
 }
 
+ControllerResponse OperationsController::list_runtime_rejections(const std::string &period)
+{
+    const std::string key = redis_keys::runtime_rejection(request_period(period));
+    return list_limited_hash(key.c_str());
+}
+
 ControllerResponse OperationsController::list_data_push_configs()
 {
     return empty_or_records(redis_keys::DATA_PUSH_CONFIG);

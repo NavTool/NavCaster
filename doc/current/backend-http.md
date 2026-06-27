@@ -92,6 +92,9 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   `STR:ACTIVE` fallback；audit 复用 `AuditLogService::list()`，从 `LOG:AUDIT`
   返回分页结果并支持 `limit`、`cursor`、`actor`、`action`、`target` 过滤。旧
   `/api/accounts/active` 与 `/api/audit` 保持兼容。
+- NC-077 起新增 `GET /api/v1/admin/runtime-rejections?period=yyyyMM`。该接口只读
+  `RUNTIME:REJECTION:<period>`，用于查看 AccessAccount 登录前并发拒绝事实；未传
+  period 时沿用运营接口当前的 `current` 桶兼容口径，正式账期调用应传 `yyyyMM`。
 - NC-060 新增订阅和兑换码运营 API：`GET/POST /api/v1/admin/subscriptions`、
   `GET/PUT/DELETE /api/v1/admin/subscriptions/{subscription_id}`、`GET/POST
   /api/v1/admin/redeem-codes`、`GET /api/v1/admin/redeem-codes/{code}` 和

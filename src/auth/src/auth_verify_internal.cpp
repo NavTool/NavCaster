@@ -9,6 +9,7 @@
 #include "redis_keys.h"
 #include <algorithm>
 #include <list>
+#include <vector>
 #include <spdlog/spdlog.h>
 #include "knt.h"
 
@@ -129,6 +130,33 @@ bool json_status_active(const json &record)
     return record.is_object() && record.value("status", std::string{}) == navcaster::core::ACCESS_RUNTIME_STATUS_ACTIVE;
 }
 
+json redis_hash_reply_to_json_object(redisReply *reply)
+{
+    json records = json::object();
+    if (!reply || reply->type != REDIS_REPLY_ARRAY)
+    {
+        return records;
+    }
+    for (std::size_t i = 0; i + 1 < reply->elements; i += 2)
+    {
+        auto *field = reply->element[i];
+        auto *value = reply->element[i + 1];
+        if (!field || !value || !field->str || !value->str)
+        {
+            continue;
+        }
+        try
+        {
+            records[field->str] = json::parse(value->str);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::warn("[auth]: event=redis_hash_record_parse_failed field={} reason={}", field->str, e.what());
+        }
+    }
+    return records;
+}
+
 void continue_legacy_verify(auth_ctx *ctx)
 {
     redisAsyncCommand(verify_internal::getInstance()->_pub_context,
@@ -155,6 +183,7 @@ navcaster::core::AccessRuntimeRecordInput runtime_input_from_item(const auth_cb_
     input.port = item.runtime.port;
     input.user_agent = item.runtime.user_agent;
     input.ntrip_version = item.runtime.ntrip_version;
+    input.node_id = item.runtime.node_id;
     input.billing_mode = item.billing_mode.empty() ? navcaster::core::ACCESS_RUNTIME_BILLING_MODE_PAYG : item.billing_mode;
     input.subscription_id = item.subscription_id;
     input.subscription_snapshot = item.subscription_snapshot;
@@ -213,7 +242,16 @@ void continue_access_payg_or_accept(auth_ctx *ctx)
     {
         return;
     }
-    verify_internal::Redis_Verify_Access_Accept(ctx);
+    const std::string online_key = navcaster::redis_keys::online_session(ctx->active_info->_owner_account_id);
+    const int ret = redisAsyncCommand(verify_internal::getInstance()->_pub_context,
+                                      verify_internal::Redis_Verify_Access_Concurrency_Callback,
+                                      ctx,
+                                      "HGETALL %s",
+                                      online_key.c_str());
+    if (ret != REDIS_OK)
+    {
+        reject_auth_ctx(ctx, "access_concurrency_lookup_failed");
+    }
 }
 
 void continue_access_subscription_or_payg(redisAsyncContext *c, auth_ctx *ctx)
@@ -224,7 +262,16 @@ void continue_access_subscription_or_payg(redisAsyncContext *c, auth_ctx *ctx)
     }
     if (ctx->active_info->_access_kind != navcaster::core::ACCESS_RUNTIME_KIND_USER_CLIENT)
     {
-        verify_internal::Redis_Verify_Access_Accept(ctx);
+        const std::string online_key = navcaster::redis_keys::online_session(ctx->active_info->_owner_account_id);
+        const int ret = redisAsyncCommand(c,
+                                          verify_internal::Redis_Verify_Access_Concurrency_Callback,
+                                          ctx,
+                                          "HGETALL %s",
+                                          online_key.c_str());
+        if (ret != REDIS_OK)
+        {
+            reject_auth_ctx(ctx, "access_concurrency_lookup_failed");
+        }
         return;
     }
 
@@ -1082,15 +1129,25 @@ int verify_internal::broadcast_response(std::string req_str)
                      req.channel,
                      auth_reply_name(req.status),
                      req.reason);
-        for (auto &iter : item->second)
+        std::vector<auth_cb_item> targets;
+        targets.reserve(item->second.size());
+        for (const auto &iter : item->second)
+        {
+            targets.push_back(iter.second);
+        }
+        for (auto &cb_item : targets)
         {
             if (disable_active_session)
             {
-                iter.second.active_session_enabled = false;
-                finalize_access_runtime_session(iter.second, req.reason.c_str());
-                remove_active_session(req.channel.c_str(), iter.second.connect_key.c_str());
+                auto live = item->second.find(cb_item.connect_key);
+                if (live != item->second.end())
+                {
+                    live->second.active_session_enabled = false;
+                    cb_item.active_session_enabled = false;
+                    finalize_access_runtime_session(live->second, req.reason.c_str());
+                    remove_active_session(req.channel.c_str(), live->second.connect_key.c_str());
+                }
             }
-            auto cb_item = iter.second;
             auto Func = cb_item.cb;
             auto arg = cb_item.arg;
             Func(NULL, arg, &Reply);
@@ -1311,6 +1368,7 @@ void verify_internal::Redis_Verify_Access_Callback(redisAsyncContext *c, void *r
         reject_auth_ctx(ctx, login_decision.result.message, login_decision.legacy_reply);
         return;
     }
+    ctx->active_record = login_decision.active_record;
 
     const std::string auth_type_name = navcaster::auth::AuthLoginService::auth_type_name(ctx->type);
     const bool require_mountpoint = ctx->type != AuthType::SOURCE;
@@ -1604,7 +1662,84 @@ void verify_internal::Redis_Verify_Access_Subscription_Callback(redisAsyncContex
             return;
         }
     }
-    Redis_Verify_Access_Accept(ctx);
+    const std::string online_key = navcaster::redis_keys::online_session(ctx->active_info->_owner_account_id);
+    const int ret = redisAsyncCommand(c,
+                                      Redis_Verify_Access_Concurrency_Callback,
+                                      ctx,
+                                      "HGETALL %s",
+                                      online_key.c_str());
+    if (ret != REDIS_OK)
+    {
+        reject_auth_ctx(ctx, "access_concurrency_lookup_failed");
+    }
+}
+
+void verify_internal::Redis_Verify_Access_Concurrency_Callback(redisAsyncContext *c, void *r, void *privdata)
+{
+    (void)c;
+    auto ctx = static_cast<auth_ctx *>(privdata);
+    if (!ctx || !ctx->active_info)
+    {
+        delete_auth_ctx(ctx);
+        return;
+    }
+
+    ctx->online_session_records = redis_hash_reply_to_json_object(static_cast<redisReply *>(r));
+    const auto snapshot = navcaster::core::summarize_online_sessions(
+        ctx->online_session_records,
+        ctx->active_info->_access_account_id,
+        ctx->runtime.connect_key.empty() ? ctx->connect_key : ctx->runtime.connect_key);
+    const auto validation = navcaster::core::validate_access_concurrency(ctx->active_record, snapshot);
+    if (validation.ok)
+    {
+        Redis_Verify_Access_Accept(ctx);
+        return;
+    }
+
+    const auto now = util_get_time_stamp();
+    navcaster::core::AccessRuntimeRejectionInput input;
+    input.owner_account_id = ctx->active_info->_owner_account_id;
+    input.access_account_id = ctx->active_info->_access_account_id;
+    input.access_username = ctx->active_info->_access_username.empty() ? ctx->user_name : ctx->active_info->_access_username;
+    input.access_kind = ctx->active_info->_access_kind;
+    input.mountpoint = ctx->runtime.mountpoint;
+    input.group_id = ctx->active_info->_mount_point_group_id;
+    input.connect_key = ctx->runtime.connect_key.empty() ? ctx->connect_key : ctx->runtime.connect_key;
+    input.auth_type = navcaster::auth::AuthLoginService::auth_type_name(ctx->type);
+    input.addr = ctx->runtime.addr;
+    input.port = ctx->runtime.port;
+    input.node_id = ctx->runtime.node_id;
+    input.reason = validation.reason;
+    input.limit = validation.limit;
+    input.current_count = validation.current_count;
+    input.reject_time = now;
+
+    const auto rejection = navcaster::core::build_runtime_rejection_record(input);
+    const std::string period = navcaster::core::runtime_period_from_unix(now);
+    const std::string key = navcaster::redis_keys::runtime_rejection(period);
+    const std::string id = rejection.value("rejection_id", std::string{});
+    const int ret = redisAsyncCommand(verify_internal::getInstance()->_pub_context,
+                                      NULL,
+                                      NULL,
+                                      "HSETNX %s %s %s",
+                                      key.c_str(),
+                                      id.c_str(),
+                                      rejection.dump().c_str());
+    if (ret != REDIS_OK)
+    {
+        spdlog::error("[auth]: event=redis_command_failed operation=write_runtime_rejection redis_key={} access_account_id={} connect_key={} reason=hsetnx_failed",
+                      key,
+                      input.access_account_id,
+                      input.connect_key);
+    }
+    spdlog::warn("[auth]: event=access_runtime_concurrency_rejected operation=verify_access_account owner_account_id={} access_account_id={} connect_key={} reason={} current_count={} limit={}",
+                 input.owner_account_id,
+                 input.access_account_id,
+                 input.connect_key,
+                 input.reason,
+                 input.current_count,
+                 input.limit);
+    reject_auth_ctx(ctx, input.reason);
 }
 
 void verify_internal::Redis_Verify_Access_Accept(auth_ctx *ctx)

@@ -25,6 +25,7 @@ std::string mpgrp_member(const std::string &group_id) { return append(MPGRP_MEMB
 std::string sub_account(const std::string &account_id) { return append(SUB_ACCOUNT_PREFIX, account_id); }
 std::string redeem_account(const std::string &account_id) { return append(REDEEM_ACCOUNT_PREFIX, account_id); }
 std::string online_session(const std::string &account_id) { return append(ONLINE_SESSION_PREFIX, account_id); }
+std::string runtime_rejection(const std::string &period) { return append(RUNTIME_REJECTION_PREFIX, period); }
 std::string bill_entry(const std::string &period) { return append(BILL_ENTRY_PREFIX, period); }
 std::string bill_account(const std::string &account_id, const std::string &period) { return append(BILL_ACCOUNT_PREFIX, account_id) + ":" + period; }
 std::string data_push(const std::string &period) { return append(DATA_PUSH_PREFIX, period); }

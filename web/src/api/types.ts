@@ -547,6 +547,28 @@ export interface BillingUsageEntry {
   end_time?: number;
 }
 
+export interface RuntimeRejectionRecord {
+  rejection_id: string;
+  owner_account_id: string;
+  account_id?: string;
+  access_account_id: string;
+  access_username?: string;
+  access_kind?: string;
+  mountpoint?: string;
+  group_id?: string;
+  connect_key?: string;
+  auth_type?: string;
+  addr?: string;
+  port?: number;
+  node_id?: string;
+  reason: string;
+  limit?: number;
+  current_count?: number;
+  reject_time?: number;
+  create_time?: number;
+  source?: string;
+}
+
 export interface DataPushUsage {
   usage_id: string;
   account_id: string;

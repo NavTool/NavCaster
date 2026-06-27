@@ -24,6 +24,7 @@ import type {
   RedeemCodeRecord,
   RedeemRedemptionRecord,
   RoleDashboard,
+  RuntimeRejectionRecord,
   StationRecord,
   SubscriptionPlan,
   SubscriptionRecord,
@@ -151,6 +152,10 @@ export const adminApi = {
   },
   async usage(period?: string): Promise<HashRecord<BillingUsageEntry>> {
     const { data } = await api.get('/api/v1/admin/usage', { params: period ? { period } : undefined });
+    return data;
+  },
+  async runtimeRejections(period?: string): Promise<HashRecord<RuntimeRejectionRecord>> {
+    const { data } = await api.get('/api/v1/admin/runtime-rejections', { params: period ? { period } : undefined });
     return data;
   },
   async dataPushConfigs(): Promise<HashRecord<DataPushConfig>> {

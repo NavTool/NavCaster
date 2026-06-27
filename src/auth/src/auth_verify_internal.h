@@ -72,6 +72,8 @@ struct auth_ctx
     json member_record;
     json mount_record;
     json subscription_records;
+    json online_session_records;
+    json active_record;
     VerifyCallback cb = nullptr;
     void *arg = nullptr;
 };
@@ -316,6 +318,7 @@ public:
     static void Redis_Verify_Access_Member_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Verify_Access_Mount_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Verify_Access_Subscription_Callback(redisAsyncContext *c, void *r, void *privdata);
+    static void Redis_Verify_Access_Concurrency_Callback(redisAsyncContext *c, void *r, void *privdata);
     static void Redis_Verify_Access_Accept(auth_ctx *ctx);
 
     // 添加匿名账户的回调

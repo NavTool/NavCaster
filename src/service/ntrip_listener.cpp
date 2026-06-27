@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdlib>
 
+#include "Caster_Core.h"
 #include "log_observability.h"
 
 #define __class__ "ntrip_listener"
@@ -26,6 +27,7 @@ static AuthRuntimeContext build_auth_runtime_context(const ConnectInfo &req)
     runtime.port = req.port();
     runtime.user_agent = req.user_agent();
     runtime.ntrip_version = req.ntrip_version();
+    runtime.node_id = CASTER::Get_Node_ID();
     return runtime;
 }
 

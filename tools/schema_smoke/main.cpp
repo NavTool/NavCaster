@@ -849,6 +849,8 @@ int main()
             {"owner_status", "active"},
             {"mount_point_group_id", "mpg-runtime"},
             {"balance_cents", 500},
+            {"account_concurrency_limit", 2},
+            {"access_concurrency_limit", 1},
             {"expire_time", 0},
         };
         auto runtime_check = validate_access_auth_index(auth_index, "client", "RUNTIME", 1782432000, true);
@@ -893,6 +895,37 @@ int main()
         runtime_check = revalidate_access_runtime_session({low_balance_auth_index, "client", "RUNTIME", 1782432000, 60, 1200, 1.0, ACCESS_RUNTIME_BILLING_MODE_SUBSCRIPTION});
         expect_true(runtime_check.ok, "access runtime subscription revalidation skips balance precheck");
 
+        const nlohmann::json online_records = {
+            {"session-1", {
+                {"connect_key", "session-1"},
+                {"access_account_id", "aacc-runtime"},
+                {"mountpoint", "RUNTIME"},
+            }},
+            {"session-2", {
+                {"connect_key", "session-2"},
+                {"access_account_id", "aacc-other"},
+                {"mountpoint", "RUNTIME"},
+            }},
+        };
+        const auto concurrency_snapshot = summarize_online_sessions(online_records, "aacc-runtime");
+        expect_eq_int(static_cast<int>(concurrency_snapshot.owner_current_count), 2, "access runtime owner concurrency count");
+        expect_eq_int(static_cast<int>(concurrency_snapshot.access_current_count), 1, "access runtime access concurrency count");
+        auto concurrency_check = validate_access_concurrency(auth_index, concurrency_snapshot);
+        expect_true(!concurrency_check.ok && concurrency_check.reason == "account_concurrency_exceeded", "access runtime rejects owner concurrency");
+        auto access_limit_auth_index = auth_index;
+        access_limit_auth_index["account_concurrency_limit"] = 3;
+        concurrency_check = validate_access_concurrency(access_limit_auth_index, concurrency_snapshot);
+        expect_true(!concurrency_check.ok && concurrency_check.reason == "access_concurrency_exceeded", "access runtime rejects access concurrency");
+        auto unlimited_auth_index = auth_index;
+        unlimited_auth_index["account_concurrency_limit"] = 0;
+        unlimited_auth_index["access_concurrency_limit"] = 0;
+        unlimited_auth_index["connection_limit"] = 0;
+        concurrency_check = validate_access_concurrency(unlimited_auth_index, concurrency_snapshot);
+        expect_true(concurrency_check.ok, "access runtime concurrency zero is unlimited");
+        const auto skipped_snapshot = summarize_online_sessions(online_records, "aacc-runtime", "session-1");
+        expect_eq_int(static_cast<int>(skipped_snapshot.owner_current_count), 1, "access runtime concurrency skips candidate connect key");
+        expect_eq_int(static_cast<int>(skipped_snapshot.access_current_count), 0, "access runtime access concurrency skips candidate connect key");
+
         const nlohmann::json subscription_records = {
             {"sub-late", {
                 {"subscription_id", "sub-late"},
@@ -936,6 +969,7 @@ int main()
         runtime_input.start_time = 1782432000;
         runtime_input.update_time = 1782432060;
         runtime_input.end_time = 1782432060;
+        runtime_input.node_id = "node-runtime";
         runtime_input.used_seconds = 60;
         runtime_input.stat_cost_cents = 2;
         runtime_input.actual_debit_cents = 2;
@@ -945,6 +979,27 @@ int main()
         runtime_input.disconnect_reason = "client_closed";
         const auto online_session = build_online_session_record(runtime_input);
         expect_eq(online_session.value("access_account_id", std::string{}), "aacc-runtime", "access runtime online session access id");
+        expect_eq(online_session.value("node_id", std::string{}), "node-runtime", "access runtime online session node id");
+        AccessRuntimeRejectionInput rejection_input;
+        rejection_input.owner_account_id = "acc-runtime";
+        rejection_input.access_account_id = "aacc-runtime";
+        rejection_input.access_username = "runtime-rover";
+        rejection_input.access_kind = "user_client";
+        rejection_input.mountpoint = "RUNTIME";
+        rejection_input.group_id = "mpg-runtime";
+        rejection_input.connect_key = "conn-rejected";
+        rejection_input.auth_type = "client";
+        rejection_input.addr = "127.0.0.1";
+        rejection_input.port = 2101;
+        rejection_input.node_id = "node-runtime";
+        rejection_input.reason = "access_concurrency_exceeded";
+        rejection_input.limit = 1;
+        rejection_input.current_count = 1;
+        rejection_input.reject_time = 1782432000;
+        const auto rejection = build_runtime_rejection_record(rejection_input);
+        expect_eq(runtime_rejection_id(rejection_input), "reject:conn-rejected:1782432000", "access runtime rejection id");
+        expect_eq(rejection.value("reason", std::string{}), "access_concurrency_exceeded", "access runtime rejection reason");
+        expect_eq_int(rejection.value("limit", 0), 1, "access runtime rejection limit");
         const auto billing = build_billing_usage_entry(runtime_input);
         expect_eq(billing.value("account_id", std::string{}), "acc-runtime", "access runtime billing owner");
         expect_eq_int(billing.value("actual_debit_cents", 0), 2, "access runtime billing debit");
@@ -2425,6 +2480,19 @@ int main()
         response = operations.list_usage("202606");
         response_body = nlohmann::json::parse(response.body);
         expect_true(response_body.contains("op-bill"), "operations list billing usage");
+        operations_redis.hset(navcaster::redis_keys::runtime_rejection("202606").c_str(), "op-reject", nlohmann::json{
+            {"rejection_id", "op-reject"},
+            {"owner_account_id", "op-user"},
+            {"access_account_id", "op-aacc"},
+            {"access_username", "op-rover"},
+            {"mountpoint", "OPBASE"},
+            {"reason", "access_concurrency_exceeded"},
+            {"limit", 1},
+            {"current_count", 1},
+        }.dump());
+        response = operations.list_runtime_rejections("202606");
+        response_body = nlohmann::json::parse(response.body);
+        expect_true(response_body.contains("op-reject"), "operations list runtime rejections");
 
         expect_true(domain_repo.append_data_push_usage_with_balance({
             {"usage_id", "op-data-push"},
