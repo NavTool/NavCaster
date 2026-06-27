@@ -103,6 +103,11 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   ledger，还会按 `delta_cents` 同步更新 `ACC:RECORD.balance_cents` 并刷新 owner
   下 AccessAccount 运行时余额快照。`GET /api/v1/me/subscriptions` 和
   `GET /api/v1/me/redeem-redemptions` 返回当前用户自己的订阅和兑换记录。
+- NC-075 新增订阅套餐 API：`GET/POST /api/v1/admin/subscription-plans` 和
+  `GET/PUT/DELETE /api/v1/admin/subscription-plans/{plan_id}`。套餐写入 `SUB:PLAN`，
+  创建订阅时可传 `plan_id`，后端会把套餐 `group_ids`、`price_cents`、
+  `duration_days` 和 `plan_snapshot` 固化进 `SUB:RECORD` / `SUB:ACCOUNT:<account_id>`。
+  该能力只提供套餐运营基础，不接真实支付、购买或续费。
 - NC-061/NC-063 新增并扩展供应商结算 API：`GET/POST
   /api/v1/admin/supplier-settlements`、`GET
   /api/v1/admin/supplier-settlements/{settlement_id}`、`POST

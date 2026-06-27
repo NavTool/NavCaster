@@ -68,6 +68,8 @@ private:
     void handle_v1_admin_mount_point_group_members(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_mount_points(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_access_accounts(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_subscription_plans(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_subscription_plan(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_subscriptions(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_subscription(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_redeem_codes(const HttpRequest &req, HttpResponse &resp);

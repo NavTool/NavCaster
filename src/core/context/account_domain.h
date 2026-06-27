@@ -34,6 +34,7 @@ bool normalize_mount_point(nlohmann::json &record, std::int64_t now, std::string
 bool normalize_access_account(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 void normalize_password_material(nlohmann::json &record);
 void preserve_existing_password_material(nlohmann::json &record, const nlohmann::json &existing);
+bool normalize_subscription_plan(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_subscription(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_redeem_code(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);
 bool normalize_redeem_redemption(nlohmann::json &record, std::int64_t now, std::string *error = nullptr);

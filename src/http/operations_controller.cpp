@@ -460,6 +460,49 @@ ControllerResponse OperationsController::list_access_accounts()
     return empty_or_records(redis_keys::AACC_RECORD);
 }
 
+ControllerResponse OperationsController::list_subscription_plans()
+{
+    return empty_or_records(redis_keys::SUB_PLAN);
+}
+
+ControllerResponse OperationsController::get_subscription_plan(const std::string &plan_id)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.get_subscription_plan(plan_id);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::create_subscription_plan(const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.create_subscription_plan(std::move(body), _now);
+    return repository_result(201, result);
+}
+
+ControllerResponse OperationsController::update_subscription_plan(const std::string &plan_id, const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_subscription_plan(plan_id, std::move(body), _now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::delete_subscription_plan(const std::string &plan_id)
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.delete_subscription_plan(plan_id, _now);
+    return repository_result(200, result);
+}
+
 ControllerResponse OperationsController::list_subscriptions()
 {
     return empty_or_records(redis_keys::SUB_RECORD);

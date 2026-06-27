@@ -471,12 +471,29 @@ export interface SubscriptionRecord {
   account_id: string;
   group_ids: string[];
   status: ResourceStatus;
+  plan_id?: string;
+  plan_snapshot?: SubscriptionPlan;
+  price_cents?: number;
+  duration_days?: number;
   start_time?: number;
   expire_time?: number;
   granted_by?: string;
   remark?: string;
   create_time?: number;
   update_time?: number;
+}
+
+export interface SubscriptionPlan {
+  plan_id: string;
+  name: string;
+  group_ids: string[];
+  status: ResourceStatus;
+  price_cents?: number;
+  duration_days?: number;
+  description?: string;
+  create_time?: number;
+  update_time?: number;
+  delete_time?: number;
 }
 
 export interface RedeemCodeRecord {

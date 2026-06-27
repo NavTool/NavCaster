@@ -25,6 +25,7 @@ import type {
   RedeemRedemptionRecord,
   RoleDashboard,
   StationRecord,
+  SubscriptionPlan,
   SubscriptionRecord,
   SupplierEarningsSummary,
   SupplierSettlementRecord,
@@ -108,7 +109,23 @@ export const adminApi = {
     const { data } = await api.get('/api/v1/admin/subscriptions');
     return data;
   },
-  async createSubscription(body: Partial<SubscriptionRecord> & { subscription_id: string; account_id: string; group_ids: string[] }) {
+  async subscriptionPlans(): Promise<HashRecord<SubscriptionPlan>> {
+    const { data } = await api.get('/api/v1/admin/subscription-plans');
+    return data;
+  },
+  async createSubscriptionPlan(body: Partial<SubscriptionPlan> & { plan_id: string; name: string; group_ids: string[] }) {
+    const { data } = await api.post('/api/v1/admin/subscription-plans', body);
+    return data as SubscriptionPlan;
+  },
+  async updateSubscriptionPlan(planId: string, body: Partial<SubscriptionPlan>) {
+    const { data } = await api.put(`/api/v1/admin/subscription-plans/${encodeURIComponent(planId)}`, body);
+    return data as SubscriptionPlan;
+  },
+  async deleteSubscriptionPlan(planId: string) {
+    const { data } = await api.delete(`/api/v1/admin/subscription-plans/${encodeURIComponent(planId)}`);
+    return data as SubscriptionPlan;
+  },
+  async createSubscription(body: Partial<SubscriptionRecord> & { subscription_id: string; account_id: string; group_ids?: string[] }) {
     const { data } = await api.post('/api/v1/admin/subscriptions', body);
     return data as SubscriptionRecord;
   },

@@ -84,6 +84,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/audit
 /api/v1/admin/mount-point-groups
 /api/v1/admin/mount-points
+/api/v1/admin/subscription-plans
 /api/v1/admin/subscriptions
 /api/v1/admin/redeem-codes
 /api/v1/admin/stations
@@ -168,6 +169,10 @@ NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的�
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加
 `/me/subscriptions` 和 `/me/redeem-redemptions`，只展示当前 session Account 的
 订阅权益和兑换记录。
+
+NC-075 起运营台增加 `/admin/subscription-plans`。管理员可创建和禁用订阅套餐模板，
+字段包括套餐 ID、名称、覆盖分组、价格、周期和状态。创建订阅弹窗可选择 active 套餐，
+并自动带出覆盖分组；后端会把套餐快照固化到订阅记录，供后续支付、购买和续费能力复用。
 
 NC-061 起运营台增加 `/admin/supplier-settlements`，管理员可按当前账期查看结算批次，
 并输入 Supplier Account ID 创建结算。NC-063 起该页面可把结算批次标记为已付款或

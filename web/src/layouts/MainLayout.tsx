@@ -43,6 +43,7 @@ const adminMenuItems = [
       { key: '/admin/accounts', icon: <TeamOutlined />, label: '账号' },
       { key: '/admin/access-accounts', icon: <LockOutlined />, label: '接入账号' },
       { key: '/admin/usage', icon: <BarChartOutlined />, label: '计费用量' },
+      { key: '/admin/subscription-plans', icon: <ProfileOutlined />, label: '订阅套餐' },
       { key: '/admin/subscriptions', icon: <ProfileOutlined />, label: '订阅' },
       { key: '/admin/redeem-codes', icon: <WalletOutlined />, label: '兑换码' },
       { key: '/admin/data-push-configs', icon: <SwapOutlined />, label: '推送配置' },

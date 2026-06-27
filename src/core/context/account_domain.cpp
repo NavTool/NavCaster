@@ -300,6 +300,31 @@ bool normalize_subscription(nlohmann::json &record, std::int64_t now, std::strin
     return true;
 }
 
+bool normalize_subscription_plan(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    if (!require_string(record, "plan_id", error) || !require_string(record, "name", error))
+    {
+        return false;
+    }
+    if (!record.contains("group_ids") || !record["group_ids"].is_array() || record["group_ids"].empty())
+    {
+        return fail(error, "group_ids is required");
+    }
+    default_status(record);
+    if (!validate_status(record, error))
+    {
+        return false;
+    }
+    record["price_cents"] = record.value("price_cents", 0);
+    record["duration_days"] = record.value("duration_days", 0);
+    if (!is_nonnegative_number(record["price_cents"]) || !is_nonnegative_number(record["duration_days"]))
+    {
+        return fail(error, "subscription plan numeric fields must be non-negative");
+    }
+    touch(record, now);
+    return true;
+}
+
 bool normalize_redeem_code(nlohmann::json &record, std::int64_t now, std::string *error)
 {
     if (!require_string(record, "code", error))

@@ -83,6 +83,25 @@ bool data_push_active_status(const std::string &status)
     return status == "queued" || status == "running";
 }
 
+void apply_subscription_plan_snapshot(nlohmann::json &subscription, const nlohmann::json &plan, std::int64_t now)
+{
+    subscription["plan_id"] = plan.value("plan_id", std::string{});
+    subscription["plan_snapshot"] = plan;
+    subscription["group_ids"] = plan.value("group_ids", nlohmann::json::array());
+    subscription["price_cents"] = json_record::as_i64(plan.value("price_cents", 0), 0);
+    subscription["duration_days"] = json_record::as_i64(plan.value("duration_days", 0), 0);
+    if (!subscription.contains("start_time") || json_record::as_i64(subscription["start_time"], 0) <= 0)
+    {
+        subscription["start_time"] = now;
+    }
+    if ((!subscription.contains("expire_time") || json_record::as_i64(subscription["expire_time"], 0) <= 0) &&
+        json_record::as_i64(subscription["duration_days"], 0) > 0)
+    {
+        subscription["expire_time"] = json_record::as_i64(subscription["start_time"], now) +
+                                      json_record::as_i64(subscription["duration_days"], 0) * 86400;
+    }
+}
+
 nlohmann::json default_data_push_maintenance_config(std::int64_t now)
 {
     return {
@@ -952,8 +971,134 @@ AccountDomainResult AccountDomainRepository::delete_access_account(const std::st
     return result;
 }
 
+AccountDomainResult AccountDomainRepository::create_subscription_plan(nlohmann::json record, std::int64_t now)
+{
+    std::string error;
+    if (!account_domain::normalize_subscription_plan(record, now, &error))
+    {
+        return invalid(error);
+    }
+    const std::string plan_id = record.value("plan_id", std::string{});
+    for (const auto &group_id : record["group_ids"])
+    {
+        if (!group_id.is_string() || !group_is_active(group_id.get<std::string>()))
+        {
+            return make_result(RepositoryStatus::Invalid, plan_id, "SubscriptionPlan references unknown group");
+        }
+    }
+    if (!hsetnx_json(redis_keys::SUB_PLAN, plan_id, record))
+    {
+        return make_result(RepositoryStatus::Conflict, plan_id, "SubscriptionPlan already exists");
+    }
+    AccountDomainResult result;
+    result.id = plan_id;
+    result.record = std::move(record);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::get_subscription_plan(const std::string &plan_id)
+{
+    const auto record = get_hash_record(redis_keys::SUB_PLAN, plan_id);
+    if (record.is_null())
+    {
+        return make_result(RepositoryStatus::NotFound, plan_id, "SubscriptionPlan not found");
+    }
+    AccountDomainResult result;
+    result.id = plan_id;
+    result.record = record;
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_subscription_plan(const std::string &plan_id, nlohmann::json record, std::int64_t now)
+{
+    auto current = get_hash_record(redis_keys::SUB_PLAN, plan_id);
+    if (!current.is_object() || current.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, plan_id, "SubscriptionPlan not found");
+    }
+    record["plan_id"] = plan_id;
+    if (!record.contains("name") && current.contains("name"))
+    {
+        record["name"] = current["name"];
+    }
+    if (!record.contains("group_ids") && current.contains("group_ids"))
+    {
+        record["group_ids"] = current["group_ids"];
+    }
+    if (!record.contains("price_cents") && current.contains("price_cents"))
+    {
+        record["price_cents"] = current["price_cents"];
+    }
+    if (!record.contains("duration_days") && current.contains("duration_days"))
+    {
+        record["duration_days"] = current["duration_days"];
+    }
+    if (!record.contains("status") && current.contains("status"))
+    {
+        record["status"] = current["status"];
+    }
+    if (!record.contains("create_time") && current.contains("create_time"))
+    {
+        record["create_time"] = current["create_time"];
+    }
+    std::string error;
+    if (!account_domain::normalize_subscription_plan(record, now, &error))
+    {
+        return invalid(error);
+    }
+    for (const auto &group_id : record["group_ids"])
+    {
+        if (!group_id.is_string() || !group_is_active(group_id.get<std::string>()))
+        {
+            return make_result(RepositoryStatus::Invalid, plan_id, "SubscriptionPlan references unknown group");
+        }
+    }
+    if (!hset_json(redis_keys::SUB_PLAN, plan_id, record))
+    {
+        return redis_error(plan_id, "Failed to update SubscriptionPlan");
+    }
+    AccountDomainResult result;
+    result.id = plan_id;
+    result.record = std::move(record);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::delete_subscription_plan(const std::string &plan_id, std::int64_t now)
+{
+    auto current = get_hash_record(redis_keys::SUB_PLAN, plan_id);
+    if (!current.is_object() || current.value("status", std::string{}) == account_domain::STATUS_DELETED)
+    {
+        return make_result(RepositoryStatus::NotFound, plan_id, "SubscriptionPlan not found");
+    }
+    current["status"] = account_domain::STATUS_DELETED;
+    current["delete_time"] = now;
+    current["update_time"] = now;
+    if (!hset_json(redis_keys::SUB_PLAN, plan_id, current))
+    {
+        return redis_error(plan_id, "Failed to tombstone SubscriptionPlan");
+    }
+    AccountDomainResult result;
+    result.id = plan_id;
+    result.record = std::move(current);
+    return result;
+}
+
 AccountDomainResult AccountDomainRepository::create_subscription(nlohmann::json record, std::int64_t now)
 {
+    const std::string plan_id = record.value("plan_id", std::string{});
+    if (!plan_id.empty())
+    {
+        const auto plan = get_hash_record(redis_keys::SUB_PLAN, plan_id);
+        if (!plan.is_object() || plan.value("status", std::string{}) == account_domain::STATUS_DELETED)
+        {
+            return make_result(RepositoryStatus::NotFound, plan_id, "SubscriptionPlan not found");
+        }
+        if (!account_domain::is_active_status(plan))
+        {
+            return make_result(RepositoryStatus::Conflict, plan_id, "SubscriptionPlan is not active");
+        }
+        apply_subscription_plan_snapshot(record, plan, now);
+    }
     std::string error;
     if (!account_domain::normalize_subscription(record, now, &error))
     {
@@ -1026,9 +1171,44 @@ AccountDomainResult AccountDomainRepository::update_subscription(const std::stri
     {
         record["status"] = current["status"];
     }
+    if (!record.contains("plan_id") && current.contains("plan_id"))
+    {
+        record["plan_id"] = current["plan_id"];
+    }
+    if (!record.contains("plan_snapshot") && current.contains("plan_snapshot"))
+    {
+        record["plan_snapshot"] = current["plan_snapshot"];
+    }
+    if (!record.contains("price_cents") && current.contains("price_cents"))
+    {
+        record["price_cents"] = current["price_cents"];
+    }
+    if (!record.contains("duration_days") && current.contains("duration_days"))
+    {
+        record["duration_days"] = current["duration_days"];
+    }
     if (!record.contains("create_time") && current.contains("create_time"))
     {
         record["create_time"] = current["create_time"];
+    }
+
+    if (record.contains("plan_id") && record["plan_id"].is_string() &&
+        record["plan_id"].get<std::string>() != current.value("plan_id", std::string{}))
+    {
+        const std::string requested_plan_id = record["plan_id"].get<std::string>();
+        if (!requested_plan_id.empty())
+        {
+            const auto plan = get_hash_record(redis_keys::SUB_PLAN, requested_plan_id);
+            if (!plan.is_object() || plan.value("status", std::string{}) == account_domain::STATUS_DELETED)
+            {
+                return make_result(RepositoryStatus::NotFound, requested_plan_id, "SubscriptionPlan not found");
+            }
+            if (!account_domain::is_active_status(plan))
+            {
+                return make_result(RepositoryStatus::Conflict, requested_plan_id, "SubscriptionPlan is not active");
+            }
+            apply_subscription_plan_snapshot(record, plan, now);
+        }
     }
 
     std::string error;
