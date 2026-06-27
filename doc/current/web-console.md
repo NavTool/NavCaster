@@ -162,6 +162,12 @@ NC-074 起 `/admin/operations-monitor` 增加告警策略配置。页面调用
 供应商待付款和待结算阈值，并可单独启停负余额、低余额、DataPush 失败、DataPush
 维护关闭、供应商待付款和供应待结算告警。保存后下一次运营监控聚合立即使用新策略。
 
+NC-078 起运营台增加 `/admin/alert-events`。页面调用
+`GET /api/v1/admin/operations-alert-events?period=<yyyyMM>` 展示已沉淀告警事件，并可调用
+`POST /api/v1/admin/operations-alert-events?action=sync&period=<yyyyMM>` 把当前运行监控
+alerts 同步为事件事实；每条事件支持确认和关闭。`/admin/operations-monitor` 也展示
+`alert_events` 摘要和最近事件，但单纯刷新运行监控不会写入告警事件。
+
 NC-070 起运营台增加 `/admin/online-connections` 和 `/admin/audit`。在线连接页调用
 `GET /api/v1/admin/online-connections`，展示 `ACT:SESSION:*` 与 legacy `STR:ACTIVE`
 fallback 合并后的连接、账号、类型、地址、分组和在线时长；审计日志页调用

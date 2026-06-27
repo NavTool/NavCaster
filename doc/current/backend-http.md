@@ -85,7 +85,14 @@ src/http/sse_manager.*          SSE client 管理、频道订阅、定时快照�
   `DATA:PUSH:<period>`、`DATA:PUSH:JOB:<period>`、`DATA:PUSH:MAINTENANCE`、
   `SUPPLY:USAGE:<period>` 和 `SUPPLY:EARNING:*:<period>`，返回账号余额/状态风险、
   订阅/兑换码状态、DataPush 任务状态和最近失败任务、供应事实、供应商结算付款状态及
-  运营告警数组。低余额监控阈值当前固定为 1000 分，仅用于风险提示。
+  运营告警数组。NC-074 起告警数组按 `OPS:ALERT:POLICY` 策略计算。
+- NC-078 起新增 `GET/POST /api/v1/admin/operations-alert-events` 和
+  `POST /api/v1/admin/operations-alert-events/{alert_event_id}/acknowledge|resolve`。
+  `GET /api/v1/admin/operations-monitor` 仍保持只读，只返回 `alert_events` 摘要；
+  显式 `POST ...?action=sync&period=yyyyMM` 才会把当前 monitor alerts 按
+  `opsalert:<period>:<code>` 幂等写入 `OPS:ALERT:EVENT:<period>`。事件支持
+  `open`、`acknowledged`、`resolved` 状态，关闭后再次触发会重新打开并递增
+  `reopen_count`。
 - NC-070 起新增 `GET /api/v1/admin/online-connections` 和 `GET /api/v1/admin/audit`。
   两个接口都是只读 admin v1 alias，不新增存储 key：online connections 复用
   `AccountController::list_active_sessions()`，继续从 `ACT:SESSION:*` 合并

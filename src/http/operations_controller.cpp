@@ -18,6 +18,7 @@ namespace
 {
 constexpr std::size_t MAX_RISK_ACCOUNTS = 12;
 constexpr std::size_t MAX_RECENT_FAILED_JOBS = 8;
+constexpr std::size_t MAX_RECENT_ALERT_EVENTS = 8;
 
 nlohmann::json sanitized_record(nlohmann::json record)
 {
@@ -148,6 +149,166 @@ void append_alert(nlohmann::json &alerts,
 bool alert_enabled(const nlohmann::json &policy, const char *field)
 {
     return bool_value(policy, "enabled", true) && bool_value(policy, field, true);
+}
+
+std::string operations_alert_event_id(const std::string &period, const std::string &code)
+{
+    return "opsalert:" + period + ":" + code;
+}
+
+std::string period_from_alert_event_id(const std::string &alert_event_id)
+{
+    const std::string prefix = "opsalert:";
+    if (alert_event_id.rfind(prefix, 0) != 0)
+    {
+        return {};
+    }
+    const auto start = prefix.size();
+    const auto end = alert_event_id.find(':', start);
+    if (end == std::string::npos || end == start)
+    {
+        return {};
+    }
+    return alert_event_id.substr(start, end - start);
+}
+
+std::int64_t alert_event_sort_time(const nlohmann::json &event)
+{
+    const auto last_seen_time = i64_value(event, "last_seen_time", 0);
+    if (last_seen_time > 0)
+    {
+        return last_seen_time;
+    }
+    const auto update_time = i64_value(event, "update_time", 0);
+    return update_time > 0 ? update_time : i64_value(event, "create_time", 0);
+}
+
+nlohmann::json operations_alert_events_summary(storage::RedisHashClient &redis, const std::string &period)
+{
+    const auto records = redis.hgetall(redis_keys::operations_alert_event(period).c_str());
+    nlohmann::json summary = {
+        {"period", period},
+        {"total_count", 0},
+        {"open_count", 0},
+        {"acknowledged_count", 0},
+        {"resolved_count", 0},
+        {"recent_events", nlohmann::json::array()},
+    };
+    if (!records.is_object())
+    {
+        return summary;
+    }
+
+    std::vector<nlohmann::json> recent;
+    for (const auto &event : records)
+    {
+        if (!event.is_object())
+        {
+            continue;
+        }
+        increment_json_count(summary, "total_count");
+        const std::string status = string_value(event, "status", "open");
+        if (status == "acknowledged")
+        {
+            increment_json_count(summary, "acknowledged_count");
+        }
+        else if (status == "resolved")
+        {
+            increment_json_count(summary, "resolved_count");
+        }
+        else
+        {
+            increment_json_count(summary, "open_count");
+        }
+        recent.push_back(sanitized_record(event));
+    }
+    std::sort(recent.begin(), recent.end(), [](const auto &lhs, const auto &rhs) {
+        return alert_event_sort_time(lhs) > alert_event_sort_time(rhs);
+    });
+    for (const auto &event : recent)
+    {
+        if (summary["recent_events"].size() >= MAX_RECENT_ALERT_EVENTS)
+        {
+            break;
+        }
+        summary["recent_events"].push_back(event);
+    }
+    return summary;
+}
+
+nlohmann::json upsert_operations_alert_events(storage::RedisHashClient &redis,
+                                              const std::string &period,
+                                              const nlohmann::json &alerts,
+                                              std::int64_t now,
+                                              bool *redis_ok)
+{
+    nlohmann::json events = nlohmann::json::object();
+    if (redis_ok)
+    {
+        *redis_ok = true;
+    }
+    if (!alerts.is_array())
+    {
+        return events;
+    }
+
+    const std::string key = redis_keys::operations_alert_event(period);
+    for (const auto &alert : alerts)
+    {
+        if (!alert.is_object())
+        {
+            continue;
+        }
+        const std::string code = string_value(alert, "code");
+        if (code.empty())
+        {
+            continue;
+        }
+        const std::string event_id = operations_alert_event_id(period, code);
+        auto event = redis.hget(key.c_str(), event_id.c_str());
+        if (!event.is_object())
+        {
+            event = {
+                {"alert_event_id", event_id},
+                {"period", period},
+                {"code", code},
+                {"status", "open"},
+                {"first_seen_time", now},
+                {"create_time", now},
+                {"occurrence_count", 0},
+                {"source", "operations_monitor"},
+            };
+        }
+        const std::string current_status = string_value(event, "status", "open");
+        if (current_status == "resolved")
+        {
+            event["status"] = "open";
+            event["reopen_time"] = now;
+            event["reopen_count"] = i64_value(event, "reopen_count", 0) + 1;
+        }
+        else if (current_status.empty())
+        {
+            event["status"] = "open";
+        }
+        event["severity"] = string_value(alert, "severity", "warning");
+        event["count"] = i64_value(alert, "count", 0);
+        event["threshold"] = i64_value(alert, "threshold", 1);
+        event["message"] = string_value(alert, "message");
+        event["last_seen_time"] = now;
+        event["update_time"] = now;
+        event["occurrence_count"] = i64_value(event, "occurrence_count", 0) + 1;
+
+        if (!redis.hset(key.c_str(), event_id.c_str(), json_record::dump_record(event)))
+        {
+            if (redis_ok)
+            {
+                *redis_ok = false;
+            }
+            break;
+        }
+        events[event_id] = sanitized_record(event);
+    }
+    return events;
 }
 
 std::int64_t data_push_job_sort_time(const nlohmann::json &job)
@@ -1042,6 +1203,7 @@ ControllerResponse OperationsController::operations_monitor(const std::string &p
         {"period", resolved_period},
         {"generated_time", _now},
         {"alert_policy", alert_policy},
+        {"alert_events", operations_alert_events_summary(_redis, resolved_period)},
         {"accounts", account_summary},
         {"subscriptions", subscription_summary},
         {"redeem_codes", redeem_summary},
@@ -1068,6 +1230,117 @@ ControllerResponse OperationsController::update_operations_alert_policy(const st
     storage::AccountDomainRepository repo(_redis);
     auto result = repo.update_operations_alert_policy(std::move(body), _now);
     return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::list_operations_alert_events(const std::string &period, const std::string &status)
+{
+    const std::string resolved_period = request_period(period);
+    const auto records = _redis.hgetall(redis_keys::operations_alert_event(resolved_period).c_str());
+    if (status.empty())
+    {
+        return json_response(200, sanitized_collection(records));
+    }
+    nlohmann::json filtered = nlohmann::json::object();
+    if (records.is_object())
+    {
+        for (auto it = records.begin(); it != records.end(); ++it)
+        {
+            if (it.value().is_object() && string_value(it.value(), "status", "open") == status)
+            {
+                filtered[it.key()] = sanitized_record(it.value());
+            }
+        }
+    }
+    return json_response(200, filtered);
+}
+
+ControllerResponse OperationsController::sync_operations_alert_events(const std::string &period)
+{
+    const std::string resolved_period = request_period(period);
+    auto monitor = operations_monitor(resolved_period);
+    if (monitor.status_code != 200)
+    {
+        return monitor;
+    }
+
+    nlohmann::json body;
+    try
+    {
+        body = nlohmann::json::parse(monitor.body);
+    }
+    catch (...)
+    {
+        return error_response(500, "Failed to parse operations monitor snapshot");
+    }
+
+    bool redis_ok = true;
+    auto events = upsert_operations_alert_events(_redis, resolved_period, body.value("alerts", nlohmann::json::array()), _now, &redis_ok);
+    if (!redis_ok)
+    {
+        return error_response(500, "Failed to persist operations alert events");
+    }
+    return json_response(200, {
+        {"period", resolved_period},
+        {"synced_count", static_cast<int>(events.size())},
+        {"events", events},
+    });
+}
+
+ControllerResponse OperationsController::update_operations_alert_event(const std::string &alert_event_id,
+                                                                       const std::string &period,
+                                                                       const std::string &action,
+                                                                       const std::string &body_text)
+{
+    if (alert_event_id.empty())
+    {
+        return error_response(400, "alert_event_id is required");
+    }
+    if (action != "acknowledge" && action != "resolve")
+    {
+        return error_response(400, "action must be acknowledge or resolve");
+    }
+    nlohmann::json body = nlohmann::json::object();
+    if (!body_text.empty() && !parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+
+    const std::string id_period = period_from_alert_event_id(alert_event_id);
+    const std::string resolved_period = request_period(body.value("period", period.empty() ? id_period : period));
+    const std::string key = redis_keys::operations_alert_event(resolved_period);
+    auto event = _redis.hget(key.c_str(), alert_event_id.c_str());
+    if (!event.is_object())
+    {
+        return error_response(404, "OperationsAlertEvent not found");
+    }
+    const std::string current_status = string_value(event, "status", "open");
+    const std::string actor = body.value("operator", body.value("actor", std::string("admin")));
+    if (body.contains("operator_note"))
+    {
+        event["operator_note"] = body["operator_note"];
+    }
+    if (action == "acknowledge")
+    {
+        if (current_status == "resolved")
+        {
+            return error_response(409, "Resolved OperationsAlertEvent cannot be acknowledged");
+        }
+        event["status"] = "acknowledged";
+        event["acknowledged_time"] = _now;
+        event["acknowledged_by"] = actor;
+    }
+    else
+    {
+        event["status"] = "resolved";
+        event["resolved_time"] = _now;
+        event["resolved_by"] = actor;
+    }
+    event["update_time"] = _now;
+    if (!_redis.hset(key.c_str(), alert_event_id.c_str(), json_record::dump_record(event)))
+    {
+        return error_response(500, "Failed to update operations alert event");
+    }
+    return json_response(200, sanitized_record(event));
 }
 
 ControllerResponse OperationsController::list_usage(const std::string &period)
