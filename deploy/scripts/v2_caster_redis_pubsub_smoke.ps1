@@ -1,6 +1,8 @@
 param(
     [string]$CasterExe = "",
     [string]$HostAddress = "127.0.0.1",
+    [string]$BindAddress = "",
+    [string]$ConnectAddress = "",
     [int]$RuntimeANtripPort = 42195,
     [int]$RuntimeAHealthPort = 19195,
     [int]$RuntimeBNtripPort = 42196,
@@ -18,6 +20,12 @@ $ErrorActionPreference = "Stop"
 $RootDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $CasterExe) {
     $CasterExe = Join-Path $RootDir "bin\Release\navcaster-caster.exe"
+}
+if (-not $BindAddress) {
+    $BindAddress = $HostAddress
+}
+if (-not $ConnectAddress) {
+    $ConnectAddress = $HostAddress
 }
 
 function Fail {
@@ -182,9 +190,9 @@ Remove-Item -LiteralPath $stdoutAPath, $stderrAPath, $stdoutBPath, $stderrBPath 
 
 $runtimeAArgs = @(
     "--runtime-id", "nc093-runtime-a",
-    "--listen-host", $HostAddress,
+    "--listen-host", $BindAddress,
     "--listen-port", "$RuntimeANtripPort",
-    "--health-host", $HostAddress,
+    "--health-host", $BindAddress,
     "--health-port", "$RuntimeAHealthPort",
     "--worker-count", "$WorkerCount",
     "--redis-host", $RedisHost,
@@ -193,9 +201,9 @@ $runtimeAArgs = @(
 
 $runtimeBArgs = @(
     "--runtime-id", "nc093-runtime-b",
-    "--listen-host", $HostAddress,
+    "--listen-host", $BindAddress,
     "--listen-port", "$RuntimeBNtripPort",
-    "--health-host", $HostAddress,
+    "--health-host", $BindAddress,
     "--health-port", "$RuntimeBHealthPort",
     "--worker-count", "$WorkerCount",
     "--redis-host", $RedisHost,
@@ -212,28 +220,28 @@ try {
     $runtimeB = Start-Process -FilePath $CasterExe -ArgumentList $runtimeBArgs -PassThru -WindowStyle Hidden `
         -RedirectStandardOutput $stdoutBPath -RedirectStandardError $stderrBPath
 
-    Wait-Health -Url "http://$HostAddress`:$RuntimeAHealthPort/health" -TimeoutMs ($TimeoutSeconds * 1000)
-    Wait-Health -Url "http://$HostAddress`:$RuntimeBHealthPort/health" -TimeoutMs ($TimeoutSeconds * 1000)
+    Wait-Health -Url "http://$ConnectAddress`:$RuntimeAHealthPort/health" -TimeoutMs ($TimeoutSeconds * 1000)
+    Wait-Health -Url "http://$ConnectAddress`:$RuntimeBHealthPort/health" -TimeoutMs ($TimeoutSeconds * 1000)
 
     $client = [System.Net.Sockets.TcpClient]::new()
     $client.ReceiveTimeout = $TimeoutSeconds * 1000
     $client.SendTimeout = $TimeoutSeconds * 1000
-    $client.Connect($HostAddress, $RuntimeBNtripPort)
+    $client.Connect($ConnectAddress, $RuntimeBNtripPort)
     $clientStream = $client.GetStream()
-    Write-Ascii $clientStream "GET /$Mount HTTP/1.1`r`nHost: $HostAddress`r`nUser-Agent: NC093-Smoke-Client`r`nAuthorization: Basic bmMwOTM6Y2xpZW50`r`n`r`n"
+    Write-Ascii $clientStream "GET /$Mount HTTP/1.1`r`nHost: $ConnectAddress`r`nUser-Agent: NC093-Smoke-Client`r`nAuthorization: Basic bmMwOTM6Y2xpZW50`r`n`r`n"
     $clientResponse = Read-UntilHeaderEnd $clientStream ($TimeoutSeconds * 1000) "runtime B client"
 
     Wait-Until -TimeoutMs ($TimeoutSeconds * 1000) -Message "runtime B did not subscribe to mount $Mount" -Condition {
-        $metrics = Get-Metrics -Url "http://$HostAddress`:$RuntimeBHealthPort/metrics"
+        $metrics = Get-Metrics -Url "http://$ConnectAddress`:$RuntimeBHealthPort/metrics"
         @($metrics.workers | Where-Object { [int64]$_.redis_subscribed_mount_count -ge 1 }).Count -ge 1
     }
 
     $source = [System.Net.Sockets.TcpClient]::new()
     $source.ReceiveTimeout = $TimeoutSeconds * 1000
     $source.SendTimeout = $TimeoutSeconds * 1000
-    $source.Connect($HostAddress, $RuntimeANtripPort)
+    $source.Connect($ConnectAddress, $RuntimeANtripPort)
     $sourceStream = $source.GetStream()
-    Write-Ascii $sourceStream "POST /$Mount HTTP/1.1`r`nHost: $HostAddress`r`nAuthorization: Basic bmMwOTM6c291cmNl`r`n`r`n"
+    Write-Ascii $sourceStream "POST /$Mount HTTP/1.1`r`nHost: $ConnectAddress`r`nAuthorization: Basic bmMwOTM6c291cmNl`r`n`r`n"
     $sourceResponse = Read-UntilHeaderEnd $sourceStream ($TimeoutSeconds * 1000) "runtime A source"
 
     $payloadBytes = [System.Text.Encoding]::ASCII.GetBytes($Payload)
@@ -247,8 +255,8 @@ try {
     }
 
     Start-Sleep -Milliseconds 300
-    $metricsA = Get-Metrics -Url "http://$HostAddress`:$RuntimeAHealthPort/metrics"
-    $metricsB = Get-Metrics -Url "http://$HostAddress`:$RuntimeBHealthPort/metrics"
+    $metricsA = Get-Metrics -Url "http://$ConnectAddress`:$RuntimeAHealthPort/metrics"
+    $metricsB = Get-Metrics -Url "http://$ConnectAddress`:$RuntimeBHealthPort/metrics"
     $publisherWorker = @($metricsA.workers | Where-Object { [int64]$_.source_count -eq 1 -and [int64]$_.redis_publish_count -ge 1 })
     $subscriberWorker = @($metricsB.workers | Where-Object { [int64]$_.client_count -eq 1 -and [int64]$_.redis_subscribe_message_count -ge 1 -and [int64]$_.redis_remote_fanout_write_count -ge 1 })
     if ($publisherWorker.Count -ne 1) {
@@ -266,6 +274,7 @@ try {
 
     Write-Host "[NC-093 smoke] PASS"
     Write-Host "[NC-093 smoke] redis=$RedisHost`:$RedisPort mount=$Mount"
+    Write-Host "[NC-093 smoke] bind=$BindAddress connect=$ConnectAddress"
     Write-Host "[NC-093 smoke] runtime_a_ntrip=$RuntimeANtripPort runtime_a_health=$RuntimeAHealthPort publisher_worker=$($publisherWorker[0].worker_id)"
     Write-Host "[NC-093 smoke] runtime_b_ntrip=$RuntimeBNtripPort runtime_b_health=$RuntimeBHealthPort subscriber_worker=$($subscriberWorker[0].worker_id)"
     Write-Host "[NC-093 smoke] source_response=$($sourceResponse.Trim())"

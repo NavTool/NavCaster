@@ -216,12 +216,19 @@ func (s *AgentState) ApplyDesired(doc agentruntime.DesiredDocument) {
 	if s.Runtimes == nil {
 		s.Runtimes = make(map[string]RuntimeCache)
 	}
-	s.Desired = doc
+	if doc.Version < s.LastDesiredVersion {
+		return
+	}
 	s.LastDesiredVersion = doc.Version
 	for _, desired := range doc.Runtimes {
 		cache := s.Runtimes[desired.RuntimeID]
 		cache.Desired = desired
 		s.Runtimes[desired.RuntimeID] = cache
+	}
+	s.Desired = agentruntime.DesiredDocument{
+		Version:   s.LastDesiredVersion,
+		Runtimes:  s.DesiredStates(),
+		UpdatedAt: doc.UpdatedAt,
 	}
 }
 
@@ -266,6 +273,19 @@ func (s *AgentState) ActualStates() []agentruntime.ActualState {
 		}
 	}
 	return actual
+}
+
+func (s *AgentState) DesiredStates() []agentruntime.DesiredState {
+	if s == nil || len(s.Runtimes) == 0 {
+		return nil
+	}
+	desired := make([]agentruntime.DesiredState, 0, len(s.Runtimes))
+	for _, cache := range s.Runtimes {
+		if cache.Desired.RuntimeID != "" {
+			desired = append(desired, cache.Desired)
+		}
+	}
+	return desired
 }
 
 func (s *AgentState) BufferedEvents() []agentruntime.Event {

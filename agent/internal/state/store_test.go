@@ -90,6 +90,59 @@ func TestBufferedEventsAndClearEvents(t *testing.T) {
 	}
 }
 
+func TestApplyDesiredKeepsCachedRuntimeOnEmptyIncrementalPoll(t *testing.T) {
+	state := NewAgentState()
+	state.ApplyDesired(agentruntime.DesiredDocument{
+		Version: 7,
+		Runtimes: []agentruntime.DesiredState{{
+			RuntimeID:     "rt-001",
+			HostID:        "host-001",
+			DesiredState:  agentruntime.DesiredStateRunning,
+			ConfigVersion: 3,
+			ListenPort:    4202,
+			WorkerCount:   4,
+			RestartPolicy: agentruntime.RestartPolicyOnFailure,
+		}},
+	})
+
+	state.ApplyDesired(agentruntime.DesiredDocument{Version: 7, Runtimes: nil})
+
+	if state.LastDesiredVersion != 7 {
+		t.Fatalf("LastDesiredVersion = %d, want 7", state.LastDesiredVersion)
+	}
+	if len(state.Desired.Runtimes) != 1 || state.Desired.Runtimes[0].RuntimeID != "rt-001" {
+		t.Fatalf("desired runtime cache was not preserved: %#v", state.Desired.Runtimes)
+	}
+	if state.Runtimes["rt-001"].Desired.ConfigVersion != 3 {
+		t.Fatalf("runtime cache mismatch: %#v", state.Runtimes["rt-001"])
+	}
+}
+
+func TestApplyDesiredIgnoresStaleDocument(t *testing.T) {
+	state := NewAgentState()
+	state.ApplyDesired(agentruntime.DesiredDocument{
+		Version: 7,
+		Runtimes: []agentruntime.DesiredState{{
+			RuntimeID:     "rt-001",
+			DesiredState:  agentruntime.DesiredStateRunning,
+			ConfigVersion: 3,
+		}},
+	})
+
+	state.ApplyDesired(agentruntime.DesiredDocument{
+		Version: 6,
+		Runtimes: []agentruntime.DesiredState{{
+			RuntimeID:     "rt-001",
+			DesiredState:  agentruntime.DesiredStateStopped,
+			ConfigVersion: 2,
+		}},
+	})
+
+	if state.LastDesiredVersion != 7 || state.Runtimes["rt-001"].Desired.DesiredState != agentruntime.DesiredStateRunning {
+		t.Fatalf("stale document changed state: version=%d cache=%#v", state.LastDesiredVersion, state.Runtimes["rt-001"])
+	}
+}
+
 func storeFileExists(path string) error {
 	_, err := os.Stat(path)
 	return err
