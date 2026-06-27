@@ -117,6 +117,480 @@ git status --short
 - 指标包含连接规模、source/client 比例、RTCM decode 开关、loop delay、fan-out cost、Redis publish、慢客户端。
 - 未达目标时不得写 `QA_PASSED`，应写 `QA_PARTIAL` 或 `QA_FAILED` 并列出瓶颈。
 
+## Phase 2 真实控制面闭环准入矩阵
+
+Phase 2 从 `feature/NC-089-v2-foundation-closed-loop-integration @ 9497a97` 继续，不以旧
+HTTP API、旧 Redis key、旧 protobuf、旧 `CasterService` 或旧 Web 行为作为通过证据。
+
+本轮目标是建立真实控制面闭环的准入标准：
+
+```text
+Web intent
+-> AdminService PostgreSQL desired state
+-> Redis projection
+-> Agent desired polling / reconcile
+-> Agent 启动真实 navcaster-caster
+-> Caster health / metrics / NTRIP / Redis Pub/Sub
+-> Agent actual / events / metrics
+-> AdminService actual 聚合
+-> Web desired / actual 收敛展示
+```
+
+本轮不做 16k 正式容量报告。Phase 2 只要求轻量容量口径记录，用于判断 NC-096/后续
+容量深化是否具备可复现测量入口。
+
+### Phase 2 环境准备
+
+最低环境：
+
+| 依赖 | 要求 | 未满足时记录 |
+| --- | --- | --- |
+| PostgreSQL | 真实 PostgreSQL fixture 或隔离测试库；记录版本、DSN 脱敏值、schema 来源和 migration commit。 | `PG_UNAVAILABLE`，列出是否退回内存 repository；真实闭环不得写通过。 |
+| Redis | 真实 Redis fixture；记录版本、地址、是否同机、是否启用认证；只清理 `v2:*` 测试 key。 | `REDIS_UNAVAILABLE`，单模块可继续，PG/Redis 和 Pub/Sub gate 标为未运行。 |
+| AdminService | `navcaster-admin` 构建产物或 `go run`；端口默认 `18080`。 | `ADMIN_UNAVAILABLE`，后续 Agent/Web 闭环 gate 不得通过。 |
+| Agent | `navcaster-agent` 构建产物；本机可写状态目录和 runtime 工作目录。 | `AGENT_UNAVAILABLE`，闭环 gate 不得通过。 |
+| Caster | `navcaster-caster` Release 构建产物；可分配 NTRIP 与 health/metrics 端口。 | `CASTER_UNAVAILABLE`，NTRIP、Pub/Sub 和闭环 gate 不得通过。 |
+| Web | `npm run build` 可用；浏览器 smoke 优先 Playwright，缺失时记录手工步骤和截图路径。 | `BROWSER_AUTOMATION_UNAVAILABLE`，Web build 可通过但浏览器 smoke 标风险。 |
+
+建议本地 fixture 端口：
+
+```text
+PostgreSQL 127.0.0.1:15432
+Redis      127.0.0.1:16379
+Admin      127.0.0.1:18080
+Runtime A  NTRIP 42195, health 19195
+Runtime B  NTRIP 42196, health 19196
+Web dev    127.0.0.1:5173
+```
+
+环境准备命令口径：
+
+```powershell
+$env:NAVCASTER_PG_DSN = "postgres://navcaster:<redacted>@127.0.0.1:15432/navcaster_v2_qa?sslmode=disable"
+$env:NAVCASTER_REDIS_ADDR = "127.0.0.1:16379"
+$env:NAVCASTER_ADMIN_BASE_URL = "http://127.0.0.1:18080"
+
+docker run --rm -d --name navcaster-v2-qa-pg `
+  -e POSTGRES_USER=navcaster `
+  -e POSTGRES_PASSWORD=navcaster `
+  -e POSTGRES_DB=navcaster_v2_qa `
+  -p 15432:5432 postgres:16
+
+docker run --rm -d --name navcaster-v2-qa-redis `
+  -p 16379:6379 redis:8.6.3
+```
+
+若 Docker 镜像、Docker Engine、PostgreSQL 或 Redis 不可用，QA 记录必须列出：
+
+```text
+缺失依赖
+检查命令
+失败现象
+是否有较窄替代验证
+对应阻断的 gate
+后续补测任务
+```
+
+### Phase 2 Gate 列表
+
+| Gate | 目标 | 可早期运行 | NC-097 必跑 | 准入结果 |
+| --- | --- | --- | --- | --- |
+| P2-0 环境与契约预检 | 确认真实 PG/Redis、端口、构建产物、v2 契约路径。 | 是，NC-095/各开发分支可运行文档和命令预检。 | 是。 | 环境缺失时后续对应 gate 标未运行或 blocked。 |
+| P2-1 AdminService PG/Redis | AdminService 使用 PG source-of-truth，并生成 Redis projection。 | 是，NC-091 DEV_DONE 后可独立运行。 | 是。 | PG/Redis 未跑不能作为真实控制面通过。 |
+| P2-2 Admin health/API | health、auth、agent register、desired-state、runtime control API 最小自检。 | 是，NC-091 后可运行。 | 是。 | API envelope、状态码、PG/Redis 状态必须符合 v2 契约。 |
+| P2-3 Agent register/reconcile | Agent 注册、心跳、desired polling、启动/停止真实 Caster。 | 可用 stub Admin 早跑；真实 Admin 需 NC-091。 | 是。 | Agent 只管理本机 runtime，reconcile 幂等。 |
+| P2-4 Caster 单 Runtime NTRIP | 单 Runtime source/client 确定性 payload 和 health/metrics。 | 是，NC-093 或 Caster 分支可运行。 | 是。 | payload 字节一致，metrics 计数收敛。 |
+| P2-5 跨 Runtime Redis Pub/Sub | Runtime A source 经 Redis bus 到 Runtime B client。 | 是，NC-093 完成后可独立运行。 | 是。 | local fan-out 与 remote fan-out 计数可区分。 |
+| P2-6 Web live API | Web 使用真实 AdminService API 展示 desired/actual 和 intent 状态。 | 可用 fixture 早跑；真实闭环需 NC-091/NC-092。 | 是。 | 不得依赖 mock 作为 NC-097 通过证据。 |
+| P2-7 Admin-Agent-Caster-Web 闭环 | 完整控制面闭环，一条 runtime 创建/启动/观测/停止链路可复现。 | 否，必须等待第一波任务集成。 | 是。 | Phase 2 功能性准入核心 gate。 |
+| P2-8 轻量容量记录 | 记录 worker/runtime/source/client/fan-out/pubsub/CPU/RSS。 | 可在 NC-093 后试跑单模块数据面。 | NC-097 后或 NC-096 执行。 | 只建基线，不承诺 16k。 |
+
+### P2-0 环境与契约预检
+
+前置环境：
+
+- 当前 commit、来源基线和合入列表已记录。
+- PostgreSQL/Redis fixture 或外部测试服务可访问。
+- 测试端口无占用。
+- 明确使用 `doc/design/v2-api-data-contract.md`、`doc/design/v2-control-plane-agent-runtime-contract.md`
+  和本文作为准入依据。
+
+命令口径：
+
+```powershell
+git status --short --branch
+git diff --check
+go version
+node --version
+npm --version
+cmake --version
+docker version
+docker ps --format "{{.Names}} {{.Status}} {{.Ports}}"
+```
+
+通过标准：
+
+- diff 范围符合任务边界。
+- 没有产品源码误改或未说明的生成物缺口。
+- PostgreSQL/Redis 连接、端口和 fixture 清理策略明确。
+- QA 记录声明不使用旧接口/key/protobuf 作为 v2 通过证据。
+
+未运行记录要求：
+
+- 任一环境命令无法运行时，记录命令、错误、影响 gate 和替代方案。
+
+### P2-1 AdminService 真实 PostgreSQL + Redis
+
+前置环境：
+
+- PostgreSQL schema 已 migration 到 Phase 2 所需版本。
+- Redis fixture 中测试前 `v2:*` key 已清理或隔离到唯一 namespace。
+- AdminService 使用真实 PG/Redis 配置启动，不能使用 `not_configured` health 作为本 gate 通过证据。
+
+命令口径：
+
+```powershell
+cd admin
+$env:GOCACHE = "$PWD\.cache\go-build-admin"
+go test ./...
+go build -o .cache\bin\navcaster-admin.exe .\cmd\navcaster-admin
+.\.cache\bin\navcaster-admin.exe -config .\configs\qa.pg-redis.yml
+
+curl.exe -fsS http://127.0.0.1:18080/api/v1/health
+curl.exe -fsS http://127.0.0.1:18080/api/v1/control/hosts
+curl.exe -fsS -X POST http://127.0.0.1:18080/api/v1/control/runtimes `
+  -H "Content-Type: application/json" --data "@qa/fixtures/runtime-create.json"
+redis-cli -h 127.0.0.1 -p 16379 --scan --pattern "v2:*"
+```
+
+推荐脚本口径：
+
+```powershell
+.\deploy\scripts\v2_admin_pg_redis_smoke.ps1 `
+  -AdminBaseUrl http://127.0.0.1:18080 `
+  -PostgresDsn $env:NAVCASTER_PG_DSN `
+  -RedisAddr $env:NAVCASTER_REDIS_ADDR
+```
+
+通过标准：
+
+- `/api/v1/health` 中 `postgres=ok`、`redis=ok`。
+- Runtime desired state 写入 PostgreSQL source-of-truth。
+- Redis projection 只包含 v2 key，payload 带 runtime_id、desired_state、config_version、version 或 checksum。
+- 删除 Redis projection 后可从 PG 重建，或记录为 NC-091/NC-097 阻断缺口。
+- operation/control intent 审计事实写入 PG。
+
+未运行记录要求：
+
+- 如果只跑内存 repository 或 `not_configured` health，结论只能写 `QA_PARTIAL`，并标记 `REAL_PG_REDIS_GAP`。
+
+### P2-2 AdminService health/API self-check
+
+前置环境：
+
+- P2-1 AdminService 已启动或明确使用真实 PG/Redis 的测试实例。
+- 有 bootstrap token 或测试认证配置。
+
+命令口径：
+
+```powershell
+curl.exe -fsS http://127.0.0.1:18080/api/v1/health
+curl.exe -fsS -X POST http://127.0.0.1:18080/api/v1/auth/login `
+  -H "Content-Type: application/json" --data "@qa/fixtures/admin-login.json"
+curl.exe -fsS -X POST http://127.0.0.1:18080/api/v1/agents/register `
+  -H "Content-Type: application/json" --data "@qa/fixtures/agent-register.json"
+curl.exe -fsS -X POST http://127.0.0.1:18080/api/v1/agents/heartbeat `
+  -H "Content-Type: application/json" --data "@qa/fixtures/agent-heartbeat.json"
+curl.exe -fsS "http://127.0.0.1:18080/api/v1/agents/<agent_id>/desired-state?since_version=0"
+curl.exe -fsS http://127.0.0.1:18080/api/v1/control/runtimes/<runtime_id>
+curl.exe -fsS http://127.0.0.1:18080/api/v1/control/events
+```
+
+通过标准：
+
+- 所有成功响应使用 v2 envelope。
+- action 类接口返回 `202` 或等价 `accepted`，不声称 Runtime 已完成。
+- desired-state 空集和非空集都可解析，并支持 `since_version` 增量。
+- runtime-events/runtime-metrics ingest 后，control API 可读到 actual/metrics。
+
+未运行记录要求：
+
+- API shape 只能用 fixture/mock 编译验证时，记录真实 AdminService 未跑原因和待 NC-097 补测项。
+
+### P2-3 Agent register / reconcile / real Caster supervisor
+
+前置环境：
+
+- AdminService 可访问，或早期分支使用 contract stub 并明确标注。
+- `navcaster-caster` 可执行文件路径固定。
+- Agent 状态目录和 runtime 工作目录为空或唯一。
+
+命令口径：
+
+```powershell
+cd agent
+$env:GOCACHE = "$PWD\.cache\go-build-agent"
+go test ./...
+go build -o .cache\bin\navcaster-agent.exe .\cmd\navcaster-agent
+.\.cache\bin\navcaster-agent.exe -config .\configs\qa.closed-loop.yml -once
+```
+
+推荐脚本口径：
+
+```powershell
+.\deploy\scripts\v2_agent_reconcile_smoke.ps1 `
+  -AdminBaseUrl http://127.0.0.1:18080 `
+  -CasterExe .\bin\Release\navcaster-caster.exe `
+  -StateDir .\build\v2-agent-smoke
+```
+
+通过标准：
+
+- register 生成或恢复 agent_id/host_id/secret_ref。
+- heartbeat 包含资源指标和 runtime summary。
+- desired=running 时 Agent 渲染本机配置并启动真实 `navcaster-caster`。
+- desired=stopped 时只停止自己管理且 start_token 匹配的 runtime。
+- 重复 reconcile 不重复启动进程。
+- AdminService 短暂不可用时，Agent 不杀掉已有 Caster，并按 last-known desired state 继续守护。
+- Agent 上报 actual-state/runtime-events/runtime-metrics 后 AdminService 可读到。
+
+未运行记录要求：
+
+- 若使用 dummy runtime 或 stub Admin，只能作为早期证据；NC-097 必须补真实 Admin + 真实 Caster。
+
+### P2-4 Caster 单 Runtime NTRIP health/metrics
+
+前置环境：
+
+- third_party 已从本地主仓库 hydrate。
+- `navcaster-caster` Release 构建成功。
+- Runtime health/metrics 端口可访问。
+
+命令口径：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File F:\Projects\NavCaster\_team\scripts\HYDRATE_WORKTREE_SUBMODULES.ps1 `
+  -WorktreePath <worktree>
+.\deploy\scripts\build_ninja.ps1 -BuildType Release -Target navcaster-caster
+.\bin\Release\navcaster-caster.exe --self-test --worker-count 2 --self-test-duration-ms 250
+.\deploy\scripts\v2_caster_ntrip_smoke.ps1 -NtripPort 42195 -HealthPort 19195 -Mount QA_MOUNT_A
+curl.exe -fsS http://127.0.0.1:19195/health
+curl.exe -fsS http://127.0.0.1:19195/metrics
+```
+
+通过标准：
+
+- source/client 均收到 `ICY 200 OK`。
+- client 收到与 source 写入完全一致的确定性 payload。
+- metrics 至少包含 runtime_id、worker_count、connection_count、source_count、client_count、
+  fanout_write_count、redis_publish_count、slow_client_disconnect_count。
+- health/metrics 不依赖 AdminService 存活。
+
+未运行记录要求：
+
+- C++ 构建、self-test、NTRIP smoke 三者任一未跑都要分别记录原因。
+
+### P2-5 跨 Runtime Redis Pub/Sub smoke
+
+前置环境：
+
+- Redis fixture 可用。
+- Runtime A 和 Runtime B 使用不同 NTRIP/health 端口。
+- 两个 Runtime 使用同一 Redis bus，并有不同 runtime_id。
+
+命令口径：
+
+```powershell
+.\deploy\scripts\v2_caster_pubsub_smoke.ps1 `
+  -RedisAddr 127.0.0.1:16379 `
+  -RuntimeANtripPort 42195 `
+  -RuntimeAHealthPort 19195 `
+  -RuntimeBNtripPort 42196 `
+  -RuntimeBHealthPort 19196 `
+  -Mount QA_MOUNT_PUBSUB
+```
+
+手工等价步骤：
+
+```text
+1. 启动 Runtime A 和 Runtime B。
+2. Runtime A 打开 source mount=QA_MOUNT_PUBSUB。
+3. Runtime A 打开本地 client，Runtime B 打开远端 client。
+4. source 写入确定性 payload。
+5. A 本地 client 与 B 远端 client 均收到完整 payload。
+6. A metrics 中 local fan-out 和 redis publish 增量符合预期。
+7. B metrics 中 redis subscribe/remote fan-out 增量符合预期。
+8. Redis channel 使用 v2:stream:mount:<mount> 或 NC-090 冻结的 v2 bus 名称，不使用旧 channel。
+```
+
+通过标准：
+
+- Runtime A/B 都可 health/metrics。
+- remote fan-out 不是通过同进程共享内存或旧 Redis channel 实现。
+- redis publish/subscribe error count 为 0。
+- 停 Runtime B 不影响 Runtime A 本地 source/client。
+
+未运行记录要求：
+
+- Redis 不可用时标 `REDIS_PUBSUB_GAP`，并保留可执行命令和端口计划。
+
+### P2-6 Web live API smoke
+
+前置环境：
+
+- Web build 依赖已安装。
+- AdminService API 使用真实 `/api/v1/control/*` 和 v2 envelope。
+- 真实闭环 smoke 中不允许只用 mock 数据通过。
+
+命令口径：
+
+```powershell
+cd web
+npm run build
+npm run dev
+```
+
+推荐脚本或浏览器口径：
+
+```powershell
+.\deploy\scripts\v2_web_live_api_smoke.ps1 `
+  -WebBaseUrl http://127.0.0.1:5173 `
+  -AdminBaseUrl http://127.0.0.1:18080
+```
+
+浏览器步骤：
+
+```text
+1. 登录 v2 Web。
+2. 打开 Host 列表，确认 agent online/offline、last heartbeat。
+3. 打开 Runtime 列表，确认 desired_state、actual_state、config_version、observed_desired_version。
+4. 打开 Runtime 详情，确认 worker_count、source/client、fan-out/pubsub、CPU/RSS 或可用指标。
+5. 发起 start/stop/restart intent。
+6. 页面先展示 accepted/pending/applying，再根据 actual state 收敛到 running/stopped/failed。
+7. 刷新页面后状态仍来自 AdminService live API。
+```
+
+通过标准：
+
+- TypeScript build 通过。
+- Web 默认 live API 指向 v2 AdminService，不把 mock 作为生产路径。
+- intent UI 不直接展示“远程执行成功”，必须展示 pending/actual 收敛。
+- failed/stale/offline 状态可见。
+
+未运行记录要求：
+
+- 未跑浏览器时必须说明是否已有 API 证据，缺少截图或自动化标为风险。
+
+### P2-7 Admin-Agent-Caster-Web 闭环 smoke
+
+本 gate 必须等 NC-091、NC-092、NC-093、NC-094 集成到 NC-097 后运行。
+
+前置环境：
+
+- P2-1 至 P2-6 的单模块或边界 smoke 无阻断失败。
+- AdminService、Agent、Caster、Web 全部来自同一 NC-097 commit。
+- PostgreSQL 和 Redis 均为真实 fixture。
+
+命令口径：
+
+```powershell
+.\deploy\scripts\v2_phase2_closed_loop_smoke.ps1 `
+  -PostgresDsn $env:NAVCASTER_PG_DSN `
+  -RedisAddr $env:NAVCASTER_REDIS_ADDR `
+  -AdminPort 18080 `
+  -WebPort 5173 `
+  -RuntimeNtripPort 42195 `
+  -RuntimeHealthPort 19195 `
+  -Mount QA_MOUNT_CLOSED_LOOP
+```
+
+最小闭环步骤：
+
+```text
+1. 清理 fixture 数据、旧进程、旧端口和 v2 测试 key。
+2. 启动 PostgreSQL、Redis、AdminService、Agent、Web。
+3. Web 或 Admin API 创建 Runtime desired state，start_immediately=true。
+4. 验证 PG desired state、control intent、audit log。
+5. 验证 Redis projection。
+6. Agent 拉取 desired state，启动真实 navcaster-caster。
+7. Caster /health 与 /metrics 正常。
+8. Agent 上报 actual/events/metrics。
+9. AdminService control API 聚合出 running actual state。
+10. Web 展示 desired=running、actual=running、metrics 更新。
+11. 单 Runtime NTRIP source/client payload 字节一致。
+12. 执行 stop 或 restart intent，并验证 pending -> actual 收敛。
+13. 停 AdminService 30 秒，既有 Caster 数据流继续；恢复后 Agent 补传 actual/events。
+14. 清理所有进程、端口、PG fixture、Redis v2 测试 key 和临时目录。
+```
+
+通过标准：
+
+- 一条 Runtime create/start/observe/stop 或 restart 链路可复现。
+- Web 展示来自 AdminService 聚合后的真实 desired/actual，不是静态 mock。
+- AdminService 离线不打断既有 Caster NTRIP 数据面。
+- Agent 离线后 AdminService/Web 标记 stale/offline，不假设 Runtime 已停。
+- Caster 崩溃后 Agent 按 restart_policy 处理并上报事件。
+
+未运行记录要求：
+
+- 该 gate 未跑时，NC-097 不能写完整 `QA_PASSED`；只能写 `QA_BLOCKED`、
+  `QA_PARTIAL` 或 `QA_PASSED_WITH_NOTED_GAPS`，并说明是否存在等价证据。
+
+### P2-8 轻量容量基线记录
+
+本 gate 服务 NC-096 和 NC-098 风险判断，不是 16k 正式容量报告。
+
+前置环境：
+
+- P2-4 单 Runtime 或 P2-5 跨 Runtime 已通过。
+- metrics 至少能采集 connection/source/client、worker_count、fan-out/pubsub、CPU/RSS。
+
+建议命令口径：
+
+```powershell
+.\deploy\scripts\v2_capacity_baseline.ps1 `
+  -RedisAddr 127.0.0.1:16379 `
+  -RuntimeCount 1 `
+  -WorkerCount 1,2 `
+  -SourceCount 2 `
+  -ClientsPerSource 3 `
+  -DurationSec 120 `
+  -SampleIntervalSec 10 `
+  -OutDir .\build\v2-capacity-baseline
+```
+
+必须记录字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| commit | NC-097 或 NC-096 commit。 |
+| runtime_count | 1 和可选 2；跨 Runtime 时记录每个端口和 runtime_id。 |
+| worker_count | 至少 1；若支持动态 worker，记录 1/2 或 1/4 对比。 |
+| source_count / client_count | 轻量建议 2 sources、每 source 3 clients；可按机器能力上调。 |
+| fanout_write_count | 本地 fan-out 总数和速率。 |
+| redis_publish_count / redis_subscribe_count | Pub/Sub 总数、速率、错误数。 |
+| CPU | 采样方式，例如 `Get-Process`、Performance Counter、`typeperf` 或 Linux `pidstat`。 |
+| RSS | Runtime、Agent、AdminService 分进程 RSS。 |
+| loop_delay / latency | 若已暴露，记录 p50/p95；未暴露时记为 metric gap。 |
+| duration | smoke 可 120s；不得写成长期 soak。 |
+
+轻量容量通过标准：
+
+- 120 秒内无崩溃、无 payload mismatch、无跨 mount 串流。
+- metrics 可导出并能说明 runtime/worker/source/client/fan-out/pubsub 的对应关系。
+- CPU/RSS 有可复现采样命令或脚本输出。
+
+明确不通过标准：
+
+- 不要求达到 16k 连接。
+- 不要求 30 分钟或 2 小时 soak。
+- 不以轻量容量数据承诺生产容量。
+- 如果轻量规模就出现崩溃、错发、数据面断流或 Pub/Sub error 持续增长，应阻断 NC-098。
+
+未运行记录要求：
+
+- 若 NC-097 只做功能闭环未做容量，记录为 `P2_LIGHT_CAPACITY_NOT_RUN`，后续指向 NC-096。
+
 ## 模块最低验证矩阵
 
 ### AdminService
