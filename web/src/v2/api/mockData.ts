@@ -1,5 +1,6 @@
 import type {
   ConfigVersion,
+  ConvergenceStatus,
   ControlPlaneOverview,
   HostSummary,
   RuntimeDetail,
@@ -8,20 +9,51 @@ import type {
   WorkerMetric,
 } from './contracts';
 
+function host(row: Omit<HostSummary, 'actual_state' | 'convergence_status' | 'convergence_detail' | 'last_metric_at'> & { convergence_status?: ConvergenceStatus; last_metric_at?: string }): HostSummary {
+  return {
+    ...row,
+    actual_state: row.status,
+    convergence_status: row.convergence_status ?? (row.status === 'failed' ? 'failed' : row.status === 'pending' || row.status === 'offline' ? 'pending' : 'converged'),
+    convergence_detail: row.status === 'offline' ? 'waiting for agent heartbeat' : row.status === 'pending' ? 'waiting for runtime reconciliation' : 'mock contract state',
+    last_metric_at: row.last_metric_at ?? row.last_heartbeat_at,
+  };
+}
+
+function runtime(row: Omit<RuntimeSummary, 'actual_state' | 'convergence_status' | 'convergence_detail' | 'desired_version' | 'observed_desired_version' | 'desired_worker_count' | 'actual_worker_count' | 'listen_port' | 'loop_delay_ms_p95' | 'send_bps' | 'recv_bps' | 'desired_updated_at' | 'actual_updated_at' | 'last_metric_at'> & { convergence_status?: ConvergenceStatus; actual_state?: string }): RuntimeSummary {
+  const converged = row.desired_state === row.status && row.current_config_version_id === row.target_config_version_id;
+  return {
+    ...row,
+    actual_state: row.actual_state ?? row.status,
+    convergence_status: row.convergence_status ?? (row.status === 'failed' ? 'failed' : converged ? 'converged' : 'pending'),
+    convergence_detail: converged ? 'desired and actual match' : 'desired state is waiting for actual convergence',
+    desired_version: 44,
+    observed_desired_version: converged ? 44 : 43,
+    desired_worker_count: row.worker_count,
+    actual_worker_count: row.worker_count,
+    listen_port: 4202,
+    loop_delay_ms_p95: row.status === 'failed' ? 0 : 18,
+    send_bps: row.active_sessions * 1024,
+    recv_bps: Math.round(row.active_sessions * 256),
+    desired_updated_at: row.updated_at,
+    actual_updated_at: row.updated_at,
+    last_metric_at: row.updated_at,
+  };
+}
+
 export const mockHosts: HostSummary[] = [
-  { id: 'host-east-01', name: 'east-ingest-01', region: 'CN-East', address: '10.12.4.21', status: 'running', desired_state: 'enabled', runtime_count: 4, worker_count: 18, cpu_load: 42, memory_used_gb: 37, memory_total_gb: 96, last_heartbeat_at: '2026-06-27T04:48:12Z', config_version_id: 'cfg-20260627-004' },
-  { id: 'host-east-02', name: 'east-ingest-02', region: 'CN-East', address: '10.12.4.22', status: 'draining', desired_state: 'maintenance', runtime_count: 3, worker_count: 11, cpu_load: 28, memory_used_gb: 29, memory_total_gb: 96, last_heartbeat_at: '2026-06-27T04:46:55Z', config_version_id: 'cfg-20260627-003' },
-  { id: 'host-south-01', name: 'south-relay-01', region: 'CN-South', address: '10.21.8.18', status: 'failed', desired_state: 'enabled', runtime_count: 4, worker_count: 9, cpu_load: 7, memory_used_gb: 18, memory_total_gb: 64, last_heartbeat_at: '2026-06-27T04:10:22Z', config_version_id: 'cfg-20260626-009' },
-  { id: 'host-north-01', name: 'north-edge-01', region: 'CN-North', address: '10.31.2.10', status: 'offline', desired_state: 'maintenance', runtime_count: 2, worker_count: 0, cpu_load: 0, memory_used_gb: 0, memory_total_gb: 64, last_heartbeat_at: '2026-06-27T03:59:31Z', config_version_id: 'cfg-20260625-012' },
-  { id: 'host-west-01', name: 'west-caster-01', region: 'CN-West', address: '10.41.5.31', status: 'pending', desired_state: 'enabled', runtime_count: 2, worker_count: 4, cpu_load: 13, memory_used_gb: 12, memory_total_gb: 64, last_heartbeat_at: '2026-06-27T04:47:03Z', config_version_id: 'cfg-20260627-004' },
+  host({ id: 'host-east-01', agent_id: 'ag-east-01', name: 'east-ingest-01', region: 'CN-East', address: '10.12.4.21', os: 'linux', arch: 'amd64', status: 'running', desired_state: 'enabled', runtime_count: 4, worker_count: 18, cpu_load: 42, memory_used_gb: 37, memory_total_gb: 96, last_heartbeat_at: '2026-06-27T04:48:12Z', config_version_id: 'cfg-20260627-004' }),
+  host({ id: 'host-east-02', agent_id: 'ag-east-02', name: 'east-ingest-02', region: 'CN-East', address: '10.12.4.22', os: 'linux', arch: 'amd64', status: 'draining', desired_state: 'maintenance', runtime_count: 3, worker_count: 11, cpu_load: 28, memory_used_gb: 29, memory_total_gb: 96, last_heartbeat_at: '2026-06-27T04:46:55Z', config_version_id: 'cfg-20260627-003' }),
+  host({ id: 'host-south-01', agent_id: 'ag-south-01', name: 'south-relay-01', region: 'CN-South', address: '10.21.8.18', os: 'windows', arch: 'amd64', status: 'failed', desired_state: 'enabled', runtime_count: 4, worker_count: 9, cpu_load: 7, memory_used_gb: 18, memory_total_gb: 64, last_heartbeat_at: '2026-06-27T04:10:22Z', config_version_id: 'cfg-20260626-009' }),
+  host({ id: 'host-north-01', agent_id: 'ag-north-01', name: 'north-edge-01', region: 'CN-North', address: '10.31.2.10', os: 'linux', arch: 'amd64', status: 'offline', desired_state: 'maintenance', runtime_count: 2, worker_count: 0, cpu_load: 0, memory_used_gb: 0, memory_total_gb: 64, last_heartbeat_at: '2026-06-27T03:59:31Z', config_version_id: 'cfg-20260625-012' }),
+  host({ id: 'host-west-01', agent_id: 'ag-west-01', name: 'west-caster-01', region: 'CN-West', address: '10.41.5.31', os: 'linux', arch: 'amd64', status: 'pending', desired_state: 'enabled', runtime_count: 2, worker_count: 4, cpu_load: 13, memory_used_gb: 12, memory_total_gb: 64, last_heartbeat_at: '2026-06-27T04:47:03Z', config_version_id: 'cfg-20260627-004' }),
 ];
 
 export const mockRuntimes: RuntimeSummary[] = [
-  { id: 'rt-east-01-core', host_id: 'host-east-01', host_name: 'east-ingest-01', name: 'caster-core-a', kind: 'caster-core', status: 'running', desired_state: 'running', current_config_version_id: 'cfg-20260627-004', target_config_version_id: 'cfg-20260627-004', worker_count: 8, active_sessions: 342, restart_intent_count: 0, updated_at: '2026-06-27T04:48:12Z' },
-  { id: 'rt-east-01-http', host_id: 'host-east-01', host_name: 'east-ingest-01', name: 'admin-service-a', kind: 'http-admin', status: 'running', desired_state: 'running', current_config_version_id: 'cfg-20260627-004', target_config_version_id: 'cfg-20260627-004', worker_count: 3, active_sessions: 0, restart_intent_count: 0, updated_at: '2026-06-27T04:47:52Z' },
-  { id: 'rt-east-02-core', host_id: 'host-east-02', host_name: 'east-ingest-02', name: 'caster-core-b', kind: 'caster-core', status: 'draining', desired_state: 'draining', current_config_version_id: 'cfg-20260627-003', target_config_version_id: 'cfg-20260627-004', worker_count: 6, active_sessions: 81, restart_intent_count: 1, updated_at: '2026-06-27T04:46:55Z' },
-  { id: 'rt-south-01-relay', host_id: 'host-south-01', host_name: 'south-relay-01', name: 'relay-runtime-a', kind: 'relay', status: 'failed', desired_state: 'running', current_config_version_id: 'cfg-20260626-009', target_config_version_id: 'cfg-20260627-004', worker_count: 4, active_sessions: 0, restart_intent_count: 2, updated_at: '2026-06-27T04:10:22Z' },
-  { id: 'rt-west-01-core', host_id: 'host-west-01', host_name: 'west-caster-01', name: 'caster-core-west', kind: 'caster-core', status: 'pending', desired_state: 'running', current_config_version_id: 'cfg-20260625-012', target_config_version_id: 'cfg-20260627-004', worker_count: 4, active_sessions: 12, restart_intent_count: 0, updated_at: '2026-06-27T04:47:03Z' },
+  runtime({ id: 'rt-east-01-core', host_id: 'host-east-01', host_name: 'east-ingest-01', name: 'caster-core-a', kind: 'caster-core', status: 'running', desired_state: 'running', current_config_version_id: 'cfg-20260627-004', target_config_version_id: 'cfg-20260627-004', worker_count: 8, active_sessions: 342, restart_intent_count: 0, updated_at: '2026-06-27T04:48:12Z' }),
+  runtime({ id: 'rt-east-01-http', host_id: 'host-east-01', host_name: 'east-ingest-01', name: 'admin-service-a', kind: 'http-admin', status: 'running', desired_state: 'running', current_config_version_id: 'cfg-20260627-004', target_config_version_id: 'cfg-20260627-004', worker_count: 3, active_sessions: 0, restart_intent_count: 0, updated_at: '2026-06-27T04:47:52Z' }),
+  runtime({ id: 'rt-east-02-core', host_id: 'host-east-02', host_name: 'east-ingest-02', name: 'caster-core-b', kind: 'caster-core', status: 'draining', desired_state: 'draining', current_config_version_id: 'cfg-20260627-003', target_config_version_id: 'cfg-20260627-004', worker_count: 6, active_sessions: 81, restart_intent_count: 1, updated_at: '2026-06-27T04:46:55Z' }),
+  runtime({ id: 'rt-south-01-relay', host_id: 'host-south-01', host_name: 'south-relay-01', name: 'relay-runtime-a', kind: 'relay', status: 'failed', desired_state: 'running', current_config_version_id: 'cfg-20260626-009', target_config_version_id: 'cfg-20260627-004', worker_count: 4, active_sessions: 0, restart_intent_count: 2, updated_at: '2026-06-27T04:10:22Z' }),
+  runtime({ id: 'rt-west-01-core', host_id: 'host-west-01', host_name: 'west-caster-01', name: 'caster-core-west', kind: 'caster-core', status: 'pending', desired_state: 'running', current_config_version_id: 'cfg-20260625-012', target_config_version_id: 'cfg-20260627-004', worker_count: 4, active_sessions: 12, restart_intent_count: 0, updated_at: '2026-06-27T04:47:03Z' }),
 ];
 
 const events: RuntimeEvent[] = [
