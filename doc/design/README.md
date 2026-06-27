@@ -12,3 +12,4 @@
 | `v2-api-data-contract.md` | v2 HTTP/JSON API、PostgreSQL source of truth、Redis projection/cache/bus 数据契约。 |
 | `v2-caster-runtime-worker-design.md` | Caster Runtime 多 Worker、Acceptor handoff、session/bufferevent/map 所有权设计。 |
 | `v2-web-layout-reference.md` | v2 Web 控制面布局、Sub2API 只读参考边界和操作意图 UI 规范。 |
+| `v2-phase2-scope-and-contract-gate.md` | v2 Phase 2 真实控制面闭环范围、PG/Redis 边界、运行态事件/指标、集成顺序和非兼容 gate。 |
