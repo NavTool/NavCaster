@@ -178,6 +178,10 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_stations(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/operations-monitor", [this](auto &req, auto &resp)
                   { handle_v1_admin_operations_monitor(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/operations-alert-policy", [this](auto &req, auto &resp)
+                  { handle_v1_admin_operations_alert_policy(req, resp); });
+    _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/operations-alert-policy", [this](auto &req, auto &resp)
+                  { handle_v1_admin_operations_alert_policy(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/online-connections", [this](auto &req, auto &resp)
                   { handle_v1_admin_online_connections(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/audit", [this](auto &req, auto &resp)
@@ -864,6 +868,22 @@ void http_handler::handle_v1_admin_operations_monitor(const HttpRequest &req, Ht
     navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
     auto period = req.query_params.find("period");
     auto result = controller.operations_monitor(period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_operations_alert_policy(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_PUT)
+    {
+        result = controller.update_operations_alert_policy(req.body);
+    }
+    else
+    {
+        result = controller.operations_alert_policy();
+    }
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

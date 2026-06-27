@@ -45,6 +45,8 @@ public:
 
     ControllerResponse list_stations();
     ControllerResponse operations_monitor(const std::string &period);
+    ControllerResponse operations_alert_policy();
+    ControllerResponse update_operations_alert_policy(const std::string &body_text);
     ControllerResponse list_usage(const std::string &period);
     ControllerResponse list_data_push_configs();
     ControllerResponse get_data_push_config(const std::string &config_id);

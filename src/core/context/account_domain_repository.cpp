@@ -144,6 +144,105 @@ bool normalize_data_push_maintenance_config(nlohmann::json &record, std::int64_t
     return true;
 }
 
+nlohmann::json default_operations_alert_policy(std::int64_t now)
+{
+    return {
+        {"policy_id", "default"},
+        {"enabled", true},
+        {"low_balance_enabled", true},
+        {"low_balance_threshold_cents", 1000},
+        {"negative_balance_enabled", true},
+        {"data_push_failed_enabled", true},
+        {"data_push_failed_threshold", 1},
+        {"data_push_maintenance_disabled_enabled", true},
+        {"supplier_pending_payment_enabled", true},
+        {"supplier_pending_payment_threshold", 1},
+        {"supplier_usage_pending_enabled", true},
+        {"supplier_usage_pending_threshold", 1},
+        {"create_time", now},
+        {"update_time", now},
+    };
+}
+
+bool normalize_operations_alert_policy(nlohmann::json &record, std::int64_t now, std::string *error)
+{
+    auto merged = default_operations_alert_policy(now);
+    if (record.is_object())
+    {
+        for (auto it = record.begin(); it != record.end(); ++it)
+        {
+            merged[it.key()] = it.value();
+        }
+    }
+    record = std::move(merged);
+    record["policy_id"] = "default";
+
+    static constexpr const char *bool_fields[] = {
+        "enabled",
+        "low_balance_enabled",
+        "negative_balance_enabled",
+        "data_push_failed_enabled",
+        "data_push_maintenance_disabled_enabled",
+        "supplier_pending_payment_enabled",
+        "supplier_usage_pending_enabled",
+    };
+    for (const auto *field : bool_fields)
+    {
+        if (!record[field].is_boolean())
+        {
+            record[field] = json_record::bool_or_number_as_int(record[field], 1) != 0;
+        }
+    }
+
+    const auto low_balance_threshold = json_record::as_i64(record["low_balance_threshold_cents"], 1000);
+    const auto failed_threshold = json_record::as_i64(record["data_push_failed_threshold"], 1);
+    const auto pending_payment_threshold = json_record::as_i64(record["supplier_pending_payment_threshold"], 1);
+    const auto pending_usage_threshold = json_record::as_i64(record["supplier_usage_pending_threshold"], 1);
+    if (low_balance_threshold < 0 || low_balance_threshold > 1000000000)
+    {
+        if (error)
+        {
+            *error = "low_balance_threshold_cents must be between 0 and 1000000000";
+        }
+        return false;
+    }
+    if (failed_threshold < 1 || failed_threshold > 1000000)
+    {
+        if (error)
+        {
+            *error = "data_push_failed_threshold must be between 1 and 1000000";
+        }
+        return false;
+    }
+    if (pending_payment_threshold < 1 || pending_payment_threshold > 1000000)
+    {
+        if (error)
+        {
+            *error = "supplier_pending_payment_threshold must be between 1 and 1000000";
+        }
+        return false;
+    }
+    if (pending_usage_threshold < 1 || pending_usage_threshold > 1000000)
+    {
+        if (error)
+        {
+            *error = "supplier_usage_pending_threshold must be between 1 and 1000000";
+        }
+        return false;
+    }
+
+    record["low_balance_threshold_cents"] = low_balance_threshold;
+    record["data_push_failed_threshold"] = failed_threshold;
+    record["supplier_pending_payment_threshold"] = pending_payment_threshold;
+    record["supplier_usage_pending_threshold"] = pending_usage_threshold;
+    if (!record.contains("create_time") || json_record::as_i64(record["create_time"], 0) <= 0)
+    {
+        record["create_time"] = now;
+    }
+    record["update_time"] = now;
+    return true;
+}
+
 struct DataPushRuntimeSyncOptions
 {
     std::string action = "reconcile";
@@ -1972,6 +2071,55 @@ AccountDomainResult AccountDomainRepository::update_data_push_maintenance_config
     if (!hset_json(redis_keys::DATA_PUSH_MAINTENANCE, "default", current))
     {
         return redis_error("default", "Failed to update DataPush maintenance config");
+    }
+    AccountDomainResult result;
+    result.id = "default";
+    result.record = std::move(current);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::get_operations_alert_policy(std::int64_t now)
+{
+    auto policy = get_hash_record(redis_keys::OPS_ALERT_POLICY, "default");
+    if (!policy.is_object())
+    {
+        policy = default_operations_alert_policy(now);
+    }
+    std::string error;
+    auto update_time_it = policy.find("update_time");
+    const auto normalize_time = update_time_it != policy.end() ? json_record::as_i64(*update_time_it, now) : now;
+    if (!normalize_operations_alert_policy(policy, normalize_time, &error))
+    {
+        return invalid(error);
+    }
+    AccountDomainResult result;
+    result.id = "default";
+    result.record = std::move(policy);
+    return result;
+}
+
+AccountDomainResult AccountDomainRepository::update_operations_alert_policy(nlohmann::json request, std::int64_t now)
+{
+    auto current = get_hash_record(redis_keys::OPS_ALERT_POLICY, "default");
+    if (!current.is_object())
+    {
+        current = default_operations_alert_policy(now);
+    }
+    if (request.is_object())
+    {
+        for (auto it = request.begin(); it != request.end(); ++it)
+        {
+            current[it.key()] = it.value();
+        }
+    }
+    std::string error;
+    if (!normalize_operations_alert_policy(current, now, &error))
+    {
+        return invalid(error);
+    }
+    if (!hset_json(redis_keys::OPS_ALERT_POLICY, "default", current))
+    {
+        return redis_error("default", "Failed to update operations alert policy");
     }
     AccountDomainResult result;
     result.id = "default";

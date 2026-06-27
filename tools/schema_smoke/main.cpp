@@ -2509,6 +2509,43 @@ int main()
         expect_eq_int(response_body["supply"].value("pending_usage_count", 0), 1, "operations monitor pending supply count");
         expect_true(response_body["supply"]["settlements"].value("pending_payment_count", 0) >= 1, "operations monitor pending settlement count");
         expect_true(!response_body["alerts"].empty(), "operations monitor alerts generated");
+        expect_eq(response_body["alert_policy"].value("policy_id", std::string{}), "default", "operations monitor alert policy snapshot");
+        expect_eq_int(response_body["accounts"].value("low_balance_threshold_cents", 0), 1000, "operations monitor default low balance threshold");
+        auto has_monitor_alert = [](const nlohmann::json &alerts, const std::string &code) {
+            if (!alerts.is_array())
+            {
+                return false;
+            }
+            for (const auto &alert : alerts)
+            {
+                if (alert.is_object() && alert.value("code", std::string{}) == code)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        expect_true(has_monitor_alert(response_body["alerts"], "supplier_pending_payment"), "operations monitor pending payment alert");
+        response = operations.operations_alert_policy();
+        expect_eq_int(response.status_code, 200, "operations alert policy default");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body.value("low_balance_threshold_cents", 0), 1000, "operations alert policy default low balance threshold");
+        response = operations.update_operations_alert_policy(R"({"low_balance_threshold_cents":7000,"supplier_pending_payment_enabled":false,"supplier_usage_pending_enabled":false,"data_push_failed_threshold":2})");
+        expect_eq_int(response.status_code, 200, "operations alert policy update");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body.value("low_balance_threshold_cents", 0), 7000, "operations alert policy updated low balance threshold");
+        expect_true(!response_body.value("supplier_pending_payment_enabled", true), "operations alert policy disables pending payment");
+        expect_true(operations_redis.hget(navcaster::redis_keys::OPS_ALERT_POLICY, "default").is_object(), "operations alert policy persisted");
+        response = operations.operations_monitor("202606");
+        expect_eq_int(response.status_code, 200, "operations monitor policy snapshot");
+        response_body = nlohmann::json::parse(response.body);
+        expect_eq_int(response_body["accounts"].value("low_balance_threshold_cents", 0), 7000, "operations monitor uses alert policy threshold");
+        expect_true(has_monitor_alert(response_body["alerts"], "low_balance"), "operations monitor low balance alert after policy update");
+        expect_true(!has_monitor_alert(response_body["alerts"], "supplier_pending_payment"), "operations monitor disabled pending payment alert");
+        expect_true(!has_monitor_alert(response_body["alerts"], "supplier_usage_pending"), "operations monitor disabled pending supply alert");
+        expect_true(!has_monitor_alert(response_body["alerts"], "data_push_failed"), "operations monitor data push threshold suppresses alert");
+        response = operations.update_operations_alert_policy(R"({"low_balance_threshold_cents":-1})");
+        expect_eq_int(response.status_code, 400, "operations alert policy rejects invalid low balance threshold");
 
         FakeRedisHashClient monitor_empty_redis;
         navcaster::http_api::OperationsController monitor_empty(monitor_empty_redis, 6100);

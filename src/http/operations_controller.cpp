@@ -16,7 +16,6 @@ namespace navcaster::http_api
 {
 namespace
 {
-constexpr std::int64_t LOW_BALANCE_THRESHOLD_CENTS = 1000;
 constexpr std::size_t MAX_RISK_ACCOUNTS = 12;
 constexpr std::size_t MAX_RECENT_FAILED_JOBS = 8;
 
@@ -130,9 +129,10 @@ void append_alert(nlohmann::json &alerts,
                   const std::string &severity,
                   const std::string &code,
                   std::int64_t count,
+                  std::int64_t threshold,
                   const std::string &message)
 {
-    if (count <= 0)
+    if (count < threshold)
     {
         return;
     }
@@ -140,8 +140,14 @@ void append_alert(nlohmann::json &alerts,
         {"severity", severity},
         {"code", code},
         {"count", count},
+        {"threshold", threshold},
         {"message", message},
     });
+}
+
+bool alert_enabled(const nlohmann::json &policy, const char *field)
+{
+    return bool_value(policy, "enabled", true) && bool_value(policy, field, true);
 }
 
 std::int64_t data_push_job_sort_time(const nlohmann::json &job)
@@ -568,6 +574,12 @@ ControllerResponse OperationsController::list_stations()
 ControllerResponse OperationsController::operations_monitor(const std::string &period)
 {
     const std::string resolved_period = request_period(period);
+    storage::AccountDomainRepository repo(_redis);
+    auto policy_result = repo.get_operations_alert_policy(_now);
+    nlohmann::json alert_policy = policy_result.status == storage::RepositoryStatus::Ok
+                                      ? sanitized_record(policy_result.record)
+                                      : nlohmann::json{{"policy_id", "default"}, {"enabled", false}, {"error", policy_result.error}};
+    const auto low_balance_threshold_cents = i64_value(alert_policy, "low_balance_threshold_cents", 1000);
     const auto accounts_records = _redis.hgetall(redis_keys::ACC_RECORD);
     const auto subscription_records = _redis.hgetall(redis_keys::SUB_RECORD);
     const auto redeem_records = _redis.hgetall(redis_keys::REDEEM_CODE);
@@ -589,7 +601,7 @@ ControllerResponse OperationsController::operations_monitor(const std::string &p
         {"deleted_count", 0},
         {"negative_balance_count", 0},
         {"low_balance_count", 0},
-        {"low_balance_threshold_cents", LOW_BALANCE_THRESHOLD_CENTS},
+        {"low_balance_threshold_cents", low_balance_threshold_cents},
         {"total_balance_cents", 0},
         {"risk_accounts", nlohmann::json::array()},
     };
@@ -647,7 +659,7 @@ ControllerResponse OperationsController::operations_monitor(const std::string &p
                 increment_json_count(account_summary, "negative_balance_count");
                 risks.push_back("negative_balance");
             }
-            else if (status != account_domain::STATUS_DELETED && balance_cents < LOW_BALANCE_THRESHOLD_CENTS)
+            else if (status != account_domain::STATUS_DELETED && balance_cents < low_balance_threshold_cents)
             {
                 increment_json_count(account_summary, "low_balance_count");
                 risks.push_back("low_balance");
@@ -839,7 +851,6 @@ ControllerResponse OperationsController::operations_monitor(const std::string &p
         data_push_summary["recent_failed_jobs"].push_back(job);
     }
 
-    storage::AccountDomainRepository repo(_redis);
     auto maintenance = repo.get_data_push_maintenance_config(_now);
     if (maintenance.status == storage::RepositoryStatus::Ok)
     {
@@ -944,23 +955,50 @@ ControllerResponse OperationsController::operations_monitor(const std::string &p
     }
 
     nlohmann::json alerts = nlohmann::json::array();
-    append_alert(alerts, "critical", "negative_balance", account_summary.value("negative_balance_count", 0), "Account balance is below zero");
-    append_alert(alerts, "warning", "low_balance", account_summary.value("low_balance_count", 0), "Account balance is below the operations threshold");
-    append_alert(alerts, "critical", "data_push_failed", data_push_summary.value("failed_count", 0), "DataPush jobs failed in the selected period");
-    if (!bool_value(data_push_summary["maintenance"], "enabled", true))
+    if (alert_enabled(alert_policy, "negative_balance_enabled"))
     {
-        append_alert(alerts, "warning", "data_push_maintenance_disabled", 1, "DataPush runtime maintenance is disabled");
+        append_alert(alerts, "critical", "negative_balance", account_summary.value("negative_balance_count", 0), 1, "Account balance is below zero");
     }
-    append_alert(alerts,
-                 "warning",
-                 "supplier_pending_payment",
-                 supply_summary["settlements"].value("pending_payment_count", 0),
-                 "Supplier settlements are waiting for payment");
-    append_alert(alerts, "warning", "supplier_usage_pending", supply_summary.value("pending_usage_count", 0), "Supplier usage is not settled yet");
+    if (alert_enabled(alert_policy, "low_balance_enabled"))
+    {
+        append_alert(alerts, "warning", "low_balance", account_summary.value("low_balance_count", 0), 1, "Account balance is below the operations threshold");
+    }
+    if (alert_enabled(alert_policy, "data_push_failed_enabled"))
+    {
+        append_alert(alerts,
+                     "critical",
+                     "data_push_failed",
+                     data_push_summary.value("failed_count", 0),
+                     i64_value(alert_policy, "data_push_failed_threshold", 1),
+                     "DataPush jobs failed in the selected period");
+    }
+    if (alert_enabled(alert_policy, "data_push_maintenance_disabled_enabled") && !bool_value(data_push_summary["maintenance"], "enabled", true))
+    {
+        append_alert(alerts, "warning", "data_push_maintenance_disabled", 1, 1, "DataPush runtime maintenance is disabled");
+    }
+    if (alert_enabled(alert_policy, "supplier_pending_payment_enabled"))
+    {
+        append_alert(alerts,
+                     "warning",
+                     "supplier_pending_payment",
+                     supply_summary["settlements"].value("pending_payment_count", 0),
+                     i64_value(alert_policy, "supplier_pending_payment_threshold", 1),
+                     "Supplier settlements are waiting for payment");
+    }
+    if (alert_enabled(alert_policy, "supplier_usage_pending_enabled"))
+    {
+        append_alert(alerts,
+                     "warning",
+                     "supplier_usage_pending",
+                     supply_summary.value("pending_usage_count", 0),
+                     i64_value(alert_policy, "supplier_usage_pending_threshold", 1),
+                     "Supplier usage is not settled yet");
+    }
 
     return json_response(200, {
         {"period", resolved_period},
         {"generated_time", _now},
+        {"alert_policy", alert_policy},
         {"accounts", account_summary},
         {"subscriptions", subscription_summary},
         {"redeem_codes", redeem_summary},
@@ -968,6 +1006,25 @@ ControllerResponse OperationsController::operations_monitor(const std::string &p
         {"supply", supply_summary},
         {"alerts", alerts},
     });
+}
+
+ControllerResponse OperationsController::operations_alert_policy()
+{
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.get_operations_alert_policy(_now);
+    return repository_result(200, result);
+}
+
+ControllerResponse OperationsController::update_operations_alert_policy(const std::string &body_text)
+{
+    nlohmann::json body;
+    if (!parse_body_object(body_text, body))
+    {
+        return error_response(400, "Invalid JSON body");
+    }
+    storage::AccountDomainRepository repo(_redis);
+    auto result = repo.update_operations_alert_policy(std::move(body), _now);
+    return repository_result(200, result);
 }
 
 ControllerResponse OperationsController::list_usage(const std::string &period)

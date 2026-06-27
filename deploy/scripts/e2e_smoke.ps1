@@ -2819,6 +2819,45 @@ function Invoke-OperationsApiSmoke {
     if ($null -eq $supply) {
         Fail "operations supply usage list returned null"
     }
+
+    $alertPolicy = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/operations-alert-policy" -TimeoutSec 10
+    if ($alertPolicy.policy_id -ne "default" -or $alertPolicy.low_balance_threshold_cents -ne 1000) {
+        Fail "operations alert policy default mismatch: $(ConvertTo-CompactJson $alertPolicy)"
+    }
+    $alertPolicy = Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body (@{
+        enabled = $true
+        low_balance_enabled = $true
+        low_balance_threshold_cents = 7000
+        data_push_failed_enabled = $true
+        data_push_failed_threshold = 1
+        supplier_pending_payment_enabled = $false
+        supplier_pending_payment_threshold = 99
+        supplier_usage_pending_enabled = $false
+        supplier_usage_pending_threshold = 99
+        negative_balance_enabled = $true
+        data_push_maintenance_disabled_enabled = $true
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/operations-alert-policy" -TimeoutSec 10
+    if ($alertPolicy.low_balance_threshold_cents -ne 7000 -or $alertPolicy.supplier_pending_payment_enabled -ne $false) {
+        Fail "operations alert policy update mismatch: $(ConvertTo-CompactJson $alertPolicy)"
+    }
+
+    $monitor = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/operations-monitor?period=202606" -TimeoutSec 10
+    if ($monitor.alert_policy.low_balance_threshold_cents -ne 7000 -or $monitor.accounts.low_balance_threshold_cents -ne 7000) {
+        Fail "operations monitor alert policy snapshot mismatch: $(ConvertTo-CompactJson $monitor.alert_policy)"
+    }
+    $alertCodes = @($monitor.alerts | ForEach-Object { $_.code })
+    if ($alertCodes -notcontains "low_balance") {
+        Fail "operations monitor expected low_balance alert after policy update: $(ConvertTo-CompactJson $monitor.alerts)"
+    }
+    if ($alertCodes -contains "supplier_pending_payment") {
+        Fail "operations monitor supplier_pending_payment alert should be disabled by policy: $(ConvertTo-CompactJson $monitor.alerts)"
+    }
+    $invalidAlertStatus = Get-HttpStatusCode -Context "invalid operations alert policy" -Request {
+        Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body (@{ low_balance_threshold_cents = -1 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/operations-alert-policy" -TimeoutSec 10
+    }
+    if ($invalidAlertStatus -ne 400) {
+        Fail "invalid operations alert policy expected 400, got $invalidAlertStatus"
+    }
 }
 
 function Get-HttpStatusCode {

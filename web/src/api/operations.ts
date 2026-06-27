@@ -18,6 +18,7 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  OperationsAlertPolicy,
   OperationsMonitor,
   PagedResult,
   RedeemCodeRecord,
@@ -39,6 +40,14 @@ export const adminApi = {
   async operationsMonitor(period?: string): Promise<OperationsMonitor> {
     const { data } = await api.get('/api/v1/admin/operations-monitor', { params: period ? { period } : undefined });
     return data as OperationsMonitor;
+  },
+  async operationsAlertPolicy(): Promise<OperationsAlertPolicy> {
+    const { data } = await api.get('/api/v1/admin/operations-alert-policy');
+    return data as OperationsAlertPolicy;
+  },
+  async updateOperationsAlertPolicy(body: Partial<OperationsAlertPolicy>) {
+    const { data } = await api.put('/api/v1/admin/operations-alert-policy', body);
+    return data as OperationsAlertPolicy;
   },
   async onlineConnections(): Promise<HashRecord<AccountActive>> {
     const { data } = await api.get('/api/v1/admin/online-connections');

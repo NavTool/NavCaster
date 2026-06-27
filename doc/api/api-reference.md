@@ -177,7 +177,9 @@
 | `GET` | `/api/v1/admin/redeem-codes/{code}` | `REDEEM:CODE` | 查询兑换码 |
 | `POST` | `/api/v1/admin/redeem-codes/{code}/redeem` | `REDEEM:ACCOUNT:{account_id}` / `ACC:BALANCE:LEDGER:{period}` / `ACC:RECORD` | 兑换到指定 Account 并同步余额 |
 | `GET` | `/api/v1/admin/stations` | `STATION:RECORD` | 列出历史站点 |
-| `GET` | `/api/v1/admin/operations-monitor?period=yyyyMM` | `ACC:RECORD` / `SUB:RECORD` / `REDEEM:CODE` / `DATA:PUSH:*` / `SUPPLY:*` / `DATA:PUSH:MAINTENANCE` | 返回运营域运行监控聚合快照 |
+| `GET` | `/api/v1/admin/operations-monitor?period=yyyyMM` | `ACC:RECORD` / `SUB:RECORD` / `REDEEM:CODE` / `DATA:PUSH:*` / `SUPPLY:*` / `DATA:PUSH:MAINTENANCE` / `OPS:ALERT:POLICY` | 返回运营域运行监控聚合快照 |
+| `GET` | `/api/v1/admin/operations-alert-policy` | `OPS:ALERT:POLICY` | 查询运营告警策略 |
+| `PUT` | `/api/v1/admin/operations-alert-policy` | `OPS:ALERT:POLICY` | 更新低余额、DataPush、供应商结算等告警阈值和启停 |
 | `GET` | `/api/v1/admin/online-connections` | `ACT:SESSION:*` / `STR:ACTIVE` | 列出当前在线连接，与 legacy `/api/accounts/active` 同源 |
 | `GET` | `/api/v1/admin/audit?limit=&cursor=&actor=&action=&target=` | `LOG:AUDIT` / `LOG:AUDIT:SEQ` | 列出审计日志，支持分页和 actor/action/target 过滤 |
 | `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
@@ -261,12 +263,20 @@ subject 推导，请求体中的 `owner_account_id` / `kind` 不能覆盖真实 
 `PUSH:STAT[relay_uid]` 补充 `relay_status` / `relay_state`；返回 JSON 会剥离
 `relay_target_password` / `target_password`，`DATA:PUSH:JOB` 中的配置和 relay 快照也不保存远端密码。
 
-`GET /api/v1/admin/operations-monitor?period=yyyyMM` 是只读聚合接口，不写入新
-Redis key。响应包含 `accounts`、`subscriptions`、`redeem_codes`、`data_push`、
-`supply` 和 `alerts`。其中账号风险统计负余额、低余额、禁用/冻结/过期账号；
+`GET /api/v1/admin/operations-monitor?period=yyyyMM` 是只读聚合接口。响应包含
+`alert_policy`、`accounts`、`subscriptions`、`redeem_codes`、`data_push`、`supply`
+和 `alerts`。其中账号风险统计负余额、低余额、禁用/冻结/过期账号；
 DataPush 聚合当期用量、任务状态、runtime maintenance 配置和最近失败任务；供应聚合
 当期供应事实、待结算/已结算收益以及 `SUPPLY:EARNING:*:<period>` 结算付款状态。
 该接口用于运营监控面板和后续告警/结算扩展，当前不触发断连、补偿或付款动作。
+告警生成读取 `OPS:ALERT:POLICY[default]`；无记录时使用默认策略但不强制写入 Redis。
+
+`GET/PUT /api/v1/admin/operations-alert-policy` 管理 `OPS:ALERT:POLICY[default]`。
+策略字段包含 `enabled`、`low_balance_enabled`、`low_balance_threshold_cents`、
+`negative_balance_enabled`、`data_push_failed_enabled`、`data_push_failed_threshold`、
+`data_push_maintenance_disabled_enabled`、`supplier_pending_payment_enabled`、
+`supplier_pending_payment_threshold`、`supplier_usage_pending_enabled` 和
+`supplier_usage_pending_threshold`。阈值更新后，下一次 operations monitor 聚合立即生效。
 
 `GET /api/v1/admin/online-connections` 和 `GET /api/v1/admin/audit` 是现有只读能力的
 admin v1 命名空间入口，不引入新 Redis key。在线连接复用

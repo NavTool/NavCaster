@@ -74,6 +74,7 @@ private:
     void handle_v1_admin_redeem_code(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_stations(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_operations_monitor(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_operations_alert_policy(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_online_connections(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_audit(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp);
