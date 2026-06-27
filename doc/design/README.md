@@ -13,3 +13,4 @@
 | `v2-caster-runtime-worker-design.md` | Caster Runtime 多 Worker、Acceptor handoff、session/bufferevent/map 所有权设计。 |
 | `v2-web-layout-reference.md` | v2 Web 控制面布局、Sub2API 只读参考边界和操作意图 UI 规范。 |
 | `v2-phase2-scope-and-contract-gate.md` | v2 Phase 2 真实控制面闭环范围、PG/Redis 边界、运行态事件/指标、集成顺序和非兼容 gate。 |
+| `v2-phase3-production-contract-and-delivery-gate.md` | v2 Phase 3 生产化闭环加固范围、四类交付门槛、Admin/Agent/Caster/Web 集成边界、PG/Redis 一致性、控制指令生命周期、Runtime events/actual/metrics、Caster worker/pubsub 容量口径和 NC-101 到 NC-107 交付 gate。 |
