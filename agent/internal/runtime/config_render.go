@@ -39,7 +39,10 @@ func (r ConfigRenderer) Render(ctx context.Context, desired DesiredState) (strin
 	payload := struct {
 		RuntimeID      string            `json:"runtime_id"`
 		ConfigVersion  int               `json:"config_version"`
+		ListenHost     string            `json:"listen_host,omitempty"`
 		ListenPort     int               `json:"listen_port,omitempty"`
+		HealthHost     string            `json:"health_host,omitempty"`
+		HealthPort     int               `json:"health_port,omitempty"`
 		WorkerCount    int               `json:"worker_count,omitempty"`
 		MaxWorkerCount int               `json:"max_worker_count,omitempty"`
 		RestartPolicy  string            `json:"restart_policy,omitempty"`
@@ -48,7 +51,10 @@ func (r ConfigRenderer) Render(ctx context.Context, desired DesiredState) (strin
 	}{
 		RuntimeID:      desired.RuntimeID,
 		ConfigVersion:  desired.ConfigVersion,
+		ListenHost:     desired.ListenHost,
 		ListenPort:     desired.ListenPort,
+		HealthHost:     desired.HealthHost,
+		HealthPort:     desired.HealthPort,
 		WorkerCount:    desired.WorkerCount,
 		MaxWorkerCount: desired.MaxWorkerCount,
 		RestartPolicy:  string(desired.NormalizedRestartPolicy()),

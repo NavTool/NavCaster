@@ -36,12 +36,22 @@ func NewAgent(cfg config.Config, logger *log.Logger) (*Agent, error) {
 		return nil, err
 	}
 	return &Agent{
-		Config:     cfg,
-		Store:      state.NewStoreWithRuntimeRoot(cfg.StatePath, cfg.RuntimeRoot),
-		Client:     admin,
-		Supervisor: supervisor.NewProcessSupervisor(),
-		Renderer:   agentruntime.NewConfigRenderer(cfg.RuntimeRoot),
-		Logger:     logger,
+		Config: cfg,
+		Store:  state.NewStoreWithRuntimeRoot(cfg.StatePath, cfg.RuntimeRoot),
+		Client: admin,
+		Supervisor: supervisor.NewProcessSupervisor(supervisor.Options{
+			CasterExecutable: cfg.CasterExecutable,
+			CasterWorkingDir: cfg.CasterWorkingDir,
+			CasterListenHost: cfg.CasterListenHost,
+			CasterHealthHost: cfg.CasterHealthHost,
+			CasterHealthPort: cfg.CasterHealthPort,
+			CasterRedisHost:  cfg.CasterRedisHost,
+			CasterRedisPort:  cfg.CasterRedisPort,
+			CasterEnv:        cfg.CasterEnv,
+			StartupGrace:     cfg.ProbeTimeout.Duration * 2,
+		}),
+		Renderer: agentruntime.NewConfigRenderer(cfg.RuntimeRoot),
+		Logger:   logger,
 	}, nil
 }
 
@@ -86,8 +96,12 @@ func (a *Agent) Run(ctx context.Context, once bool) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-heartbeatTicker.C:
+			a.refreshRuntimeObservations(ctx, localState)
 			if err := a.heartbeat(ctx, localState, identity); err != nil && a.Logger != nil {
 				a.Logger.Printf("heartbeat failed: %v", err)
+			}
+			if err := a.uploadMetrics(ctx, localState); err != nil && a.Logger != nil {
+				a.Logger.Printf("runtime metrics upload failed: %v", err)
 			}
 			if err := a.uploadEvents(ctx, localState); err != nil && a.Logger != nil {
 				a.Logger.Printf("runtime event upload failed: %v", err)
@@ -179,13 +193,40 @@ func (a *Agent) tick(ctx context.Context, localState *state.AgentState, identity
 			localState.AppendEvent(event, 100)
 		}
 	}
+	a.refreshRuntimeObservations(ctx, localState)
 	if err := a.heartbeat(ctx, localState, identity); err != nil {
 		return err
+	}
+	if err := a.uploadMetrics(ctx, localState); err != nil && a.Logger != nil {
+		a.Logger.Printf("runtime metrics upload failed: %v", err)
 	}
 	if err := a.uploadEvents(ctx, localState); err != nil && a.Logger != nil {
 		a.Logger.Printf("runtime event upload failed: %v", err)
 	}
 	return nil
+}
+
+func (a *Agent) refreshRuntimeObservations(ctx context.Context, localState *state.AgentState) {
+	a.Supervisor.Refresh(ctx, a.Config.ProbeTimeout.Duration)
+	for _, actual := range a.Supervisor.ActualStates() {
+		if actual.RuntimeID == "" {
+			continue
+		}
+		actual.AgentID = localState.AgentID
+		if actual.HostID == "" {
+			actual.HostID = localState.HostID
+		}
+		localState.UpdateActual(actual)
+	}
+	for _, event := range a.Supervisor.DrainEvents() {
+		if event.AgentID == "" {
+			event.AgentID = localState.AgentID
+		}
+		if event.HostID == "" {
+			event.HostID = localState.HostID
+		}
+		localState.AppendEvent(event, 100)
+	}
 }
 
 func (a *Agent) pollDesired(ctx context.Context, localState *state.AgentState) error {
@@ -240,4 +281,19 @@ func (a *Agent) uploadEvents(ctx context.Context, localState *state.AgentState) 
 	}
 	localState.ClearEvents()
 	return nil
+}
+
+func (a *Agent) uploadMetrics(ctx context.Context, localState *state.AgentState) error {
+	if a.Client == nil || localState.AgentID == "" {
+		return client.ErrNotConfigured
+	}
+	actual := localState.ActualStates()
+	if len(actual) == 0 {
+		return nil
+	}
+	return a.Client.RuntimeMetrics(ctx, localState.AgentID, client.RuntimeMetricsRequest{
+		AgentID: localState.AgentID,
+		HostID:  localState.HostID,
+		Actual:  actual,
+	})
 }

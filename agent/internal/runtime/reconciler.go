@@ -64,7 +64,7 @@ func reconcileOne(ctx context.Context, desired DesiredState, manager ProcessMana
 	case DesiredStateRunning, DesiredStateDraining:
 		return reconcileRunning(ctx, desired, actual, hasActual, manager, opts)
 	case DesiredStateStopped, DesiredStateDeleted:
-		if !hasActual || !actual.IsRunning() {
+		if !hasActual || actual.ActualState == ActualStateMissing || actual.ActualState == ActualStateStopped {
 			result.Action = ReconcileNoop
 			result.Actual = actual
 			return result
@@ -85,14 +85,17 @@ func reconcileOne(ctx context.Context, desired DesiredState, manager ProcessMana
 }
 
 func reconcileRunning(ctx context.Context, desired DesiredState, actual ActualState, hasActual bool, manager ProcessManager, opts ReconcileOptions) ReconcileResult {
-	if hasActual && actual.IsRunning() {
-		if actual.ConfigVersion != desired.ConfigVersion {
-			return restartRuntime(ctx, desired, manager, opts)
-		}
+	if hasActual && actual.ActualState == ActualStateFailed && desired.NormalizedRestartPolicy() == RestartPolicyNever {
 		return ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileNoop, Actual: actual}
 	}
 
-	if hasActual && actual.ActualState == ActualStateFailed && desired.NormalizedRestartPolicy() == RestartPolicyNever {
+	if hasActual && (actual.IsRunning() || actual.HasLiveProcess()) {
+		if actual.ConfigVersion != desired.ConfigVersion {
+			return restartRuntime(ctx, desired, manager, opts)
+		}
+		if actual.ActualState == ActualStateFailed {
+			return restartRuntime(ctx, desired, manager, opts)
+		}
 		return ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileNoop, Actual: actual}
 	}
 

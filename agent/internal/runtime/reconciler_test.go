@@ -41,6 +41,7 @@ func (f *fakeManager) Stop(ctx context.Context, runtimeID string, timeout time.D
 	f.stops++
 	actual := f.actual[runtimeID]
 	actual.ActualState = ActualStateStopped
+	actual.ProcessID = 0
 	actual.UpdatedAt = time.Now().UTC()
 	f.actual[runtimeID] = actual
 	return actual, nil
@@ -133,5 +134,24 @@ func TestDesiredReconcileDoesNotRestartFailedRuntimeWhenPolicyNever(t *testing.T
 	}}, manager, ReconcileOptions{})
 	if results[0].Action != ReconcileNoop || manager.starts != 0 {
 		t.Fatalf("failed runtime with restart_policy=never should not restart: results=%#v starts=%d", results, manager.starts)
+	}
+}
+
+func TestDesiredReconcileStopsFailedRuntimeWithLiveProcess(t *testing.T) {
+	manager := newFakeManager()
+	manager.actual["rt-001"] = ActualState{
+		RuntimeID:     "rt-001",
+		ActualState:   ActualStateFailed,
+		ProcessID:     1234,
+		ConfigVersion: 1,
+		UpdatedAt:     time.Now().UTC(),
+	}
+	results := Reconcile(context.Background(), []DesiredState{{
+		RuntimeID:     "rt-001",
+		DesiredState:  DesiredStateStopped,
+		ConfigVersion: 1,
+	}}, manager, ReconcileOptions{StopTimeout: time.Second})
+	if results[0].Action != ReconcileStop || manager.stops != 1 {
+		t.Fatalf("failed runtime with live process should be stopped: results=%#v stops=%d", results, manager.stops)
 	}
 }

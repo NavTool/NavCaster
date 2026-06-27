@@ -52,17 +52,26 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 // Config is the local Agent configuration. Secrets are placeholders for the v2
 // AdminService contract; they are only sent to AdminService and are not logged.
 type Config struct {
-	AdminURL          string   `json:"admin_url"`
-	BootstrapToken    string   `json:"bootstrap_token"`
-	AgentID           string   `json:"agent_id"`
-	AgentSecret       string   `json:"agent_secret"`
-	HostID            string   `json:"host_id"`
-	StatePath         string   `json:"state_path"`
-	RuntimeRoot       string   `json:"runtime_root"`
-	HeartbeatInterval Duration `json:"heartbeat_interval"`
-	PollInterval      Duration `json:"poll_interval"`
-	RequestTimeout    Duration `json:"request_timeout"`
-	StopTimeout       Duration `json:"stop_timeout"`
+	AdminURL          string            `json:"admin_url"`
+	BootstrapToken    string            `json:"bootstrap_token"`
+	AgentID           string            `json:"agent_id"`
+	AgentSecret       string            `json:"agent_secret"`
+	HostID            string            `json:"host_id"`
+	StatePath         string            `json:"state_path"`
+	RuntimeRoot       string            `json:"runtime_root"`
+	CasterExecutable  string            `json:"caster_executable"`
+	CasterWorkingDir  string            `json:"caster_working_dir"`
+	CasterListenHost  string            `json:"caster_listen_host"`
+	CasterHealthHost  string            `json:"caster_health_host"`
+	CasterHealthPort  int               `json:"caster_health_port"`
+	CasterRedisHost   string            `json:"caster_redis_host"`
+	CasterRedisPort   int               `json:"caster_redis_port"`
+	CasterEnv         map[string]string `json:"caster_env"`
+	HeartbeatInterval Duration          `json:"heartbeat_interval"`
+	PollInterval      Duration          `json:"poll_interval"`
+	RequestTimeout    Duration          `json:"request_timeout"`
+	StopTimeout       Duration          `json:"stop_timeout"`
+	ProbeTimeout      Duration          `json:"probe_timeout"`
 }
 
 func Default() Config {
@@ -70,10 +79,17 @@ func Default() Config {
 		AdminURL:          "http://127.0.0.1:8080",
 		StatePath:         "agent_state.json",
 		RuntimeRoot:       "runtime",
+		CasterExecutable:  "navcaster-caster",
+		CasterListenHost:  "127.0.0.1",
+		CasterHealthHost:  "127.0.0.1",
+		CasterHealthPort:  19000,
+		CasterRedisHost:   "127.0.0.1",
+		CasterRedisPort:   6379,
 		HeartbeatInterval: Duration{Duration: 10 * time.Second},
 		PollInterval:      Duration{Duration: 5 * time.Second},
 		RequestTimeout:    Duration{Duration: 5 * time.Second},
 		StopTimeout:       Duration{Duration: 5 * time.Second},
+		ProbeTimeout:      Duration{Duration: 2 * time.Second},
 	}
 }
 
@@ -111,6 +127,22 @@ func applyEnv(cfg *Config) {
 	setString("NAVCASTER_AGENT_HOST_ID", &cfg.HostID)
 	setString("NAVCASTER_AGENT_STATE_PATH", &cfg.StatePath)
 	setString("NAVCASTER_AGENT_RUNTIME_ROOT", &cfg.RuntimeRoot)
+	setString("NAVCASTER_AGENT_CASTER_EXECUTABLE", &cfg.CasterExecutable)
+	setString("NAVCASTER_AGENT_CASTER_WORKING_DIR", &cfg.CasterWorkingDir)
+	setString("NAVCASTER_AGENT_CASTER_LISTEN_HOST", &cfg.CasterListenHost)
+	setString("NAVCASTER_AGENT_CASTER_HEALTH_HOST", &cfg.CasterHealthHost)
+	setString("NAVCASTER_AGENT_CASTER_REDIS_HOST", &cfg.CasterRedisHost)
+
+	setInt := func(env string, target *int) {
+		if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+			parsed, err := strconv.Atoi(value)
+			if err == nil {
+				*target = parsed
+			}
+		}
+	}
+	setInt("NAVCASTER_AGENT_CASTER_HEALTH_PORT", &cfg.CasterHealthPort)
+	setInt("NAVCASTER_AGENT_CASTER_REDIS_PORT", &cfg.CasterRedisPort)
 
 	setDuration := func(env string, target *Duration) {
 		if value := strings.TrimSpace(os.Getenv(env)); value != "" {
@@ -124,6 +156,7 @@ func applyEnv(cfg *Config) {
 	setDuration("NAVCASTER_AGENT_POLL_INTERVAL", &cfg.PollInterval)
 	setDuration("NAVCASTER_AGENT_REQUEST_TIMEOUT", &cfg.RequestTimeout)
 	setDuration("NAVCASTER_AGENT_STOP_TIMEOUT", &cfg.StopTimeout)
+	setDuration("NAVCASTER_AGENT_PROBE_TIMEOUT", &cfg.ProbeTimeout)
 }
 
 func applyDefaults(cfg *Config) {
@@ -137,6 +170,24 @@ func applyDefaults(cfg *Config) {
 	if cfg.RuntimeRoot == "" {
 		cfg.RuntimeRoot = def.RuntimeRoot
 	}
+	if cfg.CasterExecutable == "" {
+		cfg.CasterExecutable = def.CasterExecutable
+	}
+	if cfg.CasterListenHost == "" {
+		cfg.CasterListenHost = def.CasterListenHost
+	}
+	if cfg.CasterHealthHost == "" {
+		cfg.CasterHealthHost = def.CasterHealthHost
+	}
+	if cfg.CasterHealthPort <= 0 {
+		cfg.CasterHealthPort = def.CasterHealthPort
+	}
+	if cfg.CasterRedisHost == "" {
+		cfg.CasterRedisHost = def.CasterRedisHost
+	}
+	if cfg.CasterRedisPort <= 0 {
+		cfg.CasterRedisPort = def.CasterRedisPort
+	}
 	if cfg.HeartbeatInterval.Duration <= 0 {
 		cfg.HeartbeatInterval = def.HeartbeatInterval
 	}
@@ -149,6 +200,9 @@ func applyDefaults(cfg *Config) {
 	if cfg.StopTimeout.Duration <= 0 {
 		cfg.StopTimeout = def.StopTimeout
 	}
+	if cfg.ProbeTimeout.Duration <= 0 {
+		cfg.ProbeTimeout = def.ProbeTimeout
+	}
 }
 
 func (c Config) Validate() error {
@@ -157,6 +211,15 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.RuntimeRoot) == "" {
 		return errors.New("runtime_root is required")
+	}
+	if strings.TrimSpace(c.CasterExecutable) == "" {
+		return errors.New("caster_executable is required")
+	}
+	if c.CasterHealthPort < 0 || c.CasterHealthPort > 65535 {
+		return errors.New("caster_health_port must be within 0..65535")
+	}
+	if c.CasterRedisPort <= 0 || c.CasterRedisPort > 65535 {
+		return errors.New("caster_redis_port must be within 1..65535")
 	}
 	if c.HeartbeatInterval.Duration <= 0 {
 		return errors.New("heartbeat_interval must be positive")
@@ -169,6 +232,9 @@ func (c Config) Validate() error {
 	}
 	if c.StopTimeout.Duration <= 0 {
 		return errors.New("stop_timeout must be positive")
+	}
+	if c.ProbeTimeout.Duration <= 0 {
+		return errors.New("probe_timeout must be positive")
 	}
 	return nil
 }
