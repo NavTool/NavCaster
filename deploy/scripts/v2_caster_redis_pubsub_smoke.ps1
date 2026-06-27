@@ -11,7 +11,7 @@ param(
     [int]$RedisPort = 6379,
     [int]$WorkerCount = 2,
     [string]$Mount = "QA_V2_REDIS_MOUNT_A",
-    [string]$Payload = "NC093_PAYLOAD_cross_runtime_redis_pubsub_0123456789`r`n",
+    [string]$Payload = "NC103_PAYLOAD_cross_runtime_redis_pubsub_0123456789`r`n",
     [int]$TimeoutSeconds = 12
 )
 
@@ -30,7 +30,7 @@ if (-not $ConnectAddress) {
 
 function Fail {
     param([string]$Message)
-    throw "[NC-093 smoke] $Message"
+    throw "[NC-103 pubsub smoke] $Message"
 }
 
 function Write-Ascii {
@@ -180,7 +180,7 @@ if ($RuntimeANtripPort -eq $RuntimeBNtripPort -or $RuntimeAHealthPort -eq $Runti
     Fail "runtime A and B ports must be distinct"
 }
 
-$SmokeDir = Join-Path $RootDir "build\nc093-redis-pubsub-smoke"
+$SmokeDir = Join-Path $RootDir "build\nc103-redis-pubsub-smoke"
 New-Item -ItemType Directory -Force -Path $SmokeDir | Out-Null
 $stdoutAPath = Join-Path $SmokeDir "runtime-a.stdout.log"
 $stderrAPath = Join-Path $SmokeDir "runtime-a.stderr.log"
@@ -189,7 +189,7 @@ $stderrBPath = Join-Path $SmokeDir "runtime-b.stderr.log"
 Remove-Item -LiteralPath $stdoutAPath, $stderrAPath, $stdoutBPath, $stderrBPath -Force -ErrorAction SilentlyContinue
 
 $runtimeAArgs = @(
-    "--runtime-id", "nc093-runtime-a",
+    "--runtime-id", "nc103-runtime-a",
     "--listen-host", $BindAddress,
     "--listen-port", "$RuntimeANtripPort",
     "--health-host", $BindAddress,
@@ -200,7 +200,7 @@ $runtimeAArgs = @(
 )
 
 $runtimeBArgs = @(
-    "--runtime-id", "nc093-runtime-b",
+    "--runtime-id", "nc103-runtime-b",
     "--listen-host", $BindAddress,
     "--listen-port", "$RuntimeBNtripPort",
     "--health-host", $BindAddress,
@@ -211,7 +211,8 @@ $runtimeBArgs = @(
 )
 
 $source = $null
-$client = $null
+$localClient = $null
+$remoteClient = $null
 $runtimeA = $null
 $runtimeB = $null
 try {
@@ -223,13 +224,21 @@ try {
     Wait-Health -Url "http://$ConnectAddress`:$RuntimeAHealthPort/health" -TimeoutMs ($TimeoutSeconds * 1000)
     Wait-Health -Url "http://$ConnectAddress`:$RuntimeBHealthPort/health" -TimeoutMs ($TimeoutSeconds * 1000)
 
-    $client = [System.Net.Sockets.TcpClient]::new()
-    $client.ReceiveTimeout = $TimeoutSeconds * 1000
-    $client.SendTimeout = $TimeoutSeconds * 1000
-    $client.Connect($ConnectAddress, $RuntimeBNtripPort)
-    $clientStream = $client.GetStream()
-    Write-Ascii $clientStream "GET /$Mount HTTP/1.1`r`nHost: $ConnectAddress`r`nUser-Agent: NC093-Smoke-Client`r`nAuthorization: Basic bmMwOTM6Y2xpZW50`r`n`r`n"
-    $clientResponse = Read-UntilHeaderEnd $clientStream ($TimeoutSeconds * 1000) "runtime B client"
+    $localClient = [System.Net.Sockets.TcpClient]::new()
+    $localClient.ReceiveTimeout = $TimeoutSeconds * 1000
+    $localClient.SendTimeout = $TimeoutSeconds * 1000
+    $localClient.Connect($ConnectAddress, $RuntimeANtripPort)
+    $localClientStream = $localClient.GetStream()
+    Write-Ascii $localClientStream "GET /$Mount HTTP/1.1`r`nHost: $ConnectAddress`r`nUser-Agent: NC103-Smoke-Local-Client`r`nAuthorization: Basic bmMxMDM6Y2xpZW50`r`n`r`n"
+    $localClientResponse = Read-UntilHeaderEnd $localClientStream ($TimeoutSeconds * 1000) "runtime A local client"
+
+    $remoteClient = [System.Net.Sockets.TcpClient]::new()
+    $remoteClient.ReceiveTimeout = $TimeoutSeconds * 1000
+    $remoteClient.SendTimeout = $TimeoutSeconds * 1000
+    $remoteClient.Connect($ConnectAddress, $RuntimeBNtripPort)
+    $remoteClientStream = $remoteClient.GetStream()
+    Write-Ascii $remoteClientStream "GET /$Mount HTTP/1.1`r`nHost: $ConnectAddress`r`nUser-Agent: NC103-Smoke-Remote-Client`r`nAuthorization: Basic bmMxMDM6Y2xpZW50`r`n`r`n"
+    $remoteClientResponse = Read-UntilHeaderEnd $remoteClientStream ($TimeoutSeconds * 1000) "runtime B remote client"
 
     Wait-Until -TimeoutMs ($TimeoutSeconds * 1000) -Message "runtime B did not subscribe to mount $Mount" -Condition {
         $metrics = Get-Metrics -Url "http://$ConnectAddress`:$RuntimeBHealthPort/metrics"
@@ -241,29 +250,49 @@ try {
     $source.SendTimeout = $TimeoutSeconds * 1000
     $source.Connect($ConnectAddress, $RuntimeANtripPort)
     $sourceStream = $source.GetStream()
-    Write-Ascii $sourceStream "POST /$Mount HTTP/1.1`r`nHost: $ConnectAddress`r`nAuthorization: Basic bmMwOTM6c291cmNl`r`n`r`n"
+    Write-Ascii $sourceStream "POST /$Mount HTTP/1.1`r`nHost: $ConnectAddress`r`nAuthorization: Basic bmMxMDM6c291cmNl`r`n`r`n"
     $sourceResponse = Read-UntilHeaderEnd $sourceStream ($TimeoutSeconds * 1000) "runtime A source"
 
     $payloadBytes = [System.Text.Encoding]::ASCII.GetBytes($Payload)
     $sourceStream.Write($payloadBytes, 0, $payloadBytes.Length)
     $sourceStream.Flush()
 
-    $receivedBytes = Read-ExactBytes $clientStream $payloadBytes.Length ($TimeoutSeconds * 1000)
-    $received = [System.Text.Encoding]::ASCII.GetString($receivedBytes)
-    if ($received -ne $Payload) {
-        Fail "cross-runtime payload mismatch sent=[$Payload] received=[$received]"
+    $localReceivedBytes = Read-ExactBytes $localClientStream $payloadBytes.Length ($TimeoutSeconds * 1000)
+    $localReceived = [System.Text.Encoding]::ASCII.GetString($localReceivedBytes)
+    if ($localReceived -ne $Payload) {
+        Fail "local payload mismatch sent=[$Payload] received=[$localReceived]"
+    }
+
+    $remoteReceivedBytes = Read-ExactBytes $remoteClientStream $payloadBytes.Length ($TimeoutSeconds * 1000)
+    $remoteReceived = [System.Text.Encoding]::ASCII.GetString($remoteReceivedBytes)
+    if ($remoteReceived -ne $Payload) {
+        Fail "cross-runtime payload mismatch sent=[$Payload] received=[$remoteReceived]"
     }
 
     Start-Sleep -Milliseconds 300
     $metricsA = Get-Metrics -Url "http://$ConnectAddress`:$RuntimeAHealthPort/metrics"
     $metricsB = Get-Metrics -Url "http://$ConnectAddress`:$RuntimeBHealthPort/metrics"
-    $publisherWorker = @($metricsA.workers | Where-Object { [int64]$_.source_count -eq 1 -and [int64]$_.redis_publish_count -ge 1 })
+    if ([int]$metricsA.worker_count -ne $WorkerCount -or [int]$metricsB.worker_count -ne $WorkerCount) {
+        Fail "unexpected worker_count runtimeA=$($metricsA.worker_count) runtimeB=$($metricsB.worker_count) expected=$WorkerCount"
+    }
+    $mountOwnerA = @($metricsA.mount_owners | Where-Object { $_.mount -eq $Mount })
+    $mountOwnerB = @($metricsB.mount_owners | Where-Object { $_.mount -eq $Mount })
+    if ($mountOwnerA.Count -ne 1 -or $mountOwnerB.Count -ne 1) {
+        Fail "expected one mount owner per runtime for $Mount"
+    }
+    $publisherWorker = @($metricsA.workers | Where-Object { [int64]$_.source_count -eq 1 -and [int64]$_.client_count -eq 1 -and [int64]$_.fanout_write_count -ge 1 -and [int64]$_.redis_publish_count -ge 1 })
     $subscriberWorker = @($metricsB.workers | Where-Object { [int64]$_.client_count -eq 1 -and [int64]$_.redis_subscribe_message_count -ge 1 -and [int64]$_.redis_remote_fanout_write_count -ge 1 })
     if ($publisherWorker.Count -ne 1) {
-        Fail "expected one runtime A publisher worker with source_count=1 and redis_publish_count>=1"
+        Fail "expected one runtime A publisher worker with source_count=1, client_count=1, fanout_write_count>=1 and redis_publish_count>=1"
     }
     if ($subscriberWorker.Count -ne 1) {
         Fail "expected one runtime B subscriber worker with client_count=1, redis_subscribe_message_count>=1 and redis_remote_fanout_write_count>=1"
+    }
+    if ([int]$mountOwnerA[0].worker_id -ne [int]$publisherWorker[0].worker_id) {
+        Fail "runtime A mount owner worker_id=$($mountOwnerA[0].worker_id) does not match publisher worker_id=$($publisherWorker[0].worker_id)"
+    }
+    if ([int]$mountOwnerB[0].worker_id -ne [int]$subscriberWorker[0].worker_id) {
+        Fail "runtime B mount owner worker_id=$($mountOwnerB[0].worker_id) does not match subscriber worker_id=$($subscriberWorker[0].worker_id)"
     }
     if ([int64]$publisherWorker[0].redis_publish_error_count -ne 0) {
         Fail "runtime A publisher reported redis_publish_error_count=$($publisherWorker[0].redis_publish_error_count)"
@@ -272,22 +301,26 @@ try {
         Fail "runtime B subscriber reported redis_error_count=$($subscriberWorker[0].redis_error_count)"
     }
 
-    Write-Host "[NC-093 smoke] PASS"
-    Write-Host "[NC-093 smoke] redis=$RedisHost`:$RedisPort mount=$Mount"
-    Write-Host "[NC-093 smoke] bind=$BindAddress connect=$ConnectAddress"
-    Write-Host "[NC-093 smoke] runtime_a_ntrip=$RuntimeANtripPort runtime_a_health=$RuntimeAHealthPort publisher_worker=$($publisherWorker[0].worker_id)"
-    Write-Host "[NC-093 smoke] runtime_b_ntrip=$RuntimeBNtripPort runtime_b_health=$RuntimeBHealthPort subscriber_worker=$($subscriberWorker[0].worker_id)"
-    Write-Host "[NC-093 smoke] source_response=$($sourceResponse.Trim())"
-    Write-Host "[NC-093 smoke] client_response=$($clientResponse.Trim())"
-    Write-Host "[NC-093 smoke] payload_sent=$Payload"
-    Write-Host "[NC-093 smoke] payload_received=$received"
-    Write-Host "[NC-093 smoke] publisher_redis_publish_count=$($publisherWorker[0].redis_publish_count)"
-    Write-Host "[NC-093 smoke] subscriber_redis_subscribe_message_count=$($subscriberWorker[0].redis_subscribe_message_count)"
-    Write-Host "[NC-093 smoke] subscriber_redis_remote_fanout_write_count=$($subscriberWorker[0].redis_remote_fanout_write_count)"
-    Write-Host "[NC-093 smoke] logs=$SmokeDir"
+    Write-Host "[NC-103 pubsub smoke] PASS"
+    Write-Host "[NC-103 pubsub smoke] redis=$RedisHost`:$RedisPort mount=$Mount worker_count=$WorkerCount"
+    Write-Host "[NC-103 pubsub smoke] bind=$BindAddress connect=$ConnectAddress"
+    Write-Host "[NC-103 pubsub smoke] runtime_a_ntrip=$RuntimeANtripPort runtime_a_health=$RuntimeAHealthPort publisher_worker=$($publisherWorker[0].worker_id)"
+    Write-Host "[NC-103 pubsub smoke] runtime_b_ntrip=$RuntimeBNtripPort runtime_b_health=$RuntimeBHealthPort subscriber_worker=$($subscriberWorker[0].worker_id)"
+    Write-Host "[NC-103 pubsub smoke] source_response=$($sourceResponse.Trim())"
+    Write-Host "[NC-103 pubsub smoke] local_client_response=$($localClientResponse.Trim())"
+    Write-Host "[NC-103 pubsub smoke] remote_client_response=$($remoteClientResponse.Trim())"
+    Write-Host "[NC-103 pubsub smoke] payload_sent=$Payload"
+    Write-Host "[NC-103 pubsub smoke] local_payload_received=$localReceived"
+    Write-Host "[NC-103 pubsub smoke] remote_payload_received=$remoteReceived"
+    Write-Host "[NC-103 pubsub smoke] runtime_a_connection_count=$($metricsA.connection_count) fanout_write_count=$($publisherWorker[0].fanout_write_count) redis_publish_count=$($publisherWorker[0].redis_publish_count)"
+    Write-Host "[NC-103 pubsub smoke] runtime_b_connection_count=$($metricsB.connection_count) redis_subscribe_message_count=$($subscriberWorker[0].redis_subscribe_message_count) redis_remote_fanout_write_count=$($subscriberWorker[0].redis_remote_fanout_write_count)"
+    Write-Host "[NC-103 pubsub smoke] logs=$SmokeDir"
 } finally {
-    if ($client) {
-        $client.Close()
+    if ($remoteClient) {
+        $remoteClient.Close()
+    }
+    if ($localClient) {
+        $localClient.Close()
     }
     if ($source) {
         $source.Close()

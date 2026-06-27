@@ -5,7 +5,7 @@ param(
     [int]$HealthPort = 19185,
     [int]$WorkerCount = 2,
     [string]$Mount = "QA_MOUNT_A",
-    [string]$Payload = "NC085_PAYLOAD_source_to_client_0123456789`r`n",
+    [string]$Payload = "NC103_PAYLOAD_source_to_client_0123456789`r`n",
     [int]$TimeoutSeconds = 10
 )
 
@@ -18,7 +18,7 @@ if (-not $CasterExe) {
 
 function Fail {
     param([string]$Message)
-    throw "[NC-085 smoke] $Message"
+    throw "[NC-103 ntrip smoke] $Message"
 }
 
 function Write-Ascii {
@@ -119,14 +119,14 @@ if (-not (Test-Path -LiteralPath $CasterExe)) {
     Fail "navcaster-caster executable not found: $CasterExe"
 }
 
-$SmokeDir = Join-Path $RootDir "build\nc085-smoke"
+$SmokeDir = Join-Path $RootDir "build\nc103-ntrip-smoke"
 New-Item -ItemType Directory -Force -Path $SmokeDir | Out-Null
 $stdoutPath = Join-Path $SmokeDir "navcaster-caster.stdout.log"
 $stderrPath = Join-Path $SmokeDir "navcaster-caster.stderr.log"
 Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
 
 $casterArgs = @(
-    "--runtime-id", "nc085-smoke",
+    "--runtime-id", "nc103-ntrip-smoke",
     "--listen-host", $HostAddress,
     "--listen-port", "$NtripPort",
     "--health-host", $HostAddress,
@@ -148,7 +148,7 @@ try {
     $source.SendTimeout = $TimeoutSeconds * 1000
     $source.Connect($HostAddress, $NtripPort)
     $sourceStream = $source.GetStream()
-    Write-Ascii $sourceStream "POST /$Mount HTTP/1.1`r`nHost: $HostAddress`r`nAuthorization: Basic bmMwODU6c291cmNl`r`n`r`n"
+    Write-Ascii $sourceStream "POST /$Mount HTTP/1.1`r`nHost: $HostAddress`r`nAuthorization: Basic bmMxMDM6c291cmNl`r`n`r`n"
     $sourceResponse = Read-UntilHeaderEnd $sourceStream ($TimeoutSeconds * 1000)
 
     $client = [System.Net.Sockets.TcpClient]::new()
@@ -156,7 +156,7 @@ try {
     $client.SendTimeout = $TimeoutSeconds * 1000
     $client.Connect($HostAddress, $NtripPort)
     $clientStream = $client.GetStream()
-    Write-Ascii $clientStream "GET /$Mount HTTP/1.1`r`nHost: $HostAddress`r`nUser-Agent: NC085-Smoke`r`nAuthorization: Basic bmMwODU6Y2xpZW50`r`n`r`n"
+    Write-Ascii $clientStream "GET /$Mount HTTP/1.1`r`nHost: $HostAddress`r`nUser-Agent: NC103-Smoke`r`nAuthorization: Basic bmMxMDM6Y2xpZW50`r`n`r`n"
     $clientResponse = Read-UntilHeaderEnd $clientStream ($TimeoutSeconds * 1000)
 
     $payloadBytes = [System.Text.Encoding]::ASCII.GetBytes($Payload)
@@ -171,9 +171,22 @@ try {
 
     Start-Sleep -Milliseconds 200
     $metrics = Get-Metrics -Url "http://$HostAddress`:$HealthPort/metrics"
+    if ([int]$metrics.worker_count -ne $WorkerCount) {
+        Fail "expected worker_count=$WorkerCount actual=$($metrics.worker_count)"
+    }
+    if ([int64]$metrics.connection_count -ne 2 -or [int64]$metrics.source_count -ne 1 -or [int64]$metrics.client_count -ne 1) {
+        Fail "unexpected runtime counts connection=$($metrics.connection_count) source=$($metrics.source_count) client=$($metrics.client_count)"
+    }
+    $mountOwner = @($metrics.mount_owners | Where-Object { $_.mount -eq $Mount })
+    if ($mountOwner.Count -ne 1) {
+        Fail "expected exactly one mount owner for $Mount"
+    }
     $ownerWorker = @($metrics.workers | Where-Object { $_.source_count -eq 1 -and $_.client_count -eq 1 })
     if ($ownerWorker.Count -ne 1) {
         Fail "expected exactly one owner worker with source_count=1 and client_count=1"
+    }
+    if ([int]$mountOwner[0].worker_id -ne [int]$ownerWorker[0].worker_id) {
+        Fail "mount owner worker_id=$($mountOwner[0].worker_id) does not match active worker_id=$($ownerWorker[0].worker_id)"
     }
     if ([int64]$ownerWorker[0].fanout_write_count -lt 1) {
         Fail "fanout_write_count did not increment"
@@ -185,14 +198,15 @@ try {
         Fail "unexpected output buffer limit count"
     }
 
-    Write-Host "[NC-085 smoke] PASS"
-    Write-Host "[NC-085 smoke] ntrip_port=$NtripPort health_port=$HealthPort mount=$Mount worker_id=$($ownerWorker[0].worker_id)"
-    Write-Host "[NC-085 smoke] source_response=$($sourceResponse.Trim())"
-    Write-Host "[NC-085 smoke] client_response=$($clientResponse.Trim())"
-    Write-Host "[NC-085 smoke] payload_sent=$Payload"
-    Write-Host "[NC-085 smoke] payload_received=$received"
-    Write-Host "[NC-085 smoke] fanout_write_count=$($ownerWorker[0].fanout_write_count) redis_publish_count=$($ownerWorker[0].redis_publish_count)"
-    Write-Host "[NC-085 smoke] logs=$SmokeDir"
+    Write-Host "[NC-103 ntrip smoke] PASS"
+    Write-Host "[NC-103 ntrip smoke] ntrip_port=$NtripPort health_port=$HealthPort worker_count=$WorkerCount mount=$Mount owner_worker=$($ownerWorker[0].worker_id)"
+    Write-Host "[NC-103 ntrip smoke] source_response=$($sourceResponse.Trim())"
+    Write-Host "[NC-103 ntrip smoke] client_response=$($clientResponse.Trim())"
+    Write-Host "[NC-103 ntrip smoke] payload_sent=$Payload"
+    Write-Host "[NC-103 ntrip smoke] payload_received=$received"
+    Write-Host "[NC-103 ntrip smoke] connection_count=$($metrics.connection_count) source_count=$($metrics.source_count) client_count=$($metrics.client_count)"
+    Write-Host "[NC-103 ntrip smoke] fanout_write_count=$($ownerWorker[0].fanout_write_count) redis_publish_count=$($ownerWorker[0].redis_publish_count)"
+    Write-Host "[NC-103 ntrip smoke] logs=$SmokeDir"
 } finally {
     if ($client) {
         $client.Close()

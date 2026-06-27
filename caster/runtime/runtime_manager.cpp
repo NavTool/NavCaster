@@ -98,6 +98,7 @@ RuntimeMetricsSnapshot RuntimeManager::metrics_snapshot() const
         snapshot.workers = worker_manager_->metrics_snapshot();
         snapshot.worker_count = static_cast<std::uint32_t>(snapshot.workers.size());
         snapshot.mount_count = worker_manager_->mount_owners().mount_count();
+        snapshot.mount_owners = worker_manager_->mount_owners().snapshot();
     }
     return snapshot;
 }
