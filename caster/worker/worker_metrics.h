@@ -12,6 +12,15 @@ struct WorkerMetricsSnapshot {
     std::uint64_t handoff_received = 0;
     std::uint64_t active_sessions = 0;
     std::uint64_t active_mounts = 0;
+    std::uint64_t source_count = 0;
+    std::uint64_t client_count = 0;
+    std::uint64_t bytes_in = 0;
+    std::uint64_t bytes_out = 0;
+    std::uint64_t fanout_write_count = 0;
+    std::uint64_t redis_publish_count = 0;
+    std::uint64_t redis_publish_bytes = 0;
+    std::uint64_t slow_client_disconnect_count = 0;
+    std::uint64_t output_buffer_limit_count = 0;
     std::uint64_t redis_contexts_reserved = 0;
 };
 

@@ -116,7 +116,7 @@ void CasterWorker::thread_main()
         return;
     }
 
-    core_ = std::make_unique<WorkerCore>(worker_id_);
+    core_ = std::make_unique<WorkerCore>(worker_id_, base_.get());
     mailbox_ = std::make_unique<WorkerMailbox>();
     if (!mailbox_->attach(base_.get())) {
         log_error("worker " + std::to_string(worker_id_) + " failed to attach mailbox");

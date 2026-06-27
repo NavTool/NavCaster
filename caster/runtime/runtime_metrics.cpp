@@ -38,6 +38,15 @@ std::string runtime_metrics_to_json(const RuntimeMetricsSnapshot &snapshot)
         out << ",\"handoff_received\":" << worker.handoff_received;
         out << ",\"active_sessions\":" << worker.active_sessions;
         out << ",\"active_mounts\":" << worker.active_mounts;
+        out << ",\"source_count\":" << worker.source_count;
+        out << ",\"client_count\":" << worker.client_count;
+        out << ",\"bytes_in\":" << worker.bytes_in;
+        out << ",\"bytes_out\":" << worker.bytes_out;
+        out << ",\"fanout_write_count\":" << worker.fanout_write_count;
+        out << ",\"redis_publish_count\":" << worker.redis_publish_count;
+        out << ",\"redis_publish_bytes\":" << worker.redis_publish_bytes;
+        out << ",\"slow_client_disconnect_count\":" << worker.slow_client_disconnect_count;
+        out << ",\"output_buffer_limit_count\":" << worker.output_buffer_limit_count;
         out << ",\"redis_contexts_reserved\":" << worker.redis_contexts_reserved;
         out << "}";
     }

@@ -110,12 +110,11 @@ RuntimeSelfTestResult RuntimeManager::run_self_test()
         return result;
     }
 
-    HandoffMessage message;
-    message.connect_info.type = ConnectType::Client;
-    message.connect_info.mount = "SELFTEST";
-    message.remote_addr = "127.0.0.1";
-    message.connect_info.remote_addr = message.remote_addr;
-    const bool handoff_ok = worker_manager_ && worker_manager_->dispatch_handoff(std::move(message));
+    bool handoff_ok = false;
+    if (worker_manager_) {
+        const auto owner_id = worker_manager_->mount_owners().resolve_or_assign("SELFTEST", worker_manager_->metrics_snapshot());
+        handoff_ok = owner_id != 0;
+    }
     const bool probes_ok = worker_manager_ && worker_manager_->post_probe_to_all();
 
     if (worker_manager_) {

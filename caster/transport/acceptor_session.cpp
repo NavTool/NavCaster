@@ -27,6 +27,18 @@ std::string trim_mount(std::string value)
     return value;
 }
 
+std::string trim_header_value(std::string value)
+{
+    while (!value.empty() && (value.front() == ' ' || value.front() == '\t')) {
+        value.erase(value.begin());
+    }
+    while (!value.empty() &&
+           (value.back() == '\r' || value.back() == '\n' || value.back() == ' ' || value.back() == '\t')) {
+        value.pop_back();
+    }
+    return value;
+}
+
 } // namespace
 
 ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request_head) const
@@ -37,6 +49,9 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
     std::string target;
     std::string third;
     input >> method >> target;
+    std::transform(method.begin(), method.end(), method.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
 
     if (method == "GET") {
         info.type = ConnectType::Client;
@@ -60,7 +75,9 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
             return static_cast<char>(std::tolower(ch));
         });
         if (key == "authorization") {
-            info.auth_header = line.substr(colon + 1);
+            info.auth_header = trim_header_value(line.substr(colon + 1));
+        } else if (key == "ntrip-gga") {
+            info.initial_gga = trim_header_value(line.substr(colon + 1));
         }
     }
 
