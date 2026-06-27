@@ -1,6 +1,10 @@
 package agent
 
-import "time"
+import (
+	"time"
+
+	"navcaster-admin/internal/control"
+)
 
 type RegisterRequest struct {
 	BootstrapToken string         `json:"bootstrap_token,omitempty"`
@@ -60,4 +64,28 @@ type DesiredState struct {
 	Version       int64  `json:"version"`
 	Generation    int64  `json:"generation"`
 	UpdatedAt     string `json:"updated_at"`
+}
+
+type RuntimeEventsRequest struct {
+	AgentID string         `json:"agent_id"`
+	HostID  string         `json:"host_id"`
+	Events  []RuntimeEvent `json:"events"`
+}
+
+type RuntimeEvent = control.RuntimeEvent
+
+type RuntimeEventsResponse struct {
+	Accepted bool `json:"accepted"`
+	Count    int  `json:"count"`
+}
+
+type RuntimeMetricsRequest struct {
+	AgentID string                   `json:"agent_id"`
+	HostID  string                   `json:"host_id"`
+	Actual  []control.ActualSnapshot `json:"actual"`
+}
+
+type RuntimeMetricsResponse struct {
+	Accepted bool `json:"accepted"`
+	Count    int  `json:"count"`
 }

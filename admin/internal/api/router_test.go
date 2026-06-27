@@ -132,6 +132,55 @@ func TestRuntimeActionIntentDoesNotExecuteProcess(t *testing.T) {
 	}
 }
 
+func TestAgentRuntimeEventsAndMetrics(t *testing.T) {
+	server := newTestServer()
+	handler := server.Handler()
+
+	registerRec := doJSON(handler, http.MethodPost, "/api/v1/agents/register", `{"hostname":"caster-node-02","machine_id":"machine-2","os":"windows","arch":"amd64"}`)
+	if registerRec.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	var registerEnvelope struct {
+		Data struct {
+			AgentID string `json:"agent_id"`
+			HostID  string `json:"host_id"`
+		} `json:"data"`
+	}
+	decodeBody(t, registerRec, &registerEnvelope)
+
+	metricsBody := `{"agent_id":"` + registerEnvelope.Data.AgentID + `","host_id":"` + registerEnvelope.Data.HostID + `","actual":[{"runtime_id":"rt-smoke","host_id":"` + registerEnvelope.Data.HostID + `","agent_id":"` + registerEnvelope.Data.AgentID + `","actual_state":"running","process_id":4242,"config_version":17,"config_path":"runtime.yml","config_checksum":"sha256:test","listen_port":4202,"worker_count":2,"connections":3,"mounts":1,"sources":1,"clients":2,"send_bps":128,"recv_bps":64,"loop_delay_ms_p95":7,"redis_connected":false,"observed_desired_version":9,"started_at":"2026-06-27T00:00:00Z","updated_at":"2026-06-27T00:00:01Z","last_exit_code":0}]}`
+	metricsRec := doJSON(handler, http.MethodPost, "/api/v1/agents/"+registerEnvelope.Data.AgentID+"/runtime-metrics", metricsBody)
+	if metricsRec.Code != http.StatusAccepted {
+		t.Fatalf("metrics status = %d body = %s", metricsRec.Code, metricsRec.Body.String())
+	}
+
+	eventsBody := `{"agent_id":"` + registerEnvelope.Data.AgentID + `","host_id":"` + registerEnvelope.Data.HostID + `","events":[{"runtime_id":"rt-smoke","type":"reconcile_start","severity":"info","desired_version":9,"process_id":4242,"message":"started","occurred_at":"2026-06-27T00:00:02Z"}]}`
+	eventsRec := doJSON(handler, http.MethodPost, "/api/v1/agents/"+registerEnvelope.Data.AgentID+"/runtime-events", eventsBody)
+	if eventsRec.Code != http.StatusAccepted {
+		t.Fatalf("events status = %d body = %s", eventsRec.Code, eventsRec.Body.String())
+	}
+
+	runtimeRec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/control/runtimes/rt-smoke", nil)
+	handler.ServeHTTP(runtimeRec, req)
+	if runtimeRec.Code != http.StatusOK {
+		t.Fatalf("runtime status = %d body = %s", runtimeRec.Code, runtimeRec.Body.String())
+	}
+	var runtimeEnvelope struct {
+		Data struct {
+			RuntimeID string `json:"runtime_id"`
+			Actual    struct {
+				ActualState string `json:"actual_state"`
+				ProcessID   int    `json:"process_id"`
+			} `json:"actual"`
+		} `json:"data"`
+	}
+	decodeBody(t, runtimeRec, &runtimeEnvelope)
+	if runtimeEnvelope.Data.RuntimeID != "rt-smoke" || runtimeEnvelope.Data.Actual.ActualState != "running" || runtimeEnvelope.Data.Actual.ProcessID != 4242 {
+		t.Fatalf("unexpected runtime actual: %#v", runtimeEnvelope.Data)
+	}
+}
+
 func TestProjectionKeyEndpoint(t *testing.T) {
 	server := newTestServer()
 	rec := httptest.NewRecorder()

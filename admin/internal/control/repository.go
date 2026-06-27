@@ -20,12 +20,15 @@ type Repository interface {
 	RecordActionIntent(runtimeID string, kind ActionKind, payload map[string]any) (ActionIntent, Runtime, error)
 	ListDesiredStatesForHost(hostID string, sinceVersion int64) ([]DesiredRuntime, error)
 	ApplyHeartbeat(hostID string, agentID string, at time.Time) error
+	ApplyActualSnapshots(agentID string, hostID string, snapshots []ActualSnapshot) error
+	RecordRuntimeEvents(agentID string, hostID string, events []RuntimeEvent) error
 }
 
 type MemoryRepository struct {
 	mu        sync.Mutex
 	hosts     map[string]Host
 	runtimes  map[string]Runtime
+	events    []RuntimeEvent
 	nextID    int64
 	version   int64
 	actionSeq int64
@@ -301,6 +304,64 @@ func (r *MemoryRepository) ApplyHeartbeat(hostID string, agentID string, at time
 	host.LastHeartbeat = &at
 	host.UpdatedAt = at
 	r.hosts[hostID] = host
+	return nil
+}
+
+func (r *MemoryRepository) ApplyActualSnapshots(agentID string, hostID string, snapshots []ActualSnapshot) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now().UTC()
+	if _, ok := r.hosts[hostID]; !ok {
+		r.hosts[hostID] = Host{ID: hostID, DisplayName: hostID, AgentID: agentID, Status: "online", CreatedAt: now, UpdatedAt: now}
+	}
+	for _, snapshot := range snapshots {
+		if snapshot.RuntimeID == "" {
+			continue
+		}
+		if snapshot.HostID == "" {
+			snapshot.HostID = hostID
+		}
+		if snapshot.AgentID == "" {
+			snapshot.AgentID = agentID
+		}
+		if snapshot.UpdatedAt.IsZero() {
+			snapshot.UpdatedAt = now
+		}
+		runtime := r.runtimes[snapshot.RuntimeID]
+		if runtime.RuntimeID == "" {
+			runtime = Runtime{
+				RuntimeID: snapshot.RuntimeID,
+				HostID:    snapshot.HostID,
+				Name:      snapshot.RuntimeID,
+				CreatedAt: now,
+			}
+		}
+		runtime.HostID = snapshot.HostID
+		runtime.Actual = &snapshot
+		runtime.UpdatedAt = now
+		r.runtimes[snapshot.RuntimeID] = runtime
+	}
+	return nil
+}
+
+func (r *MemoryRepository) RecordRuntimeEvents(agentID string, hostID string, events []RuntimeEvent) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, event := range events {
+		if event.RuntimeID == "" || event.Type == "" {
+			continue
+		}
+		if event.AgentID == "" {
+			event.AgentID = agentID
+		}
+		if event.HostID == "" {
+			event.HostID = hostID
+		}
+		if event.OccurredAt.IsZero() {
+			event.OccurredAt = time.Now().UTC()
+		}
+		r.events = append(r.events, event)
+	}
 	return nil
 }
 

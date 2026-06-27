@@ -73,6 +73,8 @@ type ActualSnapshot struct {
 	ProcessID              int       `json:"process_id,omitempty"`
 	StartToken             string    `json:"start_token,omitempty"`
 	ConfigVersion          int64     `json:"config_version,omitempty"`
+	ConfigPath             string    `json:"config_path,omitempty"`
+	ConfigChecksum         string    `json:"config_checksum,omitempty"`
 	ListenPort             int       `json:"listen_port,omitempty"`
 	WorkerCount            int       `json:"worker_count,omitempty"`
 	Connections            int       `json:"connections,omitempty"`
@@ -85,7 +87,23 @@ type ActualSnapshot struct {
 	RedisConnected         bool      `json:"redis_connected,omitempty"`
 	LastError              string    `json:"last_error,omitempty"`
 	ObservedDesiredVersion int64     `json:"observed_desired_version,omitempty"`
+	StartedAt              time.Time `json:"started_at,omitempty"`
 	UpdatedAt              time.Time `json:"updated_at"`
+	LastExitCode           *int      `json:"last_exit_code,omitempty"`
+}
+
+type RuntimeEvent struct {
+	EventID        string            `json:"event_id,omitempty"`
+	RuntimeID      string            `json:"runtime_id"`
+	HostID         string            `json:"host_id,omitempty"`
+	AgentID        string            `json:"agent_id,omitempty"`
+	Type           string            `json:"type"`
+	Severity       string            `json:"severity,omitempty"`
+	DesiredVersion int64             `json:"desired_version,omitempty"`
+	ProcessID      int               `json:"process_id,omitempty"`
+	Message        string            `json:"message,omitempty"`
+	OccurredAt     time.Time         `json:"occurred_at"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
 }
 
 type ActionIntent struct {

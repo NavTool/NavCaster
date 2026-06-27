@@ -86,6 +86,32 @@ func (s Service) Heartbeat(req HeartbeatRequest) (HeartbeatResponse, error) {
 	}, nil
 }
 
+func (s Service) RuntimeEvents(agentID string, req RuntimeEventsRequest) (RuntimeEventsResponse, error) {
+	if agentID == "" || req.AgentID == "" || agentID != req.AgentID {
+		return RuntimeEventsResponse{}, errorsx.BadRequest("agent_id mismatch")
+	}
+	if req.HostID == "" {
+		return RuntimeEventsResponse{}, errorsx.BadRequest("host_id is required")
+	}
+	if err := s.repo.RecordRuntimeEvents(req.AgentID, req.HostID, req.Events); err != nil {
+		return RuntimeEventsResponse{}, err
+	}
+	return RuntimeEventsResponse{Accepted: true, Count: len(req.Events)}, nil
+}
+
+func (s Service) RuntimeMetrics(agentID string, req RuntimeMetricsRequest) (RuntimeMetricsResponse, error) {
+	if agentID == "" || req.AgentID == "" || agentID != req.AgentID {
+		return RuntimeMetricsResponse{}, errorsx.BadRequest("agent_id mismatch")
+	}
+	if req.HostID == "" {
+		return RuntimeMetricsResponse{}, errorsx.BadRequest("host_id is required")
+	}
+	if err := s.repo.ApplyActualSnapshots(req.AgentID, req.HostID, req.Actual); err != nil {
+		return RuntimeMetricsResponse{}, err
+	}
+	return RuntimeMetricsResponse{Accepted: true, Count: len(req.Actual)}, nil
+}
+
 func (s Service) DesiredState(agentID string, sinceVersion int64) (DesiredStateResponse, error) {
 	if agentID == "" {
 		return DesiredStateResponse{}, errorsx.BadRequest("agent_id is required")

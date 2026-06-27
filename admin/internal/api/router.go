@@ -34,6 +34,8 @@ func (s Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/agents/register", s.registerAgent)
 	mux.HandleFunc("POST /api/v1/agents/heartbeat", s.heartbeatAgent)
 	mux.HandleFunc("GET /api/v1/agents/{agent_id}/desired-state", s.agentDesiredState)
+	mux.HandleFunc("POST /api/v1/agents/{agent_id}/runtime-events", s.agentRuntimeEvents)
+	mux.HandleFunc("POST /api/v1/agents/{agent_id}/runtime-metrics", s.agentRuntimeMetrics)
 	mux.HandleFunc("GET /api/v1/control/hosts", s.listHosts)
 	mux.HandleFunc("GET /api/v1/control/hosts/{host_id}", s.getHost)
 	mux.HandleFunc("GET /api/v1/control/runtimes", s.listRuntimes)
@@ -100,6 +102,34 @@ func (s Server) agentDesiredState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeData(w, r, http.StatusOK, result)
+}
+
+func (s Server) agentRuntimeEvents(w http.ResponseWriter, r *http.Request) {
+	var req agent.RuntimeEventsRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	result, err := s.agent.RuntimeEvents(r.PathValue("agent_id"), req)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeData(w, r, http.StatusAccepted, result)
+}
+
+func (s Server) agentRuntimeMetrics(w http.ResponseWriter, r *http.Request) {
+	var req agent.RuntimeMetricsRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	result, err := s.agent.RuntimeMetrics(r.PathValue("agent_id"), req)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeData(w, r, http.StatusAccepted, result)
 }
 
 func (s Server) listHosts(w http.ResponseWriter, r *http.Request) {
