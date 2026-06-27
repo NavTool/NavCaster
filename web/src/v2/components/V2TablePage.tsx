@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, Input, Pagination, Select, Space, Table } from 'antd';
+import { Alert, Button, Empty, Input, Pagination, Select, Space, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { V2ControlStatus } from '../api/contracts';
 
@@ -21,6 +21,7 @@ export function V2TablePage<T extends object>({
   total,
   rowKey,
   loading,
+  error,
   extraFilters,
 }: {
   title: string;
@@ -33,6 +34,7 @@ export function V2TablePage<T extends object>({
   total: number;
   rowKey: string | ((record: T) => string);
   loading?: boolean;
+  error?: string | null;
   extraFilters?: ReactNode;
 }) {
   return (
@@ -72,6 +74,16 @@ export function V2TablePage<T extends object>({
         </Button>
       </section>
 
+      {error ? (
+        <Alert
+          className="v2-table-alert"
+          type="error"
+          showIcon
+          message="AdminService control API unavailable"
+          description={error}
+        />
+      ) : null}
+
       <section className="v2-table-frame">
         <Table<T>
           columns={columns}
@@ -81,6 +93,7 @@ export function V2TablePage<T extends object>({
           rowKey={rowKey}
           size="middle"
           scroll={{ x: 'max-content' }}
+          locale={{ emptyText: <Empty description={error ? 'Control API did not return usable rows' : 'No control-plane rows matched the current filters'} /> }}
         />
       </section>
 

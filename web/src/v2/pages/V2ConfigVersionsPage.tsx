@@ -85,6 +85,7 @@ export default function V2ConfigVersionsPage() {
         data={page.items}
         total={page.total}
         loading={page.loading}
+        error={page.error}
         rowKey="id"
       />
       <V2ConfirmDialog

@@ -1,5 +1,5 @@
 export type V2ControlStatus = 'pending' | 'running' | 'failed' | 'draining' | 'offline' | 'stopped' | 'unknown';
-export type RuntimeKind = 'caster-core' | 'http-admin' | 'relay' | 'collector';
+export type RuntimeKind = 'caster-core' | 'http-admin' | 'relay' | 'collector' | 'unknown';
 export type DesiredRuntimeState = 'running' | 'draining' | 'stopped';
 export type ConvergenceStatus = 'converged' | 'pending' | 'failed';
 
@@ -67,6 +67,11 @@ export interface RuntimeSummary {
   process_id?: number;
   redis_connected?: boolean;
   last_error?: string;
+  stale: boolean;
+  stale_detail: string;
+  mounts: number;
+  sources: number;
+  clients: number;
   desired_updated_at: string;
   actual_updated_at: string;
   last_metric_at: string;
@@ -86,6 +91,9 @@ export interface RuntimeEvent {
   id: string;
   level: 'info' | 'warning' | 'error';
   message: string;
+  type?: string;
+  desired_version?: number;
+  process_id?: number;
   created_at: string;
 }
 
@@ -132,9 +140,8 @@ export interface RuntimeDesiredStateCommand {
 
 export interface RuntimeActionIntent {
   runtime_id: string;
-  action: 'restart' | 'roll-config' | 'drain-workers';
+  action: 'start' | 'stop' | 'restart' | 'drain' | 'undrain';
   reason: string;
-  target_config_version_id?: string;
 }
 
 export interface ConfigPublishIntent {
