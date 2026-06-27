@@ -28,6 +28,7 @@ struct WorkerMetricsSnapshot {
     std::uint64_t redis_subscribed_mount_count = 0;
     std::uint64_t slow_client_disconnect_count = 0;
     std::uint64_t output_buffer_limit_count = 0;
+    bool redis_connected = false;
     std::uint64_t redis_contexts_reserved = 0;
 };
 

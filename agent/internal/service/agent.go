@@ -173,24 +173,32 @@ func (a *Agent) tick(ctx context.Context, localState *state.AgentState, identity
 	for _, result := range results {
 		if result.Actual.RuntimeID != "" {
 			result.Actual.AgentID = localState.AgentID
+			if result.Actual.HostID == "" {
+				result.Actual.HostID = localState.HostID
+			}
 			localState.UpdateActual(result.Actual)
 		}
-		if result.Action != agentruntime.ReconcileNoop && result.Action != agentruntime.ReconcileSkip {
+		if result.Applied || (result.Action != agentruntime.ReconcileNoop && result.Action != agentruntime.ReconcileSkip) {
 			event := agentruntime.Event{
 				RuntimeID:      result.RuntimeID,
 				HostID:         localState.HostID,
 				AgentID:        localState.AgentID,
-				Type:           "reconcile_" + string(result.Action),
+				Type:           reconcileEventType(result),
 				Severity:       "info",
-				DesiredVersion: localState.LastDesiredVersion,
+				DesiredVersion: firstPositiveInt64(result.DesiredVersion, localState.LastDesiredVersion),
 				ProcessID:      result.Actual.ProcessID,
 				OccurredAt:     now,
 			}
 			if result.Error != "" {
 				event.Severity = "error"
 				event.Message = result.Error
+			} else if result.Applied {
+				event.Message = "desired state applied"
 			}
 			localState.AppendEvent(event, 100)
+		}
+		if result.Applied {
+			localState.MarkDesiredApplied(result.RuntimeID, result.DesiredVersion)
 		}
 	}
 	a.refreshRuntimeObservations(ctx, localState)
@@ -204,6 +212,22 @@ func (a *Agent) tick(ctx context.Context, localState *state.AgentState, identity
 		a.Logger.Printf("runtime event upload failed: %v", err)
 	}
 	return nil
+}
+
+func reconcileEventType(result agentruntime.ReconcileResult) string {
+	if result.Applied {
+		return "desired_applied"
+	}
+	return "reconcile_" + string(result.Action)
+}
+
+func firstPositiveInt64(values ...int64) int64 {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func (a *Agent) refreshRuntimeObservations(ctx context.Context, localState *state.AgentState) {

@@ -216,11 +216,14 @@ func (s *AgentState) ApplyDesired(doc agentruntime.DesiredDocument) {
 	if s.Runtimes == nil {
 		s.Runtimes = make(map[string]RuntimeCache)
 	}
-	if doc.Version < s.LastDesiredVersion {
+	if doc.Version <= 0 || doc.Version < s.LastDesiredVersion {
 		return
 	}
 	s.LastDesiredVersion = doc.Version
 	for _, desired := range doc.Runtimes {
+		if desired.RuntimeID == "" {
+			continue
+		}
 		cache := s.Runtimes[desired.RuntimeID]
 		cache.Desired = desired
 		s.Runtimes[desired.RuntimeID] = cache
@@ -230,6 +233,23 @@ func (s *AgentState) ApplyDesired(doc agentruntime.DesiredDocument) {
 		Runtimes:  s.DesiredStates(),
 		UpdatedAt: doc.UpdatedAt,
 	}
+}
+
+func (s *AgentState) MarkDesiredApplied(runtimeID string, desiredVersion int64) {
+	if runtimeID == "" || desiredVersion <= 0 || s.Runtimes == nil {
+		return
+	}
+	cache, ok := s.Runtimes[runtimeID]
+	if !ok {
+		return
+	}
+	if cache.Actual.RuntimeID != "" && cache.Actual.ObservedDesiredVersion < desiredVersion {
+		cache.Actual.ObservedDesiredVersion = desiredVersion
+	}
+	if cache.Desired.RuntimeID == runtimeID && cache.Desired.DesiredState == agentruntime.DesiredStateDeleted {
+		cache.Desired = agentruntime.DesiredState{}
+	}
+	s.Runtimes[runtimeID] = cache
 }
 
 func (s *AgentState) UpdateActual(actual agentruntime.ActualState) {

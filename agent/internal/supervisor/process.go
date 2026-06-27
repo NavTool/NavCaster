@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -12,7 +13,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,9 +38,11 @@ type processHandle struct {
 	done           chan error
 	desired        agentruntime.DesiredState
 	actual         agentruntime.ActualState
+	stderr         *boundedBuffer
 	exited         bool
 	owned          bool
 	stopRequested  bool
+	healthFailed   bool
 	lastProbeBytes probeBytes
 }
 
@@ -128,14 +133,22 @@ func (s *ProcessSupervisor) Start(ctx context.Context, desired agentruntime.Desi
 
 	prepared, command, args, err := s.prepareCommand(desired)
 	if err != nil {
-		return agentruntime.ActualState{
-			RuntimeID:              desired.RuntimeID,
-			HostID:                 desired.HostID,
-			ActualState:            agentruntime.ActualStateFailed,
-			LastError:              err.Error(),
-			ObservedDesiredVersion: desired.Version,
-			UpdatedAt:              time.Now().UTC(),
-		}, err
+		actual := failedActual(desired, err)
+		s.appendEventForDesired(desired, "process_start_failed", "error", 0, err.Error(), nil)
+		return actual, err
+	}
+	if err := s.validateStart(prepared); err != nil {
+		actual := failedActual(prepared, err)
+		s.appendEventForDesired(prepared, "process_start_failed", "error", 0, err.Error(), nil)
+		return actual, err
+	}
+	if prepared.WorkingDir != "" {
+		if err := os.MkdirAll(prepared.WorkingDir, 0o755); err != nil {
+			err = fmt.Errorf("create runtime working directory %q: %w", prepared.WorkingDir, err)
+			actual := failedActual(prepared, err)
+			s.appendEventForDesired(prepared, "process_start_failed", "error", 0, err.Error(), nil)
+			return actual, err
+		}
 	}
 
 	s.mu.Lock()
@@ -153,6 +166,8 @@ func (s *ProcessSupervisor) Start(ctx context.Context, desired agentruntime.Desi
 	cmd := exec.Command(command, args...)
 	cmd.Dir = prepared.WorkingDir
 	cmd.Env = s.buildEnv(prepared, startToken)
+	stderr := newBoundedBuffer(16 * 1024)
+	cmd.Stderr = stderr
 	cancel := func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Signal(os.Interrupt)
@@ -161,14 +176,22 @@ func (s *ProcessSupervisor) Start(ctx context.Context, desired agentruntime.Desi
 
 	if err := cmd.Start(); err != nil {
 		cancel()
-		return agentruntime.ActualState{
+		err = fmt.Errorf("start runtime %s: %w", prepared.RuntimeID, err)
+		actual := agentruntime.ActualState{
 			RuntimeID:              prepared.RuntimeID,
 			HostID:                 prepared.HostID,
 			ActualState:            agentruntime.ActualStateFailed,
+			ConfigVersion:          prepared.ConfigVersion,
+			ConfigPath:             prepared.ConfigPath,
+			ConfigChecksum:         prepared.ConfigChecksum,
+			ListenPort:             prepared.ListenPort,
+			WorkerCount:            prepared.WorkerCount,
 			LastError:              err.Error(),
 			ObservedDesiredVersion: prepared.Version,
 			UpdatedAt:              time.Now().UTC(),
-		}, fmt.Errorf("start runtime %s: %w", prepared.RuntimeID, err)
+		}
+		s.appendEventForDesired(prepared, "process_start_failed", "error", 0, err.Error(), nil)
+		return actual, err
 	}
 
 	now := time.Now().UTC()
@@ -197,6 +220,7 @@ func (s *ProcessSupervisor) Start(ctx context.Context, desired agentruntime.Desi
 		done:    make(chan error, 1),
 		desired: prepared,
 		actual:  actual,
+		stderr:  stderr,
 		owned:   true,
 	}
 
@@ -221,6 +245,11 @@ func (s *ProcessSupervisor) Stop(ctx context.Context, runtimeID string, timeout 
 	}
 	if handle.exited {
 		actual := handle.actual
+		actual.ActualState = agentruntime.ActualStateStopped
+		actual.ProcessID = 0
+		actual.LastError = ""
+		actual.UpdatedAt = time.Now().UTC()
+		handle.actual = actual
 		delete(s.processes, runtimeID)
 		s.mu.Unlock()
 		return actual, nil
@@ -247,12 +276,13 @@ func (s *ProcessSupervisor) Stop(ctx context.Context, runtimeID string, timeout 
 	}
 
 	now := time.Now().UTC()
+	s.mu.Lock()
 	actual := handle.actual
 	actual.ActualState = agentruntime.ActualStateStopped
 	actual.ProcessID = 0
 	actual.UpdatedAt = now
-
-	s.mu.Lock()
+	actual.LastError = ""
+	handle.actual = actual
 	delete(s.processes, runtimeID)
 	s.events = append(s.events, newEvent(handle.desired, "process_stopped", "info", 0, "runtime process stopped", nil))
 	s.mu.Unlock()
@@ -274,8 +304,13 @@ func (s *ProcessSupervisor) waitForExit(runtimeID string, handle *processHandle)
 	actual := handle.actual
 	actual.ProcessID = 0
 	actual.UpdatedAt = now
+	stderrText := ""
+	if handle.stderr != nil {
+		stderrText = handle.stderr.String()
+	}
 	if handle.stopRequested {
 		actual.ActualState = agentruntime.ActualStateStopped
+		actual.LastError = ""
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				code := exitErr.ExitCode()
@@ -287,13 +322,19 @@ func (s *ProcessSupervisor) waitForExit(runtimeID string, handle *processHandle)
 		}
 	} else if err != nil {
 		actual.ActualState = agentruntime.ActualStateFailed
-		actual.LastError = err.Error()
+		actual.LastError = joinFailureReason(err.Error(), stderrText)
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			code := exitErr.ExitCode()
 			actual.LastExitCode = &code
 		}
 	} else {
-		actual.ActualState = agentruntime.ActualStateStopped
+		if handle.desired.NormalizedRestartPolicy() == agentruntime.RestartPolicyAlways && handle.desired.WantsRunning() {
+			actual.ActualState = agentruntime.ActualStateFailed
+			actual.LastError = "runtime exited while restart_policy=always"
+		} else {
+			actual.ActualState = agentruntime.ActualStateStopped
+			actual.LastError = ""
+		}
 		code := 0
 		actual.LastExitCode = &code
 	}
@@ -302,6 +343,7 @@ func (s *ProcessSupervisor) waitForExit(runtimeID string, handle *processHandle)
 	if current, ok := s.processes[runtimeID]; ok && current == handle {
 		handle.actual = actual
 		handle.exited = true
+		handle.healthFailed = false
 		severity := "info"
 		message := "runtime process exited"
 		if actual.ActualState == agentruntime.ActualStateFailed {
@@ -309,9 +351,16 @@ func (s *ProcessSupervisor) waitForExit(runtimeID string, handle *processHandle)
 			message = actual.LastError
 		}
 		s.events = append(s.events, newEvent(handle.desired, "process_exited", severity, 0, message, map[string]string{
-			"actual_state": string(actual.ActualState),
-			"exit_code":    exitCodeString(actual.LastExitCode),
+			"actual_state":        string(actual.ActualState),
+			"exit_code":           exitCodeString(actual.LastExitCode),
+			"restart_scheduled":   restartScheduledString(handle.desired, actual),
+			"stderr_tail_present": boolString(stderrText != ""),
 		}))
+		if shouldRestartAfterExit(handle.desired, actual) {
+			s.events = append(s.events, newEvent(handle.desired, "process_restart_scheduled", "warn", 0, "runtime will be restarted by reconcile", map[string]string{
+				"restart_policy": string(handle.desired.NormalizedRestartPolicy()),
+			}))
+		}
 	}
 	s.mu.Unlock()
 	handle.done <- err
@@ -354,6 +403,10 @@ func (s *ProcessSupervisor) Refresh(ctx context.Context, timeout time.Duration) 
 		}
 		s.mu.Lock()
 		if current, ok := s.processes[runtimeID]; ok && current == handle && !current.exited {
+			if current.healthFailed && actual.ActualState == agentruntime.ActualStateRunning {
+				s.events = append(s.events, newEvent(current.desired, "runtime_health_recovered", "info", actual.ProcessID, "runtime health recovered", nil))
+			}
+			current.healthFailed = actual.ActualState == agentruntime.ActualStateFailed
 			current.actual = actual
 			current.lastProbeBytes = counters
 		}
@@ -384,11 +437,17 @@ func (s *ProcessSupervisor) probe(ctx context.Context, handle *processHandle, ti
 	if err != nil {
 		return agentruntime.ActualState{}, probeBytes{}, err
 	}
+	if health.RuntimeID != "" && handle.desired.RuntimeID != "" && health.RuntimeID != handle.desired.RuntimeID {
+		return agentruntime.ActualState{}, probeBytes{}, fmt.Errorf("runtime health id mismatch: got %s want %s", health.RuntimeID, handle.desired.RuntimeID)
+	}
 	probeCtx, cancel = context.WithTimeout(ctx, timeout)
 	defer cancel()
 	metrics, err := s.getMetrics(probeCtx, handle.desired)
 	if err != nil {
 		return agentruntime.ActualState{}, probeBytes{}, err
+	}
+	if metrics.RuntimeID != "" && handle.desired.RuntimeID != "" && metrics.RuntimeID != handle.desired.RuntimeID {
+		return agentruntime.ActualState{}, probeBytes{}, fmt.Errorf("runtime metrics id mismatch: got %s want %s", metrics.RuntimeID, handle.desired.RuntimeID)
 	}
 
 	now := time.Now().UTC()
@@ -406,7 +465,7 @@ func (s *ProcessSupervisor) probe(ctx context.Context, handle *processHandle, ti
 	actual.Clients = metrics.SumClients()
 	actual.Connections = metrics.SumSessions()
 	actual.RecvBPS, actual.SendBPS = computeBPS(handle.lastProbeBytes, metrics.SumBytesIn(), metrics.SumBytesOut(), now)
-	actual.RedisConnected = metrics.HasRedisContexts()
+	actual.RedisConnected = metrics.RedisConnected()
 	actual.UpdatedAt = now
 	return actual, probeBytes{recv: metrics.SumBytesIn(), send: metrics.SumBytesOut(), updatedAt: now}, nil
 }
@@ -473,6 +532,7 @@ func (s *ProcessSupervisor) markProbeFailed(runtimeID string, handle *processHan
 	} else {
 		emitEvent := actual.ActualState != agentruntime.ActualStateFailed
 		actual.ActualState = agentruntime.ActualStateFailed
+		current.healthFailed = true
 		if emitEvent {
 			s.events = append(s.events, newEvent(current.desired, "runtime_health_failed", "error", actual.ProcessID, err.Error(), nil))
 		}
@@ -502,6 +562,7 @@ type workerMetrics struct {
 	ClientCount           int   `json:"client_count"`
 	BytesIn               int64 `json:"bytes_in"`
 	BytesOut              int64 `json:"bytes_out"`
+	RedisConnected        bool  `json:"redis_connected"`
 	RedisContextsReserved int64 `json:"redis_contexts_reserved"`
 }
 
@@ -545,9 +606,9 @@ func (m metricsResponse) SumBytesOut() int64 {
 	return total
 }
 
-func (m metricsResponse) HasRedisContexts() bool {
+func (m metricsResponse) RedisConnected() bool {
 	for _, worker := range m.Workers {
-		if worker.RedisContextsReserved > 0 {
+		if worker.RedisConnected {
 			return true
 		}
 	}
@@ -590,6 +651,40 @@ func (s *ProcessSupervisor) prepareCommand(desired agentruntime.DesiredState) (a
 	}
 }
 
+func (s *ProcessSupervisor) validateStart(desired agentruntime.DesiredState) error {
+	if desired.RuntimeKind != agentruntime.RuntimeKindCaster {
+		return nil
+	}
+	if desired.ListenPort <= 0 || desired.ListenPort > 65535 {
+		return fmt.Errorf("listen port must be within 1..65535")
+	}
+	if desired.HealthPort <= 0 || desired.HealthPort > 65535 {
+		return fmt.Errorf("health port must be within 1..65535")
+	}
+	if sameEndpoint(desired.ListenHost, desired.ListenPort, desired.HealthHost, desired.HealthPort) {
+		return fmt.Errorf("listen and health ports conflict: %s:%d", desired.ListenHost, desired.ListenPort)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for runtimeID, handle := range s.processes {
+		if runtimeID == desired.RuntimeID || handle.exited {
+			continue
+		}
+		other := handle.desired
+		if sameEndpoint(other.ListenHost, other.ListenPort, desired.ListenHost, desired.ListenPort) {
+			return fmt.Errorf("listen port %s:%d conflicts with runtime %s", desired.ListenHost, desired.ListenPort, runtimeID)
+		}
+		if sameEndpoint(other.HealthHost, other.HealthPort, desired.HealthHost, desired.HealthPort) {
+			return fmt.Errorf("health port %s:%d conflicts with runtime %s", desired.HealthHost, desired.HealthPort, runtimeID)
+		}
+		if sameEndpoint(other.ListenHost, other.ListenPort, desired.HealthHost, desired.HealthPort) ||
+			sameEndpoint(other.HealthHost, other.HealthPort, desired.ListenHost, desired.ListenPort) {
+			return fmt.Errorf("runtime %s endpoint conflicts with runtime %s", desired.RuntimeID, runtimeID)
+		}
+	}
+	return nil
+}
+
 func (s *ProcessSupervisor) prepareDesiredDefaults(desired agentruntime.DesiredState) agentruntime.DesiredState {
 	prepared := desired
 	if prepared.RuntimeKind == "" {
@@ -599,12 +694,15 @@ func (s *ProcessSupervisor) prepareDesiredDefaults(desired agentruntime.DesiredS
 			prepared.RuntimeKind = agentruntime.RuntimeKindCaster
 		}
 	}
-	if prepared.WorkingDir == "" {
-		prepared.WorkingDir = s.opts.CasterWorkingDir
-	}
 	if prepared.RuntimeKind == agentruntime.RuntimeKindCaster {
+		if prepared.WorkingDir == "" {
+			prepared.WorkingDir = s.defaultWorkingDir(prepared)
+		}
 		if prepared.ListenHost == "" {
 			prepared.ListenHost = s.opts.CasterListenHost
+		}
+		if prepared.ListenPort <= 0 {
+			prepared.ListenPort = s.defaultListenPort(prepared)
 		}
 		if prepared.HealthHost == "" {
 			prepared.HealthHost = s.opts.CasterHealthHost
@@ -616,6 +714,25 @@ func (s *ProcessSupervisor) prepareDesiredDefaults(desired agentruntime.DesiredS
 		prepared.HealthHost = s.opts.CasterHealthHost
 	}
 	return prepared
+}
+
+func (s *ProcessSupervisor) defaultWorkingDir(desired agentruntime.DesiredState) string {
+	if desired.ConfigPath != "" {
+		return filepath.Dir(desired.ConfigPath)
+	}
+	if s.opts.CasterWorkingDir != "" {
+		return filepath.Join(s.opts.CasterWorkingDir, "runtimes", safeRuntimeID(desired.RuntimeID))
+	}
+	return ""
+}
+
+func (s *ProcessSupervisor) defaultListenPort(desired agentruntime.DesiredState) int {
+	base := 42000
+	candidate := base + runtimeHashOffset(desired.RuntimeID)
+	if candidate > 65535 {
+		return 65535
+	}
+	return candidate
 }
 
 func (s *ProcessSupervisor) defaultHealthPort(desired agentruntime.DesiredState) int {
@@ -689,6 +806,88 @@ func (s *ProcessSupervisor) appendRuntimeEvent(runtimeID string, eventType strin
 	s.events = append(s.events, newEvent(handle.desired, eventType, severity, handle.actual.ProcessID, message, metadata))
 }
 
+func (s *ProcessSupervisor) appendEventForDesired(desired agentruntime.DesiredState, eventType string, severity string, processID int, message string, metadata map[string]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, newEvent(desired, eventType, severity, processID, message, metadata))
+}
+
+func failedActual(desired agentruntime.DesiredState, err error) agentruntime.ActualState {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	return agentruntime.ActualState{
+		RuntimeID:              desired.RuntimeID,
+		HostID:                 desired.HostID,
+		ActualState:            agentruntime.ActualStateFailed,
+		ConfigVersion:          desired.ConfigVersion,
+		ConfigPath:             desired.ConfigPath,
+		ConfigChecksum:         desired.ConfigChecksum,
+		ListenPort:             desired.ListenPort,
+		WorkerCount:            desired.WorkerCount,
+		LastError:              message,
+		ObservedDesiredVersion: desired.Version,
+		UpdatedAt:              time.Now().UTC(),
+	}
+}
+
+func shouldRestartAfterExit(desired agentruntime.DesiredState, actual agentruntime.ActualState) bool {
+	if !desired.WantsRunning() {
+		return false
+	}
+	if actual.ActualState == agentruntime.ActualStateStopped {
+		return false
+	}
+	switch desired.NormalizedRestartPolicy() {
+	case agentruntime.RestartPolicyAlways:
+		return true
+	case agentruntime.RestartPolicyOnFailure:
+		return actual.ActualState == agentruntime.ActualStateFailed
+	default:
+		return false
+	}
+}
+
+func restartScheduledString(desired agentruntime.DesiredState, actual agentruntime.ActualState) string {
+	return boolString(shouldRestartAfterExit(desired, actual))
+}
+
+func boolString(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
+
+func joinFailureReason(primary string, stderrText string) string {
+	if stderrText == "" {
+		return primary
+	}
+	if primary == "" {
+		return stderrText
+	}
+	return primary + ": " + stderrText
+}
+
+func sameEndpoint(hostA string, portA int, hostB string, portB int) bool {
+	if portA <= 0 || portB <= 0 || portA != portB {
+		return false
+	}
+	a := normalizeBindHost(hostA)
+	b := normalizeBindHost(hostB)
+	return a == "*" || b == "*" || a == b
+}
+
+func normalizeBindHost(host string) string {
+	switch host {
+	case "", "0.0.0.0", "::":
+		return "*"
+	default:
+		return host
+	}
+}
+
 func exitCodeString(code *int) string {
 	if code == nil {
 		return ""
@@ -736,4 +935,55 @@ func newStartToken() (string, error) {
 		return "", fmt.Errorf("generate runtime start token: %w", err)
 	}
 	return hex.EncodeToString(data[:]), nil
+}
+
+type boundedBuffer struct {
+	mu    sync.Mutex
+	limit int
+	data  []byte
+}
+
+func newBoundedBuffer(limit int) *boundedBuffer {
+	if limit <= 0 {
+		limit = 4096
+	}
+	return &boundedBuffer{limit: limit}
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.data = append(b.data, p...)
+	if len(b.data) > b.limit {
+		b.data = append([]byte(nil), b.data[len(b.data)-b.limit:]...)
+	}
+	return len(p), nil
+}
+
+func (b *boundedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(bytes.TrimSpace(b.data))
+}
+
+func safeRuntimeID(runtimeID string) string {
+	var b strings.Builder
+	for _, r := range runtimeID {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	if b.Len() == 0 {
+		return "runtime"
+	}
+	return b.String()
 }
