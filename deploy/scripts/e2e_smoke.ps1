@@ -50,7 +50,10 @@ param(
     [switch]$IncludeRedisReconnect,
     [switch]$IncludeOperationsApi,
     [switch]$IncludeSelfServiceApi,
-    [switch]$IncludeAccessRuntimeEnforcement
+    [switch]$IncludeAccessRuntimeEnforcement,
+    [switch]$IncludeWebThreeRoleBrowserSmoke,
+    [int]$WebPort = 15173,
+    [int]$BrowserDebugPort = 19222
 )
 
 $ErrorActionPreference = "Stop"
@@ -2974,6 +2977,215 @@ function Invoke-SelfServiceApiSmoke {
     $adminSelfAccess = Invoke-RestMethod -Method Post -Headers $adminLogin.Headers -ContentType "application/json" -Body (@{ access_account_id = "${prefix}_admin_station"; username = "${prefix}_admin_station"; password = "admin-station-pass"; mount_point_group_id = $groupId } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/supplier/access-accounts" -TimeoutSec 10
     if ($adminSelfAccess.owner_account_id -ne $adminAccountId -or $adminSelfAccess.kind -ne "supplier_station") {
         Fail "self-service admin supplier scope mismatch: $(ConvertTo-CompactJson $adminSelfAccess)"
+    }
+}
+
+function New-WebThreeRoleBrowserFixture {
+    param(
+        [string]$Base,
+        [hashtable]$AdminHeaders
+    )
+
+    Say "seeding Web three-role browser smoke fixture"
+    $prefix = "nc072_$PID"
+    $password = "web-role-pass"
+    $userAccountId = "${prefix}_user_acc"
+    $supplierAccountId = "${prefix}_supplier_acc"
+    $adminAccountId = "${prefix}_admin_acc"
+    $userName = "${prefix}_user"
+    $supplierName = "${prefix}_supplier"
+    $adminName = "${prefix}_admin"
+    $groupId = "${prefix}_grp"
+    $mount = "${prefix}_MPT"
+
+    foreach ($body in @(
+        @{ account_id = $userAccountId; username = $userName; role = "user"; password = $password; balance_cents = 12000; concurrency_limit = 2 },
+        @{ account_id = $supplierAccountId; username = $supplierName; role = "supplier"; password = $password; balance_cents = 0; concurrency_limit = 2 },
+        @{ account_id = $adminAccountId; username = $adminName; role = "admin"; password = $password; balance_cents = 0; concurrency_limit = 2 }
+    )) {
+        Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body ($body | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts" -TimeoutSec 10 | Out-Null
+    }
+
+    Invoke-RestMethod -Method Post -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        group_id = $groupId
+        name = "NC-072 browser group"
+        billing_multiplier = 1.0
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-point-groups" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        hourly_price_cents = 100
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-points/$mount" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+        mountpoint = $mount
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/mount-point-groups/$groupId/members" -TimeoutSec 10 | Out-Null
+
+    foreach ($accountId in @($userAccountId, $supplierAccountId, $adminAccountId)) {
+        Invoke-RestMethod -Method Put -Headers $AdminHeaders -ContentType "application/json" -Body (@{
+            group_id = $groupId
+        } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/accounts/$accountId/group-grants" -TimeoutSec 10 | Out-Null
+    }
+
+    $userLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "web browser user" -Username $userName -Password $password
+    $supplierLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "web browser supplier" -Username $supplierName -Password $password
+    $adminLogin = Invoke-E2eLoginWithHeaders -Base $Base -Context "web browser admin" -Username $adminName -Password $password
+
+    Invoke-RestMethod -Method Post -Headers $userLogin.Headers -ContentType "application/json" -Body (@{
+        access_account_id = "${prefix}_user_aacc"
+        username = "${prefix}_rover"
+        password = "web-rover-pass"
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+        private_remark = "NC-072 browser fixture user access"
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/me/access-accounts" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Post -Headers $supplierLogin.Headers -ContentType "application/json" -Body (@{
+        access_account_id = "${prefix}_supplier_aacc"
+        username = "${prefix}_station"
+        password = "web-station-pass"
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+        private_remark = "NC-072 browser fixture supplier access"
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/supplier/access-accounts" -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Method Post -Headers $adminLogin.Headers -ContentType "application/json" -Body (@{
+        access_account_id = "${prefix}_admin_supplier_aacc"
+        username = "${prefix}_admin_station"
+        password = "web-admin-station-pass"
+        mount_point_group_id = $groupId
+        concurrency_limit = 1
+        private_remark = "NC-072 browser fixture admin supplier access"
+    } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/supplier/access-accounts" -TimeoutSec 10 | Out-Null
+
+    return [pscustomobject]@{
+        UserName = $userName
+        SupplierName = $supplierName
+        AdminName = $adminName
+        Password = $password
+    }
+}
+
+function Wait-WebDevServer {
+    param(
+        [string]$WebBase,
+        [int]$TimeoutSec
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        Start-Sleep -Milliseconds 500
+        try {
+            $response = Invoke-WebRequest -UseBasicParsing -Uri $WebBase -TimeoutSec 3
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                return
+            }
+        }
+        catch {
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    Fail "Web dev server did not become ready at $WebBase"
+}
+
+function Invoke-WebThreeRoleBrowserSmoke {
+    param(
+        [string]$Base,
+        [hashtable]$AdminHeaders
+    )
+
+    $webDir = Join-Path $RootPath "web"
+    $smokeScript = Join-Path $webDir "scripts\three_role_browser_smoke.mjs"
+    if (-not (Test-Path -LiteralPath $smokeScript)) {
+        Fail "missing Web browser smoke script: $smokeScript"
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $webDir "node_modules"))) {
+        Fail "missing web/node_modules. Run npm install in web or link an existing node_modules before browser smoke."
+    }
+
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodeCmd) {
+        Fail "missing node. Web three-role browser smoke requires Node.js."
+    }
+    $npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if (-not $npmCmd) {
+        $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+    }
+    if (-not $npmCmd) {
+        Fail "missing npm. Web three-role browser smoke requires npm to start Vite."
+    }
+
+    $fixture = New-WebThreeRoleBrowserFixture -Base $Base -AdminHeaders $AdminHeaders
+    $webBase = "http://127.0.0.1:$WebPort"
+    $viteStdout = Join-Path $env:TEMP ("navcaster-web-vite-" + [guid]::NewGuid().ToString() + ".out.log")
+    $viteStderr = Join-Path $env:TEMP ("navcaster-web-vite-" + [guid]::NewGuid().ToString() + ".err.log")
+    $viteProcess = $null
+
+    try {
+        Say "starting Vite dev server at $webBase"
+        $viteProcess = Start-Process -FilePath $npmCmd.Source `
+            -ArgumentList @("run", "dev", "--", "--host", "127.0.0.1", "--port", ([string]$WebPort), "--strictPort") `
+            -WorkingDirectory $webDir `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $viteStdout `
+            -RedirectStandardError $viteStderr `
+            -PassThru
+
+        Wait-WebDevServer -WebBase $webBase -TimeoutSec $StartupTimeoutSec
+
+        $env:WEB_BASE_URL = $webBase
+        $env:NAVCASTER_API_HOST = $HttpBindAddr
+        $env:NAVCASTER_API_PORT = [string]$HttpPort
+        $env:NAVCASTER_WEB_ADMIN_USER = $fixture.AdminName
+        $env:NAVCASTER_WEB_ADMIN_PASSWORD = $fixture.Password
+        $env:NAVCASTER_WEB_USER = $fixture.UserName
+        $env:NAVCASTER_WEB_USER_PASSWORD = $fixture.Password
+        $env:NAVCASTER_WEB_SUPPLIER = $fixture.SupplierName
+        $env:NAVCASTER_WEB_SUPPLIER_PASSWORD = $fixture.Password
+        $env:BROWSER_DEBUG_PORT = [string]$BrowserDebugPort
+
+        Say "running Web three-role browser smoke"
+        $result = Invoke-NativeCommand "node" @($smokeScript)
+        $result.Output | ForEach-Object { Write-Host $_ }
+        if ($result.ExitCode -ne 0) {
+            Fail "Web three-role browser smoke failed"
+        }
+    }
+    finally {
+        foreach ($name in @(
+            "WEB_BASE_URL",
+            "NAVCASTER_API_HOST",
+            "NAVCASTER_API_PORT",
+            "NAVCASTER_WEB_ADMIN_USER",
+            "NAVCASTER_WEB_ADMIN_PASSWORD",
+            "NAVCASTER_WEB_USER",
+            "NAVCASTER_WEB_USER_PASSWORD",
+            "NAVCASTER_WEB_SUPPLIER",
+            "NAVCASTER_WEB_SUPPLIER_PASSWORD",
+            "BROWSER_DEBUG_PORT"
+        )) {
+            Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+        }
+
+        try {
+            if ($viteProcess -and -not $viteProcess.HasExited) {
+                $taskkill = Get-Command taskkill.exe -ErrorAction SilentlyContinue
+                if ($taskkill) {
+                    Invoke-NativeCommand $taskkill.Source @("/F", "/T", "/PID", ([string]$viteProcess.Id)) | Out-Null
+                }
+                else {
+                    Stop-Process -Id $viteProcess.Id -Force
+                    if (-not $viteProcess.WaitForExit(5000)) {
+                        Write-Warning "Vite dev server did not exit within 5 seconds"
+                    }
+                }
+            }
+        }
+        catch {
+            Write-Warning "failed to stop Vite dev server: $($_.Exception.Message)"
+        }
+
+        try {
+            Remove-Item -LiteralPath $viteStdout -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $viteStderr -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+        }
     }
 }
 
@@ -7227,7 +7439,7 @@ try {
     Say "root=$RootPath configuration=$Configuration redis_mode=$RedisMode"
 
     if ($IncludeDockerBridgeCluster) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeHttpIngressStrategy -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement -or $IncludeWebThreeRoleBrowserSmoke
         if ($otherIncludes) {
             Fail "Docker bridge cluster smoke must run in a separate lifecycle because it creates its own Docker network, Redis, and NavCaster containers."
         }
@@ -7257,7 +7469,7 @@ try {
     }
 
     if ($IncludeHttpIngressStrategy) {
-        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement
+        $otherIncludes = $IncludeActiveAccounts -or $IncludeActiveAccountSseDelta -or $IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeDockerBridgeCluster -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeOperationsApi -or $IncludeSelfServiceApi -or $IncludeAccessRuntimeEnforcement -or $IncludeWebThreeRoleBrowserSmoke
         if ($otherIncludes) {
             Fail "HTTP ingress strategy smoke must run in a separate lifecycle because it creates its own Docker network, Redis, NavCaster containers, and nginx proxy."
         }
@@ -7325,6 +7537,9 @@ try {
     }
     if ($IncludeAccessRuntimeEnforcement -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount)) {
         Fail "Access runtime enforcement smoke must run in a separate service lifecycle because it creates real role/access accounts and mutates runtime balances."
+    }
+    if ($IncludeWebThreeRoleBrowserSmoke -and ($IncludeNtripAuthSession -or $IncludeNtripAuthSessionRenewal -or $IncludeNtripOnlineProtection -or $IncludeNtripAnonymousAuth -or $IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover -or $IncludeNtripDisabledAccount -or $IncludeRedisReconnect -or $IncludeAccessRuntimeEnforcement)) {
+        Fail "Web three-role browser smoke must run in an HTTP-only service lifecycle; combine only with OperationsApi/SelfServiceApi/basic smoke checks."
     }
     if (($IncludeNtripAuthBroadcast -or $IncludeLocalDualNodeIdentity -or $IncludeMasterLeaseFailover -or $IncludeMasterLeaseStability -or $IncludeRelayPullStartStop -or $IncludeRelayPushStartStop -or $IncludeRelayDataForwarding -or $IncludeRelayFailover -or $IncludeRelayPushFailover) -and $HttpPort -eq $NtripBroadcastHttpPort) {
         Fail "secondary HTTP port must differ from primary HTTP port."
@@ -7578,6 +7793,10 @@ try {
 
     if ($IncludeSelfServiceApi) {
         Invoke-SelfServiceApiSmoke $base $headers
+    }
+
+    if ($IncludeWebThreeRoleBrowserSmoke) {
+        Invoke-WebThreeRoleBrowserSmoke $base $headers
     }
 
     if ($IncludeAccessRuntimeEnforcement) {
