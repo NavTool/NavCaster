@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -52,12 +53,14 @@ func (s Server) Handler() http.Handler {
 }
 
 func (s Server) health(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
 	writeData(w, r, http.StatusOK, map[string]any{
 		"service":  "navcaster-admin",
 		"status":   "ok",
 		"version":  s.cfg.ServiceVersion,
-		"postgres": postgresStore.HealthStatus(postgresStore.Config{DSN: s.cfg.PostgreSQLDSN}),
-		"redis":    redisStore.HealthStatus(redisStore.Config{Address: s.cfg.RedisAddress}),
+		"postgres": postgresStore.CheckHealth(ctx, postgresStore.Config{DSN: s.cfg.PostgreSQLDSN}),
+		"redis":    redisStore.CheckHealth(ctx, redisStore.Config{Address: s.cfg.RedisAddress}),
 		"time":     time.Now().UTC().Format(time.RFC3339Nano),
 	})
 }

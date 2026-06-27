@@ -86,6 +86,17 @@ func DefaultRegistry() Registry {
 			Description: "Published runtime configuration projection derived from config_versions.",
 		},
 		{
+			Name:        "host_desired_state",
+			Pattern:     "v2:control:desired-state:{host_id}",
+			Scope:       "config_projection",
+			Owner:       "navcaster-admin",
+			Writer:      "navcaster-admin projection worker",
+			Reader:      "navcaster-agent",
+			ValueType:   "string json: DesiredStateResponse",
+			Persistence: PersistenceProjection,
+			Description: "Host-level desired-state projection matching the agent polling response shape.",
+		},
+		{
 			Name:        "config_version",
 			Pattern:     "v2:config:version",
 			Scope:       "config_projection",

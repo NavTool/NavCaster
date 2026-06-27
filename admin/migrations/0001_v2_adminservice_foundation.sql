@@ -1,6 +1,9 @@
 -- NavCaster v2 AdminService foundation schema.
 -- PostgreSQL is the source of truth. Redis stores projections, TTL state, and pub/sub only.
 
+CREATE SEQUENCE IF NOT EXISTS runtime_desired_version_seq;
+CREATE SEQUENCE IF NOT EXISTS control_intent_seq;
+
 CREATE TABLE IF NOT EXISTS accounts (
     account_id TEXT PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
@@ -94,6 +97,8 @@ CREATE TABLE IF NOT EXISTS runtime_actual_snapshots (
     process_id INTEGER,
     start_token TEXT,
     config_version BIGINT,
+    config_path TEXT NOT NULL DEFAULT '',
+    config_checksum TEXT NOT NULL DEFAULT '',
     listen_port INTEGER,
     worker_count INTEGER,
     connections INTEGER NOT NULL DEFAULT 0,
@@ -106,9 +111,16 @@ CREATE TABLE IF NOT EXISTS runtime_actual_snapshots (
     redis_connected BOOLEAN NOT NULL DEFAULT false,
     observed_desired_version BIGINT NOT NULL DEFAULT 0,
     last_error TEXT NOT NULL DEFAULT '',
+    started_at TIMESTAMPTZ,
+    last_exit_code INTEGER,
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     observed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE runtime_actual_snapshots ADD COLUMN IF NOT EXISTS config_path TEXT NOT NULL DEFAULT '';
+ALTER TABLE runtime_actual_snapshots ADD COLUMN IF NOT EXISTS config_checksum TEXT NOT NULL DEFAULT '';
+ALTER TABLE runtime_actual_snapshots ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ;
+ALTER TABLE runtime_actual_snapshots ADD COLUMN IF NOT EXISTS last_exit_code INTEGER;
 
 CREATE TABLE IF NOT EXISTS config_versions (
     config_version BIGINT PRIMARY KEY,
@@ -147,6 +159,21 @@ CREATE TABLE IF NOT EXISTS control_intents (
     CONSTRAINT control_intent_status_name CHECK (status IN ('accepted', 'pending', 'applying', 'completed', 'failed'))
 );
 
+CREATE TABLE IF NOT EXISTS runtime_events (
+    event_id TEXT PRIMARY KEY,
+    runtime_id TEXT NOT NULL REFERENCES runtimes(runtime_id) ON DELETE CASCADE,
+    host_id TEXT NOT NULL REFERENCES hosts(host_id) ON DELETE CASCADE,
+    agent_id TEXT REFERENCES agents(agent_id) ON DELETE SET NULL,
+    type TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT '',
+    desired_version BIGINT NOT NULL DEFAULT 0,
+    process_id INTEGER,
+    message TEXT NOT NULL DEFAULT '',
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS operation_audit_logs (
     audit_id BIGSERIAL PRIMARY KEY,
     request_id TEXT NOT NULL,
@@ -165,6 +192,7 @@ CREATE INDEX IF NOT EXISTS idx_agents_host ON agents(host_id);
 CREATE INDEX IF NOT EXISTS idx_runtimes_host ON runtimes(host_id);
 CREATE INDEX IF NOT EXISTS idx_runtime_desired_host_version ON runtime_desired_states(host_id, version);
 CREATE INDEX IF NOT EXISTS idx_runtime_actual_runtime_observed ON runtime_actual_snapshots(runtime_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_runtime_events_runtime_occurred ON runtime_events(runtime_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_config_releases_runtime ON config_releases(target_runtime_id, released_at DESC);
 CREATE INDEX IF NOT EXISTS idx_control_intents_runtime ON control_intents(runtime_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_operation_audit_created ON operation_audit_logs(created_at DESC);
