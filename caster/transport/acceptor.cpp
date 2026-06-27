@@ -11,12 +11,18 @@
 #endif
 
 #include <event2/listener.h>
+#include <event2/util.h>
 
 #include "infra/logger.h"
 #include "infra/socket_util.h"
 #include "transport/acceptor_session.h"
 
 namespace navcaster::caster {
+namespace {
+
+constexpr int kListenBacklog = 128;
+
+} // namespace
 
 Acceptor::Acceptor(RuntimeConfig config, HandoffSink sink)
     : config_(std::move(config)), sink_(std::move(sink))
@@ -42,17 +48,44 @@ bool Acceptor::start(event_base *base)
         return false;
     }
 
-    listener_ = evconnlistener_new_bind(
+    evutil_socket_t fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        const int err = EVUTIL_SOCKET_ERROR();
+        log_error("failed to create acceptor socket on " + config_.listen_host + ":" + std::to_string(config_.listen_port) +
+                  " error=" + evutil_socket_error_to_string(err));
+        return false;
+    }
+
+    evutil_make_listen_socket_reuseable(fd);
+    if (bind(fd, reinterpret_cast<sockaddr *>(&sin), sizeof(sin)) != 0) {
+        const int err = EVUTIL_SOCKET_ERROR();
+        log_error("failed to bind acceptor on " + config_.listen_host + ":" + std::to_string(config_.listen_port) +
+                  " error=" + evutil_socket_error_to_string(err));
+        close_socket(fd);
+        return false;
+    }
+    if (listen(fd, kListenBacklog) != 0) {
+        const int err = EVUTIL_SOCKET_ERROR();
+        log_error("failed to listen acceptor on " + config_.listen_host + ":" + std::to_string(config_.listen_port) +
+                  " error=" + evutil_socket_error_to_string(err));
+        close_socket(fd);
+        return false;
+    }
+    evutil_make_socket_nonblocking(fd);
+
+    listener_ = evconnlistener_new(
         base,
         &Acceptor::on_accept,
         this,
-        LEV_OPT_CLOSE_ON_FREE | LEV_OPT_REUSEABLE,
-        -1,
-        reinterpret_cast<sockaddr *>(&sin),
-        sizeof(sin));
+        LEV_OPT_CLOSE_ON_FREE,
+        kListenBacklog,
+        fd);
 
     if (!listener_) {
-        log_error("failed to bind acceptor on " + config_.listen_host + ":" + std::to_string(config_.listen_port));
+        const int err = EVUTIL_SOCKET_ERROR();
+        log_error("failed to bind acceptor on " + config_.listen_host + ":" + std::to_string(config_.listen_port) +
+                  " error=" + evutil_socket_error_to_string(err));
+        close_socket(fd);
         return false;
     }
 
