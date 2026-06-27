@@ -32,6 +32,7 @@ proto         连接、配置、状态、监控和管理结构契约。
   更新 `ACC:RECORD.balance_cents`，并刷新 `AACC:ACTIVE.balance_cents` 快照。
 - `/api/accounts/active` 和 SSE `account_actives` 的展示来源是 `ACT:SESSION:*`，并兼容 legacy `STR:ACTIVE` fallback；`ACT:ACTIVE` 是登录索引，不是在线会话来源。
 - 新 AccessAccount 运行时在线视图写入 `ONLINE:SESSION:<owner_account_id>`；断开时写 `BILL:ENTRY:<yyyyMM>`、必要的 `ACC:BALANCE:LEDGER:<yyyyMM>`，供应商站点写 `SUPPLY:USAGE:<yyyyMM>`、`STATION:RECORD` 和 `STATION:EVENT:<mountpoint>`。
+- NC-077 后 AccessAccount 登录前会读取 `ONLINE:SESSION:<owner_account_id>` 做并发预检。`account_concurrency_limit` 和 `access_concurrency_limit` 为 `0` 时不限量；超过 Account 总连接数返回 `account_concurrency_exceeded`，超过接入账号连接数返回 `access_concurrency_exceeded`。被拒绝的连接写 `RUNTIME:REJECTION:<yyyyMM>`，不写 `ONLINE:SESSION`、`BILL:ENTRY`、余额 ledger、`SUPPLY:USAGE` 或站点事件。
 - `MPGRP:*` 是新运营挂载点分组；NC-055 会同步同名 `ACCESS:GROUP` 和 `ACCESS:ITEM:<group_id>`，让旧 Caster AccessPolicy 能识别新分组成员。
 - NTRIP listener 解析 `SOURCE`、`GET`、`POST`、Basic Auth、`Ntrip-Version`、chunked 相关字段。现役 session 在 `src/service/session`。
 - `doc/archive/code-snapshots/session` 是旧源码快照，不参与当前构建。
@@ -47,7 +48,7 @@ proto         连接、配置、状态、监控和管理结构契约。
 | Relay start/stop/data forwarding | NC-026、NC-027、NC-028 任务、QA、Review。 |
 | Master lease / Cluster / Relay failover | NC-029、NC-030、NC-031、NC-033 任务、QA、Review。 |
 | Ninja 构建默认口径 | NC-034 任务、QA、Review。 |
-| Account/AccessAccount runtime | NC-051、NC-054、NC-055、NC-058、NC-059、NC-060 任务、QA、Review。 |
+| Account/AccessAccount runtime | NC-051、NC-054、NC-055、NC-058、NC-059、NC-060、NC-077 任务、QA、Review。 |
 
 ## 不要误用
 

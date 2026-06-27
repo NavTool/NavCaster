@@ -198,6 +198,8 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_audit(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/usage", [this](auto &req, auto &resp)
                   { handle_v1_admin_usage(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/runtime-rejections", [this](auto &req, auto &resp)
+                  { handle_v1_admin_runtime_rejections(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/data-push-configs", [this](auto &req, auto &resp)
                   { handle_v1_admin_data_push_configs(req, resp); });
     _server.route(EVHTTP_REQ_POST, "/api/v1/admin/data-push-configs", [this](auto &req, auto &resp)
@@ -873,6 +875,15 @@ void http_handler::handle_v1_admin_usage(const HttpRequest &req, HttpResponse &r
     navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
     auto period = req.query_params.find("period");
     auto result = controller.list_usage(period == req.query_params.end() ? std::string{} : period->second);
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_runtime_rejections(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto result = controller.list_runtime_rejections(period == req.query_params.end() ? std::string{} : period->second);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }

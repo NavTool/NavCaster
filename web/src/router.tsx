@@ -144,6 +144,7 @@ export default function AppRouter() {
           <Route path="mount-points" element={<OperationsDashboard scope="admin" view="mount-points" />} />
           <Route path="stations" element={<OperationsDashboard scope="admin" view="stations" />} />
           <Route path="usage" element={<OperationsDashboard scope="admin" view="usage" />} />
+          <Route path="runtime-rejections" element={<OperationsDashboard scope="admin" view="runtime-rejections" />} />
           <Route path="subscription-plans" element={<OperationsDashboard scope="admin" view="subscription-plans" />} />
           <Route path="subscriptions" element={<OperationsDashboard scope="admin" view="subscriptions" />} />
           <Route path="redeem-codes" element={<OperationsDashboard scope="admin" view="redeem-codes" />} />

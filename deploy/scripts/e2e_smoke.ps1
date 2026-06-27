@@ -3645,6 +3645,46 @@ function Count-AccessRuntimeBillingEntries {
     return $count
 }
 
+function Wait-AccessRuntimeRejection {
+    param(
+        [string]$Period,
+        [string]$OwnerAccountId,
+        [string]$AccessAccountId,
+        [string]$AccessUsername,
+        [string]$ExpectedReason,
+        [int]$TimeoutSec,
+        [string]$Context
+    )
+
+    $key = "RUNTIME:REJECTION:$Period"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    do {
+        $records = Get-RedisHashMap $key
+        foreach ($field in $records.Keys) {
+            try {
+                $record = $records[$field] | ConvertFrom-Json
+                if ($record.owner_account_id -eq $OwnerAccountId -and
+                    $record.access_account_id -eq $AccessAccountId -and
+                    $record.access_username -eq $AccessUsername -and
+                    $record.reason -eq $ExpectedReason) {
+                    return [pscustomobject]@{
+                        Key = $key
+                        Field = $field
+                        Record = $record
+                        Raw = $records[$field]
+                    }
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    $raw = Format-DebugText (Invoke-RedisCommand HGETALL $key)
+    Fail "$Context runtime rejection missing from $key; expectedReason=$ExpectedReason raw=[$raw]"
+}
+
 function Get-AccessRuntimeBillingEntries {
     param(
         [string]$Period
@@ -3891,21 +3931,39 @@ function Assert-AccessRuntimeRejected {
         [string]$Label,
         [string]$OwnerAccountId,
         [string]$AccessAccountId,
-        [string]$AccessUsername
+        [string]$AccessUsername,
+        [string]$ExpectedRejectionReason = "",
+        [string]$Period = "",
+        [int64]$ExpectedLimit = ([int64]::MinValue),
+        [int64]$ExpectedCurrentCount = ([int64]::MinValue)
     )
 
     $before = Count-AccessRuntimeBillingEntries $AccessAccountId
+    $onlineKey = "ONLINE:SESSION:$OwnerAccountId"
+    $beforeOnlineFields = @{}
+    $beforeOnline = Get-RedisHashMap $onlineKey
+    foreach ($field in $beforeOnline.Keys) {
+        try {
+            $record = $beforeOnline[$field] | ConvertFrom-Json
+            if ($record.access_account_id -eq $AccessAccountId -or $record.access_username -eq $AccessUsername) {
+                $beforeOnlineFields[$field] = $true
+            }
+        }
+        catch {
+        }
+    }
+
     $connection = Open-NtripClientForMount $Seed $Mount $NtripHost $NtripPort $Label -AllowRejected
     Close-NtripTcpConnection $connection
     Start-Sleep -Milliseconds 800
 
-    $onlineKey = "ONLINE:SESSION:$OwnerAccountId"
     $online = Get-RedisHashMap $onlineKey
     foreach ($field in $online.Keys) {
         try {
             $record = $online[$field] | ConvertFrom-Json
-            if ($record.access_account_id -eq $AccessAccountId -or $record.access_username -eq $AccessUsername) {
-                Fail "$Label left rejected online session in $onlineKey field=$field"
+            if (($record.access_account_id -eq $AccessAccountId -or $record.access_username -eq $AccessUsername) -and
+                -not $beforeOnlineFields.ContainsKey($field)) {
+                Fail "$Label created rejected online session in $onlineKey field=$field"
             }
         }
         catch {
@@ -3914,6 +3972,20 @@ function Assert-AccessRuntimeRejected {
     $after = Count-AccessRuntimeBillingEntries $AccessAccountId
     if ($after -ne $before) {
         Fail "$Label unexpectedly created billing entry after rejection; before=$before after=$after"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedRejectionReason)) {
+        if ([string]::IsNullOrWhiteSpace($Period)) {
+            $Period = Get-E2eRuntimePeriod
+        }
+        $rejection = Wait-AccessRuntimeRejection $Period $OwnerAccountId $AccessAccountId $AccessUsername $ExpectedRejectionReason $StartupTimeoutSec $Label
+        if ($ExpectedLimit -ne [int64]::MinValue -and [int64]$rejection.Record.limit -ne $ExpectedLimit) {
+            Fail "$Label rejection limit mismatch: expected=$ExpectedLimit actual=$($rejection.Record.limit) record=$(ConvertTo-CompactJson $rejection.Record)"
+        }
+        if ($ExpectedCurrentCount -ne [int64]::MinValue -and [int64]$rejection.Record.current_count -ne $ExpectedCurrentCount) {
+            Fail "$Label rejection current_count mismatch: expected=$ExpectedCurrentCount actual=$($rejection.Record.current_count) record=$(ConvertTo-CompactJson $rejection.Record)"
+        }
+        return $rejection
     }
 }
 
@@ -4107,6 +4179,24 @@ function Invoke-AccessRuntimeEnforcementSmoke {
             Fail "access runtime online kind mismatch: client=$(ConvertTo-CompactJson $clientOnline.Record) source=$(ConvertTo-CompactJson $sourceOnline.Record)"
         }
 
+        $concurrencyRejection = Assert-AccessRuntimeRejected `
+            -Seed $clientSeed `
+            -Mount $mount `
+            -NtripHost $NtripHost `
+            -NtripPort $NtripPort `
+            -Label "runtime access concurrency" `
+            -OwnerAccountId $userAccountId `
+            -AccessAccountId $userAccessId `
+            -AccessUsername $userAccessName `
+            -ExpectedRejectionReason "access_concurrency_exceeded" `
+            -Period $period `
+            -ExpectedLimit 1 `
+            -ExpectedCurrentCount 1
+        $adminRuntimeRejections = Invoke-RestMethod -Method Get -Headers $AdminHeaders -Uri "$Base/api/v1/admin/runtime-rejections?period=$period" -TimeoutSec 10
+        if ((ConvertTo-CompactJson $adminRuntimeRejections) -notmatch [regex]::Escape($concurrencyRejection.Field)) {
+            Fail "runtime admin rejection API did not expose concurrency rejection $($concurrencyRejection.Field): $(ConvertTo-CompactJson $adminRuntimeRejections)"
+        }
+
         Write-NtripPayload $sourceConnection "NC055_PAYLOAD`r`n" "runtime source"
         Wait-NtripPayload $clientConnection "NC055_PAYLOAD`r`n" 10 "runtime client"
         Start-Sleep -Seconds 2
@@ -4218,7 +4308,7 @@ function Invoke-AccessRuntimeEnforcementSmoke {
             -Label "runtime running access disabled" `
             -ExpectedReason "access_account_disabled" `
             -ExpectedBillingMode "payg" `
-            -ExpectBilling $false | Out-Null
+            -ExpectPositiveDebit $true | Out-Null
 
         Assert-AccessRuntimeRejected $clientSeed $otherMount $NtripHost $NtripPort "runtime unauthorized mount" $userAccountId $userAccessId $userAccessName
 

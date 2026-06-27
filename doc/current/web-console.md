@@ -82,6 +82,7 @@ NC-056 新增 `web/src/api/operations.ts`，只使用既有后端契约：
 /api/v1/admin/operations-monitor
 /api/v1/admin/online-connections
 /api/v1/admin/audit
+/api/v1/admin/runtime-rejections
 /api/v1/admin/mount-point-groups
 /api/v1/admin/mount-points
 /api/v1/admin/subscription-plans
@@ -166,6 +167,10 @@ NC-070 起运营台增加 `/admin/online-connections` 和 `/admin/audit`。在�
 fallback 合并后的连接、账号、类型、地址、分组和在线时长；审计日志页调用
 `GET /api/v1/admin/audit`，支持 actor、action、target_type 和 limit 过滤，展示
 `LOG:AUDIT` 分页结果。旧 `/admin/legacy/audit` 仍保留作为旧管理台入口。
+
+NC-077 起运营台增加 `/admin/runtime-rejections`，并在运营总览卡片展示接入拒绝数量。
+页面调用 `GET /api/v1/admin/runtime-rejections?period=<yyyyMM>`，展示 owner、AccessAccount、
+挂载点、拒绝原因、当前连接数、限制和节点信息，主要用于追踪并发限制拒绝，不混入计费用量表。
 
 NC-060 起运营台增加 `/admin/subscriptions` 和 `/admin/redeem-codes` 的可操作页面。
 管理员可创建订阅、禁用订阅、创建兑换码，并把兑换码兑换到指定 Account。用户自助台增加

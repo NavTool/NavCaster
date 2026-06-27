@@ -80,6 +80,7 @@ private:
     void handle_v1_admin_online_connections(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_audit(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_usage(const HttpRequest &req, HttpResponse &resp);
+    void handle_v1_admin_runtime_rejections(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_configs(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_config(const HttpRequest &req, HttpResponse &resp);
     void handle_v1_admin_data_push_maintenance(const HttpRequest &req, HttpResponse &resp);

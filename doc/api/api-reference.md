@@ -188,6 +188,7 @@
 | `GET` | `/api/v1/admin/online-connections` | `ACT:SESSION:*` / `STR:ACTIVE` | 列出当前在线连接，与 legacy `/api/accounts/active` 同源 |
 | `GET` | `/api/v1/admin/audit?limit=&cursor=&actor=&action=&target=` | `LOG:AUDIT` / `LOG:AUDIT:SEQ` | 列出审计日志，支持分页和 actor/action/target 过滤 |
 | `GET` | `/api/v1/admin/usage?period=yyyyMM` | `BILL:ENTRY:{period}` | 列出计费用量事实 |
+| `GET` | `/api/v1/admin/runtime-rejections?period=yyyyMM` | `RUNTIME:REJECTION:{period}` | 列出接入账号运行时并发拒绝事实 |
 | `GET` | `/api/v1/admin/data-push-configs` | `DATA:PUSH:CONFIG` | 列出数据推送配置 |
 | `POST` | `/api/v1/admin/data-push-configs` | `DATA:PUSH:CONFIG` | 创建数据推送配置 |
 | `GET` | `/api/v1/admin/data-push-configs/{config_id}` | `DATA:PUSH:CONFIG` | 查询数据推送配置 |

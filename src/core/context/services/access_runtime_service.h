@@ -22,6 +22,8 @@ struct AccessRuntimeValidation
 {
     bool ok = false;
     std::string reason;
+    std::int64_t current_count = 0;
+    std::int64_t limit = 0;
 };
 
 struct AccessRuntimeRecordInput
@@ -38,6 +40,7 @@ struct AccessRuntimeRecordInput
     int port = 0;
     std::string user_agent;
     std::string ntrip_version;
+    std::string node_id;
     std::string billing_mode = ACCESS_RUNTIME_BILLING_MODE_PAYG;
     std::string subscription_id;
     nlohmann::json subscription_snapshot;
@@ -52,6 +55,31 @@ struct AccessRuntimeRecordInput
     std::int64_t hourly_price_cents = 0;
     double billing_multiplier = 1.0;
     std::string disconnect_reason;
+};
+
+struct AccessRuntimeConcurrencySnapshot
+{
+    std::int64_t owner_current_count = 0;
+    std::int64_t access_current_count = 0;
+};
+
+struct AccessRuntimeRejectionInput
+{
+    std::string owner_account_id;
+    std::string access_account_id;
+    std::string access_username;
+    std::string access_kind;
+    std::string mountpoint;
+    std::string group_id;
+    std::string connect_key;
+    std::string auth_type;
+    std::string addr;
+    int port = 0;
+    std::string node_id;
+    std::string reason;
+    std::int64_t limit = 0;
+    std::int64_t current_count = 0;
+    std::int64_t reject_time = 0;
 };
 
 struct AccessRuntimeSessionRevalidationInput
@@ -294,6 +322,57 @@ inline AccessRuntimeValidation revalidate_access_runtime_session(const AccessRun
     return {true, ""};
 }
 
+inline AccessRuntimeConcurrencySnapshot summarize_online_sessions(const nlohmann::json &records,
+                                                                  const std::string &access_account_id,
+                                                                  const std::string &candidate_connect_key = {})
+{
+    AccessRuntimeConcurrencySnapshot snapshot;
+    if (!records.is_object())
+    {
+        return snapshot;
+    }
+    for (auto it = records.begin(); it != records.end(); ++it)
+    {
+        const auto &record = it.value();
+        if (!record.is_object())
+        {
+            continue;
+        }
+        const std::string connect_key = json_record::string_field(record, "connect_key");
+        if (!candidate_connect_key.empty() && connect_key == candidate_connect_key)
+        {
+            continue;
+        }
+        ++snapshot.owner_current_count;
+        if (!access_account_id.empty() &&
+            json_record::string_field(record, "access_account_id") == access_account_id)
+        {
+            ++snapshot.access_current_count;
+        }
+    }
+    return snapshot;
+}
+
+inline AccessRuntimeValidation validate_access_concurrency(const nlohmann::json &active_record,
+                                                           const AccessRuntimeConcurrencySnapshot &snapshot)
+{
+    const auto account_limit = json_record::as_i64(active_record.value("account_concurrency_limit", 0), 0);
+    if (account_limit > 0 && snapshot.owner_current_count >= account_limit)
+    {
+        return {false, "account_concurrency_exceeded", snapshot.owner_current_count, account_limit};
+    }
+    auto access_limit = json_record::as_i64(active_record.value("access_concurrency_limit", 0), 0);
+    if (access_limit <= 0)
+    {
+        access_limit = json_record::as_i64(active_record.value("connection_limit", 0), 0);
+    }
+    if (access_limit > 0 && snapshot.access_current_count >= access_limit)
+    {
+        return {false, "access_concurrency_exceeded", snapshot.access_current_count, access_limit};
+    }
+    return {true, ""};
+}
+
 inline std::string runtime_billing_id(const AccessRuntimeRecordInput &input)
 {
     return input.connect_key + ":" + std::to_string(input.start_time) + ":" + std::to_string(input.end_time);
@@ -326,6 +405,10 @@ inline nlohmann::json build_online_session_record(const AccessRuntimeRecordInput
         {"user_agent", input.user_agent},
         {"ntrip_version", input.ntrip_version},
     };
+    if (!input.node_id.empty())
+    {
+        record["node_id"] = input.node_id;
+    }
     if (!input.subscription_id.empty())
     {
         record["subscription_id"] = input.subscription_id;
@@ -434,6 +517,36 @@ inline nlohmann::json build_station_event(const AccessRuntimeRecordInput &input,
         {"access_account_id", input.access_account_id},
         {"session_id", input.connect_key},
         {"disconnect_reason", input.disconnect_reason},
+    };
+}
+
+inline std::string runtime_rejection_id(const AccessRuntimeRejectionInput &input)
+{
+    return "reject:" + input.connect_key + ":" + std::to_string(input.reject_time);
+}
+
+inline nlohmann::json build_runtime_rejection_record(const AccessRuntimeRejectionInput &input)
+{
+    return {
+        {"rejection_id", runtime_rejection_id(input)},
+        {"owner_account_id", input.owner_account_id},
+        {"account_id", input.owner_account_id},
+        {"access_account_id", input.access_account_id},
+        {"access_username", input.access_username},
+        {"access_kind", input.access_kind},
+        {"mountpoint", input.mountpoint},
+        {"group_id", input.group_id},
+        {"connect_key", input.connect_key},
+        {"auth_type", input.auth_type},
+        {"addr", input.addr},
+        {"port", input.port},
+        {"node_id", input.node_id},
+        {"reason", input.reason},
+        {"limit", input.limit},
+        {"current_count", input.current_count},
+        {"reject_time", input.reject_time},
+        {"create_time", input.reject_time},
+        {"source", "access_runtime_concurrency"},
     };
 }
 

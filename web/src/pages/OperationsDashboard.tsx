@@ -50,6 +50,7 @@ import type {
   OperationsMonitorDataPushJob,
   OperationsMonitorRiskAccount,
   RedeemCodeRecord,
+  RuntimeRejectionRecord,
   StationRecord,
   SubscriptionPlan,
   SubscriptionRecord,
@@ -70,6 +71,7 @@ type AdminView =
   | 'mount-points'
   | 'stations'
   | 'usage'
+  | 'runtime-rejections'
   | 'subscription-plans'
   | 'subscriptions'
   | 'redeem-codes'
@@ -196,6 +198,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountsQuery = usePolling(() => adminApi.mountPoints(), 5000, view === 'dashboard' || view === 'mount-points');
   const stationsQuery = usePolling(() => adminApi.stations(), 5000, view === 'dashboard' || view === 'stations');
   const usageQuery = usePolling(() => adminApi.usage(currentPeriod()), 5000, view === 'dashboard' || view === 'usage');
+  const runtimeRejectionQuery = usePolling(() => adminApi.runtimeRejections(currentPeriod()), 5000, view === 'dashboard' || view === 'runtime-rejections');
   const subscriptionPlanQuery = usePolling(() => adminApi.subscriptionPlans(), 5000, view === 'dashboard' || view === 'subscription-plans' || view === 'subscriptions');
   const subscriptionQuery = usePolling(() => adminApi.subscriptions(), 5000, view === 'dashboard' || view === 'subscriptions');
   const redeemQuery = usePolling(() => adminApi.redeemCodes(), 5000, view === 'dashboard' || view === 'redeem-codes');
@@ -218,6 +221,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const mountRows = useMemo(() => rowsFromHash(mountsQuery.data), [mountsQuery.data]);
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
+  const runtimeRejectionRows = useMemo(() => rowsFromHash(runtimeRejectionQuery.data), [runtimeRejectionQuery.data]);
   const subscriptionPlanRows = useMemo(() => rowsFromHash(subscriptionPlanQuery.data), [subscriptionPlanQuery.data]);
   const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
   const redeemRows = useMemo(() => rowsFromHash(redeemQuery.data), [redeemQuery.data]);
@@ -251,6 +255,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     .filter((settlement) => settlement.status === 'paid' || settlement.status === 'settled')
     .reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
   const currentUsageCost = usageRows.reduce((sum, usage) => sum + Number(usage.stat_cost_cents ?? 0), 0);
+  const runtimeRejectionCount = runtimeRejectionRows.length;
   const currentDataPushDebit = dataPushRows.reduce((sum, usage) => sum + Number(usage.actual_debit_cents ?? 0), 0);
 
   useEffect(() => {
@@ -678,6 +683,20 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '创建时间', key: 'create_time', width: 170, render: (_, row) => getLocalTime(row.create_time ?? 0) },
   ];
 
+  const runtimeRejectionColumns: ColumnsType<RuntimeRejectionRecord & { key: string }> = [
+    { title: 'Rejection ID', dataIndex: 'rejection_id', key: 'rejection_id', width: 260 },
+    { title: 'Account', dataIndex: 'owner_account_id', key: 'owner_account_id', width: 190 },
+    { title: 'AccessAccount', dataIndex: 'access_account_id', key: 'access_account_id', width: 210 },
+    { title: '用户名', dataIndex: 'access_username', key: 'access_username', width: 150, render: (value) => value || '-' },
+    { title: '类型', dataIndex: 'access_kind', key: 'access_kind', width: 140, render: (value) => kindTag(value) },
+    { title: '挂载点', dataIndex: 'mountpoint', key: 'mountpoint', width: 150, render: (value) => value || '-' },
+    { title: '原因', dataIndex: 'reason', key: 'reason', width: 210, render: (value) => <Tag color="red">{value || '-'}</Tag> },
+    { title: '当前/上限', key: 'limit', width: 120, render: (_, row) => `${row.current_count ?? 0}/${row.limit ?? 0}` },
+    { title: '认证', dataIndex: 'auth_type', key: 'auth_type', width: 100, render: (value) => value || '-' },
+    { title: '节点', dataIndex: 'node_id', key: 'node_id', width: 160, render: (value) => value || '-' },
+    { title: '拒绝时间', key: 'reject_time', width: 170, render: (_, row) => getLocalTime(row.reject_time ?? row.create_time ?? 0) },
+  ];
+
   const subscriptionColumns: ColumnsType<SubscriptionRecord & { key: string }> = [
     { title: 'Subscription ID', dataIndex: 'subscription_id', key: 'subscription_id', width: 210 },
     { title: 'Account', dataIndex: 'account_id', key: 'account_id', width: 190 },
@@ -1090,6 +1109,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     if (view === 'usage') {
       return <Table columns={usageColumns} dataSource={usageRows} loading={usageQuery.loading} rowKey="key" size="small" scroll={{ x: 1300 }} />;
     }
+    if (view === 'runtime-rejections') {
+      return <Table columns={runtimeRejectionColumns} dataSource={runtimeRejectionRows} loading={runtimeRejectionQuery.loading} rowKey="key" size="small" scroll={{ x: 1820 }} />;
+    }
     if (view === 'subscription-plans') {
       return <Table columns={subscriptionPlanColumns} dataSource={subscriptionPlanRows} loading={subscriptionPlanQuery.loading} rowKey="key" size="small" scroll={{ x: 1320 }} />;
     }
@@ -1133,6 +1155,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     'mount-points': '挂载点记录',
     stations: '历史站点',
     usage: '计费用量',
+    'runtime-rejections': '接入拒绝',
     'subscription-plans': '订阅套餐',
     subscriptions: '订阅',
     'redeem-codes': '兑换码',
@@ -1181,6 +1204,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="本期计费" value={formatCents(currentUsageCost)} prefix={<WalletOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="接入拒绝" value={runtimeRejectionCount} prefix={<StopOutlined />} />
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="数据推送扣费" value={formatCents(currentDataPushDebit)} prefix={<WalletOutlined />} />

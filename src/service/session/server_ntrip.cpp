@@ -1,5 +1,6 @@
 #include "server_ntrip.h"
 
+#include "Caster_Core.h"
 #include "ntrip_config.h"
 #include "process_queue.h"
 
@@ -120,6 +121,7 @@ AuthRuntimeContext server_ntrip::auth_runtime_context(const char *reason) const
     runtime.port = _info.port();
     runtime.user_agent = _info.user_agent();
     runtime.ntrip_version = _info.ntrip_version();
+    runtime.node_id = CASTER::Get_Node_ID();
     runtime.disconnect_reason = reason && *reason ? reason : "client_closed";
     return runtime;
 }

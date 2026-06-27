@@ -43,6 +43,7 @@ struct AuthRuntimeContext
     int port = 0;
     std::string user_agent;
     std::string ntrip_version;
+    std::string node_id;
     std::string disconnect_reason = "client_closed";
 };
 
