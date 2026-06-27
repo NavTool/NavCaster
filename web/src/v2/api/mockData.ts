@@ -19,7 +19,7 @@ function host(row: Omit<HostSummary, 'actual_state' | 'convergence_status' | 'co
   };
 }
 
-function runtime(row: Omit<RuntimeSummary, 'actual_state' | 'convergence_status' | 'convergence_detail' | 'desired_version' | 'observed_desired_version' | 'desired_worker_count' | 'actual_worker_count' | 'listen_port' | 'loop_delay_ms_p95' | 'send_bps' | 'recv_bps' | 'desired_updated_at' | 'actual_updated_at' | 'last_metric_at'> & { convergence_status?: ConvergenceStatus; actual_state?: string }): RuntimeSummary {
+function runtime(row: Omit<RuntimeSummary, 'actual_state' | 'convergence_status' | 'convergence_detail' | 'desired_version' | 'observed_desired_version' | 'desired_worker_count' | 'actual_worker_count' | 'listen_port' | 'loop_delay_ms_p95' | 'send_bps' | 'recv_bps' | 'stale' | 'stale_detail' | 'mounts' | 'sources' | 'clients' | 'desired_updated_at' | 'actual_updated_at' | 'last_metric_at'> & { convergence_status?: ConvergenceStatus; actual_state?: string }): RuntimeSummary {
   const converged = row.desired_state === row.status && row.current_config_version_id === row.target_config_version_id;
   return {
     ...row,
@@ -34,6 +34,11 @@ function runtime(row: Omit<RuntimeSummary, 'actual_state' | 'convergence_status'
     loop_delay_ms_p95: row.status === 'failed' ? 0 : 18,
     send_bps: row.active_sessions * 1024,
     recv_bps: Math.round(row.active_sessions * 256),
+    stale: row.status === 'pending' || row.status === 'failed',
+    stale_detail: row.status === 'pending' || row.status === 'failed' ? 'actual metrics stale in mock fixture' : 'actual metrics observed recently',
+    mounts: Math.max(1, Math.round(row.worker_count * 8)),
+    sources: Math.max(0, Math.round(row.active_sessions / 80)),
+    clients: row.active_sessions,
     desired_updated_at: row.updated_at,
     actual_updated_at: row.updated_at,
     last_metric_at: row.updated_at,

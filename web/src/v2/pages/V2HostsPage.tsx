@@ -15,7 +15,7 @@ export default function V2HostsPage() {
   const [overview, setOverview] = useState<ControlPlaneOverview | null>(null);
 
   useEffect(() => {
-    void v2AdminService.getOverview().then(setOverview);
+    void v2AdminService.getOverview().then(setOverview).catch(() => setOverview(null));
   }, []);
 
   const columns: ColumnsType<HostSummary> = [
@@ -78,6 +78,7 @@ export default function V2HostsPage() {
         data={page.items}
         total={page.total}
         loading={page.loading}
+        error={page.error}
         rowKey="id"
       />
     </>

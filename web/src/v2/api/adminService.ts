@@ -11,6 +11,7 @@ import type {
   RuntimeActionIntent,
   RuntimeDesiredStateCommand,
   RuntimeDetail,
+  RuntimeEvent,
   RuntimeSummary,
   V2AdminServiceContract,
   WorkerMetric,
@@ -128,21 +129,38 @@ interface AdminActualSnapshot {
   last_exit_code?: number;
 }
 
+interface AdminRuntimeEvent {
+  event_id?: string;
+  runtime_id: string;
+  type?: string;
+  severity?: string;
+  desired_version?: number;
+  process_id?: number;
+  message?: string;
+  occurred_at?: string;
+  created_at?: string;
+}
+
 interface AdminRuntime {
   runtime_id: string;
   host_id: string;
   name: string;
   desired?: AdminDesiredRuntime;
   actual?: AdminActualSnapshot;
+  events?: AdminRuntimeEvent[];
+  recent_events?: AdminRuntimeEvent[];
   created_at?: string;
   updated_at: string;
 }
 
 interface AdminIntent {
   intent_id: string;
-  status: 'accepted' | 'queued';
+  status: 'accepted' | 'queued' | 'pending' | 'applying' | 'completed' | 'failed';
   runtime_id: string;
   desired_version: number;
+  created_at?: string;
+  accepted_at?: string;
+  message?: string;
 }
 
 function asDateString(value: unknown): string {
@@ -180,6 +198,11 @@ function configVersionLabel(value: number | undefined): string {
   return value && value > 0 ? `cfg-${value}` : 'cfg-unassigned';
 }
 
+function numberValue(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function memoryBytesToGb(value: unknown): number {
   const bytes = Number(value ?? 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return 0;
@@ -195,6 +218,21 @@ function desiredStateFrom(value: string | undefined): DesiredRuntimeState {
     default:
       return 'stopped';
   }
+}
+
+function runtimeKindFrom(runtime: AdminRuntime): RuntimeSummary['kind'] {
+  const rawKind = String((runtime as unknown as { kind?: string }).kind ?? '').trim();
+  if (rawKind === 'caster-core' || rawKind === 'http-admin' || rawKind === 'relay' || rawKind === 'collector') return rawKind;
+  return 'unknown';
+}
+
+function actualStale(updatedAt: string): { stale: boolean; detail: string } {
+  if (!updatedAt) return { stale: true, detail: 'no actual metric snapshot reported' };
+  const timestamp = new Date(updatedAt).getTime();
+  if (Number.isNaN(timestamp)) return { stale: true, detail: 'actual metric timestamp is invalid' };
+  const ageSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (ageSeconds > 90) return { stale: true, detail: `actual metrics stale for ${ageSeconds}s` };
+  return { stale: false, detail: `actual metrics observed ${ageSeconds}s ago` };
 }
 
 function runtimeConvergence(desired?: AdminDesiredRuntime, actual?: AdminActualSnapshot): { status: ConvergenceStatus; detail: string } {
@@ -269,12 +307,13 @@ function toRuntimeSummary(runtime: AdminRuntime): RuntimeSummary {
   const desiredState = desiredStateFrom(desired?.desired_state);
   const convergence = runtimeConvergence(desired, actual);
   const updatedAt = actual?.updated_at ?? desired?.updated_at ?? runtime.updated_at ?? runtime.created_at ?? '';
+  const stale = actualStale(asDateString(actual?.updated_at));
   return {
     id: runtime.runtime_id,
     host_id: runtime.host_id,
     host_name: runtime.host_id,
     name: runtime.name || runtime.runtime_id,
-    kind: 'caster-core',
+    kind: runtimeKindFrom(runtime),
     status: normalizeStatus(actualState),
     desired_state: desiredState,
     actual_state: actualState,
@@ -284,18 +323,23 @@ function toRuntimeSummary(runtime: AdminRuntime): RuntimeSummary {
     target_config_version_id: configVersionLabel(desired?.config_version),
     desired_version: desired?.version ?? 0,
     observed_desired_version: actual?.observed_desired_version ?? 0,
-    desired_worker_count: desired?.worker_count ?? 0,
-    actual_worker_count: actual?.worker_count ?? 0,
-    worker_count: actual?.worker_count ?? desired?.worker_count ?? 0,
-    active_sessions: actual?.connections ?? 0,
+    desired_worker_count: numberValue(desired?.worker_count),
+    actual_worker_count: numberValue(actual?.worker_count),
+    worker_count: numberValue(actual?.worker_count ?? desired?.worker_count),
+    active_sessions: numberValue(actual?.connections),
     restart_intent_count: 0,
-    listen_port: actual?.listen_port ?? desired?.listen_port ?? 0,
-    loop_delay_ms_p95: actual?.loop_delay_ms_p95 ?? 0,
-    send_bps: actual?.send_bps ?? 0,
-    recv_bps: actual?.recv_bps ?? 0,
+    listen_port: numberValue(actual?.listen_port ?? desired?.listen_port),
+    loop_delay_ms_p95: numberValue(actual?.loop_delay_ms_p95),
+    send_bps: numberValue(actual?.send_bps),
+    recv_bps: numberValue(actual?.recv_bps),
     process_id: actual?.process_id,
     redis_connected: actual?.redis_connected,
     last_error: actual?.last_error,
+    stale: stale.stale,
+    stale_detail: stale.detail,
+    mounts: numberValue(actual?.mounts),
+    sources: numberValue(actual?.sources),
+    clients: numberValue(actual?.clients),
     desired_updated_at: asDateString(desired?.updated_at),
     actual_updated_at: asDateString(actual?.updated_at),
     last_metric_at: asDateString(actual?.updated_at),
@@ -303,15 +347,43 @@ function toRuntimeSummary(runtime: AdminRuntime): RuntimeSummary {
   };
 }
 
+function eventLevel(severity: string | undefined): RuntimeEvent['level'] {
+  switch (severity) {
+    case 'error':
+    case 'failed':
+      return 'error';
+    case 'warning':
+    case 'warn':
+      return 'warning';
+    default:
+      return 'info';
+  }
+}
+
+function toRuntimeEvent(event: AdminRuntimeEvent, index: number): RuntimeEvent {
+  const createdAt = event.occurred_at ?? event.created_at ?? '';
+  const message = event.message || event.type || 'runtime event';
+  return {
+    id: event.event_id || `${event.runtime_id}-${createdAt || index}`,
+    level: eventLevel(event.severity),
+    message,
+    type: event.type,
+    desired_version: event.desired_version,
+    process_id: event.process_id,
+    created_at: createdAt,
+  };
+}
+
 function toRuntimeDetail(runtime: AdminRuntime): RuntimeDetail {
   const summary = toRuntimeSummary(runtime);
+  const events = runtime.recent_events ?? runtime.events ?? [];
   return {
     ...summary,
-    image: 'Not reported',
-    command: 'Not reported',
-    env_profile: 'Not reported',
+    image: summary.current_config_version_id,
+    command: runtime.actual?.config_path || 'Not reported',
+    env_profile: runtime.actual?.config_checksum || 'Not reported',
     desired_state_note: summary.convergence_detail,
-    recent_events: [],
+    recent_events: events.map(toRuntimeEvent),
     workers: [],
   };
 }
@@ -319,9 +391,9 @@ function toRuntimeDetail(runtime: AdminRuntime): RuntimeDetail {
 function toIntentReceipt(intent: AdminIntent, message: string): IntentReceipt {
   return {
     intent_id: intent.intent_id,
-    accepted_at: new Date().toISOString(),
-    status: intent.status,
-    message,
+    accepted_at: intent.accepted_at ?? intent.created_at ?? new Date().toISOString(),
+    status: intent.status === 'queued' ? 'queued' : 'accepted',
+    message: intent.message || message,
   };
 }
 
@@ -395,9 +467,8 @@ const liveAdminService: V2AdminServiceContract = {
     };
   },
   async submitRuntimeAction(intent: RuntimeActionIntent) {
-    const action = intent.action === 'drain-workers' ? 'drain' : intent.action === 'roll-config' ? 'restart' : intent.action;
-    const receipt = await postData<AdminIntent>(`/api/v1/control/runtimes/${intent.runtime_id}/actions/${action}`, { reason: intent.reason });
-    return toIntentReceipt(receipt, `Action intent ${action} queued for ${intent.runtime_id}.`);
+    const receipt = await postData<AdminIntent>(`/api/v1/control/runtimes/${intent.runtime_id}/actions/${intent.action}`, { reason: intent.reason });
+    return toIntentReceipt(receipt, `Action intent ${intent.action} queued for ${intent.runtime_id}; waiting for observed actual state.`);
   },
   async publishConfigVersion(intent: ConfigPublishIntent) {
     return makeReceipt(`Config ${intent.config_version_id} publish intent accepted for ${intent.target_scope}.`);
