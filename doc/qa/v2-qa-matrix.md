@@ -277,6 +277,7 @@ redis-cli -h 127.0.0.1 -p 16379 --scan --pattern "v2:*"
 - `/api/v1/health` 中 `postgres=ok`、`redis=ok`。
 - Runtime desired state 写入 PostgreSQL source-of-truth。
 - Redis projection 只包含 v2 key，payload 带 runtime_id、desired_state、config_version、version 或 checksum。
+- `v2:control:config` notify 可订阅，创建或更新 Runtime desired state 后可收到 runtime / host desired projection 通知。
 - 删除 Redis projection 后可从 PG 重建，或记录为 NC-091/NC-097 阻断缺口。
 - operation/control intent 审计事实写入 PG。
 
@@ -511,7 +512,7 @@ npm run dev
 2. 启动 PostgreSQL、Redis、AdminService、Agent、Web。
 3. Web 或 Admin API 创建 Runtime desired state，start_immediately=true。
 4. 验证 PG desired state、control intent、audit log。
-5. 验证 Redis projection。
+5. 验证 Redis projection 和 `v2:control:config` notify。
 6. Agent 拉取 desired state，启动真实 navcaster-caster。
 7. Caster /health 与 /metrics 正常。
 8. Agent 上报 actual/events/metrics。

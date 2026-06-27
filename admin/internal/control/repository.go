@@ -318,12 +318,11 @@ func (r *MemoryRepository) ApplyActualSnapshots(agentID string, hostID string, s
 		if snapshot.RuntimeID == "" {
 			continue
 		}
-		if snapshot.HostID == "" {
-			snapshot.HostID = hostID
+		if err := validateIngestIdentity(snapshot.HostID, snapshot.AgentID, hostID, agentID); err != nil {
+			return err
 		}
-		if snapshot.AgentID == "" {
-			snapshot.AgentID = agentID
-		}
+		snapshot.HostID = hostID
+		snapshot.AgentID = agentID
 		if snapshot.UpdatedAt.IsZero() {
 			snapshot.UpdatedAt = now
 		}
@@ -351,16 +350,25 @@ func (r *MemoryRepository) RecordRuntimeEvents(agentID string, hostID string, ev
 		if event.RuntimeID == "" || event.Type == "" {
 			continue
 		}
-		if event.AgentID == "" {
-			event.AgentID = agentID
+		if err := validateIngestIdentity(event.HostID, event.AgentID, hostID, agentID); err != nil {
+			return err
 		}
-		if event.HostID == "" {
-			event.HostID = hostID
-		}
+		event.HostID = hostID
+		event.AgentID = agentID
 		if event.OccurredAt.IsZero() {
 			event.OccurredAt = time.Now().UTC()
 		}
 		r.events = append(r.events, event)
+	}
+	return nil
+}
+
+func validateIngestIdentity(payloadHostID string, payloadAgentID string, requestHostID string, requestAgentID string) error {
+	if payloadHostID != "" && payloadHostID != requestHostID {
+		return errorsx.BadRequest("payload host_id must match request host_id")
+	}
+	if payloadAgentID != "" && payloadAgentID != requestAgentID {
+		return errorsx.BadRequest("payload agent_id must match request agent_id")
 	}
 	return nil
 }
