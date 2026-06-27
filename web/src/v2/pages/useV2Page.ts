@@ -37,14 +37,18 @@ export function useV2Page<T>(
 }
 
 export function gb(used: number, total: number) {
+  if (!total) return used ? `${used.toFixed(0)} GB used` : '-';
   return `${used.toFixed(0)} / ${total.toFixed(0)} GB`;
 }
 
 export function formatDateTime(value: string) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  }).format(date);
 }

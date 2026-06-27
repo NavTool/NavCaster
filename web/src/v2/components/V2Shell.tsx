@@ -13,6 +13,7 @@ import { Button, Tooltip } from 'antd';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import type { AuthSessionSubject } from '../../api/types';
+import { V2_ADMIN_SERVICE_MODE } from '../api/adminService';
 
 const navItems = [
   { path: '/admin/control/hosts', label: 'Hosts', icon: <CloudServerOutlined /> },
@@ -79,7 +80,7 @@ export function V2Shell({ session }: { session: AuthSessionSubject }) {
           </div>
           <div className="v2-topbar-right">
             <span className="v2-contract-pill">
-              <CodeOutlined /> mock contract
+              <CodeOutlined /> {V2_ADMIN_SERVICE_MODE === 'mock' ? 'mock contract' : 'live AdminService'}
             </span>
             <div className="v2-user-chip">
               <span>{session.username || session.account_id}</span>

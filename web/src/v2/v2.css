@@ -364,6 +364,7 @@
 .v2-status-failed { color: var(--v2-danger); }
 .v2-status-draining { color: var(--v2-warning); }
 .v2-status-offline { color: var(--v2-offline); }
+.v2-status-unknown { color: #4b5563; }
 
 .v2-detail-page {
   min-width: 0;

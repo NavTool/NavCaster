@@ -36,7 +36,7 @@ import type {
 
 export async function getSession(): Promise<AuthSessionSubject> {
   const { data } = await api.get('/api/v1/auth/session');
-  return data as AuthSessionSubject;
+  return (data?.data ?? data) as AuthSessionSubject;
 }
 
 export const adminApi = {

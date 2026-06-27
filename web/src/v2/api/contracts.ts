@@ -1,6 +1,7 @@
-export type V2ControlStatus = 'pending' | 'running' | 'failed' | 'draining' | 'offline';
+export type V2ControlStatus = 'pending' | 'running' | 'failed' | 'draining' | 'offline' | 'stopped' | 'unknown';
 export type RuntimeKind = 'caster-core' | 'http-admin' | 'relay' | 'collector';
 export type DesiredRuntimeState = 'running' | 'draining' | 'stopped';
+export type ConvergenceStatus = 'converged' | 'pending' | 'failed';
 
 export interface PageRequest {
   page: number;
@@ -18,17 +19,24 @@ export interface PageResult<T> {
 
 export interface HostSummary {
   id: string;
+  agent_id?: string;
   name: string;
   region: string;
   address: string;
+  os?: string;
+  arch?: string;
   status: V2ControlStatus;
-  desired_state: 'enabled' | 'maintenance';
+  desired_state: 'enabled' | 'maintenance' | 'disabled';
+  actual_state: string;
+  convergence_status: ConvergenceStatus;
+  convergence_detail: string;
   runtime_count: number;
   worker_count: number;
   cpu_load: number;
   memory_used_gb: number;
   memory_total_gb: number;
   last_heartbeat_at: string;
+  last_metric_at: string;
   config_version_id: string;
 }
 
@@ -40,11 +48,28 @@ export interface RuntimeSummary {
   kind: RuntimeKind;
   status: V2ControlStatus;
   desired_state: DesiredRuntimeState;
+  actual_state: string;
+  convergence_status: ConvergenceStatus;
+  convergence_detail: string;
   current_config_version_id: string;
   target_config_version_id: string;
+  desired_version: number;
+  observed_desired_version: number;
+  desired_worker_count: number;
+  actual_worker_count: number;
   worker_count: number;
   active_sessions: number;
   restart_intent_count: number;
+  listen_port: number;
+  loop_delay_ms_p95: number;
+  send_bps: number;
+  recv_bps: number;
+  process_id?: number;
+  redis_connected?: boolean;
+  last_error?: string;
+  desired_updated_at: string;
+  actual_updated_at: string;
+  last_metric_at: string;
   updated_at: string;
 }
 
