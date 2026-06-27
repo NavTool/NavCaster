@@ -1,9 +1,9 @@
 # NavCaster v2 Web Layout Reference
 
 更新时间：2026-06-27
-任务：NC-081 v2 Architecture API Data Contract
-状态：v2 冻结契约
-适用范围：v2 Web 控制面信息架构、页面布局、Sub2API 参考边界和操作语义。
+任务：NC-081 v2 Architecture API Data Contract / NC-086 v2 Web Control Plane Foundation
+状态：v2 冻结契约 + Web skeleton 落地记录
+适用范围：v2 Web 控制面信息架构、页面布局、Sub2API 参考边界、操作语义和首版落地文件。
 可信度：架构冻结文档；后续 Web skeleton 和页面实现必须按本文执行。
 
 依据：
@@ -79,6 +79,11 @@ F:\Temporary\sub2api\frontend\src\views\admin\UsersView.vue
 F:\Temporary\sub2api\frontend\src\views\admin\AccountsView.vue
 F:\Temporary\sub2api\frontend\src\views\admin\UsageView.vue
 F:\Temporary\sub2api\frontend\src\views\admin\ops\OpsDashboard.vue
+
+F:\Temporary\sub2api\frontend\src\router\index.ts
+F:\Temporary\sub2api\frontend\src\router\meta.d.ts
+F:\Temporary\sub2api\frontend\src\api\client.ts
+F:\Temporary\sub2api\frontend\src\api\admin\index.ts
 ```
 
 说明：
@@ -100,6 +105,15 @@ route meta 只表达认证、角色、标题、功能门禁。
 统一 apiClient 处理 token、错误、响应解包和 request_id。
 运行态数据使用 runtime / worker / session / host 等专门 store 或 query hooks。
 表格页复用统一 layout、筛选、分页、批量操作和弹窗编辑组件。
+```
+
+NC-086 首版实现采用：
+
+```text
+React 18 / TypeScript / Ant Design。
+独立浅色高密度 v2 管理台风格。
+/admin/control/* 作为用户可见控制面入口。
+VITE_NAVCASTER_V2_MOCK=false 可切换真实 AdminService 接口，否则默认 mock contract。
 ```
 
 禁止：
@@ -129,6 +143,7 @@ type AllowedRole = 'admin' | 'customer' | 'supplier';
 /admin/control/hosts
 /admin/control/runtimes
 /admin/control/runtimes/:runtime_id
+/admin/control/workers
 /admin/control/config
 /admin/control/audit
 /admin/accounts
@@ -158,7 +173,17 @@ type AllowedRole = 'admin' | 'customer' | 'supplier';
 /supplier/profile
 ```
 
-控制面页面可全部放在 `/admin/control/*` 下。若实现保留 `/control/*` 内部 route，也必须在用户可见入口上收敛到 admin 管理台语义。
+控制面页面可全部放在 `/admin/control/*` 下。NC-086 首版落地入口：
+
+```text
+/admin/control/hosts
+/admin/control/runtimes
+/admin/control/runtimes/:runtime_id
+/admin/control/workers
+/admin/control/config
+```
+
+`/v2/*` 仅作为开发期兼容重定向到 `/admin/control/hosts`，不作为正式信息架构入口。
 
 ## 5. 应用壳
 
@@ -406,6 +431,14 @@ JSON 序列化。
 取消请求和超时。
 ```
 
+NC-086 首版落地文件：
+
+```text
+web/src/v2/api/contracts.ts
+web/src/v2/api/adminService.ts
+web/src/v2/api/mockData.ts
+```
+
 ## 9. 组件边界
 
 基础组件：
@@ -427,6 +460,22 @@ ActionMenu
 MetricSparkline
 StateTimeline
 DesiredActualPanel
+```
+
+NC-086 首版落地文件：
+
+```text
+web/src/v2/components/V2Shell.tsx
+web/src/v2/components/V2TablePage.tsx
+web/src/v2/components/V2StatusBadge.tsx
+web/src/v2/components/V2MetricCard.tsx
+web/src/v2/components/V2ConfirmDialog.tsx
+web/src/v2/pages/V2HostsPage.tsx
+web/src/v2/pages/V2RuntimesPage.tsx
+web/src/v2/pages/V2RuntimeDetailPage.tsx
+web/src/v2/pages/V2WorkersPage.tsx
+web/src/v2/pages/V2ConfigVersionsPage.tsx
+web/src/v2/v2.css
 ```
 
 设计要求：

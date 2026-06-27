@@ -32,6 +32,13 @@ import type { AccountRole, AuthSessionSubject } from './api/types';
 import { useEffect, useState } from 'react';
 import { Spin, Result, Button } from 'antd';
 import ErrorBoundary from './components/ErrorBoundary';
+import { V2Shell } from './v2/components/V2Shell';
+import V2HostsPage from './v2/pages/V2HostsPage';
+import V2RuntimesPage from './v2/pages/V2RuntimesPage';
+import V2RuntimeDetailPage from './v2/pages/V2RuntimeDetailPage';
+import V2WorkersPage from './v2/pages/V2WorkersPage';
+import V2ConfigVersionsPage from './v2/pages/V2ConfigVersionsPage';
+import './v2/v2.css';
 
 type GuardState = 'checking' | 'ok' | 'unauth' | 'unreachable';
 
@@ -129,6 +136,37 @@ export default function AppRouter() {
             </RequireAuth>
           }
         />
+        <Route
+          path="/v2/*"
+          element={<Navigate to="/admin/control/hosts" replace />}
+        />
+        <Route
+          path="/admin/control"
+          element={
+            <RequireAuth>
+              {(session) => (
+                isRoleAllowed(session.role, ['admin'])
+                  ? <V2Shell session={session} />
+                  : (
+                    <Result
+                      status="403"
+                      title="无权访问"
+                      subTitle="v2 Control Plane 仅开放给管理员。"
+                      extra={<Button type="primary" href={`#${roleHome(session)}`}>返回角色首页</Button>}
+                      style={{ marginTop: 80 }}
+                    />
+                  )
+              )}
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Navigate to="/admin/control/hosts" replace />} />
+          <Route path="hosts" element={<V2HostsPage />} />
+          <Route path="runtimes" element={<V2RuntimesPage />} />
+          <Route path="runtimes/:id" element={<V2RuntimeDetailPage />} />
+          <Route path="workers" element={<V2WorkersPage />} />
+          <Route path="config" element={<V2ConfigVersionsPage />} />
+        </Route>
         <Route
           path="/admin"
           element={<RoleRoute allowed={['admin']} />}
