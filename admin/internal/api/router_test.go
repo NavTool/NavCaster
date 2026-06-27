@@ -36,6 +36,10 @@ func TestHealthEnvelope(t *testing.T) {
 	if data["postgres"] != "not_configured" || data["redis"] != "not_configured" {
 		t.Fatalf("unexpected dependency status: %#v", data)
 	}
+	controlPlane := data["control_plane"].(map[string]any)
+	if controlPlane["status"] != "ok" || controlPlane["repository"] != "memory" {
+		t.Fatalf("unexpected control plane status: %#v", controlPlane)
+	}
 }
 
 func TestAgentRegisterHeartbeatDesiredState(t *testing.T) {
@@ -111,24 +115,46 @@ func TestRuntimeActionIntentDoesNotExecuteProcess(t *testing.T) {
 	}
 	decodeBody(t, runtimeRec, &runtimeEnvelope)
 
-	drainRec := doJSON(handler, http.MethodPost, "/api/v1/control/runtimes/"+runtimeEnvelope.Data.RuntimeID+"/actions/drain", `{}`)
+	drainRec := doJSON(handler, http.MethodPost, "/api/v1/control/runtimes/"+runtimeEnvelope.Data.RuntimeID+"/actions/drain", `{"request_id":"req-drain"}`)
 	if drainRec.Code != http.StatusAccepted {
 		t.Fatalf("drain status = %d body = %s", drainRec.Code, drainRec.Body.String())
 	}
 	var intentEnvelope struct {
 		Data struct {
 			IntentID       string `json:"intent_id"`
+			RequestID      string `json:"request_id"`
 			Status         string `json:"status"`
 			RuntimeID      string `json:"runtime_id"`
 			DesiredVersion int64  `json:"desired_version"`
 		} `json:"data"`
 	}
 	decodeBody(t, drainRec, &intentEnvelope)
-	if intentEnvelope.Data.IntentID == "" || intentEnvelope.Data.Status != "accepted" {
+	if intentEnvelope.Data.IntentID == "" || intentEnvelope.Data.Status != "accepted" || intentEnvelope.Data.RequestID != "req-drain" {
 		t.Fatalf("unexpected intent response: %#v", intentEnvelope.Data)
 	}
 	if intentEnvelope.Data.RuntimeID != runtimeEnvelope.Data.RuntimeID || intentEnvelope.Data.DesiredVersion == 0 {
 		t.Fatalf("unexpected desired version response: %#v", intentEnvelope.Data)
+	}
+
+	stopRec := doJSON(handler, http.MethodPost, "/api/v1/control/runtimes/"+runtimeEnvelope.Data.RuntimeID+"/actions/stop", `{"request_id":"req-stop"}`)
+	if stopRec.Code != http.StatusAccepted {
+		t.Fatalf("stop status = %d body = %s", stopRec.Code, stopRec.Body.String())
+	}
+	intentsRec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/control/runtimes/"+runtimeEnvelope.Data.RuntimeID+"/intents?limit=10", nil)
+	handler.ServeHTTP(intentsRec, req)
+	if intentsRec.Code != http.StatusOK {
+		t.Fatalf("intents status = %d body = %s", intentsRec.Code, intentsRec.Body.String())
+	}
+	var intentsEnvelope struct {
+		Data []struct {
+			RequestID string `json:"request_id"`
+			Status    string `json:"status"`
+		} `json:"data"`
+	}
+	decodeBody(t, intentsRec, &intentsEnvelope)
+	if len(intentsEnvelope.Data) != 2 || intentsEnvelope.Data[0].Status != "accepted" || intentsEnvelope.Data[1].Status != "superseded" {
+		t.Fatalf("unexpected intents response: %#v", intentsEnvelope.Data)
 	}
 }
 
@@ -178,6 +204,24 @@ func TestAgentRuntimeEventsAndMetrics(t *testing.T) {
 	decodeBody(t, runtimeRec, &runtimeEnvelope)
 	if runtimeEnvelope.Data.RuntimeID != "rt-smoke" || runtimeEnvelope.Data.Actual.ActualState != "running" || runtimeEnvelope.Data.Actual.ProcessID != 4242 {
 		t.Fatalf("unexpected runtime actual: %#v", runtimeEnvelope.Data)
+	}
+
+	eventsQueryRec := httptest.NewRecorder()
+	eventsReq := httptest.NewRequest(http.MethodGet, "/api/v1/control/runtimes/rt-smoke/events?limit=5", nil)
+	handler.ServeHTTP(eventsQueryRec, eventsReq)
+	if eventsQueryRec.Code != http.StatusOK {
+		t.Fatalf("events query status = %d body = %s", eventsQueryRec.Code, eventsQueryRec.Body.String())
+	}
+	var eventsEnvelope struct {
+		Data []struct {
+			RuntimeID      string `json:"runtime_id"`
+			Type           string `json:"type"`
+			DesiredVersion int64  `json:"desired_version"`
+		} `json:"data"`
+	}
+	decodeBody(t, eventsQueryRec, &eventsEnvelope)
+	if len(eventsEnvelope.Data) != 1 || eventsEnvelope.Data[0].RuntimeID != "rt-smoke" || eventsEnvelope.Data[0].Type != "reconcile_start" {
+		t.Fatalf("unexpected events response: %#v", eventsEnvelope.Data)
 	}
 }
 

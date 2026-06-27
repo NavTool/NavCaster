@@ -14,6 +14,7 @@ func TestDefaultRegistryRendersV2Keys(t *testing.T) {
 		{"access_account_policy", map[string]string{"access_account_id": "aacc_001"}, "v2:auth:policy:aacc_001"},
 		{"runtime_config", map[string]string{"runtime_id": "rt_001"}, "v2:config:runtime:rt_001"},
 		{"host_desired_state", map[string]string{"host_id": "host_001"}, "v2:control:desired-state:host_001"},
+		{"action_intent", map[string]string{"intent_id": "intent_001"}, "v2:control:intent:intent_001"},
 		{"runtime_actual", map[string]string{"runtime_id": "rt_001"}, "v2:runtime:actual:rt_001"},
 		{"worker_stat", map[string]string{"runtime_id": "rt_001"}, "v2:runtime:worker-stat:rt_001"},
 		{"agent_heartbeat", map[string]string{"agent_id": "ag_001"}, "v2:agent:heartbeat:ag_001"},

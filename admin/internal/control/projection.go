@@ -5,6 +5,7 @@ import "time"
 type ProjectionPublisher interface {
 	PublishRuntimeDesired(DesiredRuntime) error
 	PublishHostDesiredState(hostID string, states []DesiredRuntime) error
+	PublishActionIntent(ActionIntent, DesiredRuntime) error
 	PublishRuntimeActual(ActualSnapshot) error
 	PublishAgentHeartbeat(AgentHeartbeatProjection) error
 }
@@ -29,6 +30,10 @@ func NewProjectingRepository(inner Repository, publisher ProjectionPublisher) *P
 
 func (r *ProjectingRepository) ListHosts() ([]Host, error) {
 	return r.inner.ListHosts()
+}
+
+func (r *ProjectingRepository) ControlPlaneStatus() (ControlPlaneStatus, error) {
+	return r.inner.ControlPlaneStatus()
 }
 
 func (r *ProjectingRepository) GetHost(hostID string) (Host, error) {
@@ -63,12 +68,37 @@ func (r *ProjectingRepository) UpdateDesiredState(runtimeID string, req DesiredU
 	return runtime, r.publishRuntimeDesired(runtime)
 }
 
-func (r *ProjectingRepository) RecordActionIntent(runtimeID string, kind ActionKind, payload map[string]any) (ActionIntent, Runtime, error) {
-	intent, runtime, err := r.inner.RecordActionIntent(runtimeID, kind, payload)
+func (r *ProjectingRepository) RecordActionIntent(runtimeID string, kind ActionKind, req ActionRequest) (ActionIntent, Runtime, error) {
+	intent, runtime, err := r.inner.RecordActionIntent(runtimeID, kind, req)
 	if err != nil {
 		return ActionIntent{}, Runtime{}, err
 	}
-	return intent, runtime, r.publishRuntimeDesired(runtime)
+	projected := intent
+	now := time.Now().UTC()
+	projected.Status = ActionIntentProjected
+	projected.ProjectedAt = &now
+	projected.UpdatedAt = now
+	if err := r.publishActionIntent(projected, runtime); err != nil {
+		_ = r.inner.UpdateActionIntentStatus(intent.ID, ActionIntentFailed, err.Error())
+		return intent, runtime, err
+	}
+	if err := r.inner.UpdateActionIntentStatus(intent.ID, ActionIntentProjected, ""); err != nil {
+		return ActionIntent{}, Runtime{}, err
+	}
+	intent, runtime = r.refreshIntentAndRuntime(intent, runtime)
+	return intent, runtime, nil
+}
+
+func (r *ProjectingRepository) UpdateActionIntentStatus(intentID string, status ActionIntentStatus, reason string) error {
+	return r.inner.UpdateActionIntentStatus(intentID, status, reason)
+}
+
+func (r *ProjectingRepository) ListActionIntents(runtimeID string, limit int) ([]ActionIntent, error) {
+	return r.inner.ListActionIntents(runtimeID, limit)
+}
+
+func (r *ProjectingRepository) ListRuntimeEvents(runtimeID string, limit int) ([]RuntimeEvent, error) {
+	return r.inner.ListRuntimeEvents(runtimeID, limit)
 }
 
 func (r *ProjectingRepository) ListDesiredStatesForHost(hostID string, sinceVersion int64) ([]DesiredRuntime, error) {
@@ -134,4 +164,29 @@ func (r *ProjectingRepository) publishRuntimeDesired(runtime Runtime) error {
 		return err
 	}
 	return r.publisher.PublishHostDesiredState(runtime.Desired.HostID, states)
+}
+
+func (r *ProjectingRepository) publishActionIntent(intent ActionIntent, runtime Runtime) error {
+	if runtime.Desired == nil {
+		return nil
+	}
+	if err := r.publishRuntimeDesired(runtime); err != nil {
+		return err
+	}
+	if r.publisher == nil {
+		return nil
+	}
+	return r.publisher.PublishActionIntent(intent, *runtime.Desired)
+}
+
+func (r *ProjectingRepository) refreshIntentAndRuntime(intent ActionIntent, runtime Runtime) (ActionIntent, Runtime) {
+	intents, err := r.inner.ListActionIntents(runtime.RuntimeID, 1)
+	if err == nil && len(intents) == 1 {
+		intent = intents[0]
+	}
+	updated, err := r.inner.GetRuntime(runtime.RuntimeID)
+	if err == nil {
+		runtime = updated
+	}
+	return intent, runtime
 }

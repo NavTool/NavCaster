@@ -131,9 +131,25 @@ truth，Redis 只保存 projection / runtime TTL state / bus。
 | --- | --- | --- | --- | --- | --- |
 | `v2:config:runtime:<runtime_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | 单 Runtime desired/config projection，字段来自 `runtime_desired_states`。 |
 | `v2:control:desired-state:<host_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent | Host 级 desired-state projection，shape 与 `GET /api/v1/agents/{agent_id}/desired-state` 一致。 |
-| `v2:control:config` | PUB/SUB JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | Runtime / Host desired projection 变更通知。payload 包含 projection key、runtime_id 或 host_id、version。 |
-| `v2:runtime:actual:<runtime_id>` | STRING JSON | 60s | navcaster-admin runtime-metrics ingest | navcaster-admin / Web | 最新 runtime actual snapshot projection。长期事实写 PostgreSQL `runtime_actual_snapshots`。 |
+| `v2:control:intent:<intent_id>` | STRING JSON | 无 | navcaster-admin | navcaster-admin / navcaster-agent / QA | action intent projection，包含 intent lifecycle、request_id、desired_version 和对应 desired runtime。 |
+| `v2:control:config` | PUB/SUB JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | Runtime / Host desired projection 和 action intent 变更通知。payload 包含 projection key、runtime_id 或 host_id、intent_id、desired_version、intent_status、version。 |
+| `v2:runtime:actual:<runtime_id>` | STRING JSON | 60s | navcaster-admin runtime-metrics ingest | navcaster-admin / Web | 最新 runtime actual snapshot projection，payload 顶层带 `status=observed|failed`、`stale`、`last_error` 和 `observed_desired_version`。长期事实写 PostgreSQL `runtime_actual_snapshots`。 |
 | `v2:agent:heartbeat:<agent_id>` | STRING JSON | 45s | navcaster-admin heartbeat ingest | navcaster-admin / Web | 最新 Agent heartbeat projection。 |
+
+NC-101 后 action intent 生命周期为：
+
+```text
+accepted -> projected -> observed
+accepted/projected -> superseded
+accepted/projected -> failed
+```
+
+AdminService 在 PostgreSQL 事务中写 desired state 和 `control_intents`，Redis projection
+成功后把 intent 标记为 `projected`。Agent 上报 `runtime_actual_snapshots` 或
+`runtime_events` 时，若 `observed_desired_version` / `desired_version` 匹配 open intent，
+则推进到 `observed`；actual 带 `last_error` 或事件类型为 `desired_failed`、
+`reconcile_failed`、`runtime_failed` 时推进到 `failed`。新 action 会把同 runtime 旧 open
+intent 标记为 `superseded`。
 
 `GET /api/v1/control/projection-keys` 返回当前 v2 Redis key registry。新增 v2 key 必须先登记
 `admin/internal/storage/redis/registry.go`，并同步本文件。

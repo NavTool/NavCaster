@@ -22,6 +22,47 @@ func NewControlRepository(db *sql.DB) *ControlRepository {
 	return &ControlRepository{db: db}
 }
 
+func (r *ControlRepository) ControlPlaneStatus() (control.ControlPlaneStatus, error) {
+	status := control.ControlPlaneStatus{
+		Status:     "ok",
+		Repository: "postgres",
+	}
+	ctx := context.Background()
+	row := r.db.QueryRowContext(ctx, `
+SELECT
+  (SELECT count(*) FROM hosts),
+  (SELECT count(*) FROM runtimes),
+  (SELECT count(*) FROM runtime_desired_states),
+  COALESCE((SELECT max(version) FROM runtime_desired_states), 0),
+  (SELECT count(*) FROM control_intents WHERE status IN ('accepted', 'projected')),
+  (SELECT count(*) FROM control_intents WHERE status = 'failed'),
+  now()`)
+	var updatedAt time.Time
+	if err := row.Scan(
+		&status.HostCount,
+		&status.RuntimeCount,
+		&status.DesiredCount,
+		&status.LatestDesiredVersion,
+		&status.PendingIntentCount,
+		&status.FailedIntentCount,
+		&updatedAt,
+	); err != nil {
+		return control.ControlPlaneStatus{}, err
+	}
+	status.UpdatedAt = &updatedAt
+
+	runtimes, err := r.ListRuntimes()
+	if err != nil {
+		return control.ControlPlaneStatus{}, err
+	}
+	for _, runtime := range runtimes {
+		if runtime.Control != nil && runtime.Control.Stale {
+			status.StaleRuntimeCount++
+		}
+	}
+	return status, nil
+}
+
 func (r *ControlRepository) ListHosts() ([]control.Host, error) {
 	rows, err := r.db.QueryContext(context.Background(), `
 SELECT h.host_id, h.display_name, COALESCE(a.agent_id, ''), h.status, h.labels::text,
@@ -130,7 +171,7 @@ func (r *ControlRepository) ListRuntimes() ([]control.Runtime, error) {
 		if err != nil {
 			return nil, err
 		}
-		runtimes = append(runtimes, runtime)
+		runtimes = append(runtimes, r.withControl(runtime))
 	}
 	return runtimes, rows.Err()
 }
@@ -144,7 +185,7 @@ func (r *ControlRepository) GetRuntime(runtimeID string) (control.Runtime, error
 		}
 		return control.Runtime{}, err
 	}
-	return runtime, nil
+	return r.withControl(runtime), nil
 }
 
 func (r *ControlRepository) CreateRuntime(req control.RuntimeCreateRequest) (control.Runtime, error) {
@@ -259,7 +300,7 @@ func (r *ControlRepository) UpdateDesiredState(runtimeID string, req control.Des
 	return r.GetRuntime(runtimeID)
 }
 
-func (r *ControlRepository) RecordActionIntent(runtimeID string, kind control.ActionKind, payload map[string]any) (control.ActionIntent, control.Runtime, error) {
+func (r *ControlRepository) RecordActionIntent(runtimeID string, kind control.ActionKind, req control.ActionRequest) (control.ActionIntent, control.Runtime, error) {
 	if kind == "" {
 		return control.ActionIntent{}, control.Runtime{}, errorsx.BadRequest("action kind is required")
 	}
@@ -269,6 +310,25 @@ func (r *ControlRepository) RecordActionIntent(runtimeID string, kind control.Ac
 		return control.ActionIntent{}, control.Runtime{}, err
 	}
 	defer rollback(tx)
+	if req.Payload == nil {
+		req.Payload = map[string]any{}
+	}
+	if req.RequestID != "" {
+		existing, err := getIntentByRequestIDTx(ctx, tx, req.RequestID)
+		if err == nil {
+			if err := tx.Commit(); err != nil {
+				return control.ActionIntent{}, control.Runtime{}, err
+			}
+			runtime, runtimeErr := r.GetRuntime(existing.RuntimeID)
+			if runtimeErr != nil {
+				return control.ActionIntent{}, control.Runtime{}, runtimeErr
+			}
+			return existing, runtime, nil
+		}
+		if err != sql.ErrNoRows {
+			return control.ActionIntent{}, control.Runtime{}, err
+		}
+	}
 	runtime, err := getRuntimeTx(ctx, tx, runtimeID)
 	if err != nil {
 		return control.ActionIntent{}, control.Runtime{}, err
@@ -306,21 +366,22 @@ func (r *ControlRepository) RecordActionIntent(runtimeID string, kind control.Ac
 	if err != nil {
 		return control.ActionIntent{}, control.Runtime{}, err
 	}
-	if payload == nil {
-		payload = map[string]any{}
+	requestID := firstNonEmpty(req.RequestID, intentID)
+	if err := supersedeOpenIntentsTx(ctx, tx, runtimeID); err != nil {
+		return control.ActionIntent{}, control.Runtime{}, err
 	}
-	payloadJSON, err := json.Marshal(payload)
+	payloadJSON, err := json.Marshal(req.Payload)
 	if err != nil {
 		return control.ActionIntent{}, control.Runtime{}, errorsx.BadRequest("action payload must be JSON serializable")
 	}
-	if err := updateDesiredTx(ctx, tx, desired, version, map[string]any{"kind": string(kind), "intent_id": intentID, "payload": payload}); err != nil {
+	if err := updateDesiredTx(ctx, tx, desired, version, map[string]any{"kind": string(kind), "intent_id": intentID, "request_id": requestID, "payload": req.Payload}); err != nil {
 		return control.ActionIntent{}, control.Runtime{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO control_intents
-  (intent_id, request_id, runtime_id, host_id, kind, status, desired_version, payload, created_at)
-VALUES ($1, $2, $3, $4, $5, 'accepted', $6, $7::jsonb, now())`,
-		intentID, intentID, runtimeID, runtime.HostID, string(kind), version, string(payloadJSON)); err != nil {
+  (intent_id, request_id, runtime_id, host_id, kind, status, desired_version, payload, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, 'accepted', $6, $7::jsonb, now(), now())`,
+		intentID, requestID, runtimeID, runtime.HostID, string(kind), version, string(payloadJSON)); err != nil {
 		return control.ActionIntent{}, control.Runtime{}, err
 	}
 	if err := insertAuditTx(ctx, tx, "runtime.action."+string(kind), "runtime", runtimeID, map[string]any{"intent_id": intentID, "desired_version": version}); err != nil {
@@ -333,16 +394,103 @@ VALUES ($1, $2, $3, $4, $5, 'accepted', $6, $7::jsonb, now())`,
 	if err != nil {
 		return control.ActionIntent{}, control.Runtime{}, err
 	}
-	intent := control.ActionIntent{
-		ID:             intentID,
-		RuntimeID:      runtimeID,
-		Kind:           kind,
-		Status:         "accepted",
-		DesiredVersion: version,
-		Payload:        payload,
-		CreatedAt:      time.Now().UTC(),
+	intents, err := r.ListActionIntents(runtimeID, 1)
+	if err != nil {
+		return control.ActionIntent{}, control.Runtime{}, err
+	}
+	intent := control.ActionIntent{}
+	if len(intents) > 0 {
+		intent = intents[0]
 	}
 	return intent, updated, nil
+}
+
+func (r *ControlRepository) UpdateActionIntentStatus(intentID string, status control.ActionIntentStatus, reason string) error {
+	ctx := context.Background()
+	result, err := r.db.ExecContext(ctx, `
+UPDATE control_intents
+SET status = $2,
+    updated_at = now(),
+    projected_at = CASE WHEN $2 = 'projected' THEN now() ELSE projected_at END,
+    observed_at = CASE WHEN $2 = 'observed' THEN now() ELSE observed_at END,
+    superseded_at = CASE WHEN $2 = 'superseded' THEN now() ELSE superseded_at END,
+    failed_at = CASE WHEN $2 = 'failed' THEN now() ELSE failed_at END,
+    failure_reason = CASE WHEN $2 = 'failed' THEN $3 ELSE failure_reason END
+WHERE intent_id = $1`,
+		intentID, string(status), reason)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errorsx.NotFound("intent not found")
+	}
+	return nil
+}
+
+func (r *ControlRepository) ListActionIntents(runtimeID string, limit int) ([]control.ActionIntent, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	ctx := context.Background()
+	query := `
+SELECT intent_id, request_id, runtime_id, COALESCE(host_id, ''), kind, status, desired_version,
+       payload::text, created_at, updated_at, projected_at, observed_at, superseded_at, failed_at, failure_reason
+FROM control_intents`
+	args := []any{}
+	if runtimeID != "" {
+		query += ` WHERE runtime_id = $1`
+		args = append(args, runtimeID)
+	}
+	query += fmt.Sprintf(` ORDER BY created_at DESC, intent_id DESC LIMIT %d`, limit)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var intents []control.ActionIntent
+	for rows.Next() {
+		intent, err := scanActionIntent(rows)
+		if err != nil {
+			return nil, err
+		}
+		intents = append(intents, intent)
+	}
+	return intents, rows.Err()
+}
+
+func (r *ControlRepository) ListRuntimeEvents(runtimeID string, limit int) ([]control.RuntimeEvent, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	ctx := context.Background()
+	query := `
+SELECT event_id, runtime_id, host_id, COALESCE(agent_id, ''), type, severity, desired_version,
+       process_id, message, metadata::text, occurred_at
+FROM runtime_events`
+	args := []any{}
+	if runtimeID != "" {
+		query += ` WHERE runtime_id = $1`
+		args = append(args, runtimeID)
+	}
+	query += fmt.Sprintf(` ORDER BY occurred_at DESC, event_id DESC LIMIT %d`, limit)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []control.RuntimeEvent
+	for rows.Next() {
+		event, err := scanRuntimeEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	return events, rows.Err()
 }
 
 func (r *ControlRepository) ListDesiredStatesForHost(hostID string, sinceVersion int64) ([]control.DesiredRuntime, error) {
@@ -439,6 +587,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 			nullableIntPtr(snapshot.LastExitCode), snapshot.UpdatedAt); err != nil {
 			return err
 		}
+		if err := observeIntentFromActualTx(ctx, tx, snapshot); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
@@ -485,6 +636,9 @@ ON CONFLICT (event_id) DO NOTHING`,
 			event.EventID, event.RuntimeID, event.HostID, nullableString(event.AgentID), event.Type,
 			event.Severity, event.DesiredVersion, nullableInt(event.ProcessID), event.Message,
 			string(metadataJSON), event.OccurredAt); err != nil {
+			return err
+		}
+		if err := observeIntentFromEventTx(ctx, tx, event); err != nil {
 			return err
 		}
 	}
@@ -643,6 +797,66 @@ func scanDesired(row scanner) (control.DesiredRuntime, error) {
 	return state, err
 }
 
+func scanActionIntent(row scanner) (control.ActionIntent, error) {
+	var intent control.ActionIntent
+	var kind, status string
+	var payloadRaw string
+	var projectedAt, observedAt, supersededAt, failedAt sql.NullTime
+	err := row.Scan(
+		&intent.ID, &intent.RequestID, &intent.RuntimeID, &intent.HostID, &kind, &status,
+		&intent.DesiredVersion, &payloadRaw, &intent.CreatedAt, &intent.UpdatedAt,
+		&projectedAt, &observedAt, &supersededAt, &failedAt, &intent.FailureReason,
+	)
+	if err != nil {
+		return control.ActionIntent{}, err
+	}
+	intent.Kind = control.ActionKind(kind)
+	intent.Status = control.ActionIntentStatus(status)
+	if payloadRaw != "" {
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(payloadRaw), &payload); err == nil {
+			intent.Payload = payload
+		}
+	}
+	if projectedAt.Valid {
+		intent.ProjectedAt = &projectedAt.Time
+	}
+	if observedAt.Valid {
+		intent.ObservedAt = &observedAt.Time
+	}
+	if supersededAt.Valid {
+		intent.SupersededAt = &supersededAt.Time
+	}
+	if failedAt.Valid {
+		intent.FailedAt = &failedAt.Time
+	}
+	return intent, nil
+}
+
+func scanRuntimeEvent(row scanner) (control.RuntimeEvent, error) {
+	var event control.RuntimeEvent
+	var metadataRaw string
+	var processID sql.NullInt64
+	err := row.Scan(
+		&event.EventID, &event.RuntimeID, &event.HostID, &event.AgentID, &event.Type,
+		&event.Severity, &event.DesiredVersion, &processID, &event.Message,
+		&metadataRaw, &event.OccurredAt,
+	)
+	if err != nil {
+		return control.RuntimeEvent{}, err
+	}
+	if processID.Valid {
+		event.ProcessID = int(processID.Int64)
+	}
+	if metadataRaw != "" {
+		var metadata map[string]string
+		if err := json.Unmarshal([]byte(metadataRaw), &metadata); err == nil {
+			event.Metadata = metadata
+		}
+	}
+	return event, nil
+}
+
 func getRuntimeTx(ctx context.Context, tx *sql.Tx, runtimeID string) (control.Runtime, error) {
 	row := tx.QueryRowContext(ctx, runtimeSelectSQL()+` WHERE rt.runtime_id = $1 FOR UPDATE OF rt`, runtimeID)
 	runtime, err := scanRuntime(row)
@@ -653,6 +867,96 @@ func getRuntimeTx(ctx context.Context, tx *sql.Tx, runtimeID string) (control.Ru
 		return control.Runtime{}, err
 	}
 	return runtime, nil
+}
+
+func getIntentByRequestIDTx(ctx context.Context, tx *sql.Tx, requestID string) (control.ActionIntent, error) {
+	row := tx.QueryRowContext(ctx, `
+SELECT intent_id, request_id, runtime_id, COALESCE(host_id, ''), kind, status, desired_version,
+       payload::text, created_at, updated_at, projected_at, observed_at, superseded_at, failed_at, failure_reason
+FROM control_intents
+WHERE request_id = $1`, requestID)
+	return scanActionIntent(row)
+}
+
+func getLatestIntent(ctx context.Context, db *sql.DB, runtimeID string) (*control.ActionIntent, error) {
+	row := db.QueryRowContext(ctx, `
+SELECT intent_id, request_id, runtime_id, COALESCE(host_id, ''), kind, status, desired_version,
+       payload::text, created_at, updated_at, projected_at, observed_at, superseded_at, failed_at, failure_reason
+FROM control_intents
+WHERE runtime_id = $1
+ORDER BY created_at DESC, intent_id DESC
+LIMIT 1`, runtimeID)
+	intent, err := scanActionIntent(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &intent, nil
+}
+
+func supersedeOpenIntentsTx(ctx context.Context, tx *sql.Tx, runtimeID string) error {
+	_, err := tx.ExecContext(ctx, `
+UPDATE control_intents
+SET status = 'superseded',
+    superseded_at = now(),
+    updated_at = now()
+WHERE runtime_id = $1 AND status IN ('accepted', 'projected')`, runtimeID)
+	return err
+}
+
+func observeIntentFromActualTx(ctx context.Context, tx *sql.Tx, snapshot control.ActualSnapshot) error {
+	if snapshot.ObservedDesiredVersion == 0 {
+		return nil
+	}
+	status := "observed"
+	reason := ""
+	if snapshot.LastError != "" {
+		status = "failed"
+		reason = snapshot.LastError
+	}
+	_, err := tx.ExecContext(ctx, `
+UPDATE control_intents
+SET status = $3,
+    updated_at = now(),
+    observed_at = CASE WHEN $3 = 'observed' THEN now() ELSE observed_at END,
+    failed_at = CASE WHEN $3 = 'failed' THEN now() ELSE failed_at END,
+    failure_reason = CASE WHEN $3 = 'failed' THEN $4 ELSE failure_reason END
+WHERE runtime_id = $1
+  AND desired_version = $2
+  AND status IN ('accepted', 'projected')`,
+		snapshot.RuntimeID, snapshot.ObservedDesiredVersion, status, reason)
+	return err
+}
+
+func observeIntentFromEventTx(ctx context.Context, tx *sql.Tx, event control.RuntimeEvent) error {
+	if event.DesiredVersion == 0 {
+		return nil
+	}
+	status := ""
+	reason := event.Message
+	switch strings.ToLower(event.Type) {
+	case "desired_observed", "reconcile_success", "runtime_converged":
+		status = "observed"
+	case "desired_failed", "reconcile_failed", "runtime_failed":
+		status = "failed"
+	}
+	if status == "" {
+		return nil
+	}
+	_, err := tx.ExecContext(ctx, `
+UPDATE control_intents
+SET status = $3,
+    updated_at = now(),
+    observed_at = CASE WHEN $3 = 'observed' THEN now() ELSE observed_at END,
+    failed_at = CASE WHEN $3 = 'failed' THEN now() ELSE failed_at END,
+    failure_reason = CASE WHEN $3 = 'failed' THEN $4 ELSE failure_reason END
+WHERE runtime_id = $1
+  AND desired_version = $2
+  AND status IN ('accepted', 'projected')`,
+		event.RuntimeID, event.DesiredVersion, status, reason)
+	return err
 }
 
 func ensureHostExistsTx(ctx context.Context, tx *sql.Tx, hostID string) error {
@@ -767,6 +1071,16 @@ INSERT INTO operation_audit_logs
 VALUES ($1, 'system', 'adminservice', $2, $3, $4, $5::jsonb, now())`,
 		requestID, action, targetType, targetID, string(payloadJSON))
 	return err
+}
+
+func (r *ControlRepository) withControl(runtime control.Runtime) control.Runtime {
+	latestIntent, err := getLatestIntent(context.Background(), r.db, runtime.RuntimeID)
+	if err != nil {
+		return runtime
+	}
+	controlState := control.EvaluateRuntimeControl(runtime, latestIntent, time.Now().UTC(), control.DefaultRuntimeStaleAfter)
+	runtime.Control = &controlState
+	return runtime
 }
 
 func validateDesired(state control.DesiredState, listenPort int, workerCount int, maxWorkers int, policy control.RestartPolicy) error {

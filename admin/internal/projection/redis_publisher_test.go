@@ -35,6 +35,13 @@ func TestRedisPublisherPublishesControlConfigNotify(t *testing.T) {
 	if client.sets[0].key != "v2:config:runtime:rt_001" {
 		t.Fatalf("projection key = %q", client.sets[0].key)
 	}
+	var desired RuntimeDesiredProjection
+	if err := json.Unmarshal(client.sets[0].payload, &desired); err != nil {
+		t.Fatalf("decode desired projection failed: %v", err)
+	}
+	if desired.Key != client.sets[0].key || desired.Version != 42 || desired.Runtime.RuntimeID != "rt_001" {
+		t.Fatalf("unexpected desired projection: %#v", desired)
+	}
 	if len(client.publishes) != 1 {
 		t.Fatalf("expected one config notify publish, got %d", len(client.publishes))
 	}
@@ -71,6 +78,13 @@ func TestRedisPublisherPublishesHostDesiredStateNotify(t *testing.T) {
 	if len(client.publishes) != 1 {
 		t.Fatalf("expected one config notify publish, got %d", len(client.publishes))
 	}
+	var projection HostDesiredStateProjection
+	if err := json.Unmarshal(client.sets[0].payload, &projection); err != nil {
+		t.Fatalf("decode host desired projection failed: %v", err)
+	}
+	if projection.Key != client.sets[0].key || projection.Version != 43 || len(projection.Runtimes) != 2 {
+		t.Fatalf("unexpected host desired projection: %#v", projection)
+	}
 
 	var notify ControlConfigNotify
 	if err := json.Unmarshal(client.publishes[0].payload, &notify); err != nil {
@@ -78,6 +92,75 @@ func TestRedisPublisherPublishesHostDesiredStateNotify(t *testing.T) {
 	}
 	if notify.Kind != "host_desired_state_updated" || notify.HostID != "host_001" || notify.Version != 43 {
 		t.Fatalf("unexpected notify payload: %#v", notify)
+	}
+}
+
+func TestRedisPublisherPublishesActionIntentProjection(t *testing.T) {
+	client := &fakeRedisClient{configured: true}
+	publisher := NewRedisPublisher(NewRegistry(redisStore.DefaultRegistry()), client)
+
+	err := publisher.PublishActionIntent(control.ActionIntent{
+		ID:             "intent_001",
+		RequestID:      "req_001",
+		RuntimeID:      "rt_001",
+		HostID:         "host_001",
+		Kind:           control.ActionKindStart,
+		Status:         control.ActionIntentAccepted,
+		DesiredVersion: 44,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
+	}, control.DesiredRuntime{
+		RuntimeID: "rt_001",
+		HostID:    "host_001",
+		Version:   44,
+	})
+	if err != nil {
+		t.Fatalf("PublishActionIntent returned error: %v", err)
+	}
+	if len(client.sets) != 1 || client.sets[0].key != "v2:control:intent:intent_001" {
+		t.Fatalf("unexpected action intent SETs: %#v", client.sets)
+	}
+	var projection ActionIntentProjection
+	if err := json.Unmarshal(client.sets[0].payload, &projection); err != nil {
+		t.Fatalf("decode action intent projection failed: %v", err)
+	}
+	if projection.Key != client.sets[0].key || projection.Intent.ID != "intent_001" || projection.Runtime.Version != 44 {
+		t.Fatalf("unexpected action intent projection: %#v", projection)
+	}
+	var notify ControlConfigNotify
+	if err := json.Unmarshal(client.publishes[0].payload, &notify); err != nil {
+		t.Fatalf("decode notify failed: %v", err)
+	}
+	if notify.Kind != "action_intent_projected" || notify.IntentID != "intent_001" || notify.DesiredVersion != 44 {
+		t.Fatalf("unexpected action intent notify: %#v", notify)
+	}
+}
+
+func TestRedisPublisherPublishesActualStatus(t *testing.T) {
+	client := &fakeRedisClient{configured: true}
+	publisher := NewRedisPublisher(NewRegistry(redisStore.DefaultRegistry()), client)
+
+	err := publisher.PublishRuntimeActual(control.ActualSnapshot{
+		RuntimeID:              "rt_001",
+		HostID:                 "host_001",
+		AgentID:                "ag_001",
+		ActualState:            "stopped",
+		ObservedDesiredVersion: 45,
+		LastError:              "failed to stop",
+		UpdatedAt:              time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("PublishRuntimeActual returned error: %v", err)
+	}
+	if len(client.sets) != 1 || client.sets[0].key != "v2:runtime:actual:rt_001" || client.sets[0].ttl != 60*time.Second {
+		t.Fatalf("unexpected actual SETs: %#v", client.sets)
+	}
+	var projection RuntimeActualProjection
+	if err := json.Unmarshal(client.sets[0].payload, &projection); err != nil {
+		t.Fatalf("decode actual projection failed: %v", err)
+	}
+	if projection.Status != "failed" || projection.LastError != "failed to stop" || projection.ObservedDesiredVersion != 45 {
+		t.Fatalf("unexpected actual projection: %#v", projection)
 	}
 }
 

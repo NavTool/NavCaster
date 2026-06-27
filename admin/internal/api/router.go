@@ -42,6 +42,8 @@ func (s Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/control/runtimes", s.listRuntimes)
 	mux.HandleFunc("POST /api/v1/control/runtimes", s.createRuntime)
 	mux.HandleFunc("GET /api/v1/control/runtimes/{runtime_id}", s.getRuntime)
+	mux.HandleFunc("GET /api/v1/control/runtimes/{runtime_id}/events", s.listRuntimeEvents)
+	mux.HandleFunc("GET /api/v1/control/runtimes/{runtime_id}/intents", s.listRuntimeIntents)
 	mux.HandleFunc("PUT /api/v1/control/runtimes/{runtime_id}/desired-state", s.updateRuntimeDesiredState)
 	mux.HandleFunc("POST /api/v1/control/runtimes/{runtime_id}/actions/start", s.startRuntime)
 	mux.HandleFunc("POST /api/v1/control/runtimes/{runtime_id}/actions/stop", s.stopRuntime)
@@ -56,12 +58,13 @@ func (s Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 	writeData(w, r, http.StatusOK, map[string]any{
-		"service":  "navcaster-admin",
-		"status":   "ok",
-		"version":  s.cfg.ServiceVersion,
-		"postgres": postgresStore.CheckHealth(ctx, postgresStore.Config{DSN: s.cfg.PostgreSQLDSN}),
-		"redis":    redisStore.CheckHealth(ctx, redisStore.Config{Address: s.cfg.RedisAddress}),
-		"time":     time.Now().UTC().Format(time.RFC3339Nano),
+		"service":       "navcaster-admin",
+		"status":        "ok",
+		"version":       s.cfg.ServiceVersion,
+		"postgres":      postgresStore.CheckHealth(ctx, postgresStore.Config{DSN: s.cfg.PostgreSQLDSN}),
+		"redis":         redisStore.CheckHealth(ctx, redisStore.Config{Address: s.cfg.RedisAddress}),
+		"control_plane": s.controlPlaneHealth(),
+		"time":          time.Now().UTC().Format(time.RFC3339Nano),
 	})
 }
 
@@ -185,6 +188,34 @@ func (s Server) getRuntime(w http.ResponseWriter, r *http.Request) {
 	writeData(w, r, http.StatusOK, runtime)
 }
 
+func (s Server) listRuntimeEvents(w http.ResponseWriter, r *http.Request) {
+	limit, err := parseIntQuery(r, "limit", 100)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	events, err := s.control.ListRuntimeEvents(r.PathValue("runtime_id"), limit)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeData(w, r, http.StatusOK, events)
+}
+
+func (s Server) listRuntimeIntents(w http.ResponseWriter, r *http.Request) {
+	limit, err := parseIntQuery(r, "limit", 50)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	intents, err := s.control.ListActionIntents(r.PathValue("runtime_id"), limit)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeData(w, r, http.StatusOK, intents)
+}
+
 func (s Server) updateRuntimeDesiredState(w http.ResponseWriter, r *http.Request) {
 	var req control.DesiredUpdateRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -200,27 +231,52 @@ func (s Server) updateRuntimeDesiredState(w http.ResponseWriter, r *http.Request
 }
 
 func (s Server) startRuntime(w http.ResponseWriter, r *http.Request) {
-	intent, runtime, err := s.control.Start(r.PathValue("runtime_id"))
+	action, err := decodeActionRequest(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	intent, runtime, err := s.control.Start(r.PathValue("runtime_id"), action)
 	s.writeIntent(w, r, intent, runtime, err)
 }
 
 func (s Server) stopRuntime(w http.ResponseWriter, r *http.Request) {
-	intent, runtime, err := s.control.Stop(r.PathValue("runtime_id"))
+	action, err := decodeActionRequest(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	intent, runtime, err := s.control.Stop(r.PathValue("runtime_id"), action)
 	s.writeIntent(w, r, intent, runtime, err)
 }
 
 func (s Server) drainRuntime(w http.ResponseWriter, r *http.Request) {
-	intent, runtime, err := s.control.Drain(r.PathValue("runtime_id"))
+	action, err := decodeActionRequest(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	intent, runtime, err := s.control.Drain(r.PathValue("runtime_id"), action)
 	s.writeIntent(w, r, intent, runtime, err)
 }
 
 func (s Server) undrainRuntime(w http.ResponseWriter, r *http.Request) {
-	intent, runtime, err := s.control.Undrain(r.PathValue("runtime_id"))
+	action, err := decodeActionRequest(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	intent, runtime, err := s.control.Undrain(r.PathValue("runtime_id"), action)
 	s.writeIntent(w, r, intent, runtime, err)
 }
 
 func (s Server) restartRuntime(w http.ResponseWriter, r *http.Request) {
-	intent, runtime, err := s.control.Restart(r.PathValue("runtime_id"))
+	action, err := decodeActionRequest(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	intent, runtime, err := s.control.Restart(r.PathValue("runtime_id"), action)
 	s.writeIntent(w, r, intent, runtime, err)
 }
 
@@ -235,12 +291,37 @@ func (s Server) writeIntent(w http.ResponseWriter, r *http.Request, intent contr
 	}
 	writeData(w, r, http.StatusAccepted, map[string]any{
 		"intent_id":       intent.ID,
+		"request_id":      intent.RequestID,
 		"status":          intent.Status,
 		"runtime_id":      intent.RuntimeID,
 		"desired_version": desiredVersion,
+		"runtime":         runtime,
 	})
 }
 
 func (s Server) listProjectionKeys(w http.ResponseWriter, r *http.Request) {
 	writeData(w, r, http.StatusOK, s.projection.RedisKeys())
+}
+
+func (s Server) controlPlaneHealth() control.ControlPlaneStatus {
+	status, err := s.control.ControlPlaneStatus()
+	if err != nil {
+		return control.ControlPlaneStatus{
+			Status:     "unavailable",
+			Repository: "unknown",
+			Error:      err.Error(),
+		}
+	}
+	return status
+}
+
+func decodeActionRequest(r *http.Request) (control.ActionRequest, error) {
+	if r.Body == nil || r.ContentLength == 0 {
+		return control.ActionRequest{}, nil
+	}
+	var req control.ActionRequest
+	if err := decodeJSON(r, &req); err != nil {
+		return control.ActionRequest{}, err
+	}
+	return req, nil
 }

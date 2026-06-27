@@ -926,6 +926,129 @@ export interface AccessAccountUpdateInput {
   private_remark?: string;
 }
 
+// ==================== Go AdminService V2 Control Plane ====================
+
+export type AdminV2DesiredState = 'running' | 'stopped' | 'draining' | 'deleted';
+export type AdminV2RestartPolicy = 'never' | 'on_failure' | 'always';
+export type AdminV2ActionKind = 'start' | 'stop' | 'restart' | 'drain' | 'undrain';
+export type AdminV2ActionIntentStatus = 'accepted' | 'projected' | 'observed' | 'superseded' | 'failed';
+export type AdminV2RuntimeControlStatus = 'converged' | 'pending' | 'failed' | 'stale';
+
+export interface AdminV2DesiredRuntime {
+  runtime_id: string;
+  host_id: string;
+  desired_state: AdminV2DesiredState;
+  config_version: number;
+  listen_port: number;
+  worker_count: number;
+  max_worker_count: number;
+  restart_policy: AdminV2RestartPolicy;
+  draining: boolean;
+  version: number;
+  generation: number;
+  updated_at: string;
+}
+
+export interface AdminV2ActualSnapshot {
+  runtime_id: string;
+  host_id: string;
+  agent_id?: string;
+  actual_state: string;
+  process_id?: number;
+  start_token?: string;
+  config_version?: number;
+  config_path?: string;
+  config_checksum?: string;
+  listen_port?: number;
+  worker_count?: number;
+  connections?: number;
+  mounts?: number;
+  sources?: number;
+  clients?: number;
+  send_bps?: number;
+  recv_bps?: number;
+  loop_delay_ms_p95?: number;
+  redis_connected?: boolean;
+  last_error?: string;
+  observed_desired_version?: number;
+  started_at?: string;
+  updated_at: string;
+  last_exit_code?: number;
+}
+
+export interface AdminV2ActionIntent {
+  intent_id: string;
+  request_id: string;
+  runtime_id: string;
+  host_id?: string;
+  kind: AdminV2ActionKind;
+  status: AdminV2ActionIntentStatus;
+  desired_version: number;
+  payload?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  projected_at?: string;
+  observed_at?: string;
+  superseded_at?: string;
+  failed_at?: string;
+  failure_reason?: string;
+}
+
+export interface AdminV2RuntimeControl {
+  status: AdminV2RuntimeControlStatus;
+  desired_version?: number;
+  observed_desired_version?: number;
+  desired_state?: AdminV2DesiredState;
+  actual_state?: string;
+  pending: boolean;
+  failed: boolean;
+  stale: boolean;
+  reason?: string;
+  last_error?: string;
+  last_observed_at?: string;
+  stale_after_seconds: number;
+  latest_intent?: AdminV2ActionIntent;
+}
+
+export interface AdminV2Runtime {
+  runtime_id: string;
+  host_id: string;
+  name: string;
+  desired?: AdminV2DesiredRuntime;
+  actual?: AdminV2ActualSnapshot;
+  control?: AdminV2RuntimeControl;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminV2RuntimeEvent {
+  event_id?: string;
+  runtime_id: string;
+  host_id?: string;
+  agent_id?: string;
+  type: string;
+  severity?: string;
+  desired_version?: number;
+  process_id?: number;
+  message?: string;
+  occurred_at: string;
+  metadata?: Record<string, string>;
+}
+
+export interface AdminV2ControlPlaneStatus {
+  status: 'ok' | 'unavailable' | string;
+  repository: string;
+  host_count: number;
+  runtime_count: number;
+  desired_count: number;
+  latest_desired_version: number;
+  pending_intent_count: number;
+  failed_intent_count: number;
+  stale_runtime_count: number;
+  updated_at?: string;
+  error?: string;
+}
+
 
 // ==================== API Response Helpers ====================
 
