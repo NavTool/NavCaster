@@ -226,8 +226,9 @@ Redis 数据必须可由 PostgreSQL 或 Runtime/Agent 观测重新生成。Redis
 | `v2:auth:policy:<access_account_id>` | STRING JSON | none | AdminService | projection worker | Caster | 访问策略投影。 |
 | `v2:auth:version` | STRING integer | none | AdminService | projection worker | Caster | Auth projection 版本。 |
 | `v2:config:runtime:<runtime_id>` | STRING JSON | none | AdminService | projection worker | Agent / Caster | Runtime 配置投影。 |
+| `v2:control:desired-state:<host_id>` | STRING JSON | none | AdminService | projection worker | Agent | Host 级 desired-state 投影，shape 与 Agent HTTP polling response 一致。 |
 | `v2:config:version` | STRING integer | none | AdminService | projection worker | Agent / Caster | 全局配置投影版本。 |
-| `v2:control:config` | Pub/Sub JSON | none | AdminService | projection worker | Agent / Caster | 配置变更通知。 |
+| `v2:control:config` | Pub/Sub JSON | none | AdminService | projection worker | Agent / Caster | Runtime / Host desired projection 变更通知。 |
 | `v2:agent:heartbeat:<agent_id>` | STRING JSON | 45s | Agent | Agent | AdminService | Agent heartbeat TTL。 |
 | `v2:runtime:actual:<runtime_id>` | STRING JSON | 60s | Agent | Agent | AdminService | Runtime actual 快照 TTL。 |
 | `v2:runtime:worker-stat:<runtime_id>` | HASH | 60s | Caster | Caster | AdminService | Worker metrics 快照。 |
@@ -257,7 +258,7 @@ Projection worker 或同步投影路径必须幂等：
 ```text
 input: PostgreSQL source row + version/checksum
 output: v2 Redis projection key
-notify: v2:control:* channel
+notify: PUBLISH v2:control:config with projection key, runtime_id or host_id, and version
 retry: safe
 rebuild: full rebuild from PostgreSQL
 ```
@@ -266,7 +267,7 @@ Projection 失败语义：
 
 ```text
 AdminService 可以先持久化 desired intent，但不得宣称 projection 已完成。
-NC-097 闭环 gate 必须使用真实 Redis 并验证投影最终可读。
+NC-097 闭环 gate 必须使用真实 Redis，并验证投影最终可读且 `v2:control:config` notify 可订阅。
 Redis 不可用时，Phase 2 系统 smoke 不能标为通过。
 ```
 
@@ -646,7 +647,7 @@ Phase 2 DEV_DONE / QA / Review 的最低闭环证据：
 1. AdminService 真实 PG/Redis 可启动，health 显示 postgres=ok redis=ok。
 2. Web 或 curl 创建 Runtime desired state。
 3. PostgreSQL runtime_desired_states 和 control_intents 可验证。
-4. Redis v2 config/runtime projection 可验证。
+4. Redis v2 config/runtime projection 和 `v2:control:config` notify 可验证。
 5. Agent 拉取 desired state 并启动真实 navcaster-caster。
 6. Caster local health/metrics 可验证。
 7. Agent 上报 runtime-metrics.actual[] 和 runtime-events。

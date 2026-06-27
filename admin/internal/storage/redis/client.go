@@ -69,6 +69,11 @@ func (c *Client) Set(ctx context.Context, key string, value []byte, ttl time.Dur
 	return err
 }
 
+func (c *Client) Publish(ctx context.Context, channel string, value []byte) error {
+	_, err := c.Do(ctx, "PUBLISH", channel, string(value))
+	return err
+}
+
 func (c *Client) Do(ctx context.Context, args ...string) (string, error) {
 	if !c.Configured() {
 		return "", fmt.Errorf("redis address is not configured")

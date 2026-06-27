@@ -191,6 +191,7 @@ navcaster-admin 可构建。
 PostgreSQL migration 已执行或明确由 AdminService 启动执行。
 创建 runtime 后 runtime_desired_states、control_intents、operation_audit_logs 可验证。
 Redis v2 projection key 可验证。
+v2:control:config 订阅能收到 runtime_desired_updated 或 host_desired_state_updated notify。
 runtime-events / runtime-metrics ingest 后 control runtime API 可读 actual。
 ```
 
@@ -422,6 +423,8 @@ Web 显示 pending / applying，不能显示已完成。
 
 ```text
 v2:config:runtime:<runtime_id> 或 Phase 2 等价 runtime projection 存在。
+v2:control:desired-state:<host_id> 存在，且 shape 与 Agent desired-state response 一致。
+订阅 v2:control:config 后，创建或更新 runtime desired state 可收到包含 projection key、host_id 或 runtime_id、version 的 notify。
 projection payload 包含 runtime_id、config_version、listen_port、worker_count、version/checksum 或等价版本字段。
 旧 ACT/MPT/STR/PULL/PUSH/CASTER key 不作为 v2 projection 证据。
 ```
@@ -618,7 +621,7 @@ NC-097 用旧 key /旧 API /旧 Web 行为作为通过证据。
 | Admin health postgres/redis | PASS/FAIL/NR |  |
 | Agent register/heartbeat | PASS/FAIL/NR |  |
 | Web intent -> PG desired | PASS/FAIL/NR |  |
-| Redis projection | PASS/FAIL/NR |  |
+| Redis projection + `v2:control:config` notify | PASS/FAIL/NR |  |
 | Agent starts Caster | PASS/FAIL/NR |  |
 | runtime-events/metrics | PASS/FAIL/NR |  |
 | Web convergence | PASS/FAIL/NR |  |

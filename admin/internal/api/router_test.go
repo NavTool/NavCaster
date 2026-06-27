@@ -181,6 +181,62 @@ func TestAgentRuntimeEventsAndMetrics(t *testing.T) {
 	}
 }
 
+func TestAgentRuntimeMetricsRejectsMismatchedPayloadIdentity(t *testing.T) {
+	server := newTestServer()
+	handler := server.Handler()
+	agentID, hostID := registerTestAgent(t, handler)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "host",
+			body: `{"agent_id":"` + agentID + `","host_id":"` + hostID + `","actual":[{"runtime_id":"rt-injected","host_id":"host_other","agent_id":"` + agentID + `","actual_state":"running","updated_at":"2026-06-27T00:00:01Z"}]}`,
+		},
+		{
+			name: "agent",
+			body: `{"agent_id":"` + agentID + `","host_id":"` + hostID + `","actual":[{"runtime_id":"rt-injected","host_id":"` + hostID + `","agent_id":"ag_other","actual_state":"running","updated_at":"2026-06-27T00:00:01Z"}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := doJSON(handler, http.MethodPost, "/api/v1/agents/"+agentID+"/runtime-metrics", tt.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("metrics status = %d body = %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestAgentRuntimeEventsRejectsMismatchedPayloadIdentity(t *testing.T) {
+	server := newTestServer()
+	handler := server.Handler()
+	agentID, hostID := registerTestAgent(t, handler)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "host",
+			body: `{"agent_id":"` + agentID + `","host_id":"` + hostID + `","events":[{"runtime_id":"rt-injected","host_id":"host_other","agent_id":"` + agentID + `","type":"reconcile_start","occurred_at":"2026-06-27T00:00:02Z"}]}`,
+		},
+		{
+			name: "agent",
+			body: `{"agent_id":"` + agentID + `","host_id":"` + hostID + `","events":[{"runtime_id":"rt-injected","host_id":"` + hostID + `","agent_id":"ag_other","type":"reconcile_start","occurred_at":"2026-06-27T00:00:02Z"}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := doJSON(handler, http.MethodPost, "/api/v1/agents/"+agentID+"/runtime-events", tt.body)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("events status = %d body = %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestProjectionKeyEndpoint(t *testing.T) {
 	server := newTestServer()
 	rec := httptest.NewRecorder()
@@ -214,6 +270,25 @@ func newTestServer() Server {
 		control.NewService(repo),
 		projection.NewRegistry(redisStore.DefaultRegistry()),
 	)
+}
+
+func registerTestAgent(t *testing.T, handler http.Handler) (string, string) {
+	t.Helper()
+	registerRec := doJSON(handler, http.MethodPost, "/api/v1/agents/register", `{"hostname":"caster-node-test","machine_id":"machine-test","os":"windows","arch":"amd64"}`)
+	if registerRec.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	var registerEnvelope struct {
+		Data struct {
+			AgentID string `json:"agent_id"`
+			HostID  string `json:"host_id"`
+		} `json:"data"`
+	}
+	decodeBody(t, registerRec, &registerEnvelope)
+	if registerEnvelope.Data.AgentID == "" || registerEnvelope.Data.HostID == "" {
+		t.Fatalf("missing register IDs: %#v", registerEnvelope.Data)
+	}
+	return registerEnvelope.Data.AgentID, registerEnvelope.Data.HostID
 }
 
 func doJSON(handler http.Handler, method string, path string, body string) *httptest.ResponseRecorder {

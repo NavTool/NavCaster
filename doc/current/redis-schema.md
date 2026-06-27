@@ -131,6 +131,7 @@ truth，Redis 只保存 projection / runtime TTL state / bus。
 | --- | --- | --- | --- | --- | --- |
 | `v2:config:runtime:<runtime_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | 单 Runtime desired/config projection，字段来自 `runtime_desired_states`。 |
 | `v2:control:desired-state:<host_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent | Host 级 desired-state projection，shape 与 `GET /api/v1/agents/{agent_id}/desired-state` 一致。 |
+| `v2:control:config` | PUB/SUB JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | Runtime / Host desired projection 变更通知。payload 包含 projection key、runtime_id 或 host_id、version。 |
 | `v2:runtime:actual:<runtime_id>` | STRING JSON | 60s | navcaster-admin runtime-metrics ingest | navcaster-admin / Web | 最新 runtime actual snapshot projection。长期事实写 PostgreSQL `runtime_actual_snapshots`。 |
 | `v2:agent:heartbeat:<agent_id>` | STRING JSON | 45s | navcaster-admin heartbeat ingest | navcaster-admin / Web | 最新 Agent heartbeat projection。 |
 

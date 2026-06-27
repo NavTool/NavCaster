@@ -303,6 +303,19 @@ function toRuntimeSummary(runtime: AdminRuntime): RuntimeSummary {
   };
 }
 
+function toRuntimeDetail(runtime: AdminRuntime): RuntimeDetail {
+  const summary = toRuntimeSummary(runtime);
+  return {
+    ...summary,
+    image: 'Not reported',
+    command: 'Not reported',
+    env_profile: 'Not reported',
+    desired_state_note: summary.convergence_detail,
+    recent_events: [],
+    workers: [],
+  };
+}
+
 function toIntentReceipt(intent: AdminIntent, message: string): IntentReceipt {
   return {
     intent_id: intent.intent_id,
@@ -362,7 +375,7 @@ const liveAdminService: V2AdminServiceContract = {
   },
   async getRuntime(runtimeId: string): Promise<RuntimeDetail> {
     const runtime = await getData<AdminRuntime>(`/api/v1/control/runtimes/${runtimeId}`);
-    return makeRuntimeDetail(toRuntimeSummary(runtime));
+    return toRuntimeDetail(runtime);
   },
   async listWorkers(params): Promise<PageResult<WorkerMetric>> {
     return pageFromRows([], params, ['name', 'id', 'host_name']);

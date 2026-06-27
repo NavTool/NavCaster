@@ -22,6 +22,10 @@ func (r Registry) HostDesiredStateKey(hostID string) (string, error) {
 	return r.redis.Render("host_desired_state", map[string]string{"host_id": hostID})
 }
 
+func (r Registry) ConfigPubSubChannel() (string, error) {
+	return r.redis.Render("config_pubsub", nil)
+}
+
 func (r Registry) RuntimeActualKey(runtimeID string) (string, error) {
 	return r.redis.Render("runtime_actual", map[string]string{"runtime_id": runtimeID})
 }
