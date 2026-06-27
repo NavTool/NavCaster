@@ -18,6 +18,7 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  OperationsAlertEvent,
   OperationsAlertPolicy,
   OperationsMonitor,
   PagedResult,
@@ -50,6 +51,24 @@ export const adminApi = {
   async updateOperationsAlertPolicy(body: Partial<OperationsAlertPolicy>) {
     const { data } = await api.put('/api/v1/admin/operations-alert-policy', body);
     return data as OperationsAlertPolicy;
+  },
+  async operationsAlertEvents(period?: string, status?: string): Promise<HashRecord<OperationsAlertEvent>> {
+    const params = {
+      ...(period ? { period } : {}),
+      ...(status ? { status } : {}),
+    };
+    const { data } = await api.get('/api/v1/admin/operations-alert-events', { params: Object.keys(params).length ? params : undefined });
+    return data;
+  },
+  async syncOperationsAlertEvents(period?: string) {
+    const { data } = await api.post('/api/v1/admin/operations-alert-events', {}, { params: { action: 'sync', ...(period ? { period } : {}) } });
+    return data as { period: string; synced_count: number; events: HashRecord<OperationsAlertEvent> };
+  },
+  async updateOperationsAlertEvent(alertEventId: string, action: 'acknowledge' | 'resolve', body: { period?: string; operator_note?: string } = {}) {
+    const { data } = await api.post(`/api/v1/admin/operations-alert-events/${encodeURIComponent(alertEventId)}/${action}`, body, {
+      params: body.period ? { period: body.period } : undefined,
+    });
+    return data as OperationsAlertEvent;
   },
   async onlineConnections(): Promise<HashRecord<AccountActive>> {
     const { data } = await api.get('/api/v1/admin/online-connections');

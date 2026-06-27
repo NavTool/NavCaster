@@ -771,6 +771,39 @@ export interface OperationsMonitorAlert {
   message?: string;
 }
 
+export interface OperationsAlertEvent {
+  alert_event_id: string;
+  period: string;
+  code: string;
+  severity?: 'critical' | 'warning' | 'info' | string;
+  status?: 'open' | 'acknowledged' | 'resolved' | string;
+  count?: number;
+  threshold?: number;
+  message?: string;
+  source?: string;
+  occurrence_count?: number;
+  reopen_count?: number;
+  first_seen_time?: number;
+  last_seen_time?: number;
+  acknowledged_time?: number;
+  acknowledged_by?: string;
+  resolved_time?: number;
+  resolved_by?: string;
+  reopen_time?: number;
+  operator_note?: string;
+  create_time?: number;
+  update_time?: number;
+}
+
+export interface OperationsAlertEventSummary {
+  period: string;
+  total_count?: number;
+  open_count?: number;
+  acknowledged_count?: number;
+  resolved_count?: number;
+  recent_events?: OperationsAlertEvent[];
+}
+
 export interface OperationsMonitorRiskAccount {
   account_id: string;
   username?: string;
@@ -871,6 +904,7 @@ export interface OperationsMonitor {
     };
   };
   alerts: OperationsMonitorAlert[];
+  alert_events?: OperationsAlertEventSummary;
 }
 
 export interface AccessAccountCreateInput {

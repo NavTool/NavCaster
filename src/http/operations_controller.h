@@ -52,6 +52,12 @@ public:
     ControllerResponse operations_monitor(const std::string &period);
     ControllerResponse operations_alert_policy();
     ControllerResponse update_operations_alert_policy(const std::string &body_text);
+    ControllerResponse list_operations_alert_events(const std::string &period, const std::string &status);
+    ControllerResponse sync_operations_alert_events(const std::string &period);
+    ControllerResponse update_operations_alert_event(const std::string &alert_event_id,
+                                                    const std::string &period,
+                                                    const std::string &action,
+                                                    const std::string &body_text);
     ControllerResponse list_usage(const std::string &period);
     ControllerResponse list_runtime_rejections(const std::string &period);
     ControllerResponse list_data_push_configs();

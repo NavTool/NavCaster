@@ -226,6 +226,20 @@ OPS:ALERT:POLICY[default] 保存运营监控告警策略。
 GET /api/v1/admin/operations-monitor 会返回 alert_policy 快照，并按该策略生成 alerts。
 ```
 
+NC-078 运营告警事件：
+
+```text
+OPS:ALERT:EVENT:<yyyyMM>[alert_event_id] 保存运营告警事件事实。
+alert_event_id 固定为 opsalert:<yyyyMM>:<code>，同一账期同一告警码幂等更新。
+字段包含 alert_event_id、period、code、severity、status、count、threshold、message、
+source、occurrence_count、reopen_count、first_seen_time、last_seen_time、
+acknowledged_by、acknowledged_time、resolved_by、resolved_time、operator_note、
+create_time、update_time。
+GET /api/v1/admin/operations-monitor 只返回 alert_events 摘要，不写该 key。
+POST /api/v1/admin/operations-alert-events?action=sync&period=yyyyMM 才会把当前 alerts
+沉淀为事件事实。
+```
+
 NC-060 订阅运营和兑换入账：
 
 ```text

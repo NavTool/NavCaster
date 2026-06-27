@@ -2902,6 +2902,30 @@ function Invoke-OperationsApiSmoke {
     if ($alertCodes -contains "supplier_pending_payment") {
         Fail "operations monitor supplier_pending_payment alert should be disabled by policy: $(ConvertTo-CompactJson $monitor.alerts)"
     }
+    $alertSync = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body "{}" -Uri "$Base/api/v1/admin/operations-alert-events?action=sync&period=202606" -TimeoutSec 10
+    if ($alertSync.period -ne "202606" -or $alertSync.synced_count -lt 1) {
+        Fail "operations alert events sync mismatch: $(ConvertTo-CompactJson $alertSync)"
+    }
+    $alertEvents = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/operations-alert-events?period=202606" -TimeoutSec 10
+    if ($null -eq $alertEvents.'opsalert:202606:low_balance') {
+        Fail "operations alert events missing low_balance: $(ConvertTo-CompactJson $alertEvents)"
+    }
+    $ackAlert = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body (@{ operator = "e2e"; operator_note = "ack from e2e" } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/operations-alert-events/opsalert%3A202606%3Alow_balance/acknowledge?period=202606" -TimeoutSec 10
+    if ($ackAlert.status -ne "acknowledged") {
+        Fail "operations alert event acknowledge mismatch: $(ConvertTo-CompactJson $ackAlert)"
+    }
+    $resolvedAlert = Invoke-RestMethod -Method Post -Headers $Headers -ContentType "application/json" -Body (@{ operator = "e2e"; operator_note = "resolve from e2e" } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/operations-alert-events/opsalert%3A202606%3Alow_balance/resolve?period=202606" -TimeoutSec 10
+    if ($resolvedAlert.status -ne "resolved") {
+        Fail "operations alert event resolve mismatch: $(ConvertTo-CompactJson $resolvedAlert)"
+    }
+    $resolvedEvents = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/operations-alert-events?period=202606&status=resolved" -TimeoutSec 10
+    if ($null -eq $resolvedEvents.'opsalert:202606:low_balance') {
+        Fail "operations alert events resolved filter missing low_balance: $(ConvertTo-CompactJson $resolvedEvents)"
+    }
+    $monitorWithEvents = Invoke-RestMethod -Headers $Headers -Uri "$Base/api/v1/admin/operations-monitor?period=202606" -TimeoutSec 10
+    if ($monitorWithEvents.alert_events.total_count -lt 1) {
+        Fail "operations monitor alert event summary mismatch: $(ConvertTo-CompactJson $monitorWithEvents.alert_events)"
+    }
     $invalidAlertStatus = Get-HttpStatusCode -Context "invalid operations alert policy" -Request {
         Invoke-RestMethod -Method Put -Headers $Headers -ContentType "application/json" -Body (@{ low_balance_threshold_cents = -1 } | ConvertTo-Json -Compress) -Uri "$Base/api/v1/admin/operations-alert-policy" -TimeoutSec 10
     }

@@ -45,6 +45,7 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  OperationsAlertEvent,
   OperationsAlertPolicy,
   OperationsMonitorAlert,
   OperationsMonitorDataPushJob,
@@ -65,6 +66,7 @@ type AdminView =
   | 'operations-monitor'
   | 'online-connections'
   | 'audit'
+  | 'alert-events'
   | 'accounts'
   | 'access-accounts'
   | 'mount-point-groups'
@@ -145,6 +147,11 @@ function monitorSeverityTag(severity?: string) {
   return <Tag color={color}>{severity || '-'}</Tag>;
 }
 
+function alertEventStatusTag(status?: string) {
+  const color = status === 'open' ? 'red' : status === 'acknowledged' ? 'gold' : status === 'resolved' ? 'green' : 'default';
+  return <Tag color={color}>{status || 'open'}</Tag>;
+}
+
 function recordCount<T extends object>(records: HashRecord<T> | null): number {
   return Object.keys(records ?? {}).length;
 }
@@ -182,6 +189,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
 
   const accountsQuery = usePolling(() => adminApi.accounts(), 5000, view === 'dashboard' || view === 'accounts');
   const monitorQuery = usePolling(() => adminApi.operationsMonitor(currentPeriod()), 5000, view === 'dashboard' || view === 'operations-monitor');
+  const alertEventQuery = usePolling(() => adminApi.operationsAlertEvents(currentPeriod()), 5000, view === 'dashboard' || view === 'operations-monitor' || view === 'alert-events');
   const onlineQuery = usePolling(() => adminApi.onlineConnections(), 5000, view === 'dashboard' || view === 'online-connections');
   const auditQuery = usePolling(
     () => adminApi.audit({
@@ -222,6 +230,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const stationRows = useMemo(() => rowsFromHash(stationsQuery.data), [stationsQuery.data]);
   const usageRows = useMemo(() => rowsFromHash(usageQuery.data), [usageQuery.data]);
   const runtimeRejectionRows = useMemo(() => rowsFromHash(runtimeRejectionQuery.data), [runtimeRejectionQuery.data]);
+  const alertEventRows = useMemo(() => rowsFromHash(alertEventQuery.data), [alertEventQuery.data]);
   const subscriptionPlanRows = useMemo(() => rowsFromHash(subscriptionPlanQuery.data), [subscriptionPlanQuery.data]);
   const subscriptionRows = useMemo(() => rowsFromHash(subscriptionQuery.data), [subscriptionQuery.data]);
   const redeemRows = useMemo(() => rowsFromHash(redeemQuery.data), [redeemQuery.data]);
@@ -234,6 +243,10 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const monitorAlerts = useMemo(
     () => (monitor?.alerts ?? []).map((item, index) => ({ key: `${item.code}-${index}`, ...item })),
     [monitor?.alerts],
+  );
+  const monitorAlertEvents = useMemo(
+    () => (monitor?.alert_events?.recent_events ?? []).map((item) => ({ key: item.alert_event_id, ...item })),
+    [monitor?.alert_events?.recent_events],
   );
   const monitorRiskAccounts = useMemo(
     () => (monitor?.accounts?.risk_accounts ?? []).map((item) => ({ key: item.account_id, ...item })),
@@ -256,6 +269,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     .reduce((sum, settlement) => sum + Number(settlement.total_earning_cents ?? 0), 0);
   const currentUsageCost = usageRows.reduce((sum, usage) => sum + Number(usage.stat_cost_cents ?? 0), 0);
   const runtimeRejectionCount = runtimeRejectionRows.length;
+  const openAlertEventCount = alertEventRows.filter((event) => !event.status || event.status === 'open').length;
   const currentDataPushDebit = dataPushRows.reduce((sum, usage) => sum + Number(usage.actual_debit_cents ?? 0), 0);
 
   useEffect(() => {
@@ -547,6 +561,23 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     await adminApi.updateOperationsAlertPolicy(values);
     message.success('告警策略已保存');
     alertPolicyQuery.refresh();
+    monitorQuery.refresh();
+  };
+
+  const syncAlertEvents = async () => {
+    const result = await adminApi.syncOperationsAlertEvents(currentPeriod());
+    message.success(`告警事件已同步：${result.synced_count}`);
+    alertEventQuery.refresh();
+    monitorQuery.refresh();
+  };
+
+  const updateAlertEvent = async (record: OperationsAlertEvent, action: 'acknowledge' | 'resolve') => {
+    await adminApi.updateOperationsAlertEvent(record.alert_event_id, action, {
+      period: record.period || currentPeriod(),
+      operator_note: action === 'acknowledge' ? 'acknowledged from web' : 'resolved from web',
+    });
+    message.success(action === 'acknowledge' ? '告警已确认' : '告警已关闭');
+    alertEventQuery.refresh();
     monitorQuery.refresh();
   };
 
@@ -883,6 +914,32 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '说明', dataIndex: 'message', key: 'message', render: (value) => value || '-' },
   ];
 
+  const alertEventColumns: ColumnsType<OperationsAlertEvent & { key: string }> = [
+    { title: '状态', key: 'status', width: 120, fixed: 'left', render: (_, row) => alertEventStatusTag(row.status) },
+    { title: '级别', dataIndex: 'severity', key: 'severity', width: 110, render: (value) => monitorSeverityTag(value) },
+    { title: 'Code', dataIndex: 'code', key: 'code', width: 210 },
+    { title: '数量', dataIndex: 'count', key: 'count', width: 90, render: (value) => value ?? 0 },
+    { title: '阈值', dataIndex: 'threshold', key: 'threshold', width: 90, render: (value) => value ?? 1 },
+    { title: '触发次数', dataIndex: 'occurrence_count', key: 'occurrence_count', width: 110, render: (value) => value ?? 0 },
+    { title: '首次触发', key: 'first_seen_time', width: 170, render: (_, row) => row.first_seen_time ? getLocalTime(row.first_seen_time) : '-' },
+    { title: '最近触发', key: 'last_seen_time', width: 170, render: (_, row) => row.last_seen_time ? getLocalTime(row.last_seen_time) : '-' },
+    { title: '确认时间', key: 'acknowledged_time', width: 170, render: (_, row) => row.acknowledged_time ? getLocalTime(row.acknowledged_time) : '-' },
+    { title: '关闭时间', key: 'resolved_time', width: 170, render: (_, row) => row.resolved_time ? getLocalTime(row.resolved_time) : '-' },
+    { title: '说明', dataIndex: 'message', key: 'message', width: 280, ellipsis: true, render: (value) => value || '-' },
+    {
+      title: '操作',
+      key: 'action',
+      width: 180,
+      fixed: 'right',
+      render: (_, row) => (
+        <Space size="small">
+          <Button size="small" icon={<CheckCircleOutlined />} disabled={row.status === 'acknowledged' || row.status === 'resolved'} onClick={() => updateAlertEvent(row, 'acknowledge')}>确认</Button>
+          <Button size="small" danger icon={<StopOutlined />} disabled={row.status === 'resolved'} onClick={() => updateAlertEvent(row, 'resolve')}>关闭</Button>
+        </Space>
+      ),
+    },
+  ];
+
   const monitorRiskAccountColumns: ColumnsType<OperationsMonitorRiskAccount & { key: string }> = [
     { title: 'Account ID', dataIndex: 'account_id', key: 'account_id', width: 190 },
     { title: '用户名', dataIndex: 'username', key: 'username', width: 140, render: (value) => value || '-' },
@@ -950,7 +1007,16 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
           <Col xs={12} md={6}>
             <MetricCard title="已付款收益" value={formatCents(settlements?.paid_cents)} suffix={`${settlements?.paid_count ?? 0} 批`} prefix={<CheckCircleOutlined />} />
           </Col>
+          <Col xs={12} md={6}>
+            <MetricCard title="打开告警" value={monitor?.alert_events?.open_count ?? openAlertEventCount} suffix={`总计 ${monitor?.alert_events?.total_count ?? alertEventRows.length}`} prefix={<StopOutlined />} />
+          </Col>
         </Row>
+        <Space wrap>
+          <Button icon={<SyncOutlined />} onClick={syncAlertEvents} loading={alertEventQuery.loading}>同步告警事件</Button>
+          <Tag color="red">打开 {monitor?.alert_events?.open_count ?? openAlertEventCount}</Tag>
+          <Tag color="gold">确认 {monitor?.alert_events?.acknowledged_count ?? 0}</Tag>
+          <Tag color="green">关闭 {monitor?.alert_events?.resolved_count ?? 0}</Tag>
+        </Space>
         <Form
           form={alertPolicyForm}
           layout="inline"
@@ -1047,6 +1113,15 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
           pagination={false}
           scroll={{ x: 1550 }}
         />
+        <Table
+          columns={alertEventColumns}
+          dataSource={monitorAlertEvents}
+          loading={monitorQuery.loading || alertEventQuery.loading}
+          rowKey="key"
+          size="small"
+          pagination={false}
+          scroll={{ x: 1980 }}
+        />
       </Space>
     );
   };
@@ -1081,6 +1156,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
           />
         </Space>
       );
+    }
+    if (view === 'alert-events') {
+      return <Table columns={alertEventColumns} dataSource={alertEventRows} loading={alertEventQuery.loading} rowKey="key" size="small" scroll={{ x: 1980 }} />;
     }
     if (view === 'accounts') {
       return (
@@ -1149,6 +1227,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     'operations-monitor': '运行监控',
     'online-connections': '在线连接',
     audit: '审计日志',
+    'alert-events': '告警事件',
     accounts: '账号',
     'access-accounts': '接入账号',
     'mount-point-groups': '挂载点分组',
@@ -1174,6 +1253,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
       {view === 'subscription-plans' && <Button type="primary" icon={<PlusOutlined />} onClick={openSubscriptionPlan}>套餐</Button>}
       {view === 'subscriptions' && <Button type="primary" icon={<PlusOutlined />} onClick={openSubscription}>订阅</Button>}
       {view === 'redeem-codes' && <Button type="primary" icon={<PlusOutlined />} onClick={openRedeemCode}>兑换码</Button>}
+      {view === 'alert-events' && <Button icon={<SyncOutlined />} onClick={syncAlertEvents} loading={alertEventQuery.loading}>同步</Button>}
       {view === 'data-push-configs' && <Button type="primary" icon={<PlusOutlined />} onClick={openDataPushConfig}>推送配置</Button>}
       {view === 'supplier-settlements' && <Button type="primary" icon={<PlusOutlined />} onClick={openSupplierSettlement}>结算</Button>}
     </Space>
@@ -1207,6 +1287,9 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="接入拒绝" value={runtimeRejectionCount} prefix={<StopOutlined />} />
+            </Col>
+            <Col xs={12} md={6}>
+              <MetricCard title="打开告警" value={openAlertEventCount} prefix={<StopOutlined />} />
             </Col>
             <Col xs={12} md={6}>
               <MetricCard title="数据推送扣费" value={formatCents(currentDataPushDebit)} prefix={<WalletOutlined />} />

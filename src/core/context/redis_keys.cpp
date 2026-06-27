@@ -30,6 +30,7 @@ std::string bill_entry(const std::string &period) { return append(BILL_ENTRY_PRE
 std::string bill_account(const std::string &account_id, const std::string &period) { return append(BILL_ACCOUNT_PREFIX, account_id) + ":" + period; }
 std::string data_push(const std::string &period) { return append(DATA_PUSH_PREFIX, period); }
 std::string data_push_job(const std::string &period) { return append(DATA_PUSH_JOB_PREFIX, period); }
+std::string operations_alert_event(const std::string &period) { return append(OPS_ALERT_EVENT_PREFIX, period); }
 std::string supply_usage(const std::string &period) { return append(SUPPLY_USAGE_PREFIX, period); }
 std::string supply_account(const std::string &account_id, const std::string &period) { return append(SUPPLY_ACCOUNT_PREFIX, account_id) + ":" + period; }
 std::string supply_earning(const std::string &account_id, const std::string &period) { return append(SUPPLY_EARNING_PREFIX, account_id) + ":" + period; }

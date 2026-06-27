@@ -192,6 +192,12 @@ int http_handler::init(event_base *base, redis_adapter *caster_redis, redis_adap
                   { handle_v1_admin_operations_alert_policy(req, resp); });
     _server.route(EVHTTP_REQ_PUT, "/api/v1/admin/operations-alert-policy", [this](auto &req, auto &resp)
                   { handle_v1_admin_operations_alert_policy(req, resp); });
+    _server.route(EVHTTP_REQ_GET, "/api/v1/admin/operations-alert-events", [this](auto &req, auto &resp)
+                  { handle_v1_admin_operations_alert_events(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/operations-alert-events", [this](auto &req, auto &resp)
+                  { handle_v1_admin_operations_alert_events(req, resp); });
+    _server.route(EVHTTP_REQ_POST, "/api/v1/admin/operations-alert-events/*", [this](auto &req, auto &resp)
+                  { handle_v1_admin_operations_alert_event(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/online-connections", [this](auto &req, auto &resp)
                   { handle_v1_admin_online_connections(req, resp); });
     _server.route(EVHTTP_REQ_GET, "/api/v1/admin/audit", [this](auto &req, auto &resp)
@@ -940,6 +946,50 @@ void http_handler::handle_v1_admin_operations_alert_policy(const HttpRequest &re
     {
         result = controller.operations_alert_policy();
     }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_operations_alert_events(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    auto period = req.query_params.find("period");
+    auto status = req.query_params.find("status");
+    navcaster::http_api::ControllerResponse result;
+    if (req.method == EVHTTP_REQ_POST)
+    {
+        auto action = req.query_params.find("action");
+        if (action != req.query_params.end() && action->second == "sync")
+        {
+            result = controller.sync_operations_alert_events(period == req.query_params.end() ? std::string{} : period->second);
+        }
+        else
+        {
+            result.status_code = 404;
+            result.body = R"({"error":"Not found"})";
+        }
+    }
+    else
+    {
+        result = controller.list_operations_alert_events(
+            period == req.query_params.end() ? std::string{} : period->second,
+            status == req.query_params.end() ? std::string{} : status->second);
+    }
+    resp.status_code = result.status_code;
+    resp.body = std::move(result.body);
+}
+
+void http_handler::handle_v1_admin_operations_alert_event(const HttpRequest &req, HttpResponse &resp)
+{
+    navcaster::http_api::OperationsController controller(auth_redis_client(), current_unix_seconds());
+    const std::string alert_event_id = get_path_segment(req, 4);
+    const std::string action = get_path_segment(req, 5);
+    auto period = req.query_params.find("period");
+    auto result = controller.update_operations_alert_event(
+        alert_event_id,
+        period == req.query_params.end() ? std::string{} : period->second,
+        action,
+        req.body);
     resp.status_code = result.status_code;
     resp.body = std::move(result.body);
 }
