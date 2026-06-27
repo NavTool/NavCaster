@@ -7,6 +7,7 @@
 ## 目录
 
 - [全局规范](#全局规范)
+- [Go AdminService v2](#go-adminservice-v2)
 - [认证](#1-认证)
 - [运营域 API v1](#11-运营域-api-v1)
 - [账户管理](#2-账户管理)
@@ -60,6 +61,83 @@
 | 创建 | POST | `/api/{resource}` | `HSETNX` | 201 成功 / 409 冲突 |
 | 更新 | PUT | `/api/{resource}/{id}` | `HSET` | 完整覆盖 |
 | 删除 | DELETE | `/api/{resource}/{id}` | `HDEL` | 200 / 404 |
+
+---
+
+## Go AdminService v2
+
+> `admin/` 下的 Go `navcaster-admin` 是 v2 控制面服务，和旧 C++ `/api/*`
+> 管理接口并行，不兼容旧 HTTP API、旧 Redis key 或旧 protobuf 命名。完整 OpenAPI
+> 契约见 `api/openapi/navcaster-admin-v2.yaml`。
+
+通用响应 envelope：
+
+```json
+{
+  "request_id": "req_xxx",
+  "data": {}
+}
+```
+
+错误响应：
+
+```json
+{
+  "request_id": "req_xxx",
+  "error": {
+    "code": "bad_request|unauthorized|not_found|conflict|unprocessable_entity|internal_error",
+    "message": "..."
+  }
+}
+```
+
+核心接口：
+
+| Method | Path | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/health` | 返回 service/version、PostgreSQL、Redis 和 `control_plane` 状态。 |
+| `POST` | `/api/v1/agents/register` | 注册 Agent/Host。 |
+| `POST` | `/api/v1/agents/heartbeat` | 接收 Agent 心跳并刷新 Host/Agent 状态。 |
+| `GET` | `/api/v1/agents/{agent_id}/desired-state?since_version=0` | Agent 拉取 versioned desired state。 |
+| `POST` | `/api/v1/agents/{agent_id}/runtime-metrics` | 写入 runtime actual snapshot，并刷新 actual projection 和 intent 生命周期。 |
+| `POST` | `/api/v1/agents/{agent_id}/runtime-events` | 写入 runtime events；失败/收敛事件可推进 action intent。 |
+| `GET` | `/api/v1/control/hosts` | 列出 Host。 |
+| `GET` | `/api/v1/control/runtimes` | 列出 Runtime desired、actual 和 control convergence。 |
+| `POST` | `/api/v1/control/runtimes` | 创建 Runtime desired state，不直接启动进程。 |
+| `GET` | `/api/v1/control/runtimes/{runtime_id}` | 查询 Runtime desired、actual、`control.status`。 |
+| `PUT` | `/api/v1/control/runtimes/{runtime_id}/desired-state` | 更新 desired state 并发布 v2 Redis projection。 |
+| `POST` | `/api/v1/control/runtimes/{runtime_id}/actions/{start|stop|restart|drain|undrain}` | 记录 action intent、bump desired version、发布 Redis projection。 |
+| `GET` | `/api/v1/control/runtimes/{runtime_id}/intents` | 查询 action intent 审计生命周期。 |
+| `GET` | `/api/v1/control/runtimes/{runtime_id}/events` | 查询 runtime event 历史。 |
+| `GET` | `/api/v1/control/projection-keys` | 返回 v2 Redis key registry。 |
+
+`control.status` 取值：
+
+```text
+converged  actual 已观察目标 desired version，状态/config_version 匹配。
+pending    actual 缺失、版本落后或仍未达到目标状态。
+failed     actual/event 显式失败，或目标版本已观察但状态不匹配。
+stale      latest actual 超过 stale_after_seconds 未刷新。
+```
+
+Action intent 生命周期：
+
+```text
+accepted -> projected -> observed
+accepted/projected -> superseded
+accepted/projected -> failed
+```
+
+action request body 可带 `request_id` 作为幂等键：
+
+```json
+{
+  "request_id": "web-click-20260627-001",
+  "payload": {
+    "operator_note": "maintenance window"
+  }
+}
+```
 
 ---
 

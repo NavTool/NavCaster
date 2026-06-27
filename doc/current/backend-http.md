@@ -185,12 +185,31 @@ NC-091 起 `admin/` 下的 Go `navcaster-admin` 从 foundation 内存骨架推�
   发布 v2 Redis projection；未配置 Redis 时 projection disabled，不影响内存或 PG
   source-of-truth 路径。
 - `GET /api/v1/control/runtimes` 和 `GET /api/v1/control/runtimes/{runtime_id}` 返回
-  desired state 和最新 Agent runtime-metrics ingest 后的 actual snapshot。
+  desired state、最新 Agent runtime-metrics ingest 后的 actual snapshot，以及
+  `control.status`。状态值为 `converged`、`pending`、`failed`、`stale`，并带
+  `reason`、`desired_version`、`observed_desired_version`、`last_error` 和
+  `last_observed_at`，供 Web/QA 判断 desired/actual 是否已收敛。
+- action intent 生命周期使用 `accepted`、`projected`、`observed`、`superseded`、
+  `failed`。新 action 会在同一事务内 supersede 同 runtime 的旧 open intent；
+  `request_id` 是幂等键，重复提交不会重复 bump desired version。Redis projection
+  成功后 intent 进入 `projected`；Agent actual/events 观察到相同 desired version 后
+  进入 `observed`，携带 `last_error` 或失败事件时进入 `failed`。
+- `GET /api/v1/control/runtimes/{runtime_id}/intents` 返回该 Runtime 最近 action
+  intent 审计记录；`GET /api/v1/control/runtimes/{runtime_id}/events` 返回最近
+  runtime events。
 - `POST /api/v1/agents/{agent_id}/runtime-events` 写入 `runtime_events`；
   `POST /api/v1/agents/{agent_id}/runtime-metrics` 写入
-  `runtime_actual_snapshots`，并刷新 control API 的 actual state。
+  `runtime_actual_snapshots`，并刷新 control API 的 actual state 和 intent 生命周期。
+- `GET /api/v1/health` 除 PG/Redis 连接状态外，还返回 `control_plane`：repository、
+  host/runtime/desired 数量、latest desired version、pending/failed intent 数量和
+  stale runtime 数量。PG/Redis/control-plane 状态必须用该接口或 self-check 明确记录，
+  不能只用 HTTP listener 存活作为 v2 控制面通过证据。
 - `admin/cmd/navcaster-admin-selfcheck` 是最小 v2 API 自检：health、agent register、
-  runtime create、desired polling、runtime-metrics ingest 和 control actual readback。
+  runtime create、action intent、desired polling、runtime-metrics ingest 和 control
+  converged readback。
+- `deploy/scripts/v2_admin_control_plane_smoke.ps1` 是 NC-101 范围的真实 PostgreSQL +
+  Redis fixture smoke：create runtime、action intent、actual ingest、event query、
+  PG/Redis projection consistency。
 
 v2 AdminService 不兼容旧 `/api/*` HTTP API、旧 Redis key、旧 protobuf 或旧 Web 命名。
 旧 `src/http` 服务和新 `admin/` 服务当前是并行边界。

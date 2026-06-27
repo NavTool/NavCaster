@@ -33,6 +33,7 @@ func (p *RedisPublisher) PublishRuntimeDesired(desired control.DesiredRuntime) e
 	}
 	payload := RuntimeDesiredProjection{
 		Projection: "v2:config:runtime",
+		Key:        key,
 		Version:    desired.Version,
 		Runtime:    desired,
 		Published:  time.Now().UTC(),
@@ -67,6 +68,7 @@ func (p *RedisPublisher) PublishHostDesiredState(hostID string, states []control
 	}
 	payload := HostDesiredStateProjection{
 		Projection:  "v2:control:desired-state",
+		Key:         key,
 		HostID:      hostID,
 		Version:     version,
 		Runtimes:    states,
@@ -85,6 +87,38 @@ func (p *RedisPublisher) PublishHostDesiredState(hostID string, states []control
 	})
 }
 
+func (p *RedisPublisher) PublishActionIntent(intent control.ActionIntent, desired control.DesiredRuntime) error {
+	if p == nil || p.client == nil || !p.client.Configured() {
+		return nil
+	}
+	key, err := p.registry.ActionIntentKey(intent.ID)
+	if err != nil {
+		return err
+	}
+	payload := ActionIntentProjection{
+		Projection: "v2:control:intent",
+		Key:        key,
+		Intent:     intent,
+		Runtime:    desired,
+		Published:  time.Now().UTC(),
+	}
+	if err := p.setJSON(key, payload, 0); err != nil {
+		return err
+	}
+	return p.publishControlConfigNotify(ControlConfigNotify{
+		Projection:     "v2:control:config",
+		Kind:           "action_intent_projected",
+		Key:            key,
+		RuntimeID:      intent.RuntimeID,
+		HostID:         desired.HostID,
+		IntentID:       intent.ID,
+		IntentStatus:   string(intent.Status),
+		Version:        intent.DesiredVersion,
+		DesiredVersion: intent.DesiredVersion,
+		Published:      time.Now().UTC(),
+	})
+}
+
 func (p *RedisPublisher) PublishRuntimeActual(actual control.ActualSnapshot) error {
 	if p == nil || p.client == nil || !p.client.Configured() {
 		return nil
@@ -97,9 +131,17 @@ func (p *RedisPublisher) PublishRuntimeActual(actual control.ActualSnapshot) err
 		actual.UpdatedAt = time.Now().UTC()
 	}
 	payload := RuntimeActualProjection{
-		Projection: "v2:runtime:actual",
-		Runtime:    actual,
-		Published:  time.Now().UTC(),
+		Projection:             "v2:runtime:actual",
+		Key:                    key,
+		RuntimeID:              actual.RuntimeID,
+		HostID:                 actual.HostID,
+		AgentID:                actual.AgentID,
+		ObservedDesiredVersion: actual.ObservedDesiredVersion,
+		Status:                 runtimeActualProjectionStatus(actual),
+		Stale:                  false,
+		LastError:              actual.LastError,
+		Runtime:                actual,
+		Published:              time.Now().UTC(),
 	}
 	return p.setJSON(key, payload, 60*time.Second)
 }
@@ -144,6 +186,7 @@ func (p *RedisPublisher) publishControlConfigNotify(value ControlConfigNotify) e
 
 type RuntimeDesiredProjection struct {
 	Projection string                 `json:"projection"`
+	Key        string                 `json:"key"`
 	Version    int64                  `json:"version"`
 	Runtime    control.DesiredRuntime `json:"runtime"`
 	Published  time.Time              `json:"published_at"`
@@ -151,24 +194,51 @@ type RuntimeDesiredProjection struct {
 
 type HostDesiredStateProjection struct {
 	Projection  string                   `json:"projection"`
+	Key         string                   `json:"key"`
 	HostID      string                   `json:"host_id"`
 	Version     int64                    `json:"version"`
 	Runtimes    []control.DesiredRuntime `json:"runtimes"`
 	PublishedAt time.Time                `json:"published_at"`
 }
 
-type RuntimeActualProjection struct {
+type ActionIntentProjection struct {
 	Projection string                 `json:"projection"`
-	Runtime    control.ActualSnapshot `json:"runtime"`
+	Key        string                 `json:"key"`
+	Intent     control.ActionIntent   `json:"intent"`
+	Runtime    control.DesiredRuntime `json:"runtime"`
 	Published  time.Time              `json:"published_at"`
 }
 
+type RuntimeActualProjection struct {
+	Projection             string                 `json:"projection"`
+	Key                    string                 `json:"key"`
+	RuntimeID              string                 `json:"runtime_id"`
+	HostID                 string                 `json:"host_id"`
+	AgentID                string                 `json:"agent_id,omitempty"`
+	ObservedDesiredVersion int64                  `json:"observed_desired_version"`
+	Status                 string                 `json:"status"`
+	Stale                  bool                   `json:"stale"`
+	LastError              string                 `json:"last_error,omitempty"`
+	Runtime                control.ActualSnapshot `json:"runtime"`
+	Published              time.Time              `json:"published_at"`
+}
+
 type ControlConfigNotify struct {
-	Projection string    `json:"projection"`
-	Kind       string    `json:"kind"`
-	Key        string    `json:"key"`
-	RuntimeID  string    `json:"runtime_id,omitempty"`
-	HostID     string    `json:"host_id,omitempty"`
-	Version    int64     `json:"version"`
-	Published  time.Time `json:"published_at"`
+	Projection     string    `json:"projection"`
+	Kind           string    `json:"kind"`
+	Key            string    `json:"key"`
+	RuntimeID      string    `json:"runtime_id,omitempty"`
+	HostID         string    `json:"host_id,omitempty"`
+	IntentID       string    `json:"intent_id,omitempty"`
+	IntentStatus   string    `json:"intent_status,omitempty"`
+	Version        int64     `json:"version"`
+	DesiredVersion int64     `json:"desired_version,omitempty"`
+	Published      time.Time `json:"published_at"`
+}
+
+func runtimeActualProjectionStatus(actual control.ActualSnapshot) string {
+	if actual.LastError != "" {
+		return "failed"
+	}
+	return "observed"
 }

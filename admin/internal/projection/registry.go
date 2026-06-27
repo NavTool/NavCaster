@@ -30,6 +30,10 @@ func (r Registry) RuntimeActualKey(runtimeID string) (string, error) {
 	return r.redis.Render("runtime_actual", map[string]string{"runtime_id": runtimeID})
 }
 
+func (r Registry) ActionIntentKey(intentID string) (string, error) {
+	return r.redis.Render("action_intent", map[string]string{"intent_id": intentID})
+}
+
 func (r Registry) AgentHeartbeatKey(agentID string) (string, error) {
 	return r.redis.Render("agent_heartbeat", map[string]string{"agent_id": agentID})
 }

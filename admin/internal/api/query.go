@@ -18,3 +18,11 @@ func parseInt64Query(r *http.Request, name string, fallback int64) (int64, error
 	}
 	return parsed, nil
 }
+
+func parseIntQuery(r *http.Request, name string, fallback int) (int, error) {
+	value, err := parseInt64Query(r, name, int64(fallback))
+	if err != nil {
+		return 0, err
+	}
+	return int(value), nil
+}
