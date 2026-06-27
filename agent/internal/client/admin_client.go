@@ -73,21 +73,45 @@ type RegisterRequest struct {
 }
 
 type RegisterResponse struct {
-	AgentID     string                        `json:"agent_id"`
-	AgentSecret string                        `json:"agent_secret"`
-	HostID      string                        `json:"host_id"`
-	Desired     *agentruntime.DesiredDocument `json:"desired,omitempty"`
+	AgentID             string                        `json:"agent_id"`
+	AgentSecret         string                        `json:"agent_secret"`
+	HostID              string                        `json:"host_id"`
+	HeartbeatIntervalMS int                           `json:"heartbeat_interval_ms,omitempty"`
+	Desired             *agentruntime.DesiredDocument `json:"desired,omitempty"`
 }
 
 func (c *AdminClient) Register(ctx context.Context, req RegisterRequest) (RegisterResponse, error) {
 	var resp RegisterResponse
-	if err := c.doJSON(ctx, http.MethodPost, "/api/v1/agents/register", nil, req, &resp, true); err != nil {
+	payload := adminRegisterRequest{
+		BootstrapToken: c.bootstrapToken,
+		AgentID:        req.AgentID,
+		HostID:         req.Host.HostID,
+		Hostname:       req.Host.Hostname,
+		MachineID:      req.Host.Fingerprint,
+		OS:             req.Host.OS,
+		Arch:           req.Host.Arch,
+		AgentVersion:   "dev",
+		Labels:         req.Host.Labels,
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/v1/agents/register", nil, payload, &resp, true); err != nil {
 		return RegisterResponse{}, err
 	}
 	if resp.AgentID != "" && resp.AgentSecret != "" {
 		c.SetCredentials(resp.AgentID, resp.AgentSecret)
 	}
 	return resp, nil
+}
+
+type adminRegisterRequest struct {
+	BootstrapToken string            `json:"bootstrap_token,omitempty"`
+	AgentID        string            `json:"agent_id,omitempty"`
+	HostID         string            `json:"host_id,omitempty"`
+	Hostname       string            `json:"hostname"`
+	MachineID      string            `json:"machine_id,omitempty"`
+	OS             string            `json:"os,omitempty"`
+	Arch           string            `json:"arch,omitempty"`
+	AgentVersion   string            `json:"agent_version,omitempty"`
+	Labels         map[string]string `json:"labels,omitempty"`
 }
 
 type HeartbeatRequest struct {
@@ -100,19 +124,45 @@ type HeartbeatRequest struct {
 }
 
 type HeartbeatResponse struct {
-	Accepted bool                          `json:"accepted"`
-	Desired  *agentruntime.DesiredDocument `json:"desired,omitempty"`
+	Accepted                bool                          `json:"accepted"`
+	ServerTime              string                        `json:"server_time,omitempty"`
+	NextHeartbeatIntervalMS int                           `json:"next_heartbeat_interval_ms,omitempty"`
+	Desired                 *agentruntime.DesiredDocument `json:"desired,omitempty"`
 }
 
 func (c *AdminClient) Heartbeat(ctx context.Context, agentID string, req HeartbeatRequest) (HeartbeatResponse, error) {
 	var resp HeartbeatResponse
-	endpoint := "/api/v1/agents/" + url.PathEscape(agentID) + "/heartbeat"
-	err := c.doJSON(ctx, http.MethodPost, endpoint, nil, req, &resp, false)
+	payload := adminHeartbeatRequest{
+		AgentID:          req.AgentID,
+		HostID:           req.HostID,
+		Resources:        map[string]any{"host": req.Host, "metrics": req.Metrics},
+		RuntimeSummaries: make([]adminRuntimeBeat, 0, len(req.RuntimeActual)),
+	}
+	for _, actual := range req.RuntimeActual {
+		payload.RuntimeSummaries = append(payload.RuntimeSummaries, adminRuntimeBeat{
+			RuntimeID:              actual.RuntimeID,
+			ActualState:            string(actual.ActualState),
+			ProcessID:              actual.ProcessID,
+			ObservedDesiredVersion: actual.ObservedDesiredVersion,
+		})
+	}
+	err := c.doJSON(ctx, http.MethodPost, "/api/v1/agents/heartbeat", nil, payload, &resp, false)
 	return resp, err
 }
 
-type DesiredStateResponse struct {
-	Desired agentruntime.DesiredDocument `json:"desired"`
+type adminHeartbeatRequest struct {
+	AgentID          string             `json:"agent_id"`
+	HostID           string             `json:"host_id"`
+	Sequence         int64              `json:"sequence,omitempty"`
+	Resources        map[string]any     `json:"resources,omitempty"`
+	RuntimeSummaries []adminRuntimeBeat `json:"runtime_summaries,omitempty"`
+}
+
+type adminRuntimeBeat struct {
+	RuntimeID              string `json:"runtime_id"`
+	ActualState            string `json:"actual_state"`
+	ProcessID              int    `json:"process_id,omitempty"`
+	ObservedDesiredVersion int64  `json:"observed_desired_version,omitempty"`
 }
 
 func (c *AdminClient) DesiredState(ctx context.Context, agentID string, sinceVersion int64) (agentruntime.DesiredDocument, error) {
@@ -120,12 +170,12 @@ func (c *AdminClient) DesiredState(ctx context.Context, agentID string, sinceVer
 	if sinceVersion > 0 {
 		query.Set("since_version", strconv.FormatInt(sinceVersion, 10))
 	}
-	var resp DesiredStateResponse
+	var resp agentruntime.DesiredDocument
 	endpoint := "/api/v1/agents/" + url.PathEscape(agentID) + "/desired-state"
 	if err := c.doJSON(ctx, http.MethodGet, endpoint, query, nil, &resp, false); err != nil {
 		return agentruntime.DesiredDocument{}, err
 	}
-	return resp.Desired, nil
+	return resp, nil
 }
 
 type RuntimeEventsRequest struct {
@@ -192,15 +242,35 @@ func (c *AdminClient) doJSON(ctx context.Context, method, endpoint string, query
 		return err
 	}
 	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
+	if err != nil {
+		return err
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		limited, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("admin API %s %s failed: status=%d body=%s", method, endpoint, resp.StatusCode, strings.TrimSpace(string(limited)))
+		return fmt.Errorf("admin API %s %s failed: status=%d body=%s", method, endpoint, resp.StatusCode, strings.TrimSpace(string(data)))
 	}
 	if out == nil {
-		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	var envelope struct {
+		Data  json.RawMessage `json:"data"`
+		Error *struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(data, &envelope); err == nil {
+		if envelope.Error != nil {
+			return fmt.Errorf("admin API %s %s failed: %s: %s", method, endpoint, envelope.Error.Code, envelope.Error.Message)
+		}
+		if len(envelope.Data) > 0 {
+			if err := json.Unmarshal(envelope.Data, out); err != nil {
+				return fmt.Errorf("decode response data: %w", err)
+			}
+			return nil
+		}
+	}
+	if err := json.Unmarshal(data, out); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
 	return nil
