@@ -75,6 +75,7 @@ paths:
   /api/v1/agents/{agent_id}/desired-state:
     get:
       summary: Poll desired runtime state for an agent
+      description: Returns desired state from PostgreSQL source-of-truth. When Redis is configured, AdminService also publishes the same host-level projection to v2:control:desired-state:{host_id}.
       parameters:
         - name: agent_id
           in: path
@@ -89,6 +90,63 @@ paths:
       responses:
         "200":
           description: Desired state changes after since_version.
+  /api/v1/agents/{agent_id}/runtime-events:
+    post:
+      summary: Ingest runtime events from an agent
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, host_id, events]
+              properties:
+                agent_id:
+                  type: string
+                host_id:
+                  type: string
+                events:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RuntimeEvent"
+      responses:
+        "202":
+          description: Events persisted or accepted by the configured fallback repository.
+  /api/v1/agents/{agent_id}/runtime-metrics:
+    post:
+      summary: Ingest runtime actual metrics from an agent
+      description: Persists runtime_actual_snapshots when PostgreSQL is configured and returns latest actual state through control runtime APIs.
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, host_id, actual]
+              properties:
+                agent_id:
+                  type: string
+                host_id:
+                  type: string
+                actual:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ActualSnapshot"
+      responses:
+        "202":
+          description: Metrics accepted and latest actual state updated.
   /api/v1/control/hosts:
     get:
       summary: List registered hosts
@@ -110,12 +168,13 @@ paths:
   /api/v1/control/runtimes:
     get:
       summary: List runtimes
+      description: Returns desired state and the latest actual snapshot for each runtime.
       responses:
         "200":
           description: Runtime list.
     post:
       summary: Create a runtime desired state
-      description: Creates control-plane intent only. AdminService does not start processes.
+      description: Creates PostgreSQL desired state and Redis v2 projection when Redis is configured. AdminService does not start processes.
       requestBody:
         required: true
         content:
@@ -128,6 +187,7 @@ paths:
   /api/v1/control/runtimes/{runtime_id}:
     get:
       summary: Get one runtime
+      description: Returns PostgreSQL desired state plus the latest actual snapshot ingested from Agent runtime metrics.
       parameters:
         - name: runtime_id
           in: path
@@ -140,7 +200,7 @@ paths:
   /api/v1/control/runtimes/{runtime_id}/desired-state:
     put:
       summary: Update runtime desired state
-      description: Updates desired state only; execution is left to navcaster-agent.
+      description: Updates PostgreSQL desired state, increments desired version, writes audit facts, and republishes Redis projection when configured. Execution is left to navcaster-agent.
       parameters:
         - name: runtime_id
           in: path
@@ -174,6 +234,7 @@ paths:
   /api/v1/control/runtimes/{runtime_id}/actions/start:
     post:
       summary: Record runtime start action intent
+      description: Persists action intent and bumps desired version; it does not execute a process directly.
       responses:
         "202":
           description: Start intent accepted.
@@ -231,3 +292,75 @@ components:
           enum: [never, on_failure, always]
         start_immediately:
           type: boolean
+    ActualSnapshot:
+      type: object
+      required: [runtime_id, actual_state]
+      properties:
+        runtime_id:
+          type: string
+        host_id:
+          type: string
+        agent_id:
+          type: string
+        actual_state:
+          type: string
+        process_id:
+          type: integer
+        config_version:
+          type: integer
+        config_path:
+          type: string
+        config_checksum:
+          type: string
+        listen_port:
+          type: integer
+        worker_count:
+          type: integer
+        connections:
+          type: integer
+        mounts:
+          type: integer
+        sources:
+          type: integer
+        clients:
+          type: integer
+        send_bps:
+          type: integer
+        recv_bps:
+          type: integer
+        loop_delay_ms_p95:
+          type: integer
+        redis_connected:
+          type: boolean
+        observed_desired_version:
+          type: integer
+        last_error:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+    RuntimeEvent:
+      type: object
+      required: [runtime_id, type]
+      properties:
+        event_id:
+          type: string
+        runtime_id:
+          type: string
+        type:
+          type: string
+        severity:
+          type: string
+        desired_version:
+          type: integer
+        process_id:
+          type: integer
+        message:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string

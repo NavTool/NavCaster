@@ -71,6 +71,30 @@ Bash HTTP smoke 用于已有服务：
 BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.sh
 ```
 
+## v2 AdminService 验证
+
+`admin/` 是 Go AdminService，不走 CMake target。NC-091 起最低本地验证：
+
+```powershell
+cd admin
+gofmt -w ./...
+go test ./...
+go build ./cmd/navcaster-admin
+```
+
+最小 API self-check：
+
+```powershell
+cd admin
+go run ./cmd/navcaster-admin
+# 另一个终端：
+go run ./cmd/navcaster-admin-selfcheck
+```
+
+配置 `NAVCASTER_ADMIN_POSTGRES_DSN` 后 self-check 覆盖 PostgreSQL source-of-truth 和
+migration 路径；配置 `NAVCASTER_ADMIN_REDIS_ADDR` 后还覆盖 Redis v2 projection 写入。
+无 PG/Redis 环境时允许使用内存仓储降级 self-check，但 QA 记录必须明确真实 PG/Redis 未运行原因。
+
 ## 文档治理任务 QA 口径
 
 NC-035 这类文档治理任务不开发新功能、不修改产品源码逻辑、不新增 e2e 场景。最低检查：
