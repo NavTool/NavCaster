@@ -66,6 +66,7 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
     snapshot.redis_subscribed_mount_count = redis_subscribed_mount_count_;
     snapshot.slow_client_disconnect_count = slow_client_disconnect_count_;
     snapshot.output_buffer_limit_count = output_buffer_limit_count_;
+    snapshot.redis_connected = redis_boundary_ && redis_boundary_->connected();
     snapshot.redis_contexts_reserved = 2;
     return snapshot;
 }

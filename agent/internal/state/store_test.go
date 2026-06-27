@@ -143,6 +143,38 @@ func TestApplyDesiredIgnoresStaleDocument(t *testing.T) {
 	}
 }
 
+func TestMarkDesiredAppliedClearsDeletedDesiredButKeepsActual(t *testing.T) {
+	state := NewAgentState()
+	state.ApplyDesired(agentruntime.DesiredDocument{
+		Version: 8,
+		Runtimes: []agentruntime.DesiredState{{
+			RuntimeID:     "rt-001",
+			DesiredState:  agentruntime.DesiredStateDeleted,
+			ConfigVersion: 3,
+			Version:       8,
+		}},
+	})
+	state.UpdateActual(agentruntime.ActualState{
+		RuntimeID:     "rt-001",
+		ActualState:   agentruntime.ActualStateStopped,
+		ConfigVersion: 3,
+		UpdatedAt:     time.Now().UTC(),
+	})
+
+	state.MarkDesiredApplied("rt-001", 8)
+
+	cache := state.Runtimes["rt-001"]
+	if cache.Desired.RuntimeID != "" {
+		t.Fatalf("deleted desired should be cleared after apply: %#v", cache.Desired)
+	}
+	if cache.Actual.RuntimeID != "rt-001" || cache.Actual.ObservedDesiredVersion != 8 {
+		t.Fatalf("actual should remain with observed version: %#v", cache.Actual)
+	}
+	if len(state.DesiredStates()) != 0 {
+		t.Fatalf("deleted runtime should not remain in desired states: %#v", state.DesiredStates())
+	}
+}
+
 func storeFileExists(path string) error {
 	_, err := os.Stat(path)
 	return err

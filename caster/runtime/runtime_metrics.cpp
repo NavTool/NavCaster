@@ -54,6 +54,8 @@ std::string runtime_metrics_to_json(const RuntimeMetricsSnapshot &snapshot)
         out << ",\"redis_subscribed_mount_count\":" << worker.redis_subscribed_mount_count;
         out << ",\"slow_client_disconnect_count\":" << worker.slow_client_disconnect_count;
         out << ",\"output_buffer_limit_count\":" << worker.output_buffer_limit_count;
+        out << ",\"redis_connected\":";
+        append_bool(out, worker.redis_connected);
         out << ",\"redis_contexts_reserved\":" << worker.redis_contexts_reserved;
         out << "}";
     }

@@ -31,10 +31,12 @@ const (
 )
 
 type ReconcileResult struct {
-	RuntimeID string          `json:"runtime_id"`
-	Action    ReconcileAction `json:"action"`
-	Actual    ActualState     `json:"actual,omitempty"`
-	Error     string          `json:"error,omitempty"`
+	RuntimeID      string          `json:"runtime_id"`
+	Action         ReconcileAction `json:"action"`
+	DesiredVersion int64           `json:"desired_version,omitempty"`
+	Applied        bool            `json:"applied,omitempty"`
+	Actual         ActualState     `json:"actual,omitempty"`
+	Error          string          `json:"error,omitempty"`
 }
 
 func Reconcile(ctx context.Context, desired []DesiredState, manager ProcessManager, opts ReconcileOptions) []ReconcileResult {
@@ -47,7 +49,7 @@ func Reconcile(ctx context.Context, desired []DesiredState, manager ProcessManag
 }
 
 func reconcileOne(ctx context.Context, desired DesiredState, manager ProcessManager, opts ReconcileOptions) ReconcileResult {
-	result := ReconcileResult{RuntimeID: desired.RuntimeID}
+	result := ReconcileResult{RuntimeID: desired.RuntimeID, DesiredVersion: desired.Version}
 	if desired.RuntimeID == "" {
 		result.Action = ReconcileError
 		result.Error = "runtime_id is required"
@@ -65,16 +67,34 @@ func reconcileOne(ctx context.Context, desired DesiredState, manager ProcessMana
 		return reconcileRunning(ctx, desired, actual, hasActual, manager, opts)
 	case DesiredStateStopped, DesiredStateDeleted:
 		if !hasActual || actual.ActualState == ActualStateMissing || actual.ActualState == ActualStateStopped {
+			previousObserved := actual.ObservedDesiredVersion
 			result.Action = ReconcileNoop
+			if actual.RuntimeID == "" {
+				actual.RuntimeID = desired.RuntimeID
+			}
+			if actual.HostID == "" {
+				actual.HostID = desired.HostID
+			}
+			if actual.ActualState == "" || actual.ActualState == ActualStateMissing {
+				actual.ActualState = ActualStateStopped
+			}
+			actual.ObservedDesiredVersion = desired.Version
+			actual.UpdatedAt = time.Now().UTC()
 			result.Actual = actual
+			result.Applied = desired.Version > 0 && previousObserved < desired.Version
 			return result
 		}
 		stopped, err := manager.Stop(ctx, desired.RuntimeID, opts.StopTimeout)
+		if stopped.RuntimeID != "" && err == nil {
+			stopped.ObservedDesiredVersion = desired.Version
+		}
 		result.Action = ReconcileStop
 		result.Actual = stopped
 		if err != nil {
 			result.Action = ReconcileError
 			result.Error = err.Error()
+		} else {
+			result.Applied = true
 		}
 		return result
 	default:
@@ -85,18 +105,25 @@ func reconcileOne(ctx context.Context, desired DesiredState, manager ProcessMana
 }
 
 func reconcileRunning(ctx context.Context, desired DesiredState, actual ActualState, hasActual bool, manager ProcessManager, opts ReconcileOptions) ReconcileResult {
-	if hasActual && actual.ActualState == ActualStateFailed && desired.NormalizedRestartPolicy() == RestartPolicyNever {
-		return ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileNoop, Actual: actual}
+	if hasActual && actual.ActualState == ActualStateFailed &&
+		desired.NormalizedRestartPolicy() == RestartPolicyNever &&
+		!desiredNewerThanObserved(actual, desired) {
+		return ReconcileResult{RuntimeID: desired.RuntimeID, DesiredVersion: desired.Version, Action: ReconcileNoop, Actual: actual}
+	}
+	if hasActual && actual.ActualState == ActualStateStopped &&
+		desired.NormalizedRestartPolicy() != RestartPolicyAlways &&
+		!desiredNewerThanObserved(actual, desired) {
+		return ReconcileResult{RuntimeID: desired.RuntimeID, DesiredVersion: desired.Version, Action: ReconcileNoop, Actual: actual}
 	}
 
 	if hasActual && (actual.IsRunning() || actual.HasLiveProcess()) {
-		if actual.ConfigVersion != desired.ConfigVersion {
+		if shouldRestartForDesired(actual, desired) {
 			return restartRuntime(ctx, desired, manager, opts)
 		}
 		if actual.ActualState == ActualStateFailed {
 			return restartRuntime(ctx, desired, manager, opts)
 		}
-		return ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileNoop, Actual: actual}
+		return ReconcileResult{RuntimeID: desired.RuntimeID, DesiredVersion: desired.Version, Action: ReconcileNoop, Actual: actual}
 	}
 
 	rendered, err := renderDesiredConfig(ctx, desired, opts)
@@ -104,10 +131,12 @@ func reconcileRunning(ctx context.Context, desired DesiredState, actual ActualSt
 		return ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileError, Error: err.Error()}
 	}
 	started, err := manager.Start(ctx, rendered)
-	result := ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileStart, Actual: started}
+	result := ReconcileResult{RuntimeID: desired.RuntimeID, DesiredVersion: desired.Version, Action: ReconcileStart, Actual: started}
 	if err != nil {
 		result.Action = ReconcileError
 		result.Error = err.Error()
+	} else {
+		result.Applied = true
 	}
 	return result
 }
@@ -118,10 +147,12 @@ func restartRuntime(ctx context.Context, desired DesiredState, manager ProcessMa
 		return ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileError, Error: err.Error()}
 	}
 	actual, err := manager.Restart(ctx, rendered, opts.StopTimeout)
-	result := ReconcileResult{RuntimeID: desired.RuntimeID, Action: ReconcileRestart, Actual: actual}
+	result := ReconcileResult{RuntimeID: desired.RuntimeID, DesiredVersion: desired.Version, Action: ReconcileRestart, Actual: actual}
 	if err != nil {
 		result.Action = ReconcileError
 		result.Error = err.Error()
+	} else {
+		result.Applied = true
 	}
 	return result
 }
@@ -137,4 +168,22 @@ func renderDesiredConfig(ctx context.Context, desired DesiredState, opts Reconci
 	desired.ConfigPath = path
 	desired.ConfigChecksum = checksum
 	return desired, nil
+}
+
+func shouldRestartForDesired(actual ActualState, desired DesiredState) bool {
+	if actual.ConfigVersion != desired.ConfigVersion {
+		return true
+	}
+	return desiredNewerThanObserved(actual, desired)
+}
+
+func desiredNewerThanObserved(actual ActualState, desired DesiredState) bool {
+	if actual.ObservedDesiredVersion <= 0 || desired.Version <= 0 {
+		return false
+	}
+	generation := desired.Generation
+	if generation <= 0 {
+		generation = desired.Version
+	}
+	return generation > actual.ObservedDesiredVersion
 }
