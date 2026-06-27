@@ -45,6 +45,7 @@ import type {
   MountPointGroup,
   MountPointRecord,
   OperationsAccount,
+  OperationsAlertPolicy,
   OperationsMonitorAlert,
   OperationsMonitorDataPushJob,
   OperationsMonitorRiskAccount,
@@ -154,6 +155,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const [redeemApplyForm] = Form.useForm();
   const [dataPushConfigForm] = Form.useForm();
   const [dataPushMaintenanceForm] = Form.useForm();
+  const [alertPolicyForm] = Form.useForm<OperationsAlertPolicy>();
   const [settlementForm] = Form.useForm();
   const [paymentForm] = Form.useForm();
   const [accountOpen, setAccountOpen] = useState(false);
@@ -195,6 +197,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
   const dataPushConfigQuery = usePolling(() => adminApi.dataPushConfigs(), 5000, view === 'dashboard' || view === 'data-push-configs');
   const dataPushJobQuery = usePolling(() => adminApi.dataPushJobs(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-jobs');
   const dataPushMaintenanceQuery = usePolling(() => adminApi.dataPushMaintenanceConfig(), 5000, view === 'data-push-jobs');
+  const alertPolicyQuery = usePolling(() => adminApi.operationsAlertPolicy(), 5000, view === 'operations-monitor');
   const dataPushQuery = usePolling(() => adminApi.dataPushUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'data-push-usage');
   const supplyQuery = usePolling(() => adminApi.supplyUsage(currentPeriod()), 5000, view === 'dashboard' || view === 'supply-usage');
   const settlementQuery = usePolling(() => adminApi.supplierSettlements(currentPeriod()), 5000, view === 'dashboard' || view === 'supplier-settlements');
@@ -265,6 +268,30 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     dataPushMaintenanceQuery.data?.interval_seconds,
     dataPushMaintenanceQuery.data?.unhealthy_after_seconds,
     dataPushMaintenanceQuery.data?.update_time,
+  ]);
+
+  useEffect(() => {
+    const policy = alertPolicyQuery.data ?? monitor?.alert_policy;
+    if (!policy) return;
+    alertPolicyForm.setFieldsValue({
+      enabled: policy.enabled ?? true,
+      low_balance_enabled: policy.low_balance_enabled ?? true,
+      low_balance_threshold_cents: policy.low_balance_threshold_cents ?? 1000,
+      negative_balance_enabled: policy.negative_balance_enabled ?? true,
+      data_push_failed_enabled: policy.data_push_failed_enabled ?? true,
+      data_push_failed_threshold: policy.data_push_failed_threshold ?? 1,
+      data_push_maintenance_disabled_enabled: policy.data_push_maintenance_disabled_enabled ?? true,
+      supplier_pending_payment_enabled: policy.supplier_pending_payment_enabled ?? true,
+      supplier_pending_payment_threshold: policy.supplier_pending_payment_threshold ?? 1,
+      supplier_usage_pending_enabled: policy.supplier_usage_pending_enabled ?? true,
+      supplier_usage_pending_threshold: policy.supplier_usage_pending_threshold ?? 1,
+    });
+  }, [
+    alertPolicyForm,
+    alertPolicyQuery.data?.policy_id,
+    alertPolicyQuery.data?.update_time,
+    monitor?.alert_policy?.policy_id,
+    monitor?.alert_policy?.update_time,
   ]);
 
   const openCreateAccount = () => {
@@ -456,6 +483,14 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     message.success(`维护完成：更新 ${result.updated_count}，失败 ${result.failed_count}`);
     dataPushJobQuery.refresh();
     dataPushMaintenanceQuery.refresh();
+  };
+
+  const submitAlertPolicy = async () => {
+    const values = await alertPolicyForm.validateFields();
+    await adminApi.updateOperationsAlertPolicy(values);
+    message.success('告警策略已保存');
+    alertPolicyQuery.refresh();
+    monitorQuery.refresh();
   };
 
   const openSupplierSettlement = () => {
@@ -758,6 +793,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     { title: '级别', dataIndex: 'severity', key: 'severity', width: 110, render: (value) => monitorSeverityTag(value) },
     { title: 'Code', dataIndex: 'code', key: 'code', width: 210 },
     { title: '数量', dataIndex: 'count', key: 'count', width: 100, render: (value) => value ?? 0 },
+    { title: '阈值', dataIndex: 'threshold', key: 'threshold', width: 100, render: (value) => value ?? 1 },
     { title: '说明', dataIndex: 'message', key: 'message', render: (value) => value || '-' },
   ];
 
@@ -788,6 +824,7 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
     const maintenance = monitor?.data_push?.maintenance;
     const settlements = monitor?.supply?.settlements;
     const statusCounts = monitor?.data_push?.status_counts;
+    const policy = alertPolicyQuery.data ?? monitor?.alert_policy;
     return (
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Row gutter={[16, 16]}>
@@ -828,6 +865,69 @@ const OperationsDashboard: React.FC<OperationsDashboardProps> = ({ view = 'dashb
             <MetricCard title="已付款收益" value={formatCents(settlements?.paid_cents)} suffix={`${settlements?.paid_count ?? 0} 批`} prefix={<CheckCircleOutlined />} />
           </Col>
         </Row>
+        <Form
+          form={alertPolicyForm}
+          layout="inline"
+          size="small"
+          initialValues={{
+            enabled: true,
+            low_balance_enabled: true,
+            low_balance_threshold_cents: 1000,
+            negative_balance_enabled: true,
+            data_push_failed_enabled: true,
+            data_push_failed_threshold: 1,
+            data_push_maintenance_disabled_enabled: true,
+            supplier_pending_payment_enabled: true,
+            supplier_pending_payment_threshold: 1,
+            supplier_usage_pending_enabled: true,
+            supplier_usage_pending_threshold: 1,
+          }}
+        >
+          <Form.Item name="enabled" label="告警策略" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="low_balance_enabled" label="低余额" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="low_balance_threshold_cents" label="阈值(分)" rules={[{ required: true }]}>
+            <InputNumber min={0} max={1000000000} style={{ width: 120 }} />
+          </Form.Item>
+          <Form.Item name="data_push_failed_enabled" label="推送失败" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="data_push_failed_threshold" label="失败数" rules={[{ required: true }]}>
+            <InputNumber min={1} max={1000000} style={{ width: 100 }} />
+          </Form.Item>
+          <Form.Item name="supplier_pending_payment_enabled" label="待付款" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="supplier_pending_payment_threshold" label="待付款数" rules={[{ required: true }]}>
+            <InputNumber min={1} max={1000000} style={{ width: 100 }} />
+          </Form.Item>
+          <Form.Item name="supplier_usage_pending_enabled" label="待结算" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="supplier_usage_pending_threshold" label="待结算数" rules={[{ required: true }]}>
+            <InputNumber min={1} max={1000000} style={{ width: 100 }} />
+          </Form.Item>
+          <Form.Item name="negative_balance_enabled" label="负余额" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="data_push_maintenance_disabled_enabled" label="维护关闭" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item>
+            <Button icon={<SaveOutlined />} onClick={submitAlertPolicy} loading={alertPolicyQuery.loading}>保存</Button>
+          </Form.Item>
+          <Form.Item>
+            <Tag color={policy?.enabled === false ? 'default' : 'green'}>
+              {policy?.enabled === false ? '已停用' : '已启用'}
+            </Tag>
+          </Form.Item>
+          <Form.Item>
+            <Tag color="blue">{policy?.update_time ? getLocalTime(policy.update_time) : '-'}</Tag>
+          </Form.Item>
+        </Form>
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={12}>
             <Table

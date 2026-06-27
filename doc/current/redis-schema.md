@@ -152,6 +152,7 @@ NC-051 在 Core 层新增 AccountDomainRepository，用于账户/接入账号/�
 | `DATA:PUSH:MAINTENANCE` | HASH | config_id | DataPushMaintenanceConfig JSON | 持久 | AccountDomainRepository |
 | `DATA:PUSH:JOB:<yyyyMM>` | HASH | job_id | DataPushJob JSON | 持久 | AccountDomainRepository |
 | `DATA:PUSH:<yyyyMM>` | HASH | usage_id | DataPushUsage JSON | 持久 | AccountDomainRepository |
+| `OPS:ALERT:POLICY` | HASH | policy_id | OperationsAlertPolicy JSON | 持久 | AccountDomainRepository |
 | `SUPPLY:USAGE:<yyyyMM>` | HASH | usage_id | SupplierSupplyUsage JSON | 持久 | AccountDomainRepository |
 | `SUPPLY:ACCOUNT:<account_id>:<yyyyMM>` | LIST | usage_id | usage_id | 持久或后续归档 | AccountDomainRepository |
 | `SUPPLY:EARNING:<account_id>:<yyyyMM>` | HASH | settlement_id | SupplierSettlement JSON | 持久 | AccountDomainRepository |
@@ -211,6 +212,16 @@ payment_update_time。历史 status=settled 按 paid 兼容处理。
 供应商自助收益摘要以 SUPPLY:USAGE.status 统计 pending_earning_cents，并从
 SUPPLY:EARNING 拆分 pending_payment_cents、paid_earning_cents、failed_payment_cents
 和 settlement_count；settled_earning_cents 保留为 paid + pending_payment 的兼容字段。
+```
+
+NC-074 运营告警策略：
+
+```text
+OPS:ALERT:POLICY[default] 保存运营监控告警策略。
+无记录时后端使用默认策略但不强制写入 Redis；管理员保存后持久化。
+策略包含 enabled、低余额阈值、负余额、DataPush 失败、DataPush 维护关闭、
+供应商待付款和供应事实待结算等告警的启停和计数阈值。
+GET /api/v1/admin/operations-monitor 会返回 alert_policy 快照，并按该策略生成 alerts。
 ```
 
 NC-060 订阅运营和兑换入账：

@@ -70,6 +70,7 @@ inline constexpr const char *DATA_PUSH_PREFIX = "DATA:PUSH:";
 inline constexpr const char *DATA_PUSH_CONFIG = "DATA:PUSH:CONFIG";
 inline constexpr const char *DATA_PUSH_MAINTENANCE = "DATA:PUSH:MAINTENANCE";
 inline constexpr const char *DATA_PUSH_JOB_PREFIX = "DATA:PUSH:JOB:";
+inline constexpr const char *OPS_ALERT_POLICY = "OPS:ALERT:POLICY";
 inline constexpr const char *SUPPLY_USAGE_PREFIX = "SUPPLY:USAGE:";
 inline constexpr const char *SUPPLY_ACCOUNT_PREFIX = "SUPPLY:ACCOUNT:";
 inline constexpr const char *SUPPLY_EARNING_PREFIX = "SUPPLY:EARNING:";

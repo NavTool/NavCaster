@@ -703,10 +703,28 @@ export interface SupplierEarningsSummary {
   settlement_count?: number;
 }
 
+export interface OperationsAlertPolicy {
+  policy_id: string;
+  enabled?: boolean;
+  low_balance_enabled?: boolean;
+  low_balance_threshold_cents?: number;
+  negative_balance_enabled?: boolean;
+  data_push_failed_enabled?: boolean;
+  data_push_failed_threshold?: number;
+  data_push_maintenance_disabled_enabled?: boolean;
+  supplier_pending_payment_enabled?: boolean;
+  supplier_pending_payment_threshold?: number;
+  supplier_usage_pending_enabled?: boolean;
+  supplier_usage_pending_threshold?: number;
+  create_time?: number;
+  update_time?: number;
+}
+
 export interface OperationsMonitorAlert {
   severity: 'critical' | 'warning' | 'info' | string;
   code: string;
   count?: number;
+  threshold?: number;
   message?: string;
 }
 
@@ -740,6 +758,7 @@ export interface OperationsMonitorDataPushJob {
 export interface OperationsMonitor {
   period: string;
   generated_time?: number;
+  alert_policy?: OperationsAlertPolicy & { error?: string };
   accounts: {
     total_count: number;
     admin_count?: number;
