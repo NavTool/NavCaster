@@ -10,6 +10,7 @@ import (
 )
 
 type Repository interface {
+	ControlPlaneStatus() (ControlPlaneStatus, error)
 	ListHosts() ([]Host, error)
 	GetHost(hostID string) (Host, error)
 	UpsertHost(Host) (Host, error)
@@ -17,7 +18,10 @@ type Repository interface {
 	GetRuntime(runtimeID string) (Runtime, error)
 	CreateRuntime(RuntimeCreateRequest) (Runtime, error)
 	UpdateDesiredState(runtimeID string, req DesiredUpdateRequest) (Runtime, error)
-	RecordActionIntent(runtimeID string, kind ActionKind, payload map[string]any) (ActionIntent, Runtime, error)
+	RecordActionIntent(runtimeID string, kind ActionKind, req ActionRequest) (ActionIntent, Runtime, error)
+	UpdateActionIntentStatus(intentID string, status ActionIntentStatus, reason string) error
+	ListActionIntents(runtimeID string, limit int) ([]ActionIntent, error)
+	ListRuntimeEvents(runtimeID string, limit int) ([]RuntimeEvent, error)
 	ListDesiredStatesForHost(hostID string, sinceVersion int64) ([]DesiredRuntime, error)
 	ApplyHeartbeat(hostID string, agentID string, at time.Time) error
 	ApplyActualSnapshots(agentID string, hostID string, snapshots []ActualSnapshot) error
@@ -29,6 +33,7 @@ type MemoryRepository struct {
 	hosts     map[string]Host
 	runtimes  map[string]Runtime
 	events    []RuntimeEvent
+	intents   []ActionIntent
 	nextID    int64
 	version   int64
 	actionSeq int64
@@ -50,6 +55,39 @@ func NewMemoryRepository() *MemoryRepository {
 		nextID:   1,
 		version:  1,
 	}
+}
+
+func (r *MemoryRepository) ControlPlaneStatus() (ControlPlaneStatus, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	status := ControlPlaneStatus{
+		Status:       "ok",
+		Repository:   "memory",
+		HostCount:    len(r.hosts),
+		RuntimeCount: len(r.runtimes),
+		UpdatedAt:    ptrTime(time.Now().UTC()),
+	}
+	for _, runtime := range r.runtimes {
+		if runtime.Desired != nil {
+			status.DesiredCount++
+			if runtime.Desired.Version > status.LatestDesiredVersion {
+				status.LatestDesiredVersion = runtime.Desired.Version
+			}
+		}
+		control := EvaluateRuntimeControl(runtime, r.latestIntentLocked(runtime.RuntimeID), time.Now().UTC(), DefaultRuntimeStaleAfter)
+		if control.Stale {
+			status.StaleRuntimeCount++
+		}
+	}
+	for _, intent := range r.intents {
+		switch intent.Status {
+		case ActionIntentAccepted, ActionIntentProjected:
+			status.PendingIntentCount++
+		case ActionIntentFailed:
+			status.FailedIntentCount++
+		}
+	}
+	return status, nil
 }
 
 func (r *MemoryRepository) ListHosts() ([]Host, error) {
@@ -103,7 +141,7 @@ func (r *MemoryRepository) ListRuntimes() ([]Runtime, error) {
 	defer r.mu.Unlock()
 	runtimes := make([]Runtime, 0, len(r.runtimes))
 	for _, runtime := range r.runtimes {
-		runtimes = append(runtimes, cloneRuntime(runtime))
+		runtimes = append(runtimes, r.withControlLocked(runtime))
 	}
 	sort.Slice(runtimes, func(i, j int) bool { return runtimes[i].RuntimeID < runtimes[j].RuntimeID })
 	return runtimes, nil
@@ -116,7 +154,7 @@ func (r *MemoryRepository) GetRuntime(runtimeID string) (Runtime, error) {
 	if !ok {
 		return Runtime{}, errorsx.NotFound("runtime not found")
 	}
-	return cloneRuntime(runtime), nil
+	return r.withControlLocked(runtime), nil
 }
 
 func (r *MemoryRepository) CreateRuntime(req RuntimeCreateRequest) (Runtime, error) {
@@ -165,7 +203,7 @@ func (r *MemoryRepository) CreateRuntime(req RuntimeCreateRequest) (Runtime, err
 		UpdatedAt: now,
 	}
 	r.runtimes[runtimeID] = runtime
-	return cloneRuntime(runtime), nil
+	return r.withControlLocked(runtime), nil
 }
 
 func (r *MemoryRepository) UpdateDesiredState(runtimeID string, req DesiredUpdateRequest) (Runtime, error) {
@@ -214,10 +252,10 @@ func (r *MemoryRepository) UpdateDesiredState(runtimeID string, req DesiredUpdat
 	runtime.Desired = &desired
 	runtime.UpdatedAt = now
 	r.runtimes[runtimeID] = runtime
-	return cloneRuntime(runtime), nil
+	return r.withControlLocked(runtime), nil
 }
 
-func (r *MemoryRepository) RecordActionIntent(runtimeID string, kind ActionKind, payload map[string]any) (ActionIntent, Runtime, error) {
+func (r *MemoryRepository) RecordActionIntent(runtimeID string, kind ActionKind, req ActionRequest) (ActionIntent, Runtime, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	runtime, ok := r.runtimes[runtimeID]
@@ -229,6 +267,16 @@ func (r *MemoryRepository) RecordActionIntent(runtimeID string, kind ActionKind,
 	}
 	if runtime.Desired == nil {
 		return ActionIntent{}, Runtime{}, errorsx.Conflict("runtime has no desired state")
+	}
+	if req.Payload == nil {
+		req.Payload = map[string]any{}
+	}
+	if req.RequestID != "" {
+		for _, existing := range r.intents {
+			if existing.RequestID == req.RequestID {
+				return existing, r.withControlLocked(runtime), nil
+			}
+		}
 	}
 	desired := *runtime.Desired
 	switch kind {
@@ -252,6 +300,13 @@ func (r *MemoryRepository) RecordActionIntent(runtimeID string, kind ActionKind,
 	r.actionSeq++
 	r.version++
 	now := time.Now().UTC()
+	for i := range r.intents {
+		if r.intents[i].RuntimeID == runtimeID && (r.intents[i].Status == ActionIntentAccepted || r.intents[i].Status == ActionIntentProjected) {
+			r.intents[i].Status = ActionIntentSuperseded
+			r.intents[i].SupersededAt = &now
+			r.intents[i].UpdatedAt = now
+		}
+	}
 	desired.Version = r.version
 	desired.Generation = r.version
 	desired.UpdatedAt = now
@@ -260,14 +315,76 @@ func (r *MemoryRepository) RecordActionIntent(runtimeID string, kind ActionKind,
 	r.runtimes[runtimeID] = runtime
 	intent := ActionIntent{
 		ID:             newID("intent", r.actionSeq),
+		RequestID:      firstNonEmpty(req.RequestID, newID("request", r.actionSeq)),
 		RuntimeID:      runtimeID,
+		HostID:         runtime.HostID,
 		Kind:           kind,
-		Status:         "accepted",
+		Status:         ActionIntentAccepted,
 		DesiredVersion: desired.Version,
-		Payload:        payload,
+		Payload:        req.Payload,
 		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
-	return intent, cloneRuntime(runtime), nil
+	r.intents = append(r.intents, intent)
+	return intent, r.withControlLocked(runtime), nil
+}
+
+func (r *MemoryRepository) UpdateActionIntentStatus(intentID string, status ActionIntentStatus, reason string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now().UTC()
+	for i := range r.intents {
+		if r.intents[i].ID != intentID {
+			continue
+		}
+		r.intents[i].Status = status
+		r.intents[i].UpdatedAt = now
+		switch status {
+		case ActionIntentProjected:
+			r.intents[i].ProjectedAt = &now
+		case ActionIntentObserved:
+			r.intents[i].ObservedAt = &now
+		case ActionIntentSuperseded:
+			r.intents[i].SupersededAt = &now
+		case ActionIntentFailed:
+			r.intents[i].FailedAt = &now
+			r.intents[i].FailureReason = reason
+		}
+		return nil
+	}
+	return errorsx.NotFound("intent not found")
+}
+
+func (r *MemoryRepository) ListActionIntents(runtimeID string, limit int) ([]ActionIntent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	var out []ActionIntent
+	for i := len(r.intents) - 1; i >= 0 && len(out) < limit; i-- {
+		if runtimeID != "" && r.intents[i].RuntimeID != runtimeID {
+			continue
+		}
+		out = append(out, cloneActionIntent(r.intents[i]))
+	}
+	return out, nil
+}
+
+func (r *MemoryRepository) ListRuntimeEvents(runtimeID string, limit int) ([]RuntimeEvent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	var out []RuntimeEvent
+	for i := len(r.events) - 1; i >= 0 && len(out) < limit; i-- {
+		if runtimeID != "" && r.events[i].RuntimeID != runtimeID {
+			continue
+		}
+		out = append(out, cloneRuntimeEvent(r.events[i]))
+	}
+	return out, nil
 }
 
 func (r *MemoryRepository) ListDesiredStatesForHost(hostID string, sinceVersion int64) ([]DesiredRuntime, error) {
@@ -339,6 +456,7 @@ func (r *MemoryRepository) ApplyActualSnapshots(agentID string, hostID string, s
 		runtime.Actual = &snapshot
 		runtime.UpdatedAt = now
 		r.runtimes[snapshot.RuntimeID] = runtime
+		r.observeIntentLocked(snapshot, now)
 	}
 	return nil
 }
@@ -358,9 +476,45 @@ func (r *MemoryRepository) RecordRuntimeEvents(agentID string, hostID string, ev
 		if event.OccurredAt.IsZero() {
 			event.OccurredAt = time.Now().UTC()
 		}
+		if event.EventID == "" {
+			event.EventID = newID("rtevt", int64(len(r.events)+1))
+		}
+		if event.Metadata == nil {
+			event.Metadata = map[string]string{}
+		}
 		r.events = append(r.events, event)
 	}
 	return nil
+}
+
+func (r *MemoryRepository) observeIntentLocked(snapshot ActualSnapshot, now time.Time) {
+	for i := range r.intents {
+		intent := &r.intents[i]
+		if intent.RuntimeID != snapshot.RuntimeID {
+			continue
+		}
+		if intent.DesiredVersion != snapshot.ObservedDesiredVersion {
+			continue
+		}
+		if snapshot.LastError != "" {
+			if intent.Status != ActionIntentAccepted && intent.Status != ActionIntentProjected {
+				continue
+			}
+			intent.UpdatedAt = now
+			intent.Status = ActionIntentFailed
+			intent.FailedAt = &now
+			intent.FailureReason = snapshot.LastError
+			continue
+		}
+		if intent.Status != ActionIntentAccepted && intent.Status != ActionIntentProjected && intent.Status != ActionIntentFailed {
+			continue
+		}
+		intent.UpdatedAt = now
+		intent.Status = ActionIntentObserved
+		intent.ObservedAt = &now
+		intent.FailedAt = nil
+		intent.FailureReason = ""
+	}
 }
 
 func validateIngestIdentity(payloadHostID string, payloadAgentID string, requestHostID string, requestAgentID string) error {
@@ -410,7 +564,78 @@ func cloneRuntime(runtime Runtime) Runtime {
 		actual := *runtime.Actual
 		runtime.Actual = &actual
 	}
+	if runtime.Control != nil {
+		control := *runtime.Control
+		if runtime.Control.LastObservedAt != nil {
+			observedAt := *runtime.Control.LastObservedAt
+			control.LastObservedAt = &observedAt
+		}
+		if runtime.Control.LatestIntent != nil {
+			intent := cloneActionIntent(*runtime.Control.LatestIntent)
+			control.LatestIntent = &intent
+		}
+		runtime.Control = &control
+	}
 	return runtime
+}
+
+func cloneActionIntent(intent ActionIntent) ActionIntent {
+	if intent.Payload != nil {
+		payload := make(map[string]any, len(intent.Payload))
+		for key, value := range intent.Payload {
+			payload[key] = value
+		}
+		intent.Payload = payload
+	}
+	intent.ProjectedAt = cloneTimePtr(intent.ProjectedAt)
+	intent.ObservedAt = cloneTimePtr(intent.ObservedAt)
+	intent.SupersededAt = cloneTimePtr(intent.SupersededAt)
+	intent.FailedAt = cloneTimePtr(intent.FailedAt)
+	return intent
+}
+
+func cloneRuntimeEvent(event RuntimeEvent) RuntimeEvent {
+	if event.Metadata != nil {
+		metadata := make(map[string]string, len(event.Metadata))
+		for key, value := range event.Metadata {
+			metadata[key] = value
+		}
+		event.Metadata = metadata
+	}
+	return event
+}
+
+func cloneTimePtr(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	clone := *value
+	return &clone
+}
+
+func (r *MemoryRepository) withControlLocked(runtime Runtime) Runtime {
+	latest := r.latestIntentLocked(runtime.RuntimeID)
+	runtime.Control = ptrControl(EvaluateRuntimeControl(runtime, latest, time.Now().UTC(), DefaultRuntimeStaleAfter))
+	return cloneRuntime(runtime)
+}
+
+func (r *MemoryRepository) latestIntentLocked(runtimeID string) *ActionIntent {
+	for i := len(r.intents) - 1; i >= 0; i-- {
+		if r.intents[i].RuntimeID != runtimeID {
+			continue
+		}
+		intent := cloneActionIntent(r.intents[i])
+		return &intent
+	}
+	return nil
+}
+
+func ptrControl(value RuntimeControl) *RuntimeControl {
+	return &value
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }
 
 func newID(prefix string, value int64) string {

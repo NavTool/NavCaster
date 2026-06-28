@@ -26,11 +26,15 @@ func TestProjectingRepositoryPublishesDesiredAndActual(t *testing.T) {
 		t.Fatalf("expected desired projection, got desired=%d host=%d", publisher.desiredCount, publisher.hostDesiredCount)
 	}
 
-	if _, _, err := repo.RecordActionIntent(runtime.RuntimeID, ActionKindDrain, map[string]any{"draining": true}); err != nil {
+	intent, _, err := repo.RecordActionIntent(runtime.RuntimeID, ActionKindDrain, ActionRequest{RequestID: "req-drain", Payload: map[string]any{"draining": true}})
+	if err != nil {
 		t.Fatalf("RecordActionIntent returned error: %v", err)
 	}
-	if publisher.desiredCount != 2 || publisher.hostDesiredCount != 2 {
-		t.Fatalf("expected second desired projection, got desired=%d host=%d", publisher.desiredCount, publisher.hostDesiredCount)
+	if intent.Status != ActionIntentProjected {
+		t.Fatalf("expected projected intent, got %#v", intent)
+	}
+	if publisher.desiredCount != 2 || publisher.hostDesiredCount != 2 || publisher.intentCount != 1 {
+		t.Fatalf("expected second desired projection, got desired=%d host=%d intent=%d", publisher.desiredCount, publisher.hostDesiredCount, publisher.intentCount)
 	}
 
 	now := time.Now().UTC()
@@ -45,7 +49,7 @@ func TestProjectingRepositoryPublishesDesiredAndActual(t *testing.T) {
 		RuntimeID:              runtime.RuntimeID,
 		ActualState:            "running",
 		ProcessID:              1234,
-		ObservedDesiredVersion: runtime.Desired.Version,
+		ObservedDesiredVersion: intent.DesiredVersion,
 		UpdatedAt:              now,
 	}}); err != nil {
 		t.Fatalf("ApplyActualSnapshots returned error: %v", err)
@@ -53,13 +57,18 @@ func TestProjectingRepositoryPublishesDesiredAndActual(t *testing.T) {
 	if publisher.actualCount != 1 {
 		t.Fatalf("expected actual projection, got %d", publisher.actualCount)
 	}
+	if publisher.intentCount != 2 || publisher.lastIntentStatus != ActionIntentObserved {
+		t.Fatalf("expected observed intent reprojection, got count=%d status=%s", publisher.intentCount, publisher.lastIntentStatus)
+	}
 }
 
 type fakePublisher struct {
 	desiredCount     int
 	hostDesiredCount int
+	intentCount      int
 	actualCount      int
 	heartbeatCount   int
+	lastIntentStatus ActionIntentStatus
 }
 
 func (p *fakePublisher) PublishRuntimeDesired(DesiredRuntime) error {
@@ -69,6 +78,12 @@ func (p *fakePublisher) PublishRuntimeDesired(DesiredRuntime) error {
 
 func (p *fakePublisher) PublishHostDesiredState(string, []DesiredRuntime) error {
 	p.hostDesiredCount++
+	return nil
+}
+
+func (p *fakePublisher) PublishActionIntent(intent ActionIntent, _ DesiredRuntime) error {
+	p.intentCount++
+	p.lastIntentStatus = intent.Status
 	return nil
 }
 

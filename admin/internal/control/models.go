@@ -29,6 +29,25 @@ const (
 	ActionKindUndrain ActionKind = "undrain"
 )
 
+type ActionIntentStatus string
+
+const (
+	ActionIntentAccepted   ActionIntentStatus = "accepted"
+	ActionIntentProjected  ActionIntentStatus = "projected"
+	ActionIntentObserved   ActionIntentStatus = "observed"
+	ActionIntentSuperseded ActionIntentStatus = "superseded"
+	ActionIntentFailed     ActionIntentStatus = "failed"
+)
+
+type RuntimeControlStatus string
+
+const (
+	RuntimeControlConverged RuntimeControlStatus = "converged"
+	RuntimeControlPending   RuntimeControlStatus = "pending"
+	RuntimeControlFailed    RuntimeControlStatus = "failed"
+	RuntimeControlStale     RuntimeControlStatus = "stale"
+)
+
 type Host struct {
 	ID            string         `json:"host_id"`
 	DisplayName   string         `json:"display_name"`
@@ -61,8 +80,25 @@ type Runtime struct {
 	Name      string          `json:"name"`
 	Desired   *DesiredRuntime `json:"desired,omitempty"`
 	Actual    *ActualSnapshot `json:"actual,omitempty"`
+	Control   *RuntimeControl `json:"control,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type RuntimeControl struct {
+	Status                 RuntimeControlStatus `json:"status"`
+	DesiredVersion         int64                `json:"desired_version,omitempty"`
+	ObservedDesiredVersion int64                `json:"observed_desired_version,omitempty"`
+	DesiredState           DesiredState         `json:"desired_state,omitempty"`
+	ActualState            string               `json:"actual_state,omitempty"`
+	Pending                bool                 `json:"pending"`
+	Failed                 bool                 `json:"failed"`
+	Stale                  bool                 `json:"stale"`
+	Reason                 string               `json:"reason,omitempty"`
+	LastError              string               `json:"last_error,omitempty"`
+	LastObservedAt         *time.Time           `json:"last_observed_at,omitempty"`
+	StaleAfterSeconds      int64                `json:"stale_after_seconds"`
+	LatestIntent           *ActionIntent        `json:"latest_intent,omitempty"`
 }
 
 type ActualSnapshot struct {
@@ -107,13 +143,27 @@ type RuntimeEvent struct {
 }
 
 type ActionIntent struct {
-	ID             string         `json:"intent_id"`
-	RuntimeID      string         `json:"runtime_id"`
-	Kind           ActionKind     `json:"kind"`
-	Status         string         `json:"status"`
-	DesiredVersion int64          `json:"desired_version"`
-	Payload        map[string]any `json:"payload,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
+	ID             string             `json:"intent_id"`
+	RequestID      string             `json:"request_id"`
+	RuntimeID      string             `json:"runtime_id"`
+	HostID         string             `json:"host_id,omitempty"`
+	Kind           ActionKind         `json:"kind"`
+	Status         ActionIntentStatus `json:"status"`
+	DesiredVersion int64              `json:"desired_version"`
+	Payload        map[string]any     `json:"payload,omitempty"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	ProjectedAt    *time.Time         `json:"projected_at,omitempty"`
+	ObservedAt     *time.Time         `json:"observed_at,omitempty"`
+	SupersededAt   *time.Time         `json:"superseded_at,omitempty"`
+	FailedAt       *time.Time         `json:"failed_at,omitempty"`
+	FailureReason  string             `json:"failure_reason,omitempty"`
+}
+
+type ActionRequest struct {
+	RequestID string         `json:"request_id,omitempty"`
+	Reason    string         `json:"reason,omitempty"`
+	Payload   map[string]any `json:"payload,omitempty"`
 }
 
 type RuntimeCreateRequest struct {
@@ -136,4 +186,18 @@ type DesiredUpdateRequest struct {
 	MaxWorkers    *int          `json:"max_worker_count,omitempty"`
 	RestartPolicy RestartPolicy `json:"restart_policy,omitempty"`
 	Draining      *bool         `json:"draining,omitempty"`
+}
+
+type ControlPlaneStatus struct {
+	Status               string     `json:"status"`
+	Repository           string     `json:"repository"`
+	HostCount            int        `json:"host_count"`
+	RuntimeCount         int        `json:"runtime_count"`
+	DesiredCount         int        `json:"desired_count"`
+	LatestDesiredVersion int64      `json:"latest_desired_version"`
+	PendingIntentCount   int        `json:"pending_intent_count"`
+	FailedIntentCount    int        `json:"failed_intent_count"`
+	StaleRuntimeCount    int        `json:"stale_runtime_count"`
+	UpdatedAt            *time.Time `json:"updated_at,omitempty"`
+	Error                string     `json:"error,omitempty"`
 }

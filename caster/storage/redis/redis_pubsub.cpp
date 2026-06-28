@@ -252,6 +252,11 @@ bool WorkerRedisBoundary::unsubscribe_mount(const std::string &mount)
     return true;
 }
 
+bool WorkerRedisBoundary::connected() const
+{
+    return command.connected() && pubsub.connected();
+}
+
 std::uint64_t WorkerRedisBoundary::subscribed_mount_count() const
 {
     return static_cast<std::uint64_t>(subscribed_mounts_.size());

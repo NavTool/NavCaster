@@ -156,8 +156,25 @@ CREATE TABLE IF NOT EXISTS control_intents (
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_by TEXT REFERENCES accounts(account_id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT control_intent_status_name CHECK (status IN ('accepted', 'pending', 'applying', 'completed', 'failed'))
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    projected_at TIMESTAMPTZ,
+    observed_at TIMESTAMPTZ,
+    superseded_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
+    failure_reason TEXT NOT NULL DEFAULT '',
+    CONSTRAINT control_intent_status_name CHECK (status IN ('accepted', 'projected', 'observed', 'superseded', 'failed'))
 );
+
+ALTER TABLE control_intents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE control_intents ADD COLUMN IF NOT EXISTS projected_at TIMESTAMPTZ;
+ALTER TABLE control_intents ADD COLUMN IF NOT EXISTS observed_at TIMESTAMPTZ;
+ALTER TABLE control_intents ADD COLUMN IF NOT EXISTS superseded_at TIMESTAMPTZ;
+ALTER TABLE control_intents ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ;
+ALTER TABLE control_intents ADD COLUMN IF NOT EXISTS failure_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE control_intents DROP CONSTRAINT IF EXISTS control_intent_status_name;
+UPDATE control_intents SET status = 'projected' WHERE status IN ('pending', 'applying');
+UPDATE control_intents SET status = 'observed' WHERE status = 'completed';
+ALTER TABLE control_intents ADD CONSTRAINT control_intent_status_name CHECK (status IN ('accepted', 'projected', 'observed', 'superseded', 'failed'));
 
 CREATE TABLE IF NOT EXISTS runtime_events (
     event_id TEXT PRIMARY KEY,
@@ -195,4 +212,6 @@ CREATE INDEX IF NOT EXISTS idx_runtime_actual_runtime_observed ON runtime_actual
 CREATE INDEX IF NOT EXISTS idx_runtime_events_runtime_occurred ON runtime_events(runtime_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_config_releases_runtime ON config_releases(target_runtime_id, released_at DESC);
 CREATE INDEX IF NOT EXISTS idx_control_intents_runtime ON control_intents(runtime_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_control_intents_request ON control_intents(request_id);
+CREATE INDEX IF NOT EXISTS idx_control_intents_status ON control_intents(status);
 CREATE INDEX IF NOT EXISTS idx_operation_audit_created ON operation_audit_logs(created_at DESC);

@@ -17,6 +17,7 @@ export function useV2Page<T>(
   const [items, setItems] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -24,6 +25,11 @@ export function useV2Page<T>(
       const result = await loader(filters);
       setItems(result.items);
       setTotal(result.total);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load AdminService data');
+      setItems([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -33,7 +39,7 @@ export function useV2Page<T>(
     void refresh();
   }, [refresh]);
 
-  return { filters, setFilters, items, total, loading, refresh };
+  return { filters, setFilters, items, total, loading, error, refresh };
 }
 
 export function gb(used: number, total: number) {

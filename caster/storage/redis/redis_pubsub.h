@@ -31,6 +31,7 @@ struct WorkerRedisBoundary {
     bool publish_mount_data(const std::string &mount, const std::string &payload);
     bool subscribe_mount(const std::string &mount);
     bool unsubscribe_mount(const std::string &mount);
+    bool connected() const;
     std::uint64_t subscribed_mount_count() const;
 
     void handle_subscribe_reply(void *reply);

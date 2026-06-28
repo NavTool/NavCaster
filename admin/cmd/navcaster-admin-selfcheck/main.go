@@ -70,14 +70,28 @@ func main() {
 		die("desired-state did not include created runtime: %#v", desired.Data)
 	}
 
+	var action struct {
+		Data struct {
+			IntentID       string `json:"intent_id"`
+			Status         string `json:"status"`
+			DesiredVersion int64  `json:"desired_version"`
+		} `json:"data"`
+	}
+	must(do(client, http.MethodPost, baseURL+"/api/v1/control/runtimes/"+created.Data.RuntimeID+"/actions/stop", map[string]any{
+		"request_id": "selfcheck-" + created.Data.RuntimeID,
+	}, http.StatusAccepted, &action))
+	if action.Data.IntentID == "" || action.Data.DesiredVersion == 0 {
+		die("action intent was not returned: %#v", action.Data)
+	}
+
 	must(do(client, http.MethodPost, baseURL+"/api/v1/agents/"+register.Data.AgentID+"/runtime-metrics", map[string]any{
 		"agent_id": register.Data.AgentID,
 		"host_id":  register.Data.HostID,
 		"actual": []map[string]any{{
 			"runtime_id":               created.Data.RuntimeID,
-			"actual_state":             "running",
+			"actual_state":             "stopped",
 			"process_id":               4242,
-			"observed_desired_version": created.Data.Desired.Version,
+			"observed_desired_version": action.Data.DesiredVersion,
 			"updated_at":               time.Now().UTC().Format(time.RFC3339Nano),
 		}},
 	}, http.StatusAccepted, nil))
@@ -89,15 +103,22 @@ func main() {
 				ActualState string `json:"actual_state"`
 				ProcessID   int    `json:"process_id"`
 			} `json:"actual"`
+			Control struct {
+				Status string `json:"status"`
+				Reason string `json:"reason"`
+			} `json:"control"`
 		} `json:"data"`
 	}
 	must(do(client, http.MethodGet, baseURL+"/api/v1/control/runtimes/"+created.Data.RuntimeID, nil, http.StatusOK, &runtime))
-	if runtime.Data.Actual.ActualState != "running" || runtime.Data.Actual.ProcessID != 4242 {
+	if runtime.Data.Actual.ActualState != "stopped" || runtime.Data.Actual.ProcessID != 4242 {
 		die("runtime actual was not returned by control API: %#v", runtime.Data.Actual)
 	}
+	if runtime.Data.Control.Status != "converged" {
+		die("runtime control did not converge: %#v", runtime.Data.Control)
+	}
 
-	fmt.Printf("navcaster-admin self-check ok: host=%s agent=%s runtime=%s desired_version=%d\n",
-		register.Data.HostID, register.Data.AgentID, created.Data.RuntimeID, desired.Data.Version)
+	fmt.Printf("navcaster-admin self-check ok: host=%s agent=%s runtime=%s desired_version=%d intent=%s\n",
+		register.Data.HostID, register.Data.AgentID, created.Data.RuntimeID, action.Data.DesiredVersion, action.Data.IntentID)
 }
 
 func do(client *http.Client, method string, url string, body any, wantStatus int, dst any) error {
