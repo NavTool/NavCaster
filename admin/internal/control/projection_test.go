@@ -49,13 +49,16 @@ func TestProjectingRepositoryPublishesDesiredAndActual(t *testing.T) {
 		RuntimeID:              runtime.RuntimeID,
 		ActualState:            "running",
 		ProcessID:              1234,
-		ObservedDesiredVersion: runtime.Desired.Version,
+		ObservedDesiredVersion: intent.DesiredVersion,
 		UpdatedAt:              now,
 	}}); err != nil {
 		t.Fatalf("ApplyActualSnapshots returned error: %v", err)
 	}
 	if publisher.actualCount != 1 {
 		t.Fatalf("expected actual projection, got %d", publisher.actualCount)
+	}
+	if publisher.intentCount != 2 || publisher.lastIntentStatus != ActionIntentObserved {
+		t.Fatalf("expected observed intent reprojection, got count=%d status=%s", publisher.intentCount, publisher.lastIntentStatus)
 	}
 }
 
@@ -65,6 +68,7 @@ type fakePublisher struct {
 	intentCount      int
 	actualCount      int
 	heartbeatCount   int
+	lastIntentStatus ActionIntentStatus
 }
 
 func (p *fakePublisher) PublishRuntimeDesired(DesiredRuntime) error {
@@ -77,8 +81,9 @@ func (p *fakePublisher) PublishHostDesiredState(string, []DesiredRuntime) error 
 	return nil
 }
 
-func (p *fakePublisher) PublishActionIntent(ActionIntent, DesiredRuntime) error {
+func (p *fakePublisher) PublishActionIntent(intent ActionIntent, _ DesiredRuntime) error {
 	p.intentCount++
+	p.lastIntentStatus = intent.Status
 	return nil
 }
 

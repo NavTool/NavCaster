@@ -496,18 +496,24 @@ func (r *MemoryRepository) observeIntentLocked(snapshot ActualSnapshot, now time
 		if intent.DesiredVersion != snapshot.ObservedDesiredVersion {
 			continue
 		}
-		if intent.Status != ActionIntentAccepted && intent.Status != ActionIntentProjected {
-			continue
-		}
-		intent.UpdatedAt = now
 		if snapshot.LastError != "" {
+			if intent.Status != ActionIntentAccepted && intent.Status != ActionIntentProjected {
+				continue
+			}
+			intent.UpdatedAt = now
 			intent.Status = ActionIntentFailed
 			intent.FailedAt = &now
 			intent.FailureReason = snapshot.LastError
 			continue
 		}
+		if intent.Status != ActionIntentAccepted && intent.Status != ActionIntentProjected && intent.Status != ActionIntentFailed {
+			continue
+		}
+		intent.UpdatedAt = now
 		intent.Status = ActionIntentObserved
 		intent.ObservedAt = &now
+		intent.FailedAt = nil
+		intent.FailureReason = ""
 	}
 }
 

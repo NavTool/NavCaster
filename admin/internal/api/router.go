@@ -323,5 +323,11 @@ func decodeActionRequest(r *http.Request) (control.ActionRequest, error) {
 	if err := decodeJSON(r, &req); err != nil {
 		return control.ActionRequest{}, err
 	}
+	if req.Reason != "" {
+		if req.Payload == nil {
+			req.Payload = map[string]any{}
+		}
+		req.Payload["reason"] = req.Reason
+	}
 	return req, nil
 }

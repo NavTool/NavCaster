@@ -910,23 +910,30 @@ func observeIntentFromActualTx(ctx context.Context, tx *sql.Tx, snapshot control
 	if snapshot.ObservedDesiredVersion == 0 {
 		return nil
 	}
-	status := "observed"
-	reason := ""
 	if snapshot.LastError != "" {
-		status = "failed"
-		reason = snapshot.LastError
-	}
-	_, err := tx.ExecContext(ctx, `
+		_, err := tx.ExecContext(ctx, `
 UPDATE control_intents
-SET status = $3,
+SET status = 'failed',
     updated_at = now(),
-    observed_at = CASE WHEN $3 = 'observed' THEN now() ELSE observed_at END,
-    failed_at = CASE WHEN $3 = 'failed' THEN now() ELSE failed_at END,
-    failure_reason = CASE WHEN $3 = 'failed' THEN $4 ELSE failure_reason END
+    failed_at = now(),
+    failure_reason = $3
 WHERE runtime_id = $1
   AND desired_version = $2
   AND status IN ('accepted', 'projected')`,
-		snapshot.RuntimeID, snapshot.ObservedDesiredVersion, status, reason)
+			snapshot.RuntimeID, snapshot.ObservedDesiredVersion, snapshot.LastError)
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `
+UPDATE control_intents
+SET status = 'observed',
+    updated_at = now(),
+    observed_at = now(),
+    failed_at = NULL,
+    failure_reason = ''
+WHERE runtime_id = $1
+  AND desired_version = $2
+  AND status IN ('accepted', 'projected', 'failed')`,
+		snapshot.RuntimeID, snapshot.ObservedDesiredVersion)
 	return err
 }
 
@@ -945,17 +952,30 @@ func observeIntentFromEventTx(ctx context.Context, tx *sql.Tx, event control.Run
 	if status == "" {
 		return nil
 	}
+	if status == "observed" {
+		_, err := tx.ExecContext(ctx, `
+UPDATE control_intents
+SET status = 'observed',
+    updated_at = now(),
+    observed_at = now(),
+    failed_at = NULL,
+    failure_reason = ''
+WHERE runtime_id = $1
+  AND desired_version = $2
+  AND status IN ('accepted', 'projected', 'failed')`,
+			event.RuntimeID, event.DesiredVersion)
+		return err
+	}
 	_, err := tx.ExecContext(ctx, `
 UPDATE control_intents
-SET status = $3,
+SET status = 'failed',
     updated_at = now(),
-    observed_at = CASE WHEN $3 = 'observed' THEN now() ELSE observed_at END,
-    failed_at = CASE WHEN $3 = 'failed' THEN now() ELSE failed_at END,
-    failure_reason = CASE WHEN $3 = 'failed' THEN $4 ELSE failure_reason END
+    failed_at = now(),
+    failure_reason = $3
 WHERE runtime_id = $1
   AND desired_version = $2
   AND status IN ('accepted', 'projected')`,
-		event.RuntimeID, event.DesiredVersion, status, reason)
+		event.RuntimeID, event.DesiredVersion, reason)
 	return err
 }
 

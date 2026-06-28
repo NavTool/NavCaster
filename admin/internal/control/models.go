@@ -162,6 +162,7 @@ type ActionIntent struct {
 
 type ActionRequest struct {
 	RequestID string         `json:"request_id,omitempty"`
+	Reason    string         `json:"reason,omitempty"`
 	Payload   map[string]any `json:"payload,omitempty"`
 }
 

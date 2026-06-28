@@ -144,12 +144,34 @@ func (r *ProjectingRepository) ApplyActualSnapshots(agentID string, hostID strin
 		if err := r.publisher.PublishRuntimeActual(snapshot); err != nil {
 			return err
 		}
+		if err := r.publishLatestIntentForRuntime(snapshot.RuntimeID); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (r *ProjectingRepository) RecordRuntimeEvents(agentID string, hostID string, events []RuntimeEvent) error {
-	return r.inner.RecordRuntimeEvents(agentID, hostID, events)
+	if err := r.inner.RecordRuntimeEvents(agentID, hostID, events); err != nil {
+		return err
+	}
+	if r.publisher == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	for _, event := range events {
+		if event.RuntimeID == "" {
+			continue
+		}
+		if _, ok := seen[event.RuntimeID]; ok {
+			continue
+		}
+		seen[event.RuntimeID] = struct{}{}
+		if err := r.publishLatestIntentForRuntime(event.RuntimeID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *ProjectingRepository) publishRuntimeDesired(runtime Runtime) error {
@@ -177,6 +199,24 @@ func (r *ProjectingRepository) publishActionIntent(intent ActionIntent, runtime 
 		return nil
 	}
 	return r.publisher.PublishActionIntent(intent, *runtime.Desired)
+}
+
+func (r *ProjectingRepository) publishLatestIntentForRuntime(runtimeID string) error {
+	if r.publisher == nil {
+		return nil
+	}
+	intents, err := r.inner.ListActionIntents(runtimeID, 1)
+	if err != nil || len(intents) == 0 {
+		return err
+	}
+	runtime, err := r.inner.GetRuntime(runtimeID)
+	if err != nil {
+		return err
+	}
+	if runtime.Desired == nil {
+		return nil
+	}
+	return r.publisher.PublishActionIntent(intents[0], *runtime.Desired)
 }
 
 func (r *ProjectingRepository) refreshIntentAndRuntime(intent ActionIntent, runtime Runtime) (ActionIntent, Runtime) {

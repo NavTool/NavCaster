@@ -55,7 +55,7 @@ function Wait-HttpOk([string]$Url, [int]$TimeoutSeconds = 30) {
 function Wait-DockerLog([string]$ContainerName, [string]$Pattern, [int]$TimeoutSeconds = 30) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
-        $logs = & docker logs $ContainerName 2>&1
+        $logs = & cmd /c "docker logs $ContainerName 2>&1"
         if (($logs -join "`n") -match $Pattern) {
             return
         }
