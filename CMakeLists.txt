@@ -3,7 +3,6 @@ project(NavCaster)
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.21)
 
-option(BUILD_CASTER_SERVICE "Build Caster Service." ON)
 option(BUILD_NAVCASTER_CASTER "Build v2 navcaster-caster runtime." ON)
 option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 
@@ -170,29 +169,6 @@ endif()
 
 
 
-#abseil-cpp
-if(MSVC)
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
-endif()
-set(ABSL_ENABLE_INSTALL ON CACHE BOOL "" FORCE)
-set(ABSL_PROPAGATE_CXX_STD ON CACHE INTERNAL "")
-add_subdirectory(third_party/abseil-cpp/)
-
-#protobuf
-if(MSVC)
-    set(protobuf_BUILD_SHARED_LIBS ON CACHE BOOL "build shared libs" FORCE)
-endif()
-set(protobuf_LOCAL_DEPENDENCIES_ONLY ON CACHE BOOL "Prevent downloading any dependencies from GitHub. If this option is set, the dependency must be available locally as an installed package." FORCE)
-add_subdirectory(third_party/protobuf/)
-if(MSVC)
-    target_compile_options(libupb PRIVATE /wd5287)    # 忽略编译libupb时候的警告
-endif()
-
-include_directories(${CMAKE_SOURCE_DIR}/proto/src)
-add_subdirectory(proto)
-
-
-
 #libevent option
 # set(EVENT_LIBRARY_TYPE STATIC)
 set(EVENT__LIBRARY_TYPE STATIC CACHE STRING "Set library type to STATIC" FORCE)
@@ -208,26 +184,12 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
 set(DISABLE_TESTS ON CACHE BOOL "force set this option"  FORCE)
 add_subdirectory(third_party/hiredis)
 
-#yaml-cpp option
-set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "force set this option"  FORCE)
-set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "force set this option"  FORCE)
-add_subdirectory(third_party/yaml-cpp)
-
 #json
 set(JSON_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/third_party/json/include")
 
-#spdlog
-set(SPDLOG_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/third_party/spdlog/include")
-
-#rtklib
-add_subdirectory(third_party/rtklib)
-
 if(BUILD_NAVCASTER_CASTER)
-    add_subdirectory(caster)
+    add_subdirectory(app/caster)
 endif()
-
-add_subdirectory(src)
-add_subdirectory(tools)
 
 
 
@@ -241,7 +203,6 @@ configure_file(${CMAKE_SOURCE_DIR}/cmake/version.h.in ${CMAKE_BINARY_DIR}/versio
 
 message("---------------------------- NavTool ----------------------------")
 message("Enable hot reload   : ${HOTLOAD_ENABLED}")
-message("Build Caster Service: ${BUILD_CASTER_SERVICE}")
 message("Build v2 Caster     : ${BUILD_NAVCASTER_CASTER}")
 message("------------------------------------------------------------------")
 
