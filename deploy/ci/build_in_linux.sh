@@ -15,7 +15,7 @@ if [[ -z "${PACKAGE_NAME:-}" ]]; then
 	exit 2
 fi
 PACKAGE_DIR="${PACKAGE_ROOT}/${PACKAGE_NAME}"
-WEB_DIST_DIR="${WEB_DIST_DIR:-${ROOT_DIR}/web/dist}"
+WEB_DIST_DIR="${WEB_DIST_DIR:-${ROOT_DIR}/app/web/dist}"
 REDIS_VERSION="${REDIS_VERSION:-8.6.3}" # NavCaster minimum is 8.4.0; 8.6.3 is the verified package default.
 REDIS_REPO_URL="${REDIS_REPO_URL:-https://github.com/redis/redis.git}"
 REDIS_SRC_DIR="${BUILD_DIR}/redis-src"
@@ -117,7 +117,7 @@ fi
 
 if [[ ! -f "${WEB_DIST_DIR}/index.html" ]]; then
 	echo "[ci] missing web build output: ${WEB_DIST_DIR}/index.html" >&2
-	echo "[ci] run npm ci && npm run build in web/ before packaging" >&2
+	echo "[ci] run npm ci && npm run build in app/web/ before packaging" >&2
 	exit 1
 fi
 

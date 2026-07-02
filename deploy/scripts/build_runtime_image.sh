@@ -35,7 +35,7 @@ Options:
   --extra-tag <tag>             Add an extra Docker tag. May be repeated.
   --use-docker-builder          Build the Linux package inside a Docker builder.
   --no-docker-builder           Build the Linux package on the current host.
-  --skip-web-build              Reuse existing web/dist.
+  --skip-web-build              Reuse existing app/web/dist.
   --skip-package-build          Reuse --package-dir or the computed release package.
   --allow-dirty                 Allow tracked working tree changes in provenance.
   -h, --help                    Show this help.

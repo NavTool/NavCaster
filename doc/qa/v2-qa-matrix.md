@@ -14,7 +14,7 @@ v2 目标程序和边界：
 | `navcaster-admin` | Go | HTTP/JSON 控制面、PostgreSQL 权威数据、Redis 投影、Agent 注册和 desired state |
 | `navcaster-agent` | Go | 本机注册、心跳、desired state 拉取、配置渲染、Caster 进程守护和 reconcile |
 | `navcaster-caster` | C++ | NTRIP 数据面、Runtime/Worker、Redis Pub/Sub、本地 fan-out、health/metrics |
-| `web` | TypeScript / React | v2 控制台、Host/Runtime/Worker 视图、操作意图入口、浏览器 smoke |
+| `app/web` | TypeScript / React | v2 控制台、Host/Runtime/Worker 视图、操作意图入口、浏览器 smoke |
 
 不适用范围：
 
@@ -446,7 +446,7 @@ curl.exe -fsS http://127.0.0.1:19195/metrics
 命令口径：
 
 ```powershell
-cd web
+cd app/web
 npm run build
 npm run dev
 ```
@@ -756,7 +756,7 @@ curl.exe -fsS http://127.0.0.1:19080/metrics
 最低命令：
 
 ```powershell
-cd web
+cd app/web
 npm ci
 npm run lint
 npm run build

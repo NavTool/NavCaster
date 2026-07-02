@@ -147,7 +147,7 @@ PASS CMake Ninja configure。
 PASS schema_smoke Ninja build。
 PASS schema_smoke executable run。
 PASS navcaster-caster build。
-ENV_GAP Web production build failed because web\node_modules\.bin\tsc.cmd is missing.
+ENV_GAP Web production build failed because app\web\node_modules\.bin\tsc.cmd is missing.
 ```
 
 NC-105 最低复核只做轻量命令，不重复最终系统 smoke：
@@ -158,7 +158,7 @@ git diff --check
 Test-Path .\bin\Release\schema_smoke.exe
 Test-Path .\bin\Release\navcaster-caster.exe
 .\bin\Release\schema_smoke.exe
-Test-Path .\web\node_modules\.bin\tsc.cmd
+Test-Path .\app\web\node_modules\.bin\tsc.cmd
 ```
 
 如果 `schema_smoke.exe` 或 `navcaster-caster.exe` 不存在，可按需要运行：
@@ -192,7 +192,7 @@ PASS Test-Path .\bin\Release\navcaster-caster.exe:
 PASS .\bin\Release\schema_smoke.exe:
   [schema_smoke] all checks passed.
 
-ENV_GAP Test-Path .\web\node_modules\.bin\tsc.cmd:
+ENV_GAP Test-Path .\app\web\node_modules\.bin\tsc.cmd:
   False; Web build/browser smoke must be rerun by NC-104/NC-106 after dependency repair.
 
 PASS no product source diff:
@@ -247,7 +247,7 @@ cmake --version
 docker version
 Test-Path .\bin\Release\schema_smoke.exe
 Test-Path .\bin\Release\navcaster-caster.exe
-Test-Path .\web\node_modules\.bin\tsc.cmd
+Test-Path .\app\web\node_modules\.bin\tsc.cmd
 ```
 
 通过标准：
@@ -455,7 +455,7 @@ Agent 恢复后补传 actual/events/metrics。
 前置环境：
 
 ```text
-Web dependencies 完整，web\node_modules\.bin\tsc.cmd 存在。
+Web dependencies 完整，app\web\node_modules\.bin\tsc.cmd 存在。
 AdminService 真实 PG/Redis 正在运行。
 已有至少一个 host、两个 runtime、actual/events/metrics 测试数据。
 浏览器自动化优先 Playwright；不可用时保留手工截图和 console/network 记录。
@@ -464,7 +464,7 @@ AdminService 真实 PG/Redis 正在运行。
 构建：
 
 ```powershell
-cd web
+cd app/web
 npm run build
 npm run preview -- --host 127.0.0.1 --port 4173
 ```
@@ -472,7 +472,7 @@ npm run preview -- --host 127.0.0.1 --port 4173
 开发模式：
 
 ```powershell
-cd web
+cd app/web
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
@@ -494,7 +494,7 @@ npm run dev -- --host 127.0.0.1 --port 5173
 建议 Playwright 口径：
 
 ```powershell
-cd web
+cd app/web
 npx playwright test .\tests\v2-phase3-control.spec.ts --project=chromium --trace on
 ```
 
@@ -901,7 +901,7 @@ Pub/Sub payload 和 counters 是否对应。
 
 | 项目 | Gate | 原因 | 风险 | 后续任务 | 是否阻断当前结论 |
 | --- | --- | --- | --- | --- | --- |
-| 示例：Web browser smoke | P3-3 | `web\node_modules\.bin\tsc.cmd` 缺失，无法 build/dev | 无法证明真实浏览器 live API | NC-104 / NC-106 | 是，若在 NC-106 仍未闭合 |
+| 示例：Web browser smoke | P3-3 | `app\web\node_modules\.bin\tsc.cmd` 缺失，无法 build/dev | 无法证明真实浏览器 live API | NC-104 / NC-106 | 是，若在 NC-106 仍未闭合 |
 
 环境缺口模板：
 
@@ -1050,7 +1050,7 @@ powershell -ExecutionPolicy Bypass -File .\deploy\scripts\build_ninja.ps1 -Build
 .\deploy\scripts\v2_caster_redis_pubsub_smoke.ps1 -RedisHost 127.0.0.1 -RedisPort 16379 -RuntimeANtripPort 42195 -RuntimeAHealthPort 19195 -RuntimeBNtripPort 42196 -RuntimeBHealthPort 19196 -Mount QA_MOUNT_P3_PUBSUB -WorkerCount 2
 
 # Web
-cd web
+cd app/web
 npm run build
 npm run dev -- --host 127.0.0.1 --port 5173
 cd ..

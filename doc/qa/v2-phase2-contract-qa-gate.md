@@ -312,7 +312,7 @@ web
 最低命令：
 
 ```powershell
-cd web
+cd app/web
 npm run build
 ```
 

@@ -430,9 +430,9 @@ try {
 
 	if (-not $SkipWebBuild) {
 		if (-not $SkipNpmCi) {
-			Invoke-Native npm @('--prefix', 'web', 'ci')
+			Invoke-Native npm @('--prefix', 'app/web', 'ci')
 		}
-		Invoke-Native npm @('--prefix', 'web', 'run', 'build')
+		Invoke-Native npm @('--prefix', 'app/web', 'run', 'build')
 	}
 
 	if (Test-Path $PackageDir) {

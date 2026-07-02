@@ -217,10 +217,10 @@ BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh --target CasterService
 cd bin/Debug && ./CasterService
 
 # 前端开发
-cd web && npm ci && npm run dev
+cd app/web && npm ci && npm run dev
 
 # 前端类型检查
-cd web && npx tsc --noEmit
+cd app/web && npx tsc --noEmit
 ```
 
 依赖：`libevent2 / hiredis / protobuf / nlohmann_json / spdlog / yaml-cpp`，均通过 `third_party/` 子模块提供。
