@@ -283,7 +283,7 @@ NAVCASTER_ADMIN_POSTGRES_DSN 和 NAVCASTER_ADMIN_REDIS_ADDR 均设置。
 构建和启动：
 
 ```powershell
-cd admin
+cd app\admin
 $env:GOCACHE = "$PWD\.cache\go-build"
 go test ./...
 go build -o .cache\bin\navcaster-admin.exe .\cmd\navcaster-admin
@@ -291,7 +291,7 @@ $env:NAVCASTER_ADMIN_ADDR = "127.0.0.1:18080"
 $env:NAVCASTER_ADMIN_POSTGRES_DSN = "postgres://navcaster:navcaster@127.0.0.1:15432/navcaster_p3_qa?sslmode=disable"
 $env:NAVCASTER_ADMIN_REDIS_ADDR = "127.0.0.1:16379"
 $env:NAVCASTER_ADMIN_BOOTSTRAP_TOKEN = "navcaster-p3-qa-bootstrap"
-.\.cache\bin\navcaster-admin.exe *> ..\build\p3-qa\admin.log
+.\.cache\bin\navcaster-admin.exe *> ..\..\build\p3-qa\admin.log
 ```
 
 API smoke：
@@ -363,11 +363,11 @@ Runtime A/B 端口不冲突。
 构建：
 
 ```powershell
-cd agent
+cd app\agent
 $env:GOCACHE = "$PWD\.cache\go-build"
 go test ./...
 go build -o .cache\bin\navcaster-agent.exe .\cmd\navcaster-agent
-cd ..
+cd ..\..
 powershell -ExecutionPolicy Bypass -File .\deploy\scripts\build_ninja.ps1 -BuildType Release -Target navcaster-caster
 ```
 
@@ -392,7 +392,7 @@ powershell -ExecutionPolicy Bypass -File .\deploy\scripts\build_ninja.ps1 -Build
 运行：
 
 ```powershell
-.\agent\.cache\bin\navcaster-agent.exe -config .\build\p3-qa\agent.json *> .\build\p3-qa\agent.log
+.\app\agent\.cache\bin\navcaster-agent.exe -config .\build\p3-qa\agent.json *> .\build\p3-qa\agent.log
 ```
 
 NC-106 预期多 Runtime 编排脚本：
@@ -1032,16 +1032,16 @@ docker run --rm -d --name navcaster-p3-qa-pg -e POSTGRES_USER=navcaster -e POSTG
 docker run --rm -d --name navcaster-p3-qa-redis -p 16379:6379 redis:8.6.3
 
 # Admin
-cd admin
+cd app\admin
 go test ./...
 go build -o .cache\bin\navcaster-admin.exe .\cmd\navcaster-admin
-cd ..
+cd ..\..
 
 # Agent
-cd agent
+cd app\agent
 go test ./...
 go build -o .cache\bin\navcaster-agent.exe .\cmd\navcaster-agent
-cd ..
+cd ..\..
 
 # Caster
 powershell -ExecutionPolicy Bypass -File .\deploy\scripts\build_ninja.ps1 -BuildType Release -Target navcaster-caster

@@ -73,10 +73,10 @@ BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.s
 
 ## v2 AdminService 验证
 
-`admin/` 是 Go AdminService，不走 CMake target。NC-091 起最低本地验证：
+`app/admin/` 是 Go AdminService，不走 CMake target。NC-091 起最低本地验证：
 
 ```powershell
-cd admin
+cd app\admin
 gofmt -w ./...
 go test ./...
 go build ./cmd/navcaster-admin
@@ -85,7 +85,7 @@ go build ./cmd/navcaster-admin
 最小 API self-check：
 
 ```powershell
-cd admin
+cd app\admin
 go run ./cmd/navcaster-admin
 # 另一个终端：
 go run ./cmd/navcaster-admin-selfcheck
