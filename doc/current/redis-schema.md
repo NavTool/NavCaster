@@ -121,7 +121,7 @@ Redis Open Source 8.4.0+。部署和命令校验见 `deployment/redis.md`。
 
 ## v2 AdminService projection
 
-NC-091 起 `admin/` Go AdminService 使用全新 `v2:` Redis key，不兼容旧 `ACT:*`、
+NC-091 起 `app/admin/` Go AdminService 使用全新 `v2:` Redis key，不兼容旧 `ACT:*`、
 `MPT:*`、`STR:*`、`PULL:*`、`PUSH:*`、`CASTER:*` key。PostgreSQL 仍是 source of
 truth，Redis 只保存 projection / runtime TTL state / bus。
 
@@ -152,7 +152,7 @@ AdminService 在 PostgreSQL 事务中写 desired state 和 `control_intents`，R
 intent 标记为 `superseded`。
 
 `GET /api/v1/control/projection-keys` 返回当前 v2 Redis key registry。新增 v2 key 必须先登记
-`admin/internal/storage/redis/registry.go`，并同步本文件。
+`app/admin/internal/storage/redis/registry.go`，并同步本文件。
 - Auth 写侧维护 `ACT:SESSION:<account>`；NC-016 至 NC-023 已覆盖读侧、真实 NTRIP 写入、续期、连接数、匿名、广播踢线和禁用账号矩阵。
 - `STR:ACTIVE` 当前仅作为 legacy fallback；当前源码未发现新的写入路径。
 

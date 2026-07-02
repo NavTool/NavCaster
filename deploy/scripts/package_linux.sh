@@ -32,10 +32,10 @@ Options:
   --package-version <version>       Version string used in package name. Defaults to latest git tag plus commit count.
   --package-platform <platform>     Platform suffix. Defaults to detected distro/architecture.
   --redis-version <version>         Redis version to package. Defaults to 8.6.3.
-  --skip-npm-ci                     Reuse existing web/node_modules.
-  --skip-web-build                  Reuse existing web/dist.
+  --skip-npm-ci                     Reuse existing app/web/node_modules.
+  --skip-web-build                  Reuse existing app/web/dist.
   --skip-contract-check             Skip API contract check.
-  --skip-ctest                      Skip schema_smoke CTest after package build.
+  --skip-ctest                      Skip v2 navcaster-caster self-test after package build.
   --no-archive                      Do not create dist/<package>.tar.gz.
   --no-install                      Check prerequisites but do not install missing tools.
   -h, --help                        Show this help.
@@ -502,9 +502,9 @@ fi
 
 if [[ "${SKIP_WEB_BUILD}" != "1" ]]; then
 	if [[ "${SKIP_NPM_CI}" != "1" ]]; then
-		npm --prefix web ci
+		npm --prefix app/web ci
 	fi
-	npm --prefix web run build
+	npm --prefix app/web run build
 fi
 
 rm -rf "${PACKAGE_DIR}" "${ARCHIVE_PATH}"
@@ -516,14 +516,17 @@ REDIS_VERSION="${REDIS_VERSION}" \
 bash "${ROOT_DIR}/deploy/ci/build_in_linux.sh"
 
 if [[ "${SKIP_CTEST}" != "1" ]]; then
-	ctest --test-dir "${ROOT_DIR}/build/ci-${BUILD_TYPE}" --output-on-failure -R schema_smoke
+	"${PACKAGE_DIR}/bin/navcaster-caster" --self-test --worker-count 2 --self-test-duration-ms 250
 fi
 
 required=(
-	"CasterService"
-	"conf/Service_Setting.yml"
+	"bin/navcaster-admin"
+	"bin/navcaster-agent"
+	"bin/navcaster-caster"
 	"web/index.html"
 	"scripts"
+	"app/admin/migrations/0001_v2_adminservice_foundation.sql"
+	"app/agent/config.example.json"
 )
 
 for item in "${required[@]}"; do

@@ -38,12 +38,14 @@ Windows 基线配置不要在普通 PowerShell 中直接依赖裸 `cmake --prese
 node tools\contract_check\check_api_contracts.mjs
 ```
 
-该命令比较 `proto/caster` 中关键 message/enum 与 `web/src/api/types.ts` 的同步状态。新增允许差异必须同步脚本 allowlist 和 `api/api-contract-sync.md`。
+该命令比较 `proto/caster` 中关键 message/enum 与归档 v1 类型
+`.archive/v1/web/src/api/types.ts` 的同步状态。新增允许差异必须同步脚本 allowlist
+和 `api/api-contract-sync.md`。v2-only 控制台位于 `app/web`，不再维护旧 proto mirror。
 
 ## Web 验证
 
 ```bash
-cd web
+cd app/web
 npm ci
 npm run lint
 npm run build
@@ -73,10 +75,10 @@ BASE=http://127.0.0.1:8080 USER=admin PASS=admin bash deploy/scripts/e2e_smoke.s
 
 ## v2 AdminService 验证
 
-`admin/` 是 Go AdminService，不走 CMake target。NC-091 起最低本地验证：
+`app/admin/` 是 Go AdminService，不走 CMake target。NC-091 起最低本地验证：
 
 ```powershell
-cd admin
+cd app\admin
 gofmt -w ./...
 go test ./...
 go build ./cmd/navcaster-admin
@@ -85,7 +87,7 @@ go build ./cmd/navcaster-admin
 最小 API self-check：
 
 ```powershell
-cd admin
+cd app\admin
 go run ./cmd/navcaster-admin
 # 另一个终端：
 go run ./cmd/navcaster-admin-selfcheck

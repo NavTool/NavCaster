@@ -67,6 +67,15 @@ qa/v2-phase3-delivery-qa-gate.md
   v2 Phase 3 真实浏览器 smoke、多 Runtime 联调、PG/Redis 一致性、控制指令
   生命周期、Runtime events/actual/metrics、Caster workers/pubsub 容量基线和
   Reviewer delivery baseline QA gate。
+
+design/v2-app-layout-contract.md
+  v2 app layout 物理入口冻结契约：app/admin、app/agent、app/caster、app/web
+  是唯一默认生产态入口，.archive/v1/src 和 .archive/v1/web 只作历史参考，
+  并定义 NC-109 到 NC-114 的依赖、合并顺序和审查口径。
+
+qa/v2-app-layout-qa-gate.md
+  v2 app layout QA gate：默认构建、smoke、package、CI、QA 只接受 app/*
+  生产入口，排除 .archive，约束 v2-only app/web 拆分和 NC-113/NC-114 证据。
 ```
 
 ## 可信度分层
@@ -127,6 +136,7 @@ qa/v2-phase3-delivery-qa-gate.md
 | QA gate 和 e2e 矩阵 | `qa/qa-gates.md`、`current/qa-and-verification.md` |
 | v2 Phase 2 真实闭环 | `design/v2-phase2-scope-and-contract-gate.md`、`qa/v2-phase2-contract-qa-gate.md`、`qa/v2-qa-matrix.md` |
 | v2 Phase 3 交付 gate | `design/v2-phase3-production-contract-and-delivery-gate.md`、`qa/v2-phase3-delivery-qa-gate.md` |
+| v2 app layout 物理隔离 | `design/v2-app-layout-contract.md`、`qa/v2-app-layout-qa-gate.md` |
 | 目标架构方向 | `roadmap/architecture-v2.md`、`roadmap/refactor-plan-v2.md` |
 | NTRIP/PROXY 协议 | `references/protocols/README.md` |
 | 旧需求、旧 Redis、旧 Web 迁移记录 | `references/historical/README.md` |

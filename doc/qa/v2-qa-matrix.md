@@ -14,7 +14,7 @@ v2 目标程序和边界：
 | `navcaster-admin` | Go | HTTP/JSON 控制面、PostgreSQL 权威数据、Redis 投影、Agent 注册和 desired state |
 | `navcaster-agent` | Go | 本机注册、心跳、desired state 拉取、配置渲染、Caster 进程守护和 reconcile |
 | `navcaster-caster` | C++ | NTRIP 数据面、Runtime/Worker、Redis Pub/Sub、本地 fan-out、health/metrics |
-| `web` | TypeScript / React | v2 控制台、Host/Runtime/Worker 视图、操作意图入口、浏览器 smoke |
+| `app/web` | TypeScript / React | v2 控制台、Host/Runtime/Worker 视图、操作意图入口、浏览器 smoke |
 
 不适用范围：
 
@@ -250,7 +250,7 @@ docker ps --format "{{.Names}} {{.Status}} {{.Ports}}"
 命令口径：
 
 ```powershell
-cd admin
+cd app\admin
 $env:GOCACHE = "$PWD\.cache\go-build-admin"
 go test ./...
 go build -o .cache\bin\navcaster-admin.exe .\cmd\navcaster-admin
@@ -329,7 +329,7 @@ curl.exe -fsS http://127.0.0.1:18080/api/v1/control/events
 命令口径：
 
 ```powershell
-cd agent
+cd app\agent
 $env:GOCACHE = "$PWD\.cache\go-build-agent"
 go test ./...
 go build -o .cache\bin\navcaster-agent.exe .\cmd\navcaster-agent
@@ -446,7 +446,7 @@ curl.exe -fsS http://127.0.0.1:19195/metrics
 命令口径：
 
 ```powershell
-cd web
+cd app/web
 npm run build
 npm run dev
 ```
@@ -606,7 +606,7 @@ npm run dev
 最低命令：
 
 ```powershell
-cd admin
+cd app\admin
 go test ./...
 go run ./cmd/navcaster-admin --config .\configs\qa.local.yml
 ```
@@ -647,7 +647,7 @@ curl.exe -fsS http://127.0.0.1:18080/api/v1/agents/<agent_id>/desired-state?sinc
 最低命令：
 
 ```powershell
-cd agent
+cd app\agent
 go test ./...
 go run ./cmd/navcaster-agent --config .\configs\qa.local.yml
 ```
@@ -756,7 +756,7 @@ curl.exe -fsS http://127.0.0.1:19080/metrics
 最低命令：
 
 ```powershell
-cd web
+cd app/web
 npm ci
 npm run lint
 npm run build

@@ -9,5 +9,6 @@
 | `v2-phase2-contract-qa-gate.md` | v2 Phase 2 真实 PG/Redis、Admin-Agent-Caster-Web 闭环、运行态事件/指标和容量基线 gate。 |
 | `v2-phase3-delivery-qa-gate.md` | v2 Phase 3 真实浏览器 smoke、多 Runtime 联调、PG/Redis 一致性、控制指令生命周期、Runtime events/actual/metrics、Caster workers/pubsub 容量基线和交付审查 gate。 |
 | `v2-phase3-system-qa-matrix.md` | v2 Phase 3 系统级 QA 矩阵，覆盖真实浏览器、多 Runtime、PG/Redis 一致性、控制 intent、Runtime actual/events、Caster workers/pubsub 和 Reviewer 证据。 |
+| `v2-app-layout-qa-gate.md` | v2 app layout QA gate：默认构建、smoke、package、CI、QA 只接受 `app/admin`、`app/agent`、`app/caster`、`app/web`，排除 `.archive/v1/*`，并约束 v2-only `app/web` 拆分、NC-113 集成 smoke 和 NC-114 review gate。 |
 
 团队级流程和准入记录仍保存在 `_team/QUALITY_GATES.md`、`_team/qa` 和 `_team/reviews`。

@@ -5,11 +5,13 @@
 # by deploy/scripts/package_linux.sh:
 #
 #   dist/<package-name>/
-#       CasterService
-#       reg_check
-#       conf/
+#       bin/navcaster-admin
+#       bin/navcaster-agent
+#       bin/navcaster-caster
 #       web/
 #       scripts/
+#       app/admin/migrations/
+#       app/agent/config.example.json
 #       env/redis/redis.config
 #
 # Usage:
@@ -27,7 +29,7 @@ ARG SOURCE=https://github.com/NavTool/NavCaster
 ARG CREATED=unknown
 
 LABEL org.opencontainers.image.title="NavCaster runtime" \
-      org.opencontainers.image.description="NavCaster CasterService runtime image" \
+      org.opencontainers.image.description="NavCaster v2 app-layout runtime image" \
       org.opencontainers.image.source="${SOURCE}" \
       org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.version="${VERSION}" \
@@ -54,7 +56,7 @@ RUN set -eux; \
 # that contains the NavCaster package layout to ship inside the image.
 ARG PACKAGE_DIR=dist/NavCaster-local
 
-# Default Redis connection used by /app/conf/*.yml inside the container.
+# Default Redis connection for navcaster-caster inside the container.
 # Override via build arg if needed.
 ARG REDIS_HOST=redis
 ARG REDIS_INTERNAL_PORT=6379
@@ -63,23 +65,13 @@ WORKDIR /app
 COPY ${PACKAGE_DIR}/ /app/
 
 # Make all binaries executable; some may have been copied from a Windows host.
-# Also adapt config defaults so the image works out-of-the-box with the
-# bundled docker-compose.yml (Redis service hostname is `redis`).
 RUN set -eux; \
-    chmod +x /app/CasterService /app/reg_check 2>/dev/null || true; \
-    for f in /app/ntrip_client_sim_* /app/ntrip_server_sim_* \
-             /app/strsvr_mult /app/rtklib_rnx2rtkp /app/rtklib_rtkconv \
-             /app/env/redis/redis-* ; do \
+    for f in /app/bin/* /app/env/redis/redis-* ; do \
         [ -f "$f" ] && chmod +x "$f" || true; \
     done; \
-    mkdir -p /app/logs; \
-    for cfg in /app/conf/Caster_Core.yml /app/conf/Auth_Verify.yml; do \
-        [ -f "$cfg" ] || continue; \
-        sed -i -E "s/^([[:space:]]*IP:[[:space:]]*)[^[:space:]#]+/\\1${REDIS_HOST}/" "$cfg"; \
-        sed -i -E "s/^([[:space:]]*Port:[[:space:]]*)[0-9]+/\\1${REDIS_INTERNAL_PORT}/" "$cfg"; \
-    done
+    mkdir -p /app/logs
 
 EXPOSE 4202 8080
-VOLUME ["/app/logs", "/app/conf"]
+VOLUME ["/app/logs"]
 
-CMD ["/app/CasterService"]
+CMD ["/app/bin/navcaster-caster", "--listen-host", "0.0.0.0", "--listen-port", "4202", "--health-host", "0.0.0.0", "--health-port", "8080", "--redis-host", "redis", "--redis-port", "6379"]
