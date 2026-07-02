@@ -455,20 +455,29 @@ try {
 	}
 
 	if (-not $SkipCtest) {
-		Invoke-Native ctest @('--test-dir', "build\ci-$BuildType", '--build-config', $BuildType, '--output-on-failure', '-R', 'schema_smoke')
+		Invoke-Native (Join-Path $PackageDir 'bin\navcaster-caster.exe') @('--self-test', '--worker-count', '2', '--self-test-duration-ms', '250')
 	}
 
 	$required = @(
-		'CasterService.exe',
-		'conf\Service_Setting.yml',
+		'bin\navcaster-admin.exe',
+		'bin\navcaster-agent.exe',
+		'bin\navcaster-caster.exe',
 		'web\index.html',
-		'scripts'
+		'scripts',
+		'app\admin\migrations\0001_v2_adminservice_foundation.sql',
+		'app\agent\config.example.json'
 	)
 	foreach ($item in $required) {
 		$path = Join-Path $PackageDir $item
 		if (-not (Test-Path $path)) {
 			throw "missing package item: $path"
 		}
+	}
+
+	$archiveEntries = Get-ChildItem -LiteralPath $PackageDir -Force -Recurse -ErrorAction SilentlyContinue |
+		Where-Object { $_.FullName -match '[\\/]\.archive([\\/]|$)' }
+	if ($archiveEntries) {
+		throw 'package must not include .archive/v1'
 	}
 
 	if (-not $NoArchive) {

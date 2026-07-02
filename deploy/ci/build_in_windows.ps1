@@ -4,6 +4,7 @@ $RootDir = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $BuildType = if ($env:BUILD_TYPE) { $env:BUILD_TYPE } else { 'Release' }
 $BuildDir = Join-Path $RootDir ("build\ci-" + $BuildType)
 $RuntimeDir = Join-Path $RootDir ("bin\" + $BuildType)
+$V2BinDir = Join-Path $BuildDir 'v2-bin'
 if (-not $env:PACKAGE_ROOT) {
 	throw "PACKAGE_ROOT must be set by deploy\scripts\package_windows.ps1"
 }
@@ -140,15 +141,6 @@ function Import-MsvcDeveloperEnvironment {
 
 Import-MsvcDeveloperEnvironment
 $NinjaExe = Resolve-NinjaExecutable
-$Binaries = @(
-	'CasterService.exe',
-	'reg_check.exe',
-	'ntrip_client_sim_0.0.2.exe',
-	'ntrip_server_sim_0.0.2.exe',
-	'strsvr_mult.exe',
-	'rtklib_rnx2rtkp.exe',
-	'rtklib_rtkconv.exe'
-)
 
 Write-Host "[ci] build type : $BuildType"
 Write-Host "[ci] build dir  : $BuildDir"
@@ -165,37 +157,73 @@ if (Test-Path $PackageDir) {
 	Remove-Item $PackageDir -Recurse -Force
 }
 
-cmake -S $RootDir -B $BuildDir -G Ninja "-DCMAKE_BUILD_TYPE=$BuildType" -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl "-DCMAKE_MAKE_PROGRAM=$NinjaExe"
-cmake --build $BuildDir --parallel $Jobs
+New-Item -Path $V2BinDir -ItemType Directory -Force | Out-Null
 
-if (-not (Test-Path (Join-Path $RuntimeDir 'conf'))) {
-	throw "missing runtime config directory: $(Join-Path $RuntimeDir 'conf')"
+Write-Host '[ci] app/admin go test/build'
+Push-Location (Join-Path $RootDir 'app\admin')
+try {
+	go test ./...
+	if ($LASTEXITCODE -ne 0) {
+		throw "go test failed in app\admin with exit code $LASTEXITCODE"
+	}
+	go build -o (Join-Path $V2BinDir 'navcaster-admin.exe') .\cmd\navcaster-admin
+	if ($LASTEXITCODE -ne 0) {
+		throw "go build navcaster-admin failed with exit code $LASTEXITCODE"
+	}
+} finally {
+	Pop-Location
+}
+
+Write-Host '[ci] app/agent go test/build'
+Push-Location (Join-Path $RootDir 'app\agent')
+try {
+	go test ./...
+	if ($LASTEXITCODE -ne 0) {
+		throw "go test failed in app\agent with exit code $LASTEXITCODE"
+	}
+	go build -o (Join-Path $V2BinDir 'navcaster-agent.exe') .\cmd\navcaster-agent
+	if ($LASTEXITCODE -ne 0) {
+		throw "go build navcaster-agent failed with exit code $LASTEXITCODE"
+	}
+} finally {
+	Pop-Location
+}
+
+cmake -S $RootDir -B $BuildDir -G Ninja "-DCMAKE_BUILD_TYPE=$BuildType" -DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl "-DCMAKE_MAKE_PROGRAM=$NinjaExe"
+cmake --build $BuildDir --target navcaster-caster --parallel $Jobs
+if ($LASTEXITCODE -ne 0) {
+	throw "cmake build navcaster-caster failed with exit code $LASTEXITCODE"
 }
 
 if (-not (Test-Path (Join-Path $WebDistDir 'index.html'))) {
 	throw "missing web build output: $(Join-Path $WebDistDir 'index.html')"
 }
 
+if (-not (Test-Path (Join-Path $RuntimeDir 'navcaster-caster.exe'))) {
+	throw "missing app/caster build output: $(Join-Path $RuntimeDir 'navcaster-caster.exe')"
+}
+
 New-Item -Path $PackageDir -ItemType Directory -Force | Out-Null
-New-Item -Path (Join-Path $PackageDir 'conf') -ItemType Directory -Force | Out-Null
+New-Item -Path (Join-Path $PackageDir 'bin') -ItemType Directory -Force | Out-Null
 New-Item -Path (Join-Path $PackageDir 'logs') -ItemType Directory -Force | Out-Null
 New-Item -Path (Join-Path $PackageDir 'web') -ItemType Directory -Force | Out-Null
 New-Item -Path (Join-Path $PackageDir 'scripts') -ItemType Directory -Force | Out-Null
+New-Item -Path (Join-Path $PackageDir 'env') -ItemType Directory -Force | Out-Null
+New-Item -Path (Join-Path $PackageDir 'app\admin') -ItemType Directory -Force | Out-Null
+New-Item -Path (Join-Path $PackageDir 'app\agent') -ItemType Directory -Force | Out-Null
 
-foreach ($binary in $Binaries) {
-	$source = Join-Path $RuntimeDir $binary
-	if (Test-Path $source) {
-		Copy-Item -Path $source -Destination $PackageDir -Force
-	}
-}
+Copy-Item -Path (Join-Path $V2BinDir 'navcaster-admin.exe') -Destination (Join-Path $PackageDir 'bin') -Force
+Copy-Item -Path (Join-Path $V2BinDir 'navcaster-agent.exe') -Destination (Join-Path $PackageDir 'bin') -Force
+Copy-Item -Path (Join-Path $RuntimeDir 'navcaster-caster.exe') -Destination (Join-Path $PackageDir 'bin') -Force
 
 Get-ChildItem -Path $RuntimeDir -File -Filter '*.dll' | ForEach-Object {
-	Copy-Item -Path $_.FullName -Destination $PackageDir -Force
+	Copy-Item -Path $_.FullName -Destination (Join-Path $PackageDir 'bin') -Force
 }
 
-Copy-Item -Path (Join-Path $RuntimeDir 'conf\*') -Destination (Join-Path $PackageDir 'conf') -Recurse -Force
 Copy-Item -Path (Join-Path $WebDistDir '*') -Destination (Join-Path $PackageDir 'web') -Recurse -Force
 Copy-Item -Path (Join-Path $RootDir 'deploy\scripts\*') -Destination (Join-Path $PackageDir 'scripts') -Recurse -Force
+Copy-Item -Path (Join-Path $RootDir 'app\admin\migrations') -Destination (Join-Path $PackageDir 'app\admin') -Recurse -Force
+Copy-Item -Path (Join-Path $RootDir 'app\agent\config.example.json') -Destination (Join-Path $PackageDir 'app\agent') -Force
 
 $obsoleteScripts = @(
 	'scripts\systemd\install_redis_service.sh',
@@ -211,7 +239,10 @@ foreach ($relativePath in $obsoleteScripts) {
 	}
 }
 
-$serviceConfig = Join-Path $PackageDir 'conf\Service_Setting.yml'
-(Get-Content -Path $serviceConfig) -replace 'Web_Root: ""', 'Web_Root: "./web"' | Set-Content -Path $serviceConfig -Encoding utf8
+$archiveEntries = Get-ChildItem -LiteralPath $PackageDir -Force -Recurse -ErrorAction SilentlyContinue |
+	Where-Object { $_.FullName -match '[\\/]\.archive([\\/]|$)' }
+if ($archiveEntries) {
+	throw "package must not include .archive/v1"
+}
 
 Write-Host "[ci] package ready: $PackageDir"

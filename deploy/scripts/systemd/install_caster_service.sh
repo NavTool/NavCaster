@@ -4,10 +4,10 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 PACKAGE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-EXECUTABLE_DIR="$PACKAGE_ROOT"
+EXECUTABLE_DIR="$PACKAGE_ROOT/bin"
 
 # 固定的可执行程序名称
-EXECUTABLE_NAME="CasterService"
+EXECUTABLE_NAME="navcaster-caster"
 
 # Supervisor注册的名称
 SUPERVISOR_NAME="CASTER_SERVICE"
@@ -54,6 +54,5 @@ echo "启动服务,请运行:sudo systemctl start $SUPERVISOR_NAME"
 echo "停止服务,请运行:sudo systemctl stop $SUPERVISOR_NAME"
 echo "重启服务,请运行:sudo systemctl restart $SUPERVISOR_NAME"
 echo "服务状态,请运行:sudo systemctl status $SUPERVISOR_NAME"
-
 
 
