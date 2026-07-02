@@ -250,7 +250,7 @@ docker ps --format "{{.Names}} {{.Status}} {{.Ports}}"
 命令口径：
 
 ```powershell
-cd admin
+cd app\admin
 $env:GOCACHE = "$PWD\.cache\go-build-admin"
 go test ./...
 go build -o .cache\bin\navcaster-admin.exe .\cmd\navcaster-admin
@@ -329,7 +329,7 @@ curl.exe -fsS http://127.0.0.1:18080/api/v1/control/events
 命令口径：
 
 ```powershell
-cd agent
+cd app\agent
 $env:GOCACHE = "$PWD\.cache\go-build-agent"
 go test ./...
 go build -o .cache\bin\navcaster-agent.exe .\cmd\navcaster-agent
@@ -606,7 +606,7 @@ npm run dev
 最低命令：
 
 ```powershell
-cd admin
+cd app\admin
 go test ./...
 go run ./cmd/navcaster-admin --config .\configs\qa.local.yml
 ```
@@ -647,7 +647,7 @@ curl.exe -fsS http://127.0.0.1:18080/api/v1/agents/<agent_id>/desired-state?sinc
 最低命令：
 
 ```powershell
-cd agent
+cd app\agent
 go test ./...
 go run ./cmd/navcaster-agent --config .\configs\qa.local.yml
 ```

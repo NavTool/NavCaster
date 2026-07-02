@@ -11,7 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $RootDir = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$AdminDir = Join-Path $RootDir "admin"
+$AdminDir = Join-Path $RootDir "app\admin"
 $BinDir = Join-Path $RootDir "build\nc101-admin-smoke"
 $AdminExe = Join-Path $BinDir "navcaster-admin.exe"
 $SmokeExe = Join-Path $BinDir "navcaster-admin-smoke.exe"

@@ -66,7 +66,7 @@
 
 ## Go AdminService v2
 
-> `admin/` 下的 Go `navcaster-admin` 是 v2 控制面服务，和旧 C++ `/api/*`
+> `app/admin/` 下的 Go `navcaster-admin` 是 v2 控制面服务，和旧 C++ `/api/*`
 > 管理接口并行，不兼容旧 HTTP API、旧 Redis key 或旧 protobuf 命名。完整 OpenAPI
 > 契约见 `api/openapi/navcaster-admin-v2.yaml`。
 

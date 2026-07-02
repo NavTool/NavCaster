@@ -98,7 +98,7 @@ git status --short
 文档列出 AdminService/Agent/Caster/Web 第三轮集成边界。
 文档列出 PG/Redis consistency、control lifecycle、runtime events/actual/metrics、worker/pubsub capacity。
 文档列出 NC-101 到 NC-107 的依赖、集成顺序、QA/Reviewer 证据要求。
-git status 没有 admin/agent/caster/web 产品源码误改。
+git status 没有 app/admin、app/agent、caster、web 产品源码误改。
 未运行产品构建的原因写入 QA 记录或最终汇报。
 ```
 
@@ -107,13 +107,13 @@ git status 没有 admin/agent/caster/web 产品源码误改。
 目录：
 
 ```text
-admin
+app/admin
 ```
 
 最低命令：
 
 ```powershell
-cd admin
+cd app\admin
 $env:GOCACHE = "$PWD\.cache\go-build"
 go test ./...
 go build -o .cache\bin\navcaster-admin.exe .\cmd\navcaster-admin
@@ -162,19 +162,19 @@ payload host_id/agent_id 未绑定或校验请求级 identity。
 目录：
 
 ```text
-agent
+app/agent
 caster
 ```
 
 最低命令：
 
 ```powershell
-cd agent
+cd app\agent
 $env:GOCACHE = "$PWD\.cache\go-build"
 go test ./...
 go build -o .cache\bin\navcaster-agent.exe .\cmd\navcaster-agent
 
-cd ..
+cd ..\..
 powershell -ExecutionPolicy Bypass -File .\deploy\scripts\build_ninja.ps1 -BuildType Release -Target navcaster-caster
 .\bin\Release\navcaster-caster.exe --self-test --worker-count 2 --self-test-duration-ms 250
 ```

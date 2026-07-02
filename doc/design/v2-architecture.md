@@ -416,22 +416,22 @@ Windows 可发布 `.exe`，逻辑名称保持一致。
 ### 8.2 Go package
 
 ```text
-admin/internal/api
-admin/internal/auth
-admin/internal/control
-admin/internal/agent
-admin/internal/runtime
-admin/internal/storage/postgres
-admin/internal/storage/redis
-admin/internal/projection
-admin/internal/audit
+app/admin/internal/api
+app/admin/internal/auth
+app/admin/internal/control
+app/admin/internal/agent
+app/admin/internal/runtime
+app/admin/internal/storage/postgres
+app/admin/internal/storage/redis
+app/admin/internal/projection
+app/admin/internal/audit
 
-agent/internal/client
-agent/internal/host
-agent/internal/runtime
-agent/internal/supervisor
-agent/internal/state
-agent/internal/service
+app/agent/internal/client
+app/agent/internal/host
+app/agent/internal/runtime
+app/agent/internal/supervisor
+app/agent/internal/state
+app/agent/internal/service
 ```
 
 ### 8.3 C++ namespace
@@ -522,16 +522,17 @@ config_version
 
 ```text
 repo/
-  admin/
-    go.mod
-    cmd/navcaster-admin/main.go
-    internal/
-    migrations/
+  app/
+    admin/
+      go.mod
+      cmd/navcaster-admin/main.go
+      internal/
+      migrations/
 
-  agent/
-    go.mod
-    cmd/navcaster-agent/main.go
-    internal/
+    agent/
+      go.mod
+      cmd/navcaster-agent/main.go
+      internal/
 
   caster/
     CMakeLists.txt

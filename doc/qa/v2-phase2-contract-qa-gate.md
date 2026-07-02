@@ -160,13 +160,13 @@ NC-096，且 NC-097 至少 QA_PARTIAL 以上并形成真实闭环。
 目录：
 
 ```text
-admin
+app/admin
 ```
 
 最低命令：
 
 ```powershell
-cd admin
+cd app\admin
 $env:GOCACHE = "$PWD\.cache\go-build"
 go test ./...
 go build -o .cache\bin\navcaster-admin.exe .\cmd\navcaster-admin
@@ -209,13 +209,13 @@ runtime event 只存在内存且 NC-097 闭环后无法追溯。
 目录：
 
 ```text
-agent
+app/agent
 ```
 
 最低命令：
 
 ```powershell
-cd agent
+cd app\agent
 $env:GOCACHE = "$PWD\.cache\go-build"
 go test ./...
 go build -o .cache\bin\navcaster-agent.exe .\cmd\navcaster-agent
