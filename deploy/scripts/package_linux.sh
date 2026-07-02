@@ -32,8 +32,8 @@ Options:
   --package-version <version>       Version string used in package name. Defaults to latest git tag plus commit count.
   --package-platform <platform>     Platform suffix. Defaults to detected distro/architecture.
   --redis-version <version>         Redis version to package. Defaults to 8.6.3.
-  --skip-npm-ci                     Reuse existing web/node_modules.
-  --skip-web-build                  Reuse existing web/dist.
+  --skip-npm-ci                     Reuse existing app/web/node_modules.
+  --skip-web-build                  Reuse existing app/web/dist.
   --skip-contract-check             Skip API contract check.
   --skip-ctest                      Skip schema_smoke CTest after package build.
   --no-archive                      Do not create dist/<package>.tar.gz.
@@ -502,9 +502,9 @@ fi
 
 if [[ "${SKIP_WEB_BUILD}" != "1" ]]; then
 	if [[ "${SKIP_NPM_CI}" != "1" ]]; then
-		npm --prefix web ci
+		npm --prefix app/web ci
 	fi
-	npm --prefix web run build
+	npm --prefix app/web run build
 fi
 
 rm -rf "${PACKAGE_DIR}" "${ARCHIVE_PATH}"

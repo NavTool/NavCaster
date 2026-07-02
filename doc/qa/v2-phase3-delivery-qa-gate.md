@@ -98,7 +98,7 @@ git status --short
 文档列出 AdminService/Agent/Caster/Web 第三轮集成边界。
 文档列出 PG/Redis consistency、control lifecycle、runtime events/actual/metrics、worker/pubsub capacity。
 文档列出 NC-101 到 NC-107 的依赖、集成顺序、QA/Reviewer 证据要求。
-git status 没有 admin/agent/caster/web 产品源码误改。
+git status 没有 admin/agent/caster/app/web 产品源码误改。
 未运行产品构建的原因写入 QA 记录或最终汇报。
 ```
 
@@ -302,7 +302,7 @@ web
 最低命令：
 
 ```powershell
-cd web
+cd app/web
 npm run build
 ```
 

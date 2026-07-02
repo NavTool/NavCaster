@@ -65,7 +65,7 @@ bash deploy/scripts/package_linux.sh
 前端：
 
 ```bash
-cd web
+cd app/web
 npm ci
 npm run dev
 npm run build
@@ -331,7 +331,7 @@ SSE：
 - `web/src/api/auth.ts`：登录登出。
 - `web/src/api/resource.ts`：通用 Redis hash CRUD API helper。
 - `web/src/api/index.ts`：业务 API 聚合。
-- `web/src/api/types.ts`：前端类型，与 proto/HTTP JSON 字段保持一致。
+- `.archive/v1/web/src/api/types.ts`：前端类型，与 proto/HTTP JSON 字段保持一致。
 - `web/src/hooks/useSSE.ts`：EventSource 封装，支持单 channel 和多 channel，断线指数退避重连。
 - NC-009 后 `useSSE(channel)` 默认请求 `channels=<channel>`，服务端 SSE 定时器只轮询当前有订阅者的频道；`channels=*` 仍保留订阅全部语义。
 - `web/src/hooks/usePolling.ts`：轮询 hook。
@@ -355,9 +355,9 @@ SSE：
 - `.proto` 源文件在 `proto/caster`。
 - 生成后的 C++ 文件在 `proto/src`，并被 `proto/CMakeLists.txt` 直接编译进 `caster_proto`。
 - API 契约检查命令：`node tools/contract_check/check_api_contracts.mjs`。
-- NC-010 后该命令覆盖关键管理台 message 字段、enum 成员名和 enum 数字值与 `web/src/api/types.ts` 的漂移，并已接入主 CI。
+- NC-010 后该命令覆盖关键管理台 message 字段、enum 成员名和 enum 数字值与 `.archive/v1/web/src/api/types.ts` 的漂移，并已接入主 CI。
 - 当前允许差异和维护规则见 `api/api-contract-sync.md`；新增差异必须写明原因，不能静默跳过。
-- 如果修改 proto，需要同步重新生成 `proto/src`，检查 HTTP JSON 和前端 `web/src/api/types.ts`，并运行契约检查。
+- 如果修改 proto，需要同步重新生成 `proto/src`，检查 HTTP JSON 和前端 `.archive/v1/web/src/api/types.ts`，并运行契约检查。
 - 生成方式可先参考 `references/proto/build-pb-legacy.txt`。
 
 ## 后续改动建议路径
@@ -366,7 +366,7 @@ SSE：
 
 1. `src/http/http_handler.*` 增改路由和 handler。
 2. 如涉及 Redis hash/schema，同步 `src/core` 或 `src/auth`。
-3. 更新 `web/src/api/index.ts` 和 `web/src/api/types.ts`。
+3. 更新 `web/src/api/index.ts` 和 `.archive/v1/web/src/api/types.ts`。
 4. 更新页面或 hook。
 5. 运行 `node tools/contract_check/check_api_contracts.mjs`。
 6. 必要时更新 `api/api-reference.md` 和 `deploy/scripts/e2e_smoke.sh`。

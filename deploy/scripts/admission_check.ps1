@@ -120,27 +120,27 @@ try {
         Invoke-AdmissionStep `
             -Name 'Web npm ci' `
             -Gate 'BLOCKING' `
-            -Command 'npm --prefix web ci' `
-            -Script { Invoke-Native 'npm' @('--prefix', 'web', 'ci') }
+            -Command 'npm --prefix app/web ci' `
+            -Script { Invoke-Native 'npm' @('--prefix', 'app/web', 'ci') }
     } else {
-        Add-Result -Name 'Web npm ci' -Gate 'REPORT' -Status 'SKIP' -ExitCode 0 -Command 'npm --prefix web ci' -Notes 'Skipped by -SkipNpmCi'
+        Add-Result -Name 'Web npm ci' -Gate 'REPORT' -Status 'SKIP' -ExitCode 0 -Command 'npm --prefix app/web ci' -Notes 'Skipped by -SkipNpmCi'
     }
 
     Invoke-AdmissionStep `
         -Name 'Web production build' `
         -Gate 'BLOCKING' `
-        -Command 'npm --prefix web run build' `
-        -Script { Invoke-Native 'npm' @('--prefix', 'web', 'run', 'build') }
+        -Command 'npm --prefix app/web run build' `
+        -Script { Invoke-Native 'npm' @('--prefix', 'app/web', 'run', 'build') }
 
     if ($IncludeLint) {
         Invoke-AdmissionStep `
             -Name 'Web lint' `
             -Gate 'REPORT' `
-            -Command 'npm --prefix web run lint' `
-            -Script { Invoke-Native 'npm' @('--prefix', 'web', 'run', 'lint') } `
+            -Command 'npm --prefix app/web run lint' `
+            -Script { Invoke-Native 'npm' @('--prefix', 'app/web', 'run', 'lint') } `
             -Notes 'Report item until the existing frontend lint baseline is fixed.'
     } else {
-        Add-Result -Name 'Web lint' -Gate 'REPORT' -Status 'SKIP' -ExitCode 0 -Command 'npm --prefix web run lint' -Notes 'Report item; run with -IncludeLint.'
+        Add-Result -Name 'Web lint' -Gate 'REPORT' -Status 'SKIP' -ExitCode 0 -Command 'npm --prefix app/web run lint' -Notes 'Report item; run with -IncludeLint.'
     }
 
     if ($IncludeE2eReport) {

@@ -3279,7 +3279,7 @@ function Invoke-WebThreeRoleBrowserSmoke {
         Fail "missing Web browser smoke script: $smokeScript"
     }
     if (-not (Test-Path -LiteralPath (Join-Path $webDir "node_modules"))) {
-        Fail "missing web/node_modules. Run npm install in web or link an existing node_modules before browser smoke."
+        Fail "missing app/web/node_modules. Run npm install in app/web or link an existing node_modules before browser smoke."
     }
 
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue

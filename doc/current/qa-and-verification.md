@@ -38,12 +38,14 @@ Windows 基线配置不要在普通 PowerShell 中直接依赖裸 `cmake --prese
 node tools\contract_check\check_api_contracts.mjs
 ```
 
-该命令比较 `proto/caster` 中关键 message/enum 与 `web/src/api/types.ts` 的同步状态。新增允许差异必须同步脚本 allowlist 和 `api/api-contract-sync.md`。
+该命令比较 `proto/caster` 中关键 message/enum 与归档 v1 类型
+`.archive/v1/web/src/api/types.ts` 的同步状态。新增允许差异必须同步脚本 allowlist
+和 `api/api-contract-sync.md`。v2-only 控制台位于 `app/web`，不再维护旧 proto mirror。
 
 ## Web 验证
 
 ```bash
-cd web
+cd app/web
 npm ci
 npm run lint
 npm run build

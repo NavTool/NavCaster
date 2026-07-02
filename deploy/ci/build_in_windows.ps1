@@ -13,7 +13,7 @@ if (-not $env:PACKAGE_NAME) {
 $PackageRoot = $env:PACKAGE_ROOT
 $PackageName = $env:PACKAGE_NAME
 $PackageDir = Join-Path $PackageRoot $PackageName
-$WebDistDir = if ($env:WEB_DIST_DIR) { $env:WEB_DIST_DIR } else { Join-Path $RootDir 'web\dist' }
+$WebDistDir = if ($env:WEB_DIST_DIR) { $env:WEB_DIST_DIR } else { Join-Path $RootDir 'app\web\dist' }
 $Jobs = if ($env:CMAKE_BUILD_PARALLEL_LEVEL) { [int]$env:CMAKE_BUILD_PARALLEL_LEVEL } elseif ($env:NUMBER_OF_PROCESSORS) { [int]$env:NUMBER_OF_PROCESSORS } else { 2 }
 
 function Test-NinjaExecutable {

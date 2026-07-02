@@ -27,8 +27,9 @@ Ninja Release 构建、`schema_smoke` CTest、发布目录组装和归档。产�
 `dist/package-metadata.env`，GitHub Actions 只根据该元数据上传 `dist` 中对应归档。
 
 API contract check 会比较 `proto/caster` 中关键 message 字段、enum 成员名和
-enum 数字值与 `web/src/api/types.ts` 的同步状态。未知差异会失败；当前阶段性允许差异
-记录在 `api/api-contract-sync.md` 和脚本 allowlist 中。
+enum 数字值与归档 v1 类型 `.archive/v1/web/src/api/types.ts` 的同步状态。未知差异会失败；
+当前阶段性允许差异记录在 `api/api-contract-sync.md` 和脚本 allowlist 中。v2-only
+控制台位于 `app/web`，不再维护旧 proto mirror。
 
 `npm run lint` 是前端任务的目标门槛，但当前代码基线仍有既有 ESLint
 错误；在修复该债务前不作为主 CI 硬门槛。前端任务仍必须运行并记录 lint
@@ -77,7 +78,7 @@ node tools/contract_check/check_api_contracts.mjs
 BUILD_TYPE=Release bash deploy/scripts/build_ninja.sh --target schema_smoke
 ctest --test-dir build/ninja-Release --output-on-failure -R schema_smoke
 
-cd web
+cd app/web
 npm ci
 npm run lint
 npm run build
@@ -535,5 +536,5 @@ NC-008B/NC-009 活跃账号 REST/SSE 读侧
 
 NC-010 Proto/API/Web 类型同步
   已新增 tools/contract_check/check_api_contracts.mjs，并接入主 CI。
-  改 proto、HTTP JSON 或 web/src/api/types.ts 时必须运行并记录结果。
+  改 proto、HTTP JSON 或 .archive/v1/web/src/api/types.ts 时必须运行并记录结果。
 ```

@@ -6,7 +6,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const tsTypesPath = path.join(root, 'web', 'src', 'api', 'types.ts');
+const tsTypesPath = path.join(root, '.archive', 'v1', 'web', 'src', 'api', 'types.ts');
 
 const messageContracts = [
   {
@@ -174,7 +174,7 @@ function parseProtoEnumValues(relativePath, name) {
 function parseTsInterfaceFields(text, name) {
   const block = extractBlock(stripComments(text), 'interface', name);
   if (block === null) {
-    throw new Error(`Missing TypeScript interface ${name} in web/src/api/types.ts`);
+    throw new Error(`Missing TypeScript interface ${name} in .archive/v1/web/src/api/types.ts`);
   }
 
   return Array.from(block.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\??\s*:/gm))
@@ -184,7 +184,7 @@ function parseTsInterfaceFields(text, name) {
 function parseTsEnumValues(text, name) {
   const block = extractBlock(stripComments(text), 'enum', name);
   if (block === null) {
-    throw new Error(`Missing TypeScript enum ${name} in web/src/api/types.ts`);
+    throw new Error(`Missing TypeScript enum ${name} in .archive/v1/web/src/api/types.ts`);
   }
 
   return Array.from(block.matchAll(/^\s*([A-Z][A-Z0-9_]*)\s*=\s*(-?\d+)/gm))
@@ -331,7 +331,7 @@ printFailures('message fields', messageFailures, 'proto-only fields', 'ts-only f
 printEnumFailures(enumFailures);
 
 if (messageFailures.length || enumFailures.length) {
-  console.error('\n[contract-check] FAIL: update proto, web/src/api/types.ts, or the documented allowlist.');
+  console.error('\n[contract-check] FAIL: update proto, .archive/v1/web/src/api/types.ts, or the documented allowlist.');
   process.exit(1);
 }
 
