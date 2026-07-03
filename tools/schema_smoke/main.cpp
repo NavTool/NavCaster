@@ -4071,6 +4071,7 @@ int main()
     expect_eq(table_by_mount["SRC1"][4], "MANUAL", "source table record overrides decode details");
     expect_eq(table_by_mount["SRC1"][6], "BDS", "source table record overrides decode nav");
     expect_eq(table_by_mount["SRC1"][9], "32.00", "source table record overrides latitude");
+    expect_eq(table_by_mount["SRC1"][11], "0", "source table default nmea not required");
     expect_true(table_by_mount.contains("OUTSIDE"), "source table open includes all without policy");
 
     table_groups.emplace("ops", make_access_policy_group("ops", {
@@ -4107,11 +4108,13 @@ int main()
     expect_true(!table_by_mount.contains("HIDDEN"), "source table policy item visible deny");
     expect_true(table_by_mount.contains("ALIAS_SRC1"), "source table includes visible alias");
     expect_eq(table_by_mount["ALIAS_SRC1"][4], "MANUAL", "source table alias keeps source fields");
+    expect_eq(table_by_mount["ALIAS_SRC1"][11], "0", "source table alias keeps default nmea not required");
     expect_true(!table_by_mount.contains("ALIAS_MISSING"), "source table skips missing alias source");
     expect_true(table_by_mount.contains("ALIAS_DUP"), "source table keeps original duplicate mount");
     expect_eq_int(static_cast<int>(table_by_mount.count("ALIAS_DUP")), 1, "source table duplicate alias not repeated");
     expect_true(table_by_mount.contains("NEAREST"), "source table appends nearest default");
     expect_eq(table_by_mount["NEAREST"][4], "1074(1),1084(1),1094(1),1124(1)", "source table nearest default details");
+    expect_eq(table_by_mount["NEAREST"][11], "0", "source table nearest default nmea not required");
     expect_true(source_table_by_mount(policy_table.build_text("missing")).empty(), "source table missing group hidden");
     expect_true(source_table_by_mount(policy_table.build_text("SYSTEM")).contains("HIDDEN"), "source table system sees hidden source");
 
