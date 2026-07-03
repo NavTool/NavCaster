@@ -87,7 +87,7 @@ mount_info build_default_mount_info(std::string mount_point)
         "XXX",
         "0.00",
         "0.00",
-        "1",
+        "0",
         "0",
         "SNT",
         "none",
