@@ -3,19 +3,19 @@ import { ApartmentOutlined, PauseCircleOutlined, PlayCircleOutlined, ReloadOutli
 import { Alert, Button, Select, Space, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useState } from 'react';
-import { v2AdminService } from '../api/adminService';
-import type { DesiredRuntimeState, RuntimeActionIntent, RuntimeSummary } from '../api/contracts';
-import { V2ConfirmDialog } from '../components/V2ConfirmDialog';
-import { V2MetricCard } from '../components/V2MetricCard';
-import { V2ConvergenceBadge, V2StatusBadge } from '../components/V2StatusBadge';
-import { V2TablePage } from '../components/V2TablePage';
-import { formatDateTime, useV2Page } from './useV2Page';
+import { adminService } from '../../api/adminService';
+import type { DesiredRuntimeState, RuntimeActionIntent, RuntimeSummary } from '../../api/contracts';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { MetricCard } from '../components/MetricCard';
+import { ConvergenceBadge, StatusBadge } from '../components/StatusBadge';
+import { TablePage } from '../components/TablePage';
+import { formatDateTime, useControlPage } from './useControlPage';
 
 type RuntimeIntentAction = RuntimeActionIntent['action'];
 
-export default function V2RuntimesPage() {
-  const loader = useCallback((filters: Parameters<typeof v2AdminService.listRuntimes>[0]) => v2AdminService.listRuntimes(filters), []);
-  const page = useV2Page<RuntimeSummary>(loader);
+export default function RuntimesPage() {
+  const loader = useCallback((filters: Parameters<typeof adminService.listRuntimes>[0]) => adminService.listRuntimes(filters), []);
+  const page = useControlPage<RuntimeSummary>(loader);
   const [target, setTarget] = useState<RuntimeSummary | null>(null);
   const [desiredState, setDesiredState] = useState<DesiredRuntimeState>('draining');
   const [targetAction, setTargetAction] = useState<{ runtime: RuntimeSummary; action: RuntimeIntentAction } | null>(null);
@@ -23,7 +23,7 @@ export default function V2RuntimesPage() {
 
   async function submitDesiredState(reason: string) {
     if (!target) return;
-    const receipt = await v2AdminService.setRuntimeDesiredState({ runtime_id: target.id, desired_state: desiredState, reason });
+    const receipt = await adminService.setRuntimeDesiredState({ runtime_id: target.id, desired_state: desiredState, reason });
     message.success(receipt.message);
     setLastIntent({ runtimeId: target.id, label: `desired ${desiredState}`, message: receipt.message });
     setTarget(null);
@@ -32,7 +32,7 @@ export default function V2RuntimesPage() {
 
   async function submitAction(reason: string) {
     if (!targetAction) return;
-    const receipt = await v2AdminService.submitRuntimeAction({ runtime_id: targetAction.runtime.id, action: targetAction.action, reason });
+    const receipt = await adminService.submitRuntimeAction({ runtime_id: targetAction.runtime.id, action: targetAction.action, reason });
     message.success(receipt.message);
     setLastIntent({ runtimeId: targetAction.runtime.id, label: targetAction.action, message: receipt.message });
     setTargetAction(null);
@@ -45,20 +45,20 @@ export default function V2RuntimesPage() {
       dataIndex: 'name',
       fixed: 'left',
       render: (_, row) => (
-        <div className="v2-primary-cell">
+        <div className="control-primary-cell">
           <Link to={`/admin/control/runtimes/${row.id}`}>{row.name}</Link>
           <span>{row.id}</span>
         </div>
       ),
     },
     { title: 'Desired', dataIndex: 'desired_state' },
-    { title: 'Actual', dataIndex: 'status', render: (status) => <V2StatusBadge status={status} /> },
+    { title: 'Actual', dataIndex: 'status', render: (status) => <StatusBadge status={status} /> },
     {
       title: 'Convergence',
       dataIndex: 'convergence_status',
       render: (_, row) => (
-        <div className="v2-primary-cell">
-          <V2ConvergenceBadge status={row.convergence_status} />
+        <div className="control-primary-cell">
+          <ConvergenceBadge status={row.convergence_status} />
           <span>{row.convergence_detail}</span>
         </div>
       ),
@@ -68,7 +68,7 @@ export default function V2RuntimesPage() {
     {
       title: 'Config',
       render: (_, row) => (
-        <div className="v2-primary-cell">
+        <div className="control-primary-cell">
           <strong>{row.target_config_version_id}</strong>
           <span>actual {row.current_config_version_id}</span>
         </div>
@@ -89,7 +89,7 @@ export default function V2RuntimesPage() {
     {
       title: 'Counters',
       render: (_, row) => (
-        <div className="v2-primary-cell">
+        <div className="control-primary-cell">
           <span>{`mounts ${row.mounts}`}</span>
           <span>{`sources ${row.sources} / clients ${row.clients}`}</span>
         </div>
@@ -101,9 +101,9 @@ export default function V2RuntimesPage() {
     {
       title: 'Actual metric',
       render: (_, row) => (
-        <div className="v2-primary-cell">
+        <div className="control-primary-cell">
           <span>{formatDateTime(row.last_metric_at)}</span>
-          <span className={row.stale ? 'v2-stale-text' : undefined}>{row.stale ? row.stale_detail : 'fresh'}</span>
+          <span className={row.stale ? 'control-stale-text' : undefined}>{row.stale ? row.stale_detail : 'fresh'}</span>
         </div>
       ),
     },
@@ -131,22 +131,22 @@ export default function V2RuntimesPage() {
 
   return (
     <>
-      <div className="v2-metric-grid">
-        <V2MetricCard label="Visible running" value={running} detail="after current filters" icon={<ApartmentOutlined />} />
-        <V2MetricCard label="Visible draining" value={draining} detail="operator intent in progress" />
-        <V2MetricCard label="Visible failed" value={failed} detail="needs AdminService recovery" />
-        <V2MetricCard label="Pending / stale" value={`${pending} / ${stale}`} detail="convergence / actual metrics" />
+      <div className="control-metric-grid">
+        <MetricCard label="Visible running" value={running} detail="after current filters" icon={<ApartmentOutlined />} />
+        <MetricCard label="Visible draining" value={draining} detail="operator intent in progress" />
+        <MetricCard label="Visible failed" value={failed} detail="needs AdminService recovery" />
+        <MetricCard label="Pending / stale" value={`${pending} / ${stale}`} detail="convergence / actual metrics" />
       </div>
       {lastIntent ? (
         <Alert
-          className="v2-intent-alert"
+          className="control-intent-alert"
           showIcon
           type={observedIntentRuntime?.convergence_status === 'converged' ? 'success' : 'warning'}
           message={observedIntentRuntime?.convergence_status === 'converged' ? 'Intent observed as converged' : 'Intent accepted; waiting for observed actual state'}
           description={`${lastIntent.label} for ${lastIntent.runtimeId}. ${observedIntentRuntime?.convergence_detail ?? lastIntent.message}`}
         />
       ) : null}
-      <V2TablePage<RuntimeSummary>
+      <TablePage<RuntimeSummary>
         title="Runtimes"
         description="Runtime rows are read from AdminService live APIs. Desired state, actual state, last metric, and convergence are separate so intents are not shown as completed execution."
         actions={<Button icon={<ReloadOutlined />} onClick={page.refresh}>Refresh</Button>}
@@ -159,7 +159,7 @@ export default function V2RuntimesPage() {
         error={page.error}
         rowKey="id"
       />
-      <V2ConfirmDialog
+      <ConfirmDialog
         open={Boolean(target)}
         title="Submit runtime desired state"
         description={target ? `Create desired-state intent for ${target.name}.` : ''}
@@ -168,7 +168,7 @@ export default function V2RuntimesPage() {
         onCancel={() => setTarget(null)}
         onConfirm={submitDesiredState}
       />
-      <V2ConfirmDialog
+      <ConfirmDialog
         open={Boolean(targetAction)}
         title="Submit runtime action intent"
         description={targetAction ? `Queue ${targetAction.action} intent for ${targetAction.runtime.name}.` : ''}
@@ -178,7 +178,7 @@ export default function V2RuntimesPage() {
         onConfirm={submitAction}
       />
       {target ? (
-        <div className="v2-floating-intent">
+        <div className="control-floating-intent">
           <span>Desired state</span>
           <Select<DesiredRuntimeState>
             value={desiredState}

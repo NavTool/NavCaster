@@ -2,25 +2,25 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { Button, Progress } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback } from 'react';
-import { v2AdminService } from '../api/adminService';
-import type { WorkerMetric } from '../api/contracts';
-import { V2MetricCard } from '../components/V2MetricCard';
-import { V2StatusBadge } from '../components/V2StatusBadge';
-import { V2TablePage } from '../components/V2TablePage';
-import { formatDateTime, useV2Page } from './useV2Page';
+import { adminService } from '../../api/adminService';
+import type { WorkerMetric } from '../../api/contracts';
+import { MetricCard } from '../components/MetricCard';
+import { StatusBadge } from '../components/StatusBadge';
+import { TablePage } from '../components/TablePage';
+import { formatDateTime, useControlPage } from './useControlPage';
 
-export default function V2WorkersPage() {
-  const loader = useCallback((filters: Parameters<typeof v2AdminService.listWorkers>[0]) => v2AdminService.listWorkers(filters), []);
-  const page = useV2Page<WorkerMetric>(loader);
+export default function WorkersPage() {
+  const loader = useCallback((filters: Parameters<typeof adminService.listWorkers>[0]) => adminService.listWorkers(filters), []);
+  const page = useControlPage<WorkerMetric>(loader);
 
   const columns: ColumnsType<WorkerMetric> = [
     {
       title: 'Worker',
       dataIndex: 'name',
       fixed: 'left',
-      render: (_, row) => <div className="v2-primary-cell"><strong>{row.name}</strong><span>{row.id}</span></div>,
+      render: (_, row) => <div className="control-primary-cell"><strong>{row.name}</strong><span>{row.id}</span></div>,
     },
-    { title: 'State', dataIndex: 'status', render: (status) => <V2StatusBadge status={status} /> },
+    { title: 'State', dataIndex: 'status', render: (status) => <StatusBadge status={status} /> },
     { title: 'Host', dataIndex: 'host_name' },
     { title: 'Runtime', dataIndex: 'runtime_id' },
     { title: 'Mounts', dataIndex: 'assigned_mount_points', align: 'right' },
@@ -32,7 +32,7 @@ export default function V2WorkersPage() {
       title: 'Loop delay p95',
       dataIndex: 'error_rate',
       width: 160,
-      render: (value) => <Progress percent={Math.min(Math.round(value), 100)} size="small" strokeColor={value > 5 ? '#c2410c' : '#2f7d62'} />,
+      render: (value) => <Progress percent={Math.min(Math.round(value), 100)} size="small" strokeColor={value > 5 ? '#f97316' : '#14b8a6'} />,
     },
     { title: 'Redis publish', dataIndex: 'throughput_kbps', render: (value) => value.toLocaleString() },
     { title: 'Slow disconnects', dataIndex: 'error_rate', render: (value) => Math.round(value * 3) },
@@ -45,13 +45,13 @@ export default function V2WorkersPage() {
 
   return (
     <>
-      <div className="v2-metric-grid">
-        <V2MetricCard label="Visible workers" value={page.items.length} detail="after filters" />
-        <V2MetricCard label="Active sessions" value={activeSessions} detail="worker reported" />
-        <V2MetricCard label="Throughput" value={`${totalThroughput.toLocaleString()} kbps`} detail="visible worker sum" />
-        <V2MetricCard label="Failed workers" value={failed} detail="requires runtime intent" />
+      <div className="control-metric-grid">
+        <MetricCard label="Visible workers" value={page.items.length} detail="after filters" />
+        <MetricCard label="Active sessions" value={activeSessions} detail="worker reported" />
+        <MetricCard label="Throughput" value={`${totalThroughput.toLocaleString()} kbps`} detail="visible worker sum" />
+        <MetricCard label="Failed workers" value={failed} detail="requires runtime intent" />
       </div>
-      <V2TablePage<WorkerMetric>
+      <TablePage<WorkerMetric>
         title="Worker metrics"
         description="Worker rows are read-side operational metrics. Recovery still goes through runtime desired state or action intents."
         actions={<Button icon={<ReloadOutlined />} onClick={page.refresh}>Refresh</Button>}

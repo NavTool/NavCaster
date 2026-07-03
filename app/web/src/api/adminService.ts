@@ -1,4 +1,4 @@
-import api from '../../api/client';
+import api from './client';
 import type {
   ConfigPublishIntent,
   ConfigVersion,
@@ -13,7 +13,7 @@ import type {
   RuntimeDetail,
   RuntimeEvent,
   RuntimeSummary,
-  V2AdminServiceContract,
+  AdminServiceContract,
   WorkerMetric,
 } from './contracts';
 
@@ -393,7 +393,7 @@ function toIntentReceipt(intent: AdminIntent, message: string): IntentReceipt {
   };
 }
 
-const liveAdminService: V2AdminServiceContract = {
+const liveAdminService: AdminServiceContract = {
   async getOverview() {
     const [hosts, runtimes] = await Promise.all([getData<AdminHost[]>('/api/v1/control/hosts'), getData<AdminRuntime[]>('/api/v1/control/runtimes')]);
     const runtimeSummaries = runtimes.map(toRuntimeSummary);
@@ -447,4 +447,4 @@ const liveAdminService: V2AdminServiceContract = {
   },
 };
 
-export const v2AdminService: V2AdminServiceContract = liveAdminService;
+export const adminService: AdminServiceContract = liveAdminService;

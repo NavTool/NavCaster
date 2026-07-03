@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { PageResult } from '../api/contracts';
-import type { V2TableFilters } from '../components/V2TablePage';
+import type { PageResult } from '../../api/contracts';
+import type { TableFilters } from '../components/TablePage';
 
-export const defaultFilters: V2TableFilters = {
+export const defaultFilters: TableFilters = {
   search: '',
   status: 'all',
   page: 1,
   pageSize: 10,
 };
 
-export function useV2Page<T>(
-  loader: (filters: V2TableFilters) => Promise<PageResult<T>>,
-  initialFilters: V2TableFilters = defaultFilters,
+export function useControlPage<T>(
+  loader: (filters: TableFilters) => Promise<PageResult<T>>,
+  initialFilters: TableFilters = defaultFilters,
 ) {
-  const [filters, setFilters] = useState<V2TableFilters>(initialFilters);
+  const [filters, setFilters] = useState<TableFilters>(initialFilters);
   const [items, setItems] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);

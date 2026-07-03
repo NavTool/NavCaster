@@ -1,6 +1,6 @@
-import type { ConvergenceStatus, V2ControlStatus } from '../api/contracts';
+import type { ConvergenceStatus, ControlStatus } from '../../api/contracts';
 
-const statusMeta: Record<V2ControlStatus, { label: string; tone: string }> = {
+const statusMeta: Record<ControlStatus, { label: string; tone: string }> = {
   pending: { label: 'Pending', tone: 'pending' },
   running: { label: 'Running', tone: 'running' },
   failed: { label: 'Failed', tone: 'failed' },
@@ -16,21 +16,21 @@ const convergenceMeta: Record<ConvergenceStatus, { label: string; tone: string }
   failed: { label: 'Failed', tone: 'failed' },
 };
 
-export function V2StatusBadge({ status }: { status: V2ControlStatus }) {
+export function StatusBadge({ status }: { status: ControlStatus }) {
   const meta = statusMeta[status];
   return (
-    <span className={`v2-status v2-status-${meta.tone}`}>
-      <span className="v2-status-dot" />
+    <span className={`control-status control-status-${meta.tone}`}>
+      <span className="control-status-dot" />
       {meta.label}
     </span>
   );
 }
 
-export function V2ConvergenceBadge({ status }: { status: ConvergenceStatus }) {
+export function ConvergenceBadge({ status }: { status: ConvergenceStatus }) {
   const meta = convergenceMeta[status];
   return (
-    <span className={`v2-status v2-status-${meta.tone}`}>
-      <span className="v2-status-dot" />
+    <span className={`control-status control-status-${meta.tone}`}>
+      <span className="control-status-dot" />
       {meta.label}
     </span>
   );
