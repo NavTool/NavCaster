@@ -565,6 +565,102 @@
   color: var(--control-muted);
 }
 
+.identity-entry {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #e6fbf8 0%, #eff9fd 46%, #f8fbff 100%);
+}
+
+.identity-entry * {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+.identity-entry-panel {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid #e5edf2;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  padding: 28px;
+}
+
+.identity-brand-mark {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0f766e, #2563eb);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.identity-entry-panel h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.identity-entry-panel p {
+  margin: -6px 0 0;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.identity-entry-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.identity-entry-footer a {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.identity-page {
+  min-width: 0;
+}
+
+.identity-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 160px 140px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--control-surface);
+  box-shadow: var(--control-shadow);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.identity-toolbar .ant-input-search {
+  max-width: 420px;
+}
+
+.identity-number-input {
+  width: 100%;
+}
+
+.identity-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.75fr) minmax(360px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .dashboard-page {
   display: flex;
   flex-direction: column;
@@ -1991,6 +2087,8 @@
   .usage-metric-grid,
   .usage-chart-grid,
   .usage-filter-grid,
+  .identity-toolbar,
+  .identity-profile-grid,
   .ops-hero-grid,
   .ops-stat-grid,
   .ops-resource-strip,

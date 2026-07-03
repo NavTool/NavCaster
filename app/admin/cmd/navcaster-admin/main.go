@@ -10,6 +10,7 @@ import (
 	"navcaster-admin/internal/api"
 	"navcaster-admin/internal/config"
 	"navcaster-admin/internal/control"
+	"navcaster-admin/internal/errorsx"
 	"navcaster-admin/internal/identity"
 	"navcaster-admin/internal/projection"
 	postgresStore "navcaster-admin/internal/storage/postgres"
@@ -51,6 +52,7 @@ func buildRepositories(cfg config.Config, registry projection.Registry) (control
 		repo = postgresStore.NewControlRepository(db)
 		identityRepo = postgresStore.NewIdentityRepository(db)
 	}
+	seedDevAdmin(cfg, identityRepo)
 	var authProjector identity.AuthProjector = identity.NoopProjector{}
 	if cfg.RedisAddress == "" {
 		log.Printf("NAVCASTER_ADMIN_REDIS_ADDR is not set; Redis projection disabled")
@@ -59,4 +61,35 @@ func buildRepositories(cfg config.Config, registry projection.Registry) (control
 	publisher := projection.NewRedisPublisher(registry, redisStore.NewClient(redisStore.Config{Address: cfg.RedisAddress}))
 	authProjector = publisher
 	return control.NewProjectingRepository(repo, publisher), identityRepo, authProjector
+}
+
+func seedDevAdmin(cfg config.Config, repo identity.Repository) {
+	if cfg.DevAdminPassword == "" {
+		return
+	}
+	hash, algo, params, err := identity.HashPassword(cfg.DevAdminPassword)
+	if err != nil {
+		log.Printf("skip dev admin seed: %v", err)
+		return
+	}
+	_, err = repo.CreateAccount(context.Background(), identity.AccountCreate{
+		Username:       cfg.DevAdminUsername,
+		UsernameNorm:   identity.NormalizeUsername(cfg.DevAdminUsername),
+		DisplayName:    "Admin",
+		Role:           identity.RoleAdmin,
+		Status:         identity.AccountStatusActive,
+		PasswordHash:   hash,
+		PasswordAlgo:   algo,
+		PasswordParams: params,
+		CreatedVia:     identity.CreatedViaAdmin,
+	})
+	if err != nil {
+		if appErr := errorsx.From(err); appErr.Code == "username_reserved" {
+			log.Printf("dev admin %q already exists", cfg.DevAdminUsername)
+			return
+		}
+		log.Printf("seed dev admin failed: %v", err)
+		return
+	}
+	log.Printf("seeded dev admin account %q", cfg.DevAdminUsername)
 }

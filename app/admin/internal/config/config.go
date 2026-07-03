@@ -10,6 +10,8 @@ type Config struct {
 	Address           string
 	ServiceVersion    string
 	BootstrapToken    string
+	DevAdminUsername  string
+	DevAdminPassword  string
 	PostgreSQLDSN     string
 	RedisAddress      string
 	HeartbeatInterval time.Duration
@@ -20,6 +22,8 @@ func LoadFromEnv() Config {
 		Address:           envString("NAVCASTER_ADMIN_ADDR", ":8080"),
 		ServiceVersion:    envString("NAVCASTER_ADMIN_VERSION", "dev"),
 		BootstrapToken:    os.Getenv("NAVCASTER_ADMIN_BOOTSTRAP_TOKEN"),
+		DevAdminUsername:  envString("NAVCASTER_ADMIN_DEV_ADMIN_USERNAME", "admin"),
+		DevAdminPassword:  os.Getenv("NAVCASTER_ADMIN_DEV_ADMIN_PASSWORD"),
 		PostgreSQLDSN:     os.Getenv("NAVCASTER_ADMIN_POSTGRES_DSN"),
 		RedisAddress:      os.Getenv("NAVCASTER_ADMIN_REDIS_ADDR"),
 		HeartbeatInterval: time.Duration(envInt("NAVCASTER_ADMIN_HEARTBEAT_MS", 5000)) * time.Millisecond,
