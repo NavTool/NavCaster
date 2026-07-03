@@ -10,6 +10,7 @@
 | `v2-architecture.md` | v2 全新控制面 / 数据面总体架构、职责边界、命名规则和非兼容结论。 |
 | `v2-control-plane-agent-runtime-contract.md` | AdminService、Agent、Runtime 的 desired / actual state、离线自治和执行语义契约。 |
 | `v2-api-data-contract.md` | v2 HTTP/JSON API、PostgreSQL source of truth、Redis projection/cache/bus 数据契约。 |
+| `v2-identity-access-account-contract.md` | v2 Web 用户账号 Account、Caster 接入账号 AccessAccount、PG name_locks、Web session、Redis auth projection、API、Web IA 和 QA gate 契约。 |
 | `v2-caster-runtime-worker-design.md` | Caster Runtime 多 Worker、Acceptor handoff、session/bufferevent/map 所有权设计。 |
 | `v2-web-layout-reference.md` | v2 Web 控制面布局、Sub2API 只读参考边界和操作意图 UI 规范。 |
 | `v2-phase2-scope-and-contract-gate.md` | v2 Phase 2 真实控制面闭环范围、PG/Redis 边界、运行态事件/指标、集成顺序和非兼容 gate。 |

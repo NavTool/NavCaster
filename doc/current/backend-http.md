@@ -213,3 +213,20 @@ NC-091 起 `app/admin/` 下的 Go `navcaster-admin` 从 foundation 内存骨架�
 
 v2 AdminService 不兼容旧 `/api/*` HTTP API、旧 Redis key、旧 protobuf 或旧 Web 命名。
 旧 `src/http` 服务和新 `app/admin/` 服务当前是并行边界。
+
+NC-117 身份与接入账号契约是后续实现输入，不表示当前 `app/admin` 已实现这些 API。
+截至 NC-117 创建时，`app/admin/internal/api/router.go` 尚未暴露：
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/logout
+GET  /api/v1/auth/session
+GET/POST/PUT/DELETE /api/v1/admin/accounts...
+GET/POST/PUT/DELETE /api/v1/me/access-accounts...
+```
+
+当前 v2 migration 中已有 `accounts` 和 `access_accounts` 骨架表，但缺少
+`account_name_locks`、`access_name_locks`、`web_sessions` 和身份域 API
+repository/service。实现口径以 `doc/design/v2-identity-access-account-contract.md`
+和 `doc/api/v2-identity-access-api.md` 为准。
