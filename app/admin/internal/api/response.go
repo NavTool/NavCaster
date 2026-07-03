@@ -10,8 +10,15 @@ import (
 type responseEnvelope struct {
 	RequestID string         `json:"request_id"`
 	Data      any            `json:"data,omitempty"`
+	Page      *pageEnvelope  `json:"page,omitempty"`
 	Meta      map[string]any `json:"meta,omitempty"`
 	Error     *errorEnvelope `json:"error,omitempty"`
+}
+
+type pageEnvelope struct {
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+	Total  int `json:"total"`
 }
 
 type errorEnvelope struct {
@@ -24,6 +31,14 @@ func writeData(w http.ResponseWriter, r *http.Request, status int, data any) {
 	writeJSON(w, status, responseEnvelope{
 		RequestID: requestIDFrom(r),
 		Data:      data,
+	})
+}
+
+func writePageData(w http.ResponseWriter, r *http.Request, status int, data any, limit int, offset int, total int) {
+	writeJSON(w, status, responseEnvelope{
+		RequestID: requestIDFrom(r),
+		Data:      data,
+		Page:      &pageEnvelope{Limit: limit, Offset: offset, Total: total},
 	})
 }
 

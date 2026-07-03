@@ -45,3 +45,11 @@ func (r Registry) AccessAccountAuthKey(username string) (string, error) {
 func (r Registry) AccessAccountPolicyKey(accessAccountID string) (string, error) {
 	return r.redis.Render("access_account_policy", map[string]string{"access_account_id": accessAccountID})
 }
+
+func (r Registry) AuthVersionKey() (string, error) {
+	return r.redis.Render("auth_version", nil)
+}
+
+func (r Registry) ControlKickChannel() (string, error) {
+	return r.redis.Render("control_kick", nil)
+}

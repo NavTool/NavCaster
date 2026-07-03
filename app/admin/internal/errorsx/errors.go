@@ -16,12 +16,20 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
+func New(status int, code string, message string) *Error {
+	return &Error{Status: status, Code: code, Message: message}
+}
+
 func BadRequest(message string) *Error {
 	return &Error{Status: http.StatusBadRequest, Code: "bad_request", Message: message}
 }
 
 func Unauthorized(message string) *Error {
 	return &Error{Status: http.StatusUnauthorized, Code: "unauthorized", Message: message}
+}
+
+func Forbidden(message string) *Error {
+	return &Error{Status: http.StatusForbidden, Code: "forbidden", Message: message}
 }
 
 func NotFound(message string) *Error {
