@@ -3,7 +3,6 @@ import {
   CloudServerOutlined,
   ClusterOutlined,
   DatabaseOutlined,
-  DownOutlined,
   ExclamationCircleOutlined,
   FieldTimeOutlined,
   FileSearchOutlined,
@@ -11,12 +10,15 @@ import {
   NodeIndexOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
-  SettingOutlined,
   ThunderboltOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
-import { Button } from 'antd';
+import { Alert, Button, Empty } from 'antd';
 import type { ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { adminService } from '../../api/adminService';
+import type { HostSummary, RuntimeEvent, RuntimeSummary, WorkerMetric } from '../../api/contracts';
+import { formatDateTime } from './useControlPage';
 
 type OpsTone = 'green' | 'blue' | 'orange' | 'red';
 
@@ -27,48 +29,31 @@ type OpsSeries = {
   fill?: boolean;
 };
 
-const sparkValues = [10, 12, 14, 13, 15, 14, 12, 11, 13, 18, 22, 20, 16, 15, 14, 13, 11, 10, 12, 15, 14, 13, 12, 11];
+type OpsData = {
+  hosts: HostSummary[];
+  runtimes: RuntimeSummary[];
+  workers: WorkerMetric[];
+  events: RuntimeEvent[];
+};
 
-const latencySwitch = [0.002, 0.002, 0.002, 0.002, 0.002, 0.002, 0.002, 0.036, 0.002, 0.002, 0.002, 0.002];
+type Bucket = {
+  label: string;
+  value: number;
+};
 
-const throughputSeries: OpsSeries[] = [
-  { name: '上行源站', color: '#3b82f6', fill: true, values: [3, 11, 2, 8, 17, 21, 6, 18, 20, 12, 24, 16, 19, 28, 23, 33, 12, 26, 21, 35, 17, 31, 36, 8] },
-  { name: '下行播发', color: '#14b8a6', values: [2, 5, 1, 6, 12, 14, 5, 15, 17, 10, 18, 13, 16, 24, 21, 28, 10, 20, 17, 30, 14, 25, 29, 7] },
-];
-
-const requestBuckets = [
-  { label: '0-50ms', value: 18 },
-  { label: '50-100ms', value: 44 },
-  { label: '100-200ms', value: 78 },
-  { label: '200-500ms', value: 122 },
-  { label: '500-1000ms', value: 64 },
-  { label: '1000ms+', value: 12 },
-];
-
-const workerRows = [
-  { name: 'caster-edge-shanghai-a', shard: 'worker 0-63', mounts: '64 / 64', sessions: '1,284', state: '正常' },
-  { name: 'caster-edge-shanghai-b', shard: 'worker 64-127', mounts: '63 / 64', sessions: '1,176', state: '轻微抖动' },
-  { name: 'relay-pull-beijing-a', shard: 'pull relay', mounts: '28 / 30', sessions: '318', state: '正常' },
-];
-
-const logRows = [
-  { time: '2026/7/3 11:04:03', level: 'info', module: 'caster.worker', message: 'mountpoint RTCM32_SE01 fanout completed clients=142 bytes=829145 latency_ms=18' },
-  { time: '2026/7/3 11:04:01', level: 'info', module: 'ntrip.auth', message: 'client authorized account=survey-team-a mountpoint=RTCM32_SE01 remote=10.24.8.15' },
-  { time: '2026/7/3 11:03:58', level: 'warn', module: 'relay.pull', message: 'source heartbeat jitter mountpoint=SHGNSS_03 p95_ms=448 threshold_ms=400' },
-  { time: '2026/7/3 11:03:44', level: 'info', module: 'redis.projection', message: 'projection publish completed key=navcaster:runtime:edge-shanghai-a workers=64 sessions=1284' },
-  { time: '2026/7/3 11:03:21', level: 'info', module: 'agent.supervisor', message: 'runtime health report host=edge-shanghai-01 cpu=5.5 mem=1.8 workers=64' },
-  { time: '2026/7/3 11:02:57', level: 'info', module: 'caster.runtime', message: 'listener accepted ntrip client protocol=HTTP/1.1 path=/RTCM32_SE01 user_agent=NTRIP GNSS' },
-  { time: '2026/7/3 11:02:20', level: 'info', module: 'caster.worker', message: 'slow disconnect sweep completed closed=0 idle_clients=3 runtime=edge-shanghai-a' },
-  { time: '2026/7/3 11:01:49', level: 'info', module: 'admin.intent', message: 'desired worker count unchanged runtime=edge-shanghai-a workers=64 config=cfg-20260703-01' },
-];
+function xAt(index: number, total: number, width: number) {
+  if (total <= 1) return width / 2;
+  return (index * width) / (total - 1);
+}
 
 function pathFrom(values: number[], width: number, height: number, top = 4) {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+  const safeValues = values.length > 1 ? values : [values[0] ?? 0, values[0] ?? 0];
+  const max = Math.max(...safeValues);
+  const min = Math.min(...safeValues);
   const range = max - min || 1;
-  return values
+  return safeValues
     .map((value, index) => {
-      const x = (index * width) / (values.length - 1);
+      const x = xAt(index, safeValues.length, width);
       const y = top + height - ((value - min) / range) * height;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
@@ -85,9 +70,10 @@ function MiniLine({
   height?: number;
 }) {
   const width = 340;
+  const safeValues = values.length > 0 ? values : [0, 0];
   return (
     <svg className="ops-mini-line" viewBox={`0 0 ${width} ${height + 12}`} aria-hidden="true">
-      <polyline fill="none" points={pathFrom(values, width, height)} stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+      <polyline fill="none" points={pathFrom(safeValues, width, height)} stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
     </svg>
   );
 }
@@ -122,7 +108,7 @@ function EmptyOpsPanel({ title, subtitle }: { title: string; subtitle: string })
     <section className="ops-panel ops-empty-panel">
       <div className="ops-panel-header">
         <h3>{title}</h3>
-        <span>近1小时</span>
+        <span>当前快照</span>
       </div>
       <div className="ops-empty-state">
         <FileSearchOutlined />
@@ -133,56 +119,250 @@ function EmptyOpsPanel({ title, subtitle }: { title: string; subtitle: string })
   );
 }
 
-function ThroughputChart() {
+function ThroughputChart({ series, labels, max }: { series: OpsSeries[]; labels: string[]; max: number }) {
   const width = 620;
   const height = 210;
+  const hasData = labels.length > 0 && series.some((item) => item.values.some((value) => value > 0));
+  const safeMax = Math.max(max, 1);
+  const skip = labels.length > 6 ? Math.ceil(labels.length / 6) : 1;
+
+  if (!hasData) {
+    return (
+      <div className="ops-chart">
+        <Empty description="AdminService 当前没有吞吐指标" />
+      </div>
+    );
+  }
+
   return (
     <div className="ops-chart">
       <div className="ops-chart-legend">
-        {throughputSeries.map((series) => (
-          <span key={series.name}><i style={{ borderColor: series.color }} />{series.name}</span>
+        {series.map((item) => (
+          <span key={item.name}><i style={{ borderColor: item.color }} />{item.name}</span>
         ))}
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} aria-label="NTRIP Caster throughput trend">
+      <svg viewBox={`0 0 ${width} ${height}`} aria-label="NTRIP Caster live throughput">
         {[0, 1, 2, 3, 4].map((line) => (
           <line className="ops-chart-grid" key={line} x1="42" x2="590" y1={24 + line * 38} y2={24 + line * 38} />
         ))}
-        {throughputSeries.map((series) => {
-          const points = series.values.map((value, index) => {
-            const x = 42 + (index * 548) / (series.values.length - 1);
-            const y = 176 - (value / 40) * 150;
+        {series.map((item) => {
+          const points = item.values.map((value, index) => {
+            const x = 42 + xAt(index, item.values.length, 548);
+            const y = 176 - (Math.min(value, safeMax) / safeMax) * 150;
             return `${x.toFixed(1)},${y.toFixed(1)}`;
           });
           return (
-            <g key={series.name}>
-              {series.fill ? <polygon fill={`${series.color}1f`} points={`42,176 ${points.join(' ')} 590,176`} /> : null}
-              <polyline fill="none" stroke={series.color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" points={points.join(' ')} />
+            <g key={item.name}>
+              {item.fill ? <polygon fill={`${item.color}1f`} points={`42,176 ${points.join(' ')} 590,176`} /> : null}
+              <polyline fill="none" stroke={item.color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" points={points.join(' ')} />
             </g>
           );
         })}
-        {['10:04', '10:16', '10:28', '10:40', '10:52', '11:04'].map((label, index) => (
-          <text className="ops-chart-label" key={label} x={42 + index * 110} y="202">{label}</text>
-        ))}
+        {labels.map((label, index) => {
+          if (index % skip !== 0) return null;
+          return <text className="ops-chart-label" key={`${label}-${index}`} x={42 + xAt(index, labels.length, 548)} y="202">{label}</text>;
+        })}
       </svg>
     </div>
   );
 }
 
+function DistributionPanel({ title, subtitle, buckets }: { title: string; subtitle: string; buckets: Bucket[] }) {
+  const max = Math.max(...buckets.map((item) => item.value), 0);
+  if (max === 0) return <EmptyOpsPanel title={title} subtitle={subtitle} />;
+  return (
+    <div className="ops-panel">
+      <div className="ops-panel-header">
+        <h3>{title}</h3>
+        <span>{subtitle}</span>
+      </div>
+      <div className="ops-bars">
+        {buckets.map((bucket) => (
+          <div className="ops-bar" key={bucket.label}>
+            <span>{bucket.label}</span>
+            <div><i style={{ height: `${Math.max(8, (bucket.value / max) * 160)}px` }} /></div>
+            <span>{bucket.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatNumber(value: number) {
+  return Math.round(value).toLocaleString('zh-CN');
+}
+
+function formatBps(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} Mbps`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)} Kbps`;
+  return `${Math.round(value)} bps`;
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value)}%`;
+}
+
+function average(values: number[]) {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, item) => sum + item, 0) / values.length;
+}
+
+function memoryPercent(hosts: HostSummary[]) {
+  const used = hosts.reduce((sum, host) => sum + host.memory_used_gb, 0);
+  const total = hosts.reduce((sum, host) => sum + host.memory_total_gb, 0);
+  return total > 0 ? (used / total) * 100 : 0;
+}
+
+function runtimeName(runtimeById: Map<string, RuntimeSummary>, event: RuntimeEvent) {
+  return event.runtime_id ? runtimeById.get(event.runtime_id)?.name ?? event.runtime_id : 'runtime';
+}
+
+function logLevelClass(level: RuntimeEvent['level']) {
+  return level === 'warning' ? 'warn' : level;
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
 export default function OperationsPage() {
+  const [data, setData] = useState<OpsData>({ hosts: [], runtimes: [], workers: [], events: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [hostsPage, runtimesPage, workersPage] = await Promise.all([
+        adminService.listHosts({ page: 1, pageSize: 500, status: 'all' }),
+        adminService.listRuntimes({ page: 1, pageSize: 500, status: 'all' }),
+        adminService.listWorkers({ page: 1, pageSize: 500, status: 'all' }),
+      ]);
+      const eventResults = await Promise.allSettled(runtimesPage.items.slice(0, 30).map((runtime) => adminService.listRuntimeEvents(runtime.id, 20)));
+      const events = eventResults.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
+      setData({ hosts: hostsPage.items, runtimes: runtimesPage.items, workers: workersPage.items, events });
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AdminService 数据加载失败');
+      setData({ hosts: [], runtimes: [], workers: [], events: [] });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const derived = useMemo(() => {
+    const runningHosts = data.hosts.filter((item) => item.status === 'running').length;
+    const offlineHosts = data.hosts.filter((item) => item.status === 'offline').length;
+    const runningRuntimes = data.runtimes.filter((item) => item.status === 'running').length;
+    const failedRuntimes = data.runtimes.filter((item) => item.status === 'failed' || item.convergence_status === 'failed').length;
+    const pendingRuntimes = data.runtimes.filter((item) => item.convergence_status === 'pending').length;
+    const staleRuntimes = data.runtimes.filter((item) => item.stale).length;
+    const redisDisconnected = data.runtimes.filter((item) => item.redis_connected === false).length;
+    const activeSessions = data.runtimes.reduce((sum, item) => sum + item.active_sessions, 0);
+    const totalSendBps = data.runtimes.reduce((sum, item) => sum + item.send_bps, 0);
+    const totalRecvBps = data.runtimes.reduce((sum, item) => sum + item.recv_bps, 0);
+    const totalMounts = data.runtimes.reduce((sum, item) => sum + item.mounts, 0);
+    const totalSources = data.runtimes.reduce((sum, item) => sum + item.sources, 0);
+    const totalClients = data.runtimes.reduce((sum, item) => sum + item.clients, 0);
+    const actualWorkers = data.runtimes.reduce((sum, item) => sum + item.actual_worker_count, 0);
+    const desiredWorkers = data.runtimes.reduce((sum, item) => sum + item.desired_worker_count, 0);
+    const loopDelays = data.runtimes.map((item) => item.loop_delay_ms_p95).filter((value) => value > 0);
+    const maxLoopDelay = Math.max(...loopDelays, 0);
+    const avgCpu = average(data.hosts.map((item) => item.cpu_load).filter((value) => value > 0));
+    const score = clampScore(100 - failedRuntimes * 22 - offlineHosts * 16 - staleRuntimes * 8 - pendingRuntimes * 6 - redisDisconnected * 5);
+    const healthLabel = score >= 95 ? '健康' : score >= 80 ? '需关注' : '故障风险';
+    const healthColor = score >= 95 ? '#16a34a' : score >= 80 ? '#f59e0b' : '#ef4444';
+    const topRuntimes = [...data.runtimes]
+      .sort((left, right) => right.recv_bps + right.send_bps - (left.recv_bps + left.send_bps) || right.active_sessions - left.active_sessions)
+      .slice(0, 12);
+    const topWorkers = [...data.workers].sort((left, right) => right.active_sessions - left.active_sessions).slice(0, 5);
+    const runtimeById = new Map(data.runtimes.map((item) => [item.id, item]));
+    const sortedEvents = [...data.events].sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+    const warningEvents = sortedEvents.filter((item) => item.level === 'warning');
+    const errorEvents = sortedEvents.filter((item) => item.level === 'error');
+    const maxThroughput = Math.max(...topRuntimes.flatMap((item) => [item.send_bps, item.recv_bps]), 1);
+    const latencyBuckets: Bucket[] = [
+      { label: '0-10ms', value: loopDelays.filter((item) => item <= 10).length },
+      { label: '10-50ms', value: loopDelays.filter((item) => item > 10 && item <= 50).length },
+      { label: '50-100ms', value: loopDelays.filter((item) => item > 50 && item <= 100).length },
+      { label: '100-250ms', value: loopDelays.filter((item) => item > 100 && item <= 250).length },
+      { label: '250ms+', value: loopDelays.filter((item) => item > 250).length },
+    ];
+    const stateBuckets: Bucket[] = [
+      { label: 'running', value: runningRuntimes },
+      { label: 'pending', value: pendingRuntimes },
+      { label: 'failed', value: failedRuntimes },
+      { label: 'stale', value: staleRuntimes },
+      { label: 'offline', value: data.runtimes.filter((item) => item.status === 'offline').length },
+    ];
+    const eventBuckets: Bucket[] = [
+      { label: 'info', value: sortedEvents.filter((item) => item.level === 'info').length },
+      { label: 'warning', value: warningEvents.length },
+      { label: 'error', value: errorEvents.length },
+    ];
+
+    return {
+      runningHosts,
+      offlineHosts,
+      runningRuntimes,
+      failedRuntimes,
+      pendingRuntimes,
+      staleRuntimes,
+      redisDisconnected,
+      activeSessions,
+      totalSendBps,
+      totalRecvBps,
+      totalMounts,
+      totalSources,
+      totalClients,
+      actualWorkers,
+      desiredWorkers,
+      maxLoopDelay,
+      avgCpu,
+      score,
+      healthLabel,
+      healthColor,
+      topRuntimes,
+      topWorkers,
+      runtimeById,
+      sortedEvents,
+      warningEvents,
+      errorEvents,
+      maxThroughput,
+      latencyBuckets,
+      stateBuckets,
+      eventBuckets,
+    };
+  }, [data]);
+
+  const throughputLabels = derived.topRuntimes.map((item) => item.name);
+  const throughputSeries: OpsSeries[] = [
+    { name: 'Send bps', color: '#3b82f6', fill: true, values: derived.topRuntimes.map((item) => item.send_bps) },
+    { name: 'Recv bps', color: '#14b8a6', values: derived.topRuntimes.map((item) => item.recv_bps) },
+  ];
+  const healthDash = (derived.score / 100) * 314;
+  const alertRows = [...derived.errorEvents, ...derived.warningEvents].slice(0, 8);
+  const logRows = derived.sortedEvents.slice(0, 80);
+
   return (
     <div className="ops-page">
+      {error ? <Alert type="error" showIcon message="AdminService 数据不可用" description={error} /> : null}
       <section className="ops-hero ops-panel">
         <div className="ops-hero-header">
           <div>
             <h2><NodeIndexOutlined /> NTRIP Caster 运维监控</h2>
-            <p><span className="ops-live-dot" />实时监控 Agent、Caster Runtime、Worker 分片、挂载点和 NTRIP 数据链路</p>
+            <p><span className="ops-live-dot" />实时读取 AdminService 控制面 host、runtime、worker 和 runtime events</p>
           </div>
           <div className="ops-hero-actions">
-            <Button className="dashboard-filter-button">全部节点 <DownOutlined /></Button>
-            <Button className="dashboard-filter-button">全部挂载点 <DownOutlined /></Button>
-            <Button className="dashboard-filter-button">近1小时 <DownOutlined /></Button>
-            <Button className="dashboard-filter-button" icon={<ReloadOutlined />}>刷新</Button>
-            <Button className="dashboard-filter-button" icon={<SettingOutlined />}>告警设置</Button>
+            <Button className="dashboard-filter-button">{data.hosts.length} hosts</Button>
+            <Button className="dashboard-filter-button">{data.runtimes.length} runtimes</Button>
+            <Button className="dashboard-filter-button">当前快照</Button>
+            <Button className="dashboard-filter-button" icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
           </div>
         </div>
 
@@ -191,45 +371,45 @@ export default function OperationsPage() {
             <div className="ops-health-ring">
               <svg viewBox="0 0 132 132">
                 <circle cx="66" cy="66" r="50" fill="none" stroke="#edf2f7" strokeWidth="14" />
-                <circle cx="66" cy="66" r="50" fill="none" stroke="#f59e0b" strokeDasharray="302 314" strokeLinecap="round" strokeWidth="14" />
+                <circle cx="66" cy="66" r="50" fill="none" stroke={derived.healthColor} strokeDasharray={`${healthDash} 314`} strokeLinecap="round" strokeWidth="14" />
               </svg>
-              <strong>96</strong>
+              <strong style={{ color: derived.healthColor }}>{derived.score}</strong>
               <span>运行评分</span>
             </div>
-            <p>链路状态: <b>轻微抖动</b></p>
+            <p>链路状态: <b style={{ color: derived.healthColor }}>{derived.healthLabel}</b></p>
           </div>
 
           <div className="ops-realtime-card">
             <div className="ops-panel-header">
               <h3>实时播发</h3>
-              <span>10s 粒度</span>
+              <span>actual snapshot</span>
             </div>
             <div className="ops-realtime-values">
-              <div><span>客户端请求</span><strong>0.1 QPS</strong></div>
-              <div><span>NTRIP 下行</span><strong>18,872.7 KB/s</strong></div>
-              <div><span>源站上行</span><strong>15,019.0 KB/s</strong></div>
-              <div><span>播发 TPS</span><strong>12,493.3</strong></div>
+              <div><span>客户端连接</span><strong>{formatNumber(derived.activeSessions)}</strong></div>
+              <div><span>NTRIP 下行</span><strong>{formatBps(derived.totalSendBps)}</strong></div>
+              <div><span>源站上行</span><strong>{formatBps(derived.totalRecvBps)}</strong></div>
+              <div><span>Loop p95 Max</span><strong>{derived.maxLoopDelay ? `${formatNumber(derived.maxLoopDelay)} ms` : '-'}</strong></div>
             </div>
-            <MiniLine values={sparkValues} color="#94a3b8" />
+            <MiniLine values={derived.topRuntimes.map((item) => item.active_sessions)} color="#94a3b8" />
           </div>
 
           <div className="ops-stat-grid">
-            <OpsStat title="在线挂载点" value="186 / 192" tone="blue" icon={<ClusterOutlined />} detail="Relay Pull 42, Relay Push 18" />
-            <OpsStat title="Caster SLA" value="99.997%" tone="green" icon={<SafetyCertificateOutlined />} detail="断流次数 0, 异常恢复 0" />
-            <OpsStat title="客户端错误率" value="0.08%" tone="green" icon={<ApiOutlined />} detail="认证失败 2, 不存在挂载点 1" />
-            <OpsStat title="源站心跳 P99" value="1,032ms" tone="orange" icon={<LinkOutlined />} detail="P95 468ms, Max 2,042ms" />
-            <OpsStat title="首包延迟 P95" value="163ms" tone="red" icon={<FieldTimeOutlined />} detail="目标小于 120ms, 峰值 523ms" />
-            <OpsStat title="Redis 投影延迟" value="6ms" tone="green" icon={<DatabaseOutlined />} detail="pub/sub 正常, projection 新鲜" />
+            <OpsStat title="在线主机" value={`${derived.runningHosts} / ${data.hosts.length}`} tone={derived.offlineHosts ? 'orange' : 'blue'} icon={<ClusterOutlined />} detail={`${derived.offlineHosts} offline`} />
+            <OpsStat title="收敛 Runtime" value={`${derived.runningRuntimes} / ${data.runtimes.length}`} tone={derived.failedRuntimes ? 'red' : 'green'} icon={<SafetyCertificateOutlined />} detail={`${derived.pendingRuntimes} pending, ${derived.failedRuntimes} failed`} />
+            <OpsStat title="活跃会话" value={formatNumber(derived.activeSessions)} tone="green" icon={<ApiOutlined />} detail={`${derived.totalClients} clients, ${derived.totalSources} sources`} />
+            <OpsStat title="Mountpoints" value={formatNumber(derived.totalMounts)} tone="blue" icon={<LinkOutlined />} detail={`${derived.totalSources} sources reported`} />
+            <OpsStat title="Loop p95 Max" value={derived.maxLoopDelay ? `${formatNumber(derived.maxLoopDelay)}ms` : '-'} tone={derived.maxLoopDelay > 100 ? 'orange' : 'green'} icon={<FieldTimeOutlined />} detail={`${derived.staleRuntimes} stale metric snapshots`} />
+            <OpsStat title="Redis actual" value={derived.redisDisconnected ? `${derived.redisDisconnected} disconnected` : 'connected'} tone={derived.redisDisconnected ? 'red' : 'green'} icon={<DatabaseOutlined />} detail="from runtime actual.redis_connected" />
           </div>
         </div>
 
         <div className="ops-resource-strip">
-          <div><span>CPU</span><strong>5.5%</strong><small>峰值 18%, 平均 9%</small></div>
-          <div><span>内存</span><strong>1.8%</strong><small>145 / 7,937 MB</small></div>
-          <div><span>Worker 分片</span><strong>正常</strong><small>128 / 128 在线</small></div>
-          <div><span>Redis</span><strong>正常</strong><small>投影 6ms, 队列 239</small></div>
-          <div><span>NTRIP 鉴权</span><strong>正常</strong><small>认证缓存命中 98.6%</small></div>
-          <div><span>数据链路</span><strong>正常</strong><small>源站、播发、回收稳定</small></div>
+          <div><span>CPU</span><strong>{derived.avgCpu ? formatPercent(derived.avgCpu) : '-'}</strong><small>host label cpu_usage_pct</small></div>
+          <div><span>内存</span><strong>{memoryPercent(data.hosts) ? formatPercent(memoryPercent(data.hosts)) : '-'}</strong><small>host labels memory_used/total</small></div>
+          <div><span>Worker 分片</span><strong>{derived.actualWorkers} / {derived.desiredWorkers || derived.actualWorkers}</strong><small>actual / desired</small></div>
+          <div><span>Redis</span><strong>{derived.redisDisconnected ? '异常' : '正常'}</strong><small>{derived.redisDisconnected} runtime disconnected</small></div>
+          <div><span>NTRIP 会话</span><strong>{formatNumber(derived.activeSessions)}</strong><small>{derived.totalClients} clients reported</small></div>
+          <div><span>数据链路</span><strong>{formatBps(derived.totalSendBps + derived.totalRecvBps)}</strong><small>send + recv bps</small></div>
         </div>
       </section>
 
@@ -237,104 +417,107 @@ export default function OperationsPage() {
         <div className="ops-panel">
           <div className="ops-panel-header">
             <h3><CloudServerOutlined /> Worker 分片</h3>
-            <span>共 3 组</span>
+            <span>共 {data.workers.length} 组</span>
           </div>
-          <div className="ops-worker-list">
-            {workerRows.map((row) => (
-              <div className="ops-worker-row" key={row.name}>
-                <div>
-                  <strong>{row.name}</strong>
-                  <span>{row.shard}</span>
+          {derived.topWorkers.length > 0 ? (
+            <div className="ops-worker-list">
+              {derived.topWorkers.map((row) => (
+                <div className="ops-worker-row" key={row.id}>
+                  <div>
+                    <strong>{row.name}</strong>
+                    <span>{row.runtime_id}</span>
+                  </div>
+                  <div>
+                    <b>{row.assigned_mount_points} mounts</b>
+                    <span>{formatNumber(row.active_sessions)} clients</span>
+                  </div>
+                  <em>{row.status}</em>
                 </div>
-                <div>
-                  <b>{row.mounts}</b>
-                  <span>{row.sessions} clients</span>
-                </div>
-                <em>{row.state}</em>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <Empty description="AdminService 当前没有 worker 指标" />
+          )}
         </div>
 
         <div className="ops-panel">
           <div className="ops-panel-header">
-            <h3><ThunderboltOutlined /> 平均播发延迟切换趋势</h3>
-            <span>分片切换</span>
+            <h3><ThunderboltOutlined /> Loop delay p95</h3>
+            <span>按 Runtime</span>
           </div>
-          <MiniLine values={latencySwitch} color="#14b8a6" height={156} />
+          <MiniLine values={derived.topRuntimes.map((item) => item.loop_delay_ms_p95)} color="#14b8a6" height={156} />
         </div>
 
         <div className="ops-panel ops-throughput-panel">
           <div className="ops-panel-header">
-            <h3><LinkOutlined /> NTRIP 吞吐趋势</h3>
-            <span>KB/s</span>
+            <h3><LinkOutlined /> NTRIP 吞吐快照</h3>
+            <span>bps</span>
           </div>
-          <ThroughputChart />
+          <ThroughputChart series={throughputSeries} labels={throughputLabels} max={derived.maxThroughput} />
         </div>
       </section>
 
       <section className="ops-lower-grid">
-        <div className="ops-panel">
-          <div className="ops-panel-header">
-            <h3>请求延迟分布</h3>
-            <span>RTCM 包转发</span>
-          </div>
-          <div className="ops-bars">
-            {requestBuckets.map((bucket) => (
-              <div className="ops-bar" key={bucket.label}>
-                <span>{bucket.label}</span>
-                <div><i style={{ height: `${Math.max(8, bucket.value)}px` }} /></div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <EmptyOpsPanel title="异常分布" subtitle="该时间窗口内无断流、鉴权风暴或投影积压。" />
-        <EmptyOpsPanel title="Relay 链路趋势" subtitle="Relay Pull / Push 在该时间窗口内无异常。" />
+        <DistributionPanel title="Loop p95 分布" subtitle="runtime actual" buckets={derived.latencyBuckets} />
+        <DistributionPanel title="Runtime 状态分布" subtitle="desired / actual convergence" buckets={derived.stateBuckets} />
+        <DistributionPanel title="事件级别分布" subtitle="runtime events" buckets={derived.eventBuckets} />
       </section>
 
       <section className="ops-panel ops-alert-panel">
         <div className="ops-panel-header">
           <div>
             <h3><ExclamationCircleOutlined /> 告警事件</h3>
-            <p>最近的 Caster、Agent、Relay 和 Redis 投影告警。</p>
+            <p>来自 AdminService runtime events 的 warning 和 error 级别事件。</p>
           </div>
           <div className="ops-filter-row">
-            <Button className="dashboard-filter-button">近24小时 <DownOutlined /></Button>
-            <Button className="dashboard-filter-button">全部级别 <DownOutlined /></Button>
-            <Button className="dashboard-filter-button">全部节点 <DownOutlined /></Button>
-            <Button className="dashboard-filter-button" icon={<ReloadOutlined />}>刷新</Button>
+            <Button className="dashboard-filter-button">{alertRows.length} active</Button>
+            <Button className="dashboard-filter-button" icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
           </div>
         </div>
-        <div className="ops-alert-empty">暂无活跃告警事件</div>
+        {alertRows.length > 0 ? (
+          <div className="ops-log-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>级别</th>
+                  <th>Runtime</th>
+                  <th>事件</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alertRows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatDateTime(row.created_at)}</td>
+                    <td><span className={`ops-log-level ops-log-${logLevelClass(row.level)}`}>{row.level}</span></td>
+                    <td>{runtimeName(derived.runtimeById, row)}</td>
+                    <td>{row.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="ops-alert-empty">AdminService 当前没有 warning/error runtime events</div>
+        )}
       </section>
 
       <section className="ops-panel ops-log-panel">
         <div className="ops-panel-header">
           <div>
             <h3><FileSearchOutlined /> 系统日志</h3>
-            <p>NTRIP Caster、Agent Supervisor、Relay 和 Redis projection 的运行日志。</p>
+            <p>Runtime events 查询结果，按发生时间倒序展示。</p>
           </div>
           <div className="ops-log-counters">
-            <span>队列 0/5000</span>
-            <span>已载入 4251</span>
-            <b>已丢弃 0</b>
-            <em>写入失败 0</em>
+            <span>已载入 {logRows.length}</span>
+            <span>Runtime {data.runtimes.length}</span>
+            <b>warning {derived.warningEvents.length}</b>
+            <em>error {derived.errorEvents.length}</em>
           </div>
         </div>
-        <div className="ops-log-filters">
-          <label>级别 <button type="button">info <DownOutlined /></button></label>
-          <label>模块 <button type="button">caster.worker <DownOutlined /></button></label>
-          <label>延迟阈值 <input value="100" readOnly /></label>
-          <label>源站心跳阈值 <input value="400" readOnly /></label>
-          <label>保留天数 <input value="30" readOnly /></label>
-          <label>挂载点 <input placeholder="RTCM32_SE01" readOnly /></label>
-          <label>client_id <input placeholder="client id" readOnly /></label>
-          <label>account_id <input placeholder="account id" readOnly /></label>
-        </div>
         <div className="ops-log-actions">
-          <Button type="primary">搜索</Button>
-          <Button>重置</Button>
-          <Button danger icon={<WarningOutlined />}>清理过期日志</Button>
+          <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
+          <Button danger icon={<WarningOutlined />} disabled>清理过期日志</Button>
         </div>
         <div className="ops-log-table">
           <table>
@@ -347,14 +530,20 @@ export default function OperationsPage() {
               </tr>
             </thead>
             <tbody>
-              {logRows.map((row) => (
-                <tr key={`${row.time}-${row.module}-${row.message}`}>
-                  <td>{row.time}</td>
-                  <td><span className={`ops-log-level ops-log-${row.level}`}>{row.level}</span></td>
-                  <td>{row.module}</td>
-                  <td>{row.message}</td>
+              {logRows.length > 0 ? (
+                logRows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatDateTime(row.created_at)}</td>
+                    <td><span className={`ops-log-level ops-log-${logLevelClass(row.level)}`}>{row.level}</span></td>
+                    <td>{row.type || runtimeName(derived.runtimeById, row)}</td>
+                    <td>{row.message}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4}>AdminService 当前没有返回 runtime events</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

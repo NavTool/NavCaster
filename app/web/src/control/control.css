@@ -860,11 +860,35 @@
 }
 
 .dashboard-donut {
+  position: relative;
   width: 230px;
   max-width: 100%;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
+}
+
+.dashboard-donut-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  color: #111827;
+  text-align: center;
+}
+
+.dashboard-donut-center strong {
+  font-size: 28px;
+  font-weight: 880;
+  line-height: 1;
+}
+
+.dashboard-donut-center span {
+  color: #8a94a6;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .dashboard-donut svg {
@@ -1553,6 +1577,11 @@
 .ops-log-warn {
   background: #fff7ed;
   color: #f97316;
+}
+
+.ops-log-error {
+  background: #fff1f2;
+  color: #e11d48;
 }
 
 .usage-page {

@@ -1,14 +1,19 @@
 import {
   CalendarOutlined,
   ClockCircleOutlined,
+  ClusterOutlined,
   DatabaseOutlined,
-  DownOutlined,
   InboxOutlined,
   ReloadOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
-import { Button } from 'antd';
+import { Alert, Button, Empty } from 'antd';
 import type { ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { adminService } from '../../api/adminService';
+import type { ControlPlaneOverview, HostSummary, RuntimeSummary } from '../../api/contracts';
+import { ConvergenceBadge, StatusBadge } from '../components/StatusBadge';
+import { formatDateTime } from './useControlPage';
 
 type MetricTone = 'orange' | 'blue' | 'purple' | 'red';
 
@@ -19,49 +24,20 @@ type ChartSeries = {
   dashed?: boolean;
 };
 
-const trendLabels = [
-  '2026-07-02 09:00',
-  '2026-07-02 10:00',
-  '2026-07-02 11:00',
-  '2026-07-02 12:00',
-  '2026-07-02 13:00',
-  '2026-07-02 14:00',
-  '2026-07-02 15:00',
-  '2026-07-02 16:00',
-  '2026-07-02 17:00',
-  '2026-07-02 18:00',
-  '2026-07-02 19:00',
-  '2026-07-02 20:00',
-  '2026-07-02 21:00',
-  '2026-07-02 22:00',
-  '2026-07-02 23:00',
-  '2026-07-03 00:00',
-  '2026-07-03 01:00',
-  '2026-07-03 08:00',
-  '2026-07-03 09:00',
-  '2026-07-03 10:00',
-];
+type DashboardData = {
+  overview: ControlPlaneOverview;
+  hosts: HostSummary[];
+  runtimes: RuntimeSummary[];
+};
 
-const tokenTrend: ChartSeries[] = [
-  { name: 'Input', color: '#3b82f6', values: [0.8, 0.9, 1.2, 1.4, 1.6, 1.8, 2.2, 2.4, 3.1, 4.8, 0.5, 1.2, 0.7, 1.1, 0.8, 0.7, 0.9, 0.8, 3.8, 2.0] },
-  { name: 'Output', color: '#34d399', values: [0.6, 0.7, 1.1, 1.0, 1.2, 1.1, 1.3, 1.2, 1.4, 2.0, 0.4, 0.9, 0.6, 0.7, 0.5, 0.5, 0.8, 0.6, 1.8, 1.1] },
-  { name: 'Cache Creation', color: '#f59e0b', values: [0.2, 0.3, 0.5, 0.4, 0.6, 0.7, 0.5, 0.6, 0.9, 1.0, 0.4, 0.7, 0.5, 0.6, 0.4, 0.5, 0.7, 0.4, 0.8, 0.5] },
-  { name: 'Cache Read', color: '#06b6d4', values: [14, 15, 26, 25, 24, 19, 29, 26, 31, 66, 3, 7, 1, 2, 0.8, 1, 1.4, 0.8, 38, 24] },
-  { name: 'Cache Hit Rate', color: '#8b5cf6', values: [82, 83, 82, 81, 82, 81, 82, 82, 84, 86, 78, 79, 83, 62, 55, 68, 69, 63, 79, 82], dashed: true },
-];
-
-const recentUsage: ChartSeries[] = [
-  { name: 'KORO', color: '#3b82f6', values: [18, 17, 18, 25, 29, 30, 27, 23, 32, 30, 33, 72, 3, 0.5, 1.4, 0.6, 0.9, 0.8, 41, 23] },
-  { name: '草莓王', color: '#10b981', values: [0.4, 0.6, 3.8, 0.5, 2.1, 1.4, 0.6, 0.5, 1.1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.5, 0.7, 0.5, 0.6, 3.0] },
-  { name: 'LWM', color: '#f59e0b', values: [0.2, 0.4, 0.5, 0.3, 0.8, 0.7, 0.4, 0.5, 1.3, 1.2, 6.4, 0.6, 0.8, 2.1, 0.9, 1.0, 1.1, 0.7, 0.8, 1.4] },
-];
-
-const modelRows = [
-  { model: 'gpt-5.5', requests: '2,913', token: '397.38M', actual: '$360.66', cost: '$360.66', standard: '$360.66' },
-  { model: 'gpt-5.4', requests: '50', token: '2.10M', actual: '$1.59', cost: '$1.59', standard: '$1.59' },
-  { model: 'codex-auto-review', requests: '15', token: '488.85K', actual: '$0.993', cost: '$0.993', standard: '$0.993' },
-  { model: 'gpt-5.4-mini', requests: '11', token: '76.29K', actual: '$0.032', cost: '$0.032', standard: '$0.032' },
-];
+const emptyOverview: ControlPlaneOverview = {
+  running_hosts: 0,
+  offline_hosts: 0,
+  running_runtimes: 0,
+  failed_runtimes: 0,
+  draining_workers: 0,
+  active_sessions: 0,
+};
 
 function DashboardMetric({
   label,
@@ -71,7 +47,7 @@ function DashboardMetric({
   tone,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   detail: ReactNode;
   icon: ReactNode;
   tone: MetricTone;
@@ -88,34 +64,50 @@ function DashboardMetric({
   );
 }
 
+function xAt(index: number, total: number, left: number, width: number) {
+  if (total <= 1) return left + width / 2;
+  return left + (index * width) / (total - 1);
+}
+
 function seriesPoints(values: number[], max: number, width: number, height: number, left: number, top: number) {
+  const safeMax = Math.max(max, 1);
   return values
     .map((value, index) => {
-      const x = left + (index * width) / (values.length - 1);
-      const y = top + height - (Math.min(value, max) / max) * height;
+      const x = xAt(index, values.length, left, width);
+      const y = top + height - (Math.min(value, safeMax) / safeMax) * height;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(' ');
 }
 
-function StaticLineChart({
+function DashboardLineChart({
   series,
+  labels,
   max,
   yLabels,
-  rightLabels,
   compact = false,
 }: {
   series: ChartSeries[];
+  labels: string[];
   max: number;
   yLabels: string[];
-  rightLabels?: string[];
   compact?: boolean;
 }) {
+  const hasRows = labels.length > 0 && series.some((item) => item.values.some((value) => value > 0));
+  if (!hasRows) {
+    return (
+      <div className="dashboard-chart">
+        <Empty description="AdminService 当前没有返回可绘制的指标" />
+      </div>
+    );
+  }
+
   const left = 62;
   const top = 18;
   const width = 650;
   const height = compact ? 144 : 182;
   const viewHeight = compact ? 222 : 272;
+  const skip = labels.length > 8 ? Math.ceil(labels.length / 8) : 1;
   const gridLines = yLabels.map((label, index) => {
     const y = top + (index * height) / (yLabels.length - 1);
     return { label, y };
@@ -131,7 +123,7 @@ function StaticLineChart({
           </span>
         ))}
       </div>
-      <svg viewBox={`0 0 760 ${viewHeight}`} role="img" aria-label="static dashboard line chart">
+      <svg viewBox={`0 0 760 ${viewHeight}`} role="img" aria-label="dashboard live metrics chart">
         {gridLines.map((line) => (
           <g key={line.label}>
             <line className="dashboard-chart-grid" x1={left} x2={left + width} y1={line.y} y2={line.y} />
@@ -140,25 +132,17 @@ function StaticLineChart({
             </text>
           </g>
         ))}
-        {trendLabels.map((label, index) => {
-          const x = left + (index * width) / (trendLabels.length - 1);
+        {labels.map((label, index) => {
+          const x = xAt(index, labels.length, left, width);
           return (
-            <g key={label}>
+            <g key={`${label}-${index}`}>
               <line className="dashboard-chart-grid" x1={x} x2={x} y1={top} y2={top + height} />
-              {index % 2 === 0 ? (
+              {index % skip === 0 ? (
                 <text className="dashboard-chart-label dashboard-chart-xlabel" x={x - 2} y={top + height + 36} textAnchor="end">
                   {label}
                 </text>
               ) : null}
             </g>
-          );
-        })}
-        {rightLabels?.map((label, index) => {
-          const y = top + (index * height) / (rightLabels.length - 1);
-          return (
-            <text className="dashboard-chart-right-label" key={label} x={left + width + 10} y={y + 4}>
-              {label}
-            </text>
           );
         })}
         {series.map((item) => (
@@ -169,14 +153,14 @@ function StaticLineChart({
             strokeDasharray={item.dashed ? '7 7' : undefined}
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={item.name === 'Cache Read' || item.name === 'KORO' ? 3 : 2.2}
+            strokeWidth={3}
             points={seriesPoints(item.values, max, width, height, left, top)}
           />
         ))}
         {series.map((item) =>
           item.values.map((value, index) => {
-            const x = left + (index * width) / (item.values.length - 1);
-            const y = top + height - (Math.min(value, max) / max) * height;
+            const x = xAt(index, item.values.length, left, width);
+            const y = top + height - (Math.min(value, Math.max(max, 1)) / Math.max(max, 1)) * height;
             return <circle key={`${item.name}-${index}`} cx={x} cy={y} r="2.7" fill="#ffffff" stroke={item.color} strokeWidth="2" />;
           }),
         )}
@@ -185,123 +169,288 @@ function StaticLineChart({
   );
 }
 
+function RuntimeStatusDonut({ runtimes }: { runtimes: RuntimeSummary[] }) {
+  const total = runtimes.length;
+  const segments = [
+    { key: 'running', label: 'Running', color: '#22c55e', count: runtimes.filter((item) => item.status === 'running').length },
+    { key: 'pending', label: 'Pending', color: '#f59e0b', count: runtimes.filter((item) => item.status === 'pending' || item.convergence_status === 'pending').length },
+    { key: 'failed', label: 'Failed', color: '#ef4444', count: runtimes.filter((item) => item.status === 'failed' || item.convergence_status === 'failed').length },
+    { key: 'stopped', label: 'Stopped', color: '#94a3b8', count: runtimes.filter((item) => item.status === 'stopped' || item.status === 'offline' || item.status === 'unknown').length },
+  ].filter((item) => item.count > 0);
+  const circumference = 389.6;
+  let offset = 0;
+
+  return (
+    <div className="dashboard-donut" aria-label="Runtime 状态分布圆环图">
+      <svg viewBox="0 0 180 180">
+        <circle cx="90" cy="90" r="62" fill="none" stroke="#e8eef5" strokeWidth="34" />
+        {segments.map((segment) => {
+          const dash = total > 0 ? (segment.count / total) * circumference : 0;
+          const dashOffset = -offset;
+          offset += dash;
+          return (
+            <circle
+              key={segment.key}
+              cx="90"
+              cy="90"
+              r="62"
+              fill="none"
+              stroke={segment.color}
+              strokeDasharray={`${dash} ${circumference - dash}`}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="butt"
+              strokeWidth="34"
+            />
+          );
+        })}
+      </svg>
+      <div className="dashboard-donut-center">
+        <strong>{total}</strong>
+        <span>Runtime</span>
+      </div>
+    </div>
+  );
+}
+
+function formatNumber(value: number) {
+  return Math.round(value).toLocaleString('zh-CN');
+}
+
+function formatBps(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} Mbps`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)} Kbps`;
+  return `${Math.round(value)} bps`;
+}
+
+function scaleLabels(max: number, suffix = '') {
+  const safeMax = Math.max(max, 1);
+  return [1, 0.75, 0.5, 0.25, 0].map((ratio) => `${Math.round(safeMax * ratio).toLocaleString('zh-CN')}${suffix}`);
+}
+
+function memoryPercent(host: HostSummary) {
+  if (!host.memory_total_gb) return 0;
+  return Math.min(100, (host.memory_used_gb / host.memory_total_gb) * 100);
+}
+
 export default function DashboardPage() {
+  const [data, setData] = useState<DashboardData>({ overview: emptyOverview, hosts: [], runtimes: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [overview, hostsPage, runtimesPage] = await Promise.all([
+        adminService.getOverview(),
+        adminService.listHosts({ page: 1, pageSize: 500, status: 'all' }),
+        adminService.listRuntimes({ page: 1, pageSize: 500, status: 'all' }),
+      ]);
+      setData({ overview, hosts: hostsPage.items, runtimes: runtimesPage.items });
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AdminService 数据加载失败');
+      setData({ overview: emptyOverview, hosts: [], runtimes: [] });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const derived = useMemo(() => {
+    const totalSendBps = data.runtimes.reduce((sum, item) => sum + item.send_bps, 0);
+    const totalRecvBps = data.runtimes.reduce((sum, item) => sum + item.recv_bps, 0);
+    const desiredWorkers = data.runtimes.reduce((sum, item) => sum + item.desired_worker_count, 0);
+    const actualWorkers = data.runtimes.reduce((sum, item) => sum + item.actual_worker_count, 0);
+    const pendingRuntimes = data.runtimes.filter((item) => item.convergence_status === 'pending').length;
+    const failedRuntimes = data.runtimes.filter((item) => item.convergence_status === 'failed' || item.status === 'failed').length;
+    const staleRuntimes = data.runtimes.filter((item) => item.stale).length;
+    const topRuntimes = [...data.runtimes]
+      .sort((left, right) => right.active_sessions - left.active_sessions || right.recv_bps + right.send_bps - (left.recv_bps + left.send_bps))
+      .slice(0, 12);
+    const hostRows = [...data.hosts].sort((left, right) => right.runtime_count - left.runtime_count || left.name.localeCompare(right.name)).slice(0, 12);
+    const maxThroughput = Math.max(...topRuntimes.flatMap((item) => [item.send_bps, item.recv_bps]), 1);
+
+    return {
+      totalSendBps,
+      totalRecvBps,
+      desiredWorkers,
+      actualWorkers,
+      pendingRuntimes,
+      failedRuntimes,
+      staleRuntimes,
+      topRuntimes,
+      hostRows,
+      maxThroughput,
+    };
+  }, [data]);
+
+  const runtimeLabels = derived.topRuntimes.map((item) => item.name);
+  const throughputSeries: ChartSeries[] = [
+    { name: 'Send bps', color: '#3b82f6', values: derived.topRuntimes.map((item) => item.send_bps) },
+    { name: 'Recv bps', color: '#14b8a6', values: derived.topRuntimes.map((item) => item.recv_bps) },
+    { name: 'Active sessions', color: '#f59e0b', values: derived.topRuntimes.map((item) => item.active_sessions), dashed: true },
+  ];
+  const hostLabels = derived.hostRows.map((item) => item.name);
+  const hostSeries: ChartSeries[] = [
+    { name: 'CPU %', color: '#3b82f6', values: derived.hostRows.map((item) => item.cpu_load) },
+    { name: 'Memory %', color: '#14b8a6', values: derived.hostRows.map(memoryPercent) },
+  ];
+  const visibleRuntimes = derived.topRuntimes.slice(0, 8);
+
   return (
     <div className="dashboard-page">
+      {error ? <Alert type="error" showIcon message="AdminService 数据不可用" description={error} /> : null}
       <section className="dashboard-metric-grid">
         <DashboardMetric
-          label="今日 Token"
-          value="68.26M"
+          label="在线主机"
+          value={loading ? '-' : `${data.overview.running_hosts} / ${data.hosts.length}`}
           tone="orange"
           icon={<InboxOutlined />}
-          detail={<><em className="dashboard-money-green">$65.35</em><span> / </span><em className="dashboard-money-orange">$65.35</em><span> / $65.35</span></>}
+          detail={<><em className="dashboard-money-orange">{data.overview.offline_hosts}</em><span> offline</span></>}
         />
         <DashboardMetric
-          label="总 Token"
-          value="5.77B"
+          label="运行 Runtime"
+          value={loading ? '-' : `${data.overview.running_runtimes} / ${data.runtimes.length}`}
           tone="blue"
           icon={<DatabaseOutlined />}
-          detail={<><em className="dashboard-money-green">$5.32K</em><span> / </span><em className="dashboard-money-orange">$5.32K</em><span> / $5.32K</span></>}
+          detail={<><em className={derived.failedRuntimes > 0 ? 'dashboard-money-orange' : 'dashboard-money-green'}>{derived.failedRuntimes}</em><span> failed, {derived.pendingRuntimes} pending</span></>}
         />
         <DashboardMetric
-          label="性能指标"
-          value="8 RPM"
+          label="活跃会话"
+          value={loading ? '-' : formatNumber(data.overview.active_sessions)}
           tone="purple"
           icon={<ThunderboltOutlined />}
-          detail={<><em className="dashboard-money-purple">46.58K</em><span> TPM</span></>}
+          detail={<span>{formatBps(derived.totalRecvBps)} recv / {formatBps(derived.totalSendBps)} send</span>}
         />
         <DashboardMetric
-          label="平均响应"
-          value="19.60s"
+          label="Worker 实际/目标"
+          value={loading ? '-' : `${formatNumber(derived.actualWorkers)} / ${formatNumber(derived.desiredWorkers || derived.actualWorkers)}`}
           tone="red"
           icon={<ClockCircleOutlined />}
-          detail={<span>3 活跃用户</span>}
+          detail={<span>{derived.staleRuntimes} stale metric snapshots</span>}
         />
       </section>
 
       <section className="dashboard-toolbar">
         <div className="dashboard-toolbar-group">
-          <span>时间范围:</span>
-          <Button className="dashboard-filter-button" icon={<CalendarOutlined />}>
-            近24小时 <DownOutlined />
+          <span>数据来源:</span>
+          <Button className="dashboard-filter-button" icon={<ClusterOutlined />}>
+            AdminService live control API
           </Button>
-          <Button className="dashboard-filter-button" icon={<ReloadOutlined />}>刷新</Button>
+          <Button className="dashboard-filter-button" icon={<CalendarOutlined />}>
+            当前快照
+          </Button>
         </div>
         <div className="dashboard-toolbar-group">
-          <span>粒度:</span>
-          <Button className="dashboard-filter-button">
-            按小时 <DownOutlined />
-          </Button>
+          <Button className="dashboard-filter-button" icon={<ReloadOutlined />} loading={loading} onClick={refresh}>刷新</Button>
         </div>
       </section>
 
       <section className="dashboard-main-grid">
         <div className="dashboard-panel dashboard-model-panel">
           <div className="dashboard-panel-header">
-            <h3>模型分布</h3>
+            <h3>Runtime 状态分布</h3>
             <div className="dashboard-segmented">
-              <button className="active" type="button">模型分布</button>
-              <button type="button">用户消费榜</button>
+              <button className="active" type="button">状态</button>
+              <button type="button">会话</button>
             </div>
           </div>
           <div className="dashboard-model-content">
-            <div className="dashboard-donut" aria-label="模型分布圆环图">
-              <svg viewBox="0 0 180 180">
-                <circle cx="90" cy="90" r="62" fill="none" stroke="#e8eef5" strokeWidth="34" />
-                <circle cx="90" cy="90" r="62" fill="none" stroke="#3b82f6" strokeDasharray="382 390" strokeDashoffset="94" strokeLinecap="butt" strokeWidth="34" />
-                <circle cx="90" cy="90" r="62" fill="none" stroke="#22c55e" strokeDasharray="4 390" strokeDashoffset="-288" strokeLinecap="round" strokeWidth="34" />
-              </svg>
-            </div>
-            <table className="dashboard-model-table">
-              <thead>
-                <tr>
-                  <th>模型</th>
-                  <th>请求</th>
-                  <th>Token</th>
-                  <th>实际</th>
-                  <th>成本</th>
-                  <th>标准</th>
-                </tr>
-              </thead>
-              <tbody>
-                {modelRows.map((row) => (
-                  <tr key={row.model}>
-                    <td><span className="dashboard-model-name">› {row.model}</span></td>
-                    <td>{row.requests}</td>
-                    <td>{row.token}</td>
-                    <td className="dashboard-money-green">{row.actual}</td>
-                    <td className="dashboard-money-orange">{row.cost}</td>
-                    <td>{row.standard}</td>
+            <RuntimeStatusDonut runtimes={data.runtimes} />
+            {visibleRuntimes.length > 0 ? (
+              <table className="dashboard-model-table">
+                <thead>
+                  <tr>
+                    <th>Runtime</th>
+                    <th>状态</th>
+                    <th>会话</th>
+                    <th>Worker</th>
+                    <th>Recv</th>
+                    <th>指标</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visibleRuntimes.map((row) => (
+                    <tr key={row.id}>
+                      <td><span className="dashboard-model-name">› {row.name}</span></td>
+                      <td><StatusBadge status={row.status} /></td>
+                      <td>{formatNumber(row.active_sessions)}</td>
+                      <td>{row.actual_worker_count} / {row.desired_worker_count}</td>
+                      <td>{formatBps(row.recv_bps)}</td>
+                      <td>{formatDateTime(row.last_metric_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <Empty description="AdminService 当前没有 Runtime" />
+            )}
           </div>
         </div>
 
         <div className="dashboard-panel">
           <div className="dashboard-panel-header">
-            <h3>Token 使用趋势</h3>
+            <h3>Runtime 当前吞吐</h3>
           </div>
-          <StaticLineChart
+          <DashboardLineChart
             compact
-            max={100}
-            series={tokenTrend}
-            yLabels={['60.00M', '40.00M', '20.00M', '0']}
-            rightLabels={['100%', '80%', '60%', '40%', '20%', '0%']}
+            max={derived.maxThroughput}
+            series={throughputSeries}
+            labels={runtimeLabels}
+            yLabels={scaleLabels(derived.maxThroughput)}
           />
         </div>
       </section>
 
       <section className="dashboard-panel dashboard-wide-panel">
         <div className="dashboard-panel-header">
-          <h3>最近使用 (Top 12)</h3>
+          <h3>Host 资源快照</h3>
         </div>
-        <StaticLineChart
-          max={80}
-          series={recentUsage}
-          yLabels={['80.00M', '70.00M', '60.00M', '50.00M', '40.00M', '30.00M', '20.00M', '10.00M', '0']}
+        <DashboardLineChart
+          max={100}
+          series={hostSeries}
+          labels={hostLabels}
+          yLabels={scaleLabels(100, '%')}
         />
+      </section>
+
+      <section className="dashboard-panel dashboard-wide-panel">
+        <div className="dashboard-panel-header">
+          <h3>收敛状态</h3>
+        </div>
+        {data.runtimes.length > 0 ? (
+          <table className="dashboard-model-table">
+            <thead>
+              <tr>
+                <th>Runtime</th>
+                <th>Host</th>
+                <th>Desired</th>
+                <th>Actual</th>
+                <th>Convergence</th>
+                <th>Config</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.runtimes.slice(0, 12).map((row) => (
+                <tr key={row.id}>
+                  <td><span className="dashboard-model-name">› {row.name}</span></td>
+                  <td>{row.host_name}</td>
+                  <td>{row.desired_state}</td>
+                  <td>{row.actual_state || '-'}</td>
+                  <td><ConvergenceBadge status={row.convergence_status} /></td>
+                  <td>{row.current_config_version_id} / {row.target_config_version_id}</td>
+                  <td>{formatDateTime(row.updated_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <Empty description="AdminService 当前没有返回 Runtime desired/actual 状态" />
+        )}
       </section>
     </div>
   );

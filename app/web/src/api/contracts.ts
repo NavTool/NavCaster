@@ -89,6 +89,7 @@ export interface RuntimeDetail extends RuntimeSummary {
 
 export interface RuntimeEvent {
   id: string;
+  runtime_id?: string;
   level: 'info' | 'warning' | 'error';
   message: string;
   type?: string;
@@ -163,6 +164,7 @@ export interface AdminServiceContract {
   listHosts(params: PageRequest): Promise<PageResult<HostSummary>>;
   listRuntimes(params: PageRequest & { hostId?: string }): Promise<PageResult<RuntimeSummary>>;
   getRuntime(runtimeId: string): Promise<RuntimeDetail>;
+  listRuntimeEvents(runtimeId: string, limit?: number): Promise<RuntimeEvent[]>;
   listWorkers(params: PageRequest & { runtimeId?: string }): Promise<PageResult<WorkerMetric>>;
   listConfigVersions(params: PageRequest): Promise<PageResult<ConfigVersion>>;
   setRuntimeDesiredState(command: RuntimeDesiredStateCommand): Promise<IntentReceipt>;
