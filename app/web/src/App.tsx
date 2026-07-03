@@ -1,7 +1,7 @@
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import AppRouter from './router';
-import './v2/v2.css';
+import './control/control.css';
 
 function App() {
   return (
@@ -9,7 +9,7 @@ function App() {
       locale={zhCN}
       theme={{
         token: {
-          colorPrimary: '#2f7d62',
+          colorPrimary: '#14b8a6',
           borderRadius: 8,
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         },

@@ -2,12 +2,12 @@ import { BranchesOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, Progress, Space, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useState } from 'react';
-import { v2AdminService } from '../api/adminService';
-import type { ConfigVersion } from '../api/contracts';
-import { V2ConfirmDialog } from '../components/V2ConfirmDialog';
-import { V2MetricCard } from '../components/V2MetricCard';
-import { V2TablePage } from '../components/V2TablePage';
-import { formatDateTime, useV2Page } from './useV2Page';
+import { adminService } from '../../api/adminService';
+import type { ConfigVersion } from '../../api/contracts';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { MetricCard } from '../components/MetricCard';
+import { TablePage } from '../components/TablePage';
+import { formatDateTime, useControlPage } from './useControlPage';
 
 const configStatusColor: Record<ConfigVersion['status'], string> = {
   draft: 'default',
@@ -16,14 +16,14 @@ const configStatusColor: Record<ConfigVersion['status'], string> = {
   failed: 'red',
 };
 
-export default function V2ConfigVersionsPage() {
-  const loader = useCallback((filters: Parameters<typeof v2AdminService.listConfigVersions>[0]) => v2AdminService.listConfigVersions(filters), []);
-  const page = useV2Page<ConfigVersion>(loader);
+export default function ConfigVersionsPage() {
+  const loader = useCallback((filters: Parameters<typeof adminService.listConfigVersions>[0]) => adminService.listConfigVersions(filters), []);
+  const page = useControlPage<ConfigVersion>(loader);
   const [target, setTarget] = useState<ConfigVersion | null>(null);
 
   async function submitPublishIntent(reason: string) {
     if (!target) return;
-    const receipt = await v2AdminService.publishConfigVersion({ config_version_id: target.id, target_scope: 'all-hosts', reason });
+    const receipt = await adminService.publishConfigVersion({ config_version_id: target.id, target_scope: 'all-hosts', reason });
     message.success(receipt.message);
     setTarget(null);
   }
@@ -33,7 +33,7 @@ export default function V2ConfigVersionsPage() {
       title: 'Version',
       dataIndex: 'label',
       fixed: 'left',
-      render: (_, row) => <div className="v2-primary-cell"><strong>{row.label}</strong><span>{row.id}</span></div>,
+      render: (_, row) => <div className="control-primary-cell"><strong>{row.label}</strong><span>{row.id}</span></div>,
     },
     { title: 'Status', dataIndex: 'status', render: (status: ConfigVersion['status']) => <Tag color={configStatusColor[status]}>{status}</Tag> },
     {
@@ -64,15 +64,15 @@ export default function V2ConfigVersionsPage() {
 
   return (
     <>
-      <div className="v2-metric-grid">
-        <V2MetricCard label="Visible versions" value={page.items.length} detail="after filters" />
-        <V2MetricCard label="Active versions" value={active} detail="should converge to one" />
-        <V2MetricCard label="Failed versions" value={failed} detail="rollout rejected" />
-        <V2MetricCard label="Applied hosts" value={`${appliedHosts}/${targetHosts}`} detail="visible version sum" />
+      <div className="control-metric-grid">
+        <MetricCard label="Visible versions" value={page.items.length} detail="after filters" />
+        <MetricCard label="Active versions" value={active} detail="should converge to one" />
+        <MetricCard label="Failed versions" value={failed} detail="rollout rejected" />
+        <MetricCard label="Applied hosts" value={`${appliedHosts}/${targetHosts}`} detail="visible version sum" />
       </div>
-      <V2TablePage<ConfigVersion>
-        title="Config versions"
-        description="Config rollout is modeled as publish intent. Web does not write Redis, PostgreSQL, or local files directly."
+      <TablePage<ConfigVersion>
+        title="系统设置"
+        description="配置发布以控制面意图提交，Web 不直接写入 Redis、PostgreSQL 或本地文件。"
         actions={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={page.refresh}>Refresh</Button>
@@ -88,7 +88,7 @@ export default function V2ConfigVersionsPage() {
         error={page.error}
         rowKey="id"
       />
-      <V2ConfirmDialog
+      <ConfirmDialog
         open={Boolean(target)}
         title="Submit config publish intent"
         description={target ? `Publish ${target.label} to all hosts through AdminService.` : ''}

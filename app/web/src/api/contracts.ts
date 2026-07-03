@@ -1,4 +1,4 @@
-export type V2ControlStatus = 'pending' | 'running' | 'failed' | 'draining' | 'offline' | 'stopped' | 'unknown';
+export type ControlStatus = 'pending' | 'running' | 'failed' | 'draining' | 'offline' | 'stopped' | 'unknown';
 export type RuntimeKind = 'caster-core' | 'http-admin' | 'relay' | 'collector' | 'unknown';
 export type DesiredRuntimeState = 'running' | 'draining' | 'stopped';
 export type ConvergenceStatus = 'converged' | 'pending' | 'failed';
@@ -7,7 +7,7 @@ export interface PageRequest {
   page: number;
   pageSize: number;
   search?: string;
-  status?: V2ControlStatus | 'all';
+  status?: ControlStatus | 'all';
 }
 
 export interface PageResult<T> {
@@ -25,7 +25,7 @@ export interface HostSummary {
   address: string;
   os?: string;
   arch?: string;
-  status: V2ControlStatus;
+  status: ControlStatus;
   desired_state: 'enabled' | 'maintenance' | 'disabled';
   actual_state: string;
   convergence_status: ConvergenceStatus;
@@ -46,7 +46,7 @@ export interface RuntimeSummary {
   host_name: string;
   name: string;
   kind: RuntimeKind;
-  status: V2ControlStatus;
+  status: ControlStatus;
   desired_state: DesiredRuntimeState;
   actual_state: string;
   convergence_status: ConvergenceStatus;
@@ -102,7 +102,7 @@ export interface WorkerMetric {
   runtime_id: string;
   host_name: string;
   name: string;
-  status: V2ControlStatus;
+  status: ControlStatus;
   assigned_mount_points: number;
   active_sessions: number;
   throughput_kbps: number;
@@ -158,7 +158,7 @@ export interface IntentReceipt {
   message: string;
 }
 
-export interface V2AdminServiceContract {
+export interface AdminServiceContract {
   getOverview(): Promise<ControlPlaneOverview>;
   listHosts(params: PageRequest): Promise<PageResult<HostSummary>>;
   listRuntimes(params: PageRequest & { hostId?: string }): Promise<PageResult<RuntimeSummary>>;

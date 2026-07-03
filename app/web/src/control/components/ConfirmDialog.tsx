@@ -1,7 +1,7 @@
 import { Button, Input, Modal } from 'antd';
 import { useEffect, useState } from 'react';
 
-export function V2ConfirmDialog({
+export function ConfirmDialog({
   open,
   title,
   description,
@@ -36,7 +36,7 @@ export function V2ConfirmDialog({
 
   return (
     <Modal
-      className="v2-modal"
+      className="control-modal"
       open={open}
       title={title}
       footer={[
@@ -48,20 +48,20 @@ export function V2ConfirmDialog({
         </Button>,
       ]}
       onCancel={onCancel}
-      destroyOnClose
+      destroyOnHidden
     >
-      <p className="v2-dialog-description">{description}</p>
-      <label className="v2-field-label" htmlFor="v2-intent-reason">
+      <p className="control-dialog-description">{description}</p>
+      <label className="control-field-label" htmlFor="control-intent-reason">
         Reason
       </label>
       <Input.TextArea
-        id="v2-intent-reason"
+        id="control-intent-reason"
         value={reason}
         rows={3}
         placeholder={intentLabel}
         onChange={(event) => setReason(event.target.value)}
       />
-      <div className="v2-dialog-note">This creates an AdminService intent record. It does not execute a local process action.</div>
+      <div className="control-dialog-note">This creates an AdminService intent record. It does not execute a local process action.</div>
     </Modal>
   );
 }

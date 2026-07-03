@@ -1,16 +1,16 @@
 import type { ReactNode } from 'react';
 import { Alert, Button, Empty, Input, Pagination, Select, Space, Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { V2ControlStatus } from '../api/contracts';
+import type { ControlStatus } from '../../api/contracts';
 
-export interface V2TableFilters {
+export interface TableFilters {
   search: string;
-  status: V2ControlStatus | 'all';
+  status: ControlStatus | 'all';
   page: number;
   pageSize: number;
 }
 
-export function V2TablePage<T extends object>({
+export function TablePage<T extends object>({
   title,
   description,
   actions,
@@ -27,8 +27,8 @@ export function V2TablePage<T extends object>({
   title: string;
   description?: string;
   actions?: ReactNode;
-  filters: V2TableFilters;
-  onFiltersChange: (next: V2TableFilters) => void;
+  filters: TableFilters;
+  onFiltersChange: (next: TableFilters) => void;
   columns: ColumnsType<T>;
   data: T[];
   total: number;
@@ -38,8 +38,8 @@ export function V2TablePage<T extends object>({
   extraFilters?: ReactNode;
 }) {
   return (
-    <div className="v2-table-page">
-      <div className="v2-page-heading">
+    <div className="control-table-page">
+      <div className="control-page-heading">
         <div>
           <h1>{title}</h1>
           {description ? <p>{description}</p> : null}
@@ -47,16 +47,16 @@ export function V2TablePage<T extends object>({
         {actions ? <Space wrap>{actions}</Space> : null}
       </div>
 
-      <section className="v2-table-toolbar">
+      <section className="control-table-toolbar">
         <Input.Search
           allowClear
-          className="v2-search"
+          className="control-search"
           placeholder="Search name, id, host, or region"
           value={filters.search}
           onChange={(event) => onFiltersChange({ ...filters, search: event.target.value, page: 1 })}
         />
         <Select
-          className="v2-status-filter"
+          className="control-status-filter"
           value={filters.status}
           onChange={(status) => onFiltersChange({ ...filters, status, page: 1 })}
           options={[
@@ -76,7 +76,7 @@ export function V2TablePage<T extends object>({
 
       {error ? (
         <Alert
-          className="v2-table-alert"
+          className="control-table-alert"
           type="error"
           showIcon
           message="AdminService control API unavailable"
@@ -84,7 +84,7 @@ export function V2TablePage<T extends object>({
         />
       ) : null}
 
-      <section className="v2-table-frame">
+      <section className="control-table-frame">
         <Table<T>
           columns={columns}
           dataSource={data}
@@ -97,7 +97,7 @@ export function V2TablePage<T extends object>({
         />
       </section>
 
-      <footer className="v2-pagination-bar">
+      <footer className="control-pagination-bar">
         <span>{total} records</span>
         <Pagination
           current={filters.page}

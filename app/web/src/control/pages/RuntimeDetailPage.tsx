@@ -3,16 +3,16 @@ import { PauseCircleOutlined, PlayCircleOutlined, ReloadOutlined, WarningOutline
 import { Alert, Button, Descriptions, Empty, Space, Spin, Table, Timeline, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useState } from 'react';
-import { v2AdminService } from '../api/adminService';
-import type { RuntimeActionIntent, RuntimeDetail, WorkerMetric } from '../api/contracts';
-import { V2ConfirmDialog } from '../components/V2ConfirmDialog';
-import { V2MetricCard } from '../components/V2MetricCard';
-import { V2ConvergenceBadge, V2StatusBadge } from '../components/V2StatusBadge';
-import { formatDateTime } from './useV2Page';
+import { adminService } from '../../api/adminService';
+import type { RuntimeActionIntent, RuntimeDetail, WorkerMetric } from '../../api/contracts';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { MetricCard } from '../components/MetricCard';
+import { ConvergenceBadge, StatusBadge } from '../components/StatusBadge';
+import { formatDateTime } from './useControlPage';
 
 type RuntimeIntentAction = RuntimeActionIntent['action'];
 
-export default function V2RuntimeDetailPage() {
+export default function RuntimeDetailPage() {
   const { id = '' } = useParams();
   const [runtime, setRuntime] = useState<RuntimeDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ export default function V2RuntimeDetailPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setRuntime(await v2AdminService.getRuntime(id));
+      setRuntime(await adminService.getRuntime(id));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load runtime detail');
@@ -37,20 +37,20 @@ export default function V2RuntimeDetailPage() {
 
   async function submitAction(reason: string) {
     if (!runtime || !action) return;
-    const receipt = await v2AdminService.submitRuntimeAction({ runtime_id: runtime.id, action, reason });
+    const receipt = await adminService.submitRuntimeAction({ runtime_id: runtime.id, action, reason });
     message.success(receipt.message);
     setLastIntent({ action, message: receipt.message });
     setAction(null);
     await load();
   }
 
-  if (loading) return <Spin size="large" className="v2-center-spin" />;
+  if (loading) return <Spin size="large" className="control-center-spin" />;
   if (error) return <Alert type="error" showIcon message="Runtime detail unavailable" description={error} />;
   if (!runtime) return <Empty description="Runtime not found" />;
 
   const workerColumns: ColumnsType<WorkerMetric> = [
     { title: 'Worker', dataIndex: 'name' },
-    { title: 'State', dataIndex: 'status', render: (status) => <V2StatusBadge status={status} /> },
+    { title: 'State', dataIndex: 'status', render: (status) => <StatusBadge status={status} /> },
     { title: 'Mount points', dataIndex: 'assigned_mount_points', align: 'right' },
     { title: 'Sessions', dataIndex: 'active_sessions', align: 'right' },
     { title: 'Throughput', dataIndex: 'throughput_kbps', render: (value) => `${value.toLocaleString()} kbps` },
@@ -59,8 +59,8 @@ export default function V2RuntimeDetailPage() {
   ];
 
   return (
-    <div className="v2-detail-page">
-      <div className="v2-page-heading">
+    <div className="control-detail-page">
+      <div className="control-page-heading">
         <div>
           <h1>{runtime.name}</h1>
           <p>{runtime.id}</p>
@@ -76,7 +76,7 @@ export default function V2RuntimeDetailPage() {
 
       {lastIntent ? (
         <Alert
-          className="v2-intent-alert"
+          className="control-intent-alert"
           showIcon
           type={runtime.convergence_status === 'converged' ? 'success' : 'warning'}
           message={runtime.convergence_status === 'converged' ? 'Intent observed as converged' : 'Intent accepted; waiting for observed actual state'}
@@ -84,22 +84,22 @@ export default function V2RuntimeDetailPage() {
         />
       ) : null}
 
-      <div className="v2-metric-grid">
-        <V2MetricCard label="Convergence" value={<V2ConvergenceBadge status={runtime.convergence_status} />} detail={runtime.convergence_detail} />
-        <V2MetricCard label="Actual state" value={<V2StatusBadge status={runtime.status} />} detail={`desired: ${runtime.desired_state}`} />
-        <V2MetricCard label="Workers" value={`${runtime.actual_worker_count} / ${runtime.desired_worker_count}`} detail="actual / desired" />
-        <V2MetricCard label="Actual metrics" value={runtime.stale ? 'Stale' : 'Fresh'} detail={runtime.stale_detail} />
+      <div className="control-metric-grid">
+        <MetricCard label="Convergence" value={<ConvergenceBadge status={runtime.convergence_status} />} detail={runtime.convergence_detail} />
+        <MetricCard label="Actual state" value={<StatusBadge status={runtime.status} />} detail={`desired: ${runtime.desired_state}`} />
+        <MetricCard label="Workers" value={`${runtime.actual_worker_count} / ${runtime.desired_worker_count}`} detail="actual / desired" />
+        <MetricCard label="Actual metrics" value={runtime.stale ? 'Stale' : 'Fresh'} detail={runtime.stale_detail} />
       </div>
 
-      <section className="v2-detail-grid">
-        <div className="v2-panel">
+      <section className="control-detail-grid">
+        <div className="control-panel">
           <h2>Desired vs actual</h2>
           <Descriptions column={1} size="small">
             <Descriptions.Item label="Host">{runtime.host_name}</Descriptions.Item>
             <Descriptions.Item label="Kind">{runtime.kind}</Descriptions.Item>
             <Descriptions.Item label="Desired state">{runtime.desired_state}</Descriptions.Item>
-            <Descriptions.Item label="Actual state"><V2StatusBadge status={runtime.status} /></Descriptions.Item>
-            <Descriptions.Item label="Convergence"><V2ConvergenceBadge status={runtime.convergence_status} /></Descriptions.Item>
+            <Descriptions.Item label="Actual state"><StatusBadge status={runtime.status} /></Descriptions.Item>
+            <Descriptions.Item label="Convergence"><ConvergenceBadge status={runtime.convergence_status} /></Descriptions.Item>
             <Descriptions.Item label="Desired version">{runtime.desired_version || '-'}</Descriptions.Item>
             <Descriptions.Item label="Observed version">{runtime.observed_desired_version || '-'}</Descriptions.Item>
             <Descriptions.Item label="Desired config">{runtime.target_config_version_id}</Descriptions.Item>
@@ -121,17 +121,17 @@ export default function V2RuntimeDetailPage() {
             <Descriptions.Item label="Metric freshness">{runtime.stale_detail}</Descriptions.Item>
             <Descriptions.Item label="Last error">{runtime.last_error || '-'}</Descriptions.Item>
           </Descriptions>
-          <p className="v2-panel-note">{runtime.desired_state_note}</p>
+          <p className="control-panel-note">{runtime.desired_state_note}</p>
         </div>
 
-        <div className="v2-panel">
+        <div className="control-panel">
           <h2>Events</h2>
           {runtime.recent_events.length > 0 ? (
             <Timeline
               items={runtime.recent_events.map((event) => ({
                 color: event.level === 'error' ? 'red' : event.level === 'warning' ? 'orange' : 'green',
                 children: (
-                  <div className="v2-event">
+                  <div className="control-event">
                     <strong>{event.message}</strong>
                     <span>{[event.type, event.desired_version ? `desired v${event.desired_version}` : '', event.process_id ? `pid ${event.process_id}` : ''].filter(Boolean).join(' / ') || 'runtime event'}</span>
                     <span>{formatDateTime(event.created_at)}</span>
@@ -145,9 +145,9 @@ export default function V2RuntimeDetailPage() {
         </div>
       </section>
 
-      <section className="v2-panel">
+      <section className="control-panel">
         <h2>Workers</h2>
-        <div className="v2-table-frame">
+        <div className="control-table-frame">
           <Table<WorkerMetric>
             columns={workerColumns}
             dataSource={runtime.workers}
@@ -160,7 +160,7 @@ export default function V2RuntimeDetailPage() {
         </div>
       </section>
 
-      <V2ConfirmDialog
+      <ConfirmDialog
         open={Boolean(action)}
         title="Submit runtime action intent"
         description={action ? `Queue ${action} for ${runtime.name}.` : ''}
