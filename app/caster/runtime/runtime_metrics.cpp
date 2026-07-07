@@ -40,8 +40,7 @@ Json client_to_json(const ClientMetricsSnapshot &client)
 {
     return Json{
         {"worker_id", client.worker_id},
-        {"session_id", client.session_id},
-        {"member_key", client.member_key},
+        {"connect_key", client.connect_key},
         {"mount", client.mount},
         {"remote_addr", client.remote_addr},
         {"remote_port", client.remote_port},

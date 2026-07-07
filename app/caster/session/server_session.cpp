@@ -25,18 +25,21 @@ std::string server_ok_response(const ConnectInfo &info)
 } // namespace
 
 ServerSession::ServerSession(
-    std::uint64_t session_id,
+    std::string connect_key,
     std::uint32_t worker_id,
     HandoffMessage handoff,
     DataCallback on_data,
     ClosedCallback on_closed)
-    : _session_id(session_id),
+    : _connect_key(std::move(connect_key)),
       _worker_id(worker_id),
       _handoff(std::move(handoff)),
       _on_data(std::move(on_data)),
       _on_closed(std::move(on_closed)),
       _request_body_chunked(_handoff.connect_info.request_body_chunked)
 {
+    if (_handoff.connect_key.empty()) {
+        _handoff.connect_key = _connect_key;
+    }
 }
 
 ServerSession::~ServerSession()
@@ -116,7 +119,7 @@ void ServerSession::handle_read()
     data = decode_incoming(std::move(data));
     _bytes_in += static_cast<std::uint64_t>(data.size());
     if (_on_data && !data.empty()) {
-        _on_data(_session_id, std::move(data));
+        _on_data(_connect_key, std::move(data));
     }
     if (_chunked_decoder.failed() || _chunked_decoder.complete()) {
         release_bev();
@@ -148,7 +151,7 @@ void ServerSession::notify_closed()
     }
     _closed_notified = true;
     if (_on_closed) {
-        _on_closed(_session_id);
+        _on_closed(_connect_key);
     }
 }
 

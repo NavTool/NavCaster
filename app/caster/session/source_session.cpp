@@ -49,15 +49,18 @@ std::string source_table_response(const ConnectInfo &info, const std::string &bo
 } // namespace
 
 SourceSession::SourceSession(
-    std::uint64_t session_id,
+    std::string connect_key,
     HandoffMessage handoff,
     BodyProvider body_provider,
     ClosedCallback on_closed)
-    : _session_id(session_id),
+    : _connect_key(std::move(connect_key)),
       _handoff(std::move(handoff)),
       _body_provider(std::move(body_provider)),
       _on_closed(std::move(on_closed))
 {
+    if (_handoff.connect_key.empty()) {
+        _handoff.connect_key = _connect_key;
+    }
 }
 
 SourceSession::~SourceSession()
@@ -142,7 +145,7 @@ void SourceSession::notify_closed()
     }
     _closed_notified = true;
     if (_on_closed) {
-        _on_closed(_session_id);
+        _on_closed(_connect_key);
     }
 }
 

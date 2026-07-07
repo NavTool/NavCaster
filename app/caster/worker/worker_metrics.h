@@ -22,8 +22,7 @@ struct MountMetricsSnapshot {
 
 struct ClientMetricsSnapshot {
     std::uint32_t worker_id = 0;
-    std::uint64_t session_id = 0;
-    std::string member_key;
+    std::string connect_key;
     std::string mount;
     std::string remote_addr;
     std::uint16_t remote_port = 0;

@@ -16,11 +16,11 @@ namespace navcaster::caster {
 
 class ServerSession {
 public:
-    using DataCallback = std::function<void(std::uint64_t, std::string)>;
-    using ClosedCallback = std::function<void(std::uint64_t)>;
+    using DataCallback = std::function<void(const std::string &, std::string)>;
+    using ClosedCallback = std::function<void(const std::string &)>;
 
     ServerSession(
-        std::uint64_t session_id,
+        std::string connect_key,
         std::uint32_t worker_id,
         HandoffMessage handoff,
         DataCallback on_data,
@@ -35,7 +35,7 @@ public:
     void close();
 
     const std::string &mount() const { return _handoff.connect_info.mount; }
-    std::uint64_t session_id() const { return _session_id; }
+    const std::string &connect_key() const { return _connect_key; }
     std::uint64_t bytes_in() const { return _bytes_in; }
     bool input_failed() const { return _chunked_decoder.failed(); }
     bool input_complete() const { return _chunked_decoder.complete(); }
@@ -50,7 +50,7 @@ private:
     static void on_read(bufferevent *bev, void *arg);
     static void on_event(bufferevent *bev, short events, void *arg);
 
-    std::uint64_t _session_id = 0;
+    std::string _connect_key;
     std::uint32_t _worker_id = 0;
     HandoffMessage _handoff;
     DataCallback _on_data;
