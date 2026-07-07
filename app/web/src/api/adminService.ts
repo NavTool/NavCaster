@@ -361,12 +361,30 @@ function toRuntimeEvent(event: AdminRuntimeEvent, index: number): RuntimeEvent {
   const message = event.message || event.type || 'runtime event';
   return {
     id: event.event_id || `${event.runtime_id}-${createdAt || index}`,
+    runtime_id: event.runtime_id,
     level: eventLevel(event.severity),
     message,
     type: event.type,
     desired_version: event.desired_version,
     process_id: event.process_id,
     created_at: createdAt,
+  };
+}
+
+function toWorkerMetric(runtime: RuntimeSummary): WorkerMetric {
+  const throughputKbps = (runtime.send_bps + runtime.recv_bps) / 1000;
+  return {
+    id: `${runtime.id}:worker-pool`,
+    runtime_id: runtime.id,
+    host_name: runtime.host_name,
+    name: `${runtime.name} worker pool`,
+    status: runtime.status,
+    assigned_mount_points: runtime.mounts,
+    active_sessions: runtime.active_sessions,
+    throughput_kbps: Number.isFinite(throughputKbps) ? throughputKbps : 0,
+    latency_p95_ms: runtime.loop_delay_ms_p95,
+    error_rate: runtime.stale ? 100 : runtime.loop_delay_ms_p95,
+    updated_at: runtime.last_metric_at || runtime.updated_at,
   };
 }
 
@@ -421,8 +439,17 @@ const liveAdminService: AdminServiceContract = {
     const runtime = await getData<AdminRuntime>(`/api/v1/control/runtimes/${runtimeId}`);
     return toRuntimeDetail(runtime);
   },
+  async listRuntimeEvents(runtimeId: string, limit = 100): Promise<RuntimeEvent[]> {
+    const events = await getData<AdminRuntimeEvent[]>(`/api/v1/control/runtimes/${runtimeId}/events`, { params: { limit } });
+    return events.map(toRuntimeEvent);
+  },
   async listWorkers(params): Promise<PageResult<WorkerMetric>> {
-    return pageFromRows([], params, ['name', 'id', 'host_name']);
+    const runtimes = await getData<AdminRuntime[]>('/api/v1/control/runtimes');
+    const rows = runtimes
+      .map(toRuntimeSummary)
+      .filter((runtime) => !params.runtimeId || runtime.id === params.runtimeId)
+      .map(toWorkerMetric);
+    return pageFromRows(rows, params, ['name', 'id', 'host_name', 'runtime_id']);
   },
   async listConfigVersions(params) {
     return pageFromRows([] as Array<ConfigVersion & { name?: string }>, params, ['label', 'id', 'summary']);

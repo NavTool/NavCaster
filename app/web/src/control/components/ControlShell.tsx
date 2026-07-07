@@ -27,7 +27,8 @@ import { Badge, Button, Dropdown, Tooltip } from 'antd';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { getSession, type AuthSessionSubject } from '../../api/session';
-import { setStoredToken } from '../../api/client';
+import { getStoredToken, setStoredToken } from '../../api/client';
+import { logout as logoutSession } from '../../api/identity';
 
 type NavItem = {
   path: string;
@@ -43,9 +44,10 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
       { path: '/admin/control/operations', label: '运维监控', icon: <DatabaseOutlined /> },
       { path: '/admin/control/nodes', label: '节点管理', icon: <NodeIndexOutlined /> },
       { path: '/admin/control/users', label: '用户管理', icon: <UserOutlined /> },
+      { path: '/admin/control/access', label: '接入账号查询', icon: <IdcardOutlined /> },
       { path: '/admin/control/groups', label: '分组管理', icon: <TeamOutlined /> },
       { path: '/admin/control/mounts', label: '挂载点管理', icon: <ClusterOutlined /> },
-      { path: '/admin/control/access', label: '接入管理', icon: <ApiOutlined /> },
+      { path: '/admin/control/relay', label: '接入管理', icon: <ApiOutlined /> },
       { path: '/admin/control/announcements', label: '公告', icon: <NotificationOutlined /> },
       { path: '/admin/control/server-nodes', label: '节点管理', icon: <CloudServerOutlined /> },
       { path: '/admin/control/redeem-codes', label: '兑换码', icon: <GiftOutlined /> },
@@ -55,7 +57,7 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
     ],
   },
   {
-    title: '用户视图/供应商视图',
+    title: '用户视图',
     items: [
       { path: '/admin/control/user/access-accounts', label: '接入账号管理', icon: <IdcardOutlined /> },
       { path: '/admin/control/user/usage', label: '使用记录', icon: <HistoryOutlined /> },
@@ -70,9 +72,10 @@ const pageTitles: Record<string, string> = {
   '/admin/control/operations': '运维监控',
   '/admin/control/nodes': '节点管理',
   '/admin/control/users': '用户管理',
+  '/admin/control/access': '接入账号查询',
   '/admin/control/groups': '分组管理',
   '/admin/control/mounts': '挂载点管理',
-  '/admin/control/access': '接入管理',
+  '/admin/control/relay': '接入管理',
   '/admin/control/announcements': '公告',
   '/admin/control/server-nodes': '节点管理',
   '/admin/control/redeem-codes': '兑换码',
@@ -92,7 +95,10 @@ const pageTitles: Record<string, string> = {
 const pageSubtitles: Record<string, string> = {
   '/admin/control/dashboard': '系统概览与统计数据',
   '/admin/control/operations': 'NTRIP Caster 节点、挂载点与数据链路监控',
+  '/admin/control/users': 'Web 用户账号和登录权限',
+  '/admin/control/access': '全局只读查看设备接入账号',
   '/admin/control/usage': '查看每个用户、每个接入账号的挂载点用量记录',
+  '/admin/control/user/access-accounts': '管理当前账号名下的设备接入凭证',
   '/admin/control/user/usage': '查看当前账户下每个接入账号的用量记录',
 };
 
@@ -110,31 +116,48 @@ export function ControlShell() {
     const matched = Object.keys(pageSubtitles).find((path) => location.pathname.startsWith(path));
     return matched ? pageSubtitles[matched] : 'AdminService';
   }, [location.pathname]);
-  const userName = session?.username || session?.account_id || 'KORO';
+  const visibleSections = useMemo(() => {
+    if (session?.role === 'admin') return navSections;
+    return navSections.map((section) => ({
+      ...section,
+      items: section.title === '管理页面'
+        ? section.items.filter((item) => item.path === '/admin/control/dashboard')
+        : section.items,
+    }));
+  }, [session?.role]);
+  const userName = session?.username || session?.account_id || '未登录';
   const userInitials = userName.slice(0, 2).toUpperCase();
-  const userRole = session?.role || 'Admin';
+  const userRole = session?.role || 'user';
 
   const setLanguagePreference = (next: string) => {
     setLanguage(next);
     localStorage.setItem('navcasterLanguage', next);
   };
 
-  const logout = () => {
-    setStoredToken('');
-    navigate('/admin/control/dashboard');
+  const logout = async () => {
+    await logoutSession();
+    navigate('/login', { replace: true });
   };
 
   useEffect(() => {
     let cancelled = false;
+    if (!getStoredToken()) {
+      navigate('/login', { replace: true });
+      return () => { cancelled = true; };
+    }
     getSession()
       .then((subject) => {
         if (!cancelled) setSession(subject);
       })
       .catch(() => {
-        if (!cancelled) setSession(null);
+        if (!cancelled) {
+          setStoredToken('');
+          setSession(null);
+          navigate('/login', { replace: true });
+        }
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [navigate]);
 
   return (
     <div className={`control-shell ${collapsed ? 'control-shell-collapsed' : ''}`}>
@@ -149,7 +172,7 @@ export function ControlShell() {
           </div>
         </div>
         <nav className="control-nav" aria-label="control plane navigation">
-          {navSections.map((section) => (
+          {visibleSections.map((section) => (
             <div className="control-nav-section" key={section.title}>
               <div className="control-nav-section-title">{section.title}</div>
               {section.items.map((item) => (
