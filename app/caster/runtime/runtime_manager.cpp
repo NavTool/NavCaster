@@ -2,23 +2,13 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstring>
-#include <sstream>
 #include <thread>
 #include <utility>
 
 #include <event2/event.h>
 #include <nlohmann/json.hpp>
 
-#if defined(_WIN32)
-#include <winsock2.h>
-#else
-#include <fcntl.h>
-#include <sys/socket.h>
-#endif
-
 #include "domain/connect_info.h"
-#include "domain/http_chunked_codec.h"
 #include "domain/sourcetable.h"
 #include "infra/logger.h"
 #include "infra/socket_util.h"
@@ -47,79 +37,6 @@ std::vector<SourcetableEntry> sourcetable_entries_from_metrics(const RuntimeMetr
         return left.mount < right.mount;
     });
     return entries;
-}
-
-bool send_all_and_close(evutil_socket_t fd, const std::string &payload)
-{
-    if (fd < 0) {
-        return false;
-    }
-
-#if defined(_WIN32)
-    u_long nonblocking = 0;
-    ioctlsocket(fd, FIONBIO, &nonblocking);
-#else
-    const int flags_current = fcntl(fd, F_GETFL, 0);
-    if (flags_current >= 0) {
-        fcntl(fd, F_SETFL, flags_current & ~O_NONBLOCK);
-    }
-#endif
-    std::size_t sent = 0;
-    bool ok = true;
-    while (sent < payload.size()) {
-#if defined(_WIN32)
-        const int chunk = static_cast<int>(std::min<std::size_t>(payload.size() - sent, 64 * 1024));
-        const int written = ::send(fd, payload.data() + sent, chunk, 0);
-#else
-        int flags = 0;
-#if defined(MSG_NOSIGNAL)
-        flags = MSG_NOSIGNAL;
-#endif
-        const auto written = ::send(fd, payload.data() + sent, payload.size() - sent, flags);
-#endif
-        if (written <= 0) {
-            ok = false;
-            break;
-        }
-        sent += static_cast<std::size_t>(written);
-    }
-    close_socket(fd);
-    return ok;
-}
-
-std::string build_source_table_response(const ConnectInfo &info, const std::string &body)
-{
-    if (info.ntrip2) {
-        const bool chunked = info.accepts_chunked_response;
-        std::ostringstream response;
-        response << "HTTP/1.1 200 OK\r\n"
-                 << "Server: NavCaster\r\n"
-                 << "Ntrip-Version: Ntrip/2.0\r\n"
-                 << "Content-Type: text/plain\r\n";
-        if (chunked) {
-            response << "Transfer-Encoding: chunked\r\n";
-        } else {
-            response << "Content-Length: " << body.size() << "\r\n";
-        }
-        response << "Connection: close\r\n"
-                 << "\r\n";
-        if (chunked) {
-            response << encode_http_chunk(body) << encode_http_last_chunk();
-        } else {
-            response << body;
-        }
-        return response.str();
-    }
-
-    std::ostringstream response;
-    response << "SOURCETABLE 200 OK\r\n"
-             << "Server: NavCaster\r\n"
-             << "Content-Type: text/plain\r\n"
-             << "Content-Length: " << body.size() << "\r\n"
-             << "Connection: close\r\n"
-             << "\r\n"
-             << body;
-    return response.str();
 }
 
 std::string self_test_start_failed_report()
@@ -208,6 +125,9 @@ void RuntimeManager::stop()
 
     _acceptor.reset();
     _health_server.reset();
+    _pending_source_cleanup.clear();
+    _source_cleanup_scheduled = false;
+    _source_sessions.clear();
     if (_worker_manager) {
         _worker_manager->stop();
         _worker_manager.reset();
@@ -278,7 +198,7 @@ void RuntimeManager::runtime_loop()
 bool RuntimeManager::dispatch_handoff(HandoffMessage message)
 {
     if (message.connect_info.type == ConnectType::SourceTable) {
-        return respond_source_table(std::move(message));
+        return create_source_session(std::move(message));
     }
 
     if (!_worker_manager) {
@@ -291,18 +211,74 @@ bool RuntimeManager::dispatch_handoff(HandoffMessage message)
     return _worker_manager->dispatch_handoff(std::move(message));
 }
 
-bool RuntimeManager::respond_source_table(HandoffMessage message)
+bool RuntimeManager::create_source_session(HandoffMessage message)
 {
-    const auto entries = sourcetable_entries_from_metrics(metrics_snapshot());
-    const auto body = build_sourcetable(entries);
-    const auto response = build_source_table_response(message.connect_info, body);
-    const auto fd = message.fd;
-    message.fd = -1;
-    const bool ok = send_all_and_close(fd, response);
-    if (!ok) {
-        log_warn("failed to write source table response");
+    if (!_base || message.fd < 0) {
+        if (message.fd >= 0) {
+            close_socket(message.fd);
+            message.fd = -1;
+        }
+        return false;
     }
-    return ok;
+
+    const std::uint64_t session_id = _next_source_session_id++;
+    auto session = std::make_unique<SourceSession>(
+        session_id,
+        std::move(message),
+        [this](const ConnectInfo &info) {
+            return source_table_body(info);
+        },
+        [this](std::uint64_t closed_session_id) {
+            handle_source_closed(closed_session_id);
+        });
+
+    if (!session->start(_base.get())) {
+        log_warn("failed to start source session");
+        return false;
+    }
+
+    _source_sessions[session_id] = std::move(session);
+    return true;
+}
+
+std::string RuntimeManager::source_table_body(const ConnectInfo &info) const
+{
+    (void)info;
+    const auto entries = sourcetable_entries_from_metrics(metrics_snapshot());
+    return build_sourcetable(entries);
+}
+
+void RuntimeManager::handle_source_closed(std::uint64_t session_id)
+{
+    _pending_source_cleanup.insert(session_id);
+    schedule_source_cleanup();
+}
+
+void RuntimeManager::schedule_source_cleanup()
+{
+    if (_source_cleanup_scheduled || !_base) {
+        return;
+    }
+
+    _source_cleanup_scheduled =
+        event_base_once(_base.get(), -1, EV_TIMEOUT, &RuntimeManager::on_source_cleanup, this, nullptr) == 0;
+}
+
+void RuntimeManager::run_source_cleanup()
+{
+    _source_cleanup_scheduled = false;
+    for (const auto session_id : _pending_source_cleanup) {
+        _source_sessions.erase(session_id);
+    }
+    _pending_source_cleanup.clear();
+}
+
+void RuntimeManager::on_source_cleanup(evutil_socket_t, short, void *arg)
+{
+    auto *runtime = static_cast<RuntimeManager *>(arg);
+    if (runtime) {
+        runtime->run_source_cleanup();
+    }
 }
 
 } // namespace navcaster::caster

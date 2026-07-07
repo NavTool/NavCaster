@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <event2/event.h>
+#include <event2/util.h>
 #include <nlohmann/json.hpp>
 
 #include "domain/connect_info.h"
@@ -13,8 +15,17 @@
 #include "domain/position.h"
 #include "domain/rtcm3_parser.h"
 #include "domain/sourcetable.h"
+#include "infra/event_loop.h"
+#include "infra/socket_util.h"
 #include "runtime/runtime_metrics.h"
+#include "session/source_session.h"
 #include "transport/acceptor_session.h"
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#else
+#include <sys/socket.h>
+#endif
 
 namespace {
 
@@ -127,6 +138,74 @@ std::vector<std::string> split_semicolon(const std::string &line)
     return fields;
 }
 
+std::string read_socket_payload(evutil_socket_t fd)
+{
+    std::string result;
+    char buffer[4096] = {0};
+    evutil_make_socket_nonblocking(fd);
+    const int received = recv(fd, buffer, sizeof(buffer), 0);
+    if (received > 0) {
+        result.append(buffer, static_cast<std::size_t>(received));
+    }
+    navcaster::caster::close_socket(fd);
+    return result;
+}
+
+std::string source_session_response(navcaster::caster::ConnectInfo info, const std::string &body)
+{
+    evutil_socket_t sockets[2] = {-1, -1};
+#if defined(_WIN32)
+    constexpr int socket_pair_family = AF_INET;
+#else
+    constexpr int socket_pair_family = AF_UNIX;
+#endif
+    if (evutil_socketpair(socket_pair_family, SOCK_STREAM, 0, sockets) != 0) {
+        expect_true(false, "source session socketpair");
+        return {};
+    }
+
+    auto base = navcaster::caster::make_event_base();
+    expect_true(base != nullptr, "source session event base");
+    if (!base) {
+        navcaster::caster::close_socket(sockets[0]);
+        navcaster::caster::close_socket(sockets[1]);
+        return {};
+    }
+
+    navcaster::caster::HandoffMessage message;
+    message.fd = sockets[0];
+    message.connect_info = std::move(info);
+
+    bool closed = false;
+    navcaster::caster::SourceSession session(
+        1,
+        std::move(message),
+        [&body](const navcaster::caster::ConnectInfo &) {
+            return body;
+        },
+        [&closed, &base](std::uint64_t session_id) {
+            closed = session_id == 1;
+            event_base_loopbreak(base.get());
+        });
+
+    const bool started = session.start(base.get());
+    expect_true(started, "source session starts");
+    if (!started) {
+        navcaster::caster::close_socket(sockets[1]);
+        return {};
+    }
+
+    timeval timeout{};
+    timeout.tv_sec = 1;
+    event_base_loopexit(base.get(), &timeout);
+    event_base_dispatch(base.get());
+    expect_true(closed, "source session closes");
+    if (!closed) {
+        session.close();
+    }
+    return read_socket_payload(sockets[1]);
+}
+
 void test_acceptor_parser()
 {
     navcaster::caster::AcceptorSessionParser parser;
@@ -225,6 +304,36 @@ void test_sourcetable()
     expect_true(fields[11] == "0", "source table NMEA field");
 }
 
+void test_source_session()
+{
+    const std::string body = "STR;BASE1;BASE1;RTCM 3.3;1074(1),1084(1),1094(1),1124(1);2;GPS;SNIP;CHN;30.00000000;120.00000000;0;0;NavCaster;none;B;N;0;\r\nENDSOURCETABLE\r\n";
+
+    navcaster::caster::ConnectInfo ntrip1_info;
+    const auto ntrip1_response = source_session_response(ntrip1_info, body);
+    expect_true(ntrip1_response.find("SOURCETABLE 200 OK\r\n") == 0, "source session NTRIP1 status");
+    expect_true(ntrip1_response.find("Content-Length: " + std::to_string(body.size())) != std::string::npos,
+                "source session NTRIP1 content length");
+    expect_true(ntrip1_response.find(body) != std::string::npos, "source session NTRIP1 body");
+
+    navcaster::caster::ConnectInfo ntrip2_info;
+    ntrip2_info.ntrip2 = true;
+    ntrip2_info.accepts_chunked_response = true;
+    const auto ntrip2_response = source_session_response(ntrip2_info, body);
+    expect_true(ntrip2_response.find("HTTP/1.1 200 OK\r\n") == 0, "source session NTRIP2 status");
+    expect_true(ntrip2_response.find("Transfer-Encoding: chunked\r\n") != std::string::npos,
+                "source session NTRIP2 chunked header");
+
+    const auto header_end = ntrip2_response.find("\r\n\r\n");
+    expect_true(header_end != std::string::npos, "source session NTRIP2 header end");
+    if (header_end != std::string::npos) {
+        navcaster::caster::HttpChunkedDecoder decoder;
+        const auto decoded = decoder.feed(ntrip2_response.substr(header_end + 4));
+        expect_true(decoded == body, "source session NTRIP2 chunked body");
+        expect_true(decoder.complete(), "source session NTRIP2 chunked complete");
+        expect_true(!decoder.failed(), "source session NTRIP2 chunked not failed");
+    }
+}
+
 void test_metrics_json()
 {
     navcaster::caster::RuntimeMetricsSnapshot snapshot;
@@ -288,6 +397,7 @@ int main()
     test_rtcm();
     test_http_chunked_codec();
     test_sourcetable();
+    test_source_session();
     test_metrics_json();
 
     if (g_failures != 0) {
