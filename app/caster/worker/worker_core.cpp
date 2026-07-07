@@ -1,10 +1,13 @@
 #include "worker/worker_core.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "domain/connect_info.h"
+#include "domain/nmea_gga_parser.h"
 #include "infra/logger.h"
 #include "infra/socket_util.h"
+#include "infra/timer.h"
 
 namespace navcaster::caster {
 namespace {
@@ -64,10 +67,42 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
     snapshot.redis_remote_fanout_bytes = redis_remote_fanout_bytes_;
     snapshot.redis_error_count = redis_error_count_;
     snapshot.redis_subscribed_mount_count = redis_subscribed_mount_count_;
+    snapshot.redis_position_report_count = redis_position_report_count_;
+    snapshot.redis_position_report_error_count = redis_position_report_error_count_;
     snapshot.slow_client_disconnect_count = slow_client_disconnect_count_;
     snapshot.output_buffer_limit_count = output_buffer_limit_count_;
     snapshot.redis_connected = redis_boundary_ && redis_boundary_->connected();
     snapshot.redis_contexts_reserved = 2;
+    snapshot.mounts.reserve(mounts_.size());
+    for (const auto &item : mounts_) {
+        const auto &state = item.second;
+        MountMetricsSnapshot mount;
+        mount.worker_id = worker_id_;
+        mount.mount = item.first;
+        mount.source_online = state.source_id != 0;
+        mount.client_count = static_cast<std::uint64_t>(state.client_ids.size());
+        mount.source_bytes_in = state.source_bytes_in;
+        mount.source_rtcm_frame_count = state.source_rtcm_frame_count;
+        mount.base_position_report_count = state.base_position_report_count;
+        mount.base_position_source = state.base_position_source;
+        mount.base_position = state.base_position;
+        snapshot.mounts.push_back(std::move(mount));
+    }
+    snapshot.clients.reserve(client_states_.size());
+    for (const auto &item : client_states_) {
+        const auto &state = item.second;
+        ClientMetricsSnapshot client;
+        client.worker_id = worker_id_;
+        client.session_id = item.first;
+        client.member_key = state.member_key;
+        client.mount = state.mount;
+        client.remote_addr = state.remote_addr;
+        client.remote_port = state.remote_port;
+        client.position_report_count = state.position_report_count;
+        client.position_source = state.position_source;
+        client.position = state.position;
+        snapshot.clients.push_back(std::move(client));
+    }
     return snapshot;
 }
 
@@ -108,6 +143,7 @@ void WorkerCore::create_source_locked(HandoffMessage message)
 
     auto &mount_state = mounts_[mount];
     mount_state.source_id = session_id;
+    source_decoders_[session_id] = Rtcm3Parser{};
     sources_[session_id] = std::move(session);
     if (!initial_bytes.empty()) {
         handle_source_data_locked(session_id, initial_bytes);
@@ -117,11 +153,17 @@ void WorkerCore::create_source_locked(HandoffMessage message)
 void WorkerCore::create_client_locked(HandoffMessage message)
 {
     const std::string mount = message.connect_info.mount;
+    const std::string initial_gga = message.connect_info.initial_gga;
+    std::string initial_bytes = std::move(message.initial_bytes);
+    message.initial_bytes.clear();
     const std::uint64_t session_id = next_session_id_++;
     auto session = std::make_unique<ClientSession>(
         session_id,
         worker_id_,
         std::move(message),
+        [this](std::uint64_t client_id, std::string data) {
+            handle_client_data(client_id, std::move(data));
+        },
         [this](std::uint64_t client_id) {
             handle_client_closed(client_id);
         });
@@ -134,7 +176,19 @@ void WorkerCore::create_client_locked(HandoffMessage message)
     auto &mount_state = mounts_[mount];
     const bool should_subscribe = mount_state.client_ids.empty();
     mount_state.client_ids.insert(session_id);
+    ClientRuntimeState client_state;
+    client_state.mount = mount;
+    client_state.remote_addr = session->remote_addr();
+    client_state.remote_port = session->remote_port();
+    client_state.member_key = client_member_key(session_id);
+    client_states_[session_id] = std::move(client_state);
     clients_[session_id] = std::move(session);
+    if (!initial_gga.empty()) {
+        handle_client_data_locked(session_id, initial_gga);
+    }
+    if (!initial_bytes.empty()) {
+        handle_client_data_locked(session_id, initial_bytes);
+    }
     if (redis_boundary_ && should_subscribe) {
         if (redis_boundary_->subscribe_mount(mount)) {
             ++redis_subscribed_mount_count_;
@@ -158,6 +212,12 @@ void WorkerCore::handle_source_data(std::uint64_t session_id, std::string data)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     handle_source_data_locked(session_id, data);
+}
+
+void WorkerCore::handle_client_data(std::uint64_t session_id, std::string data)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    handle_client_data_locked(session_id, data);
 }
 
 void WorkerCore::handle_source_closed(std::uint64_t session_id)
@@ -212,6 +272,17 @@ void WorkerCore::handle_source_data_locked(std::uint64_t session_id, const std::
 
     const std::string mount = source_it->second->mount();
     bytes_in_ += static_cast<std::uint64_t>(data.size());
+    auto &mount_state = mounts_[mount];
+    mount_state.source_bytes_in += static_cast<std::uint64_t>(data.size());
+
+    auto decoder_it = source_decoders_.find(session_id);
+    if (decoder_it != source_decoders_.end()) {
+        const auto reports = decoder_it->second.feed(data);
+        mount_state.source_rtcm_frame_count += static_cast<std::uint64_t>(reports.size());
+        for (const auto &report : reports) {
+            update_mount_position_locked(mount, report);
+        }
+    }
 
     std::uint64_t writes = 0;
     std::uint64_t bytes = 0;
@@ -225,6 +296,85 @@ void WorkerCore::handle_source_data_locked(std::uint64_t session_id, const std::
         ++redis_publish_error_count_;
         ++redis_error_count_;
     }
+}
+
+void WorkerCore::handle_client_data_locked(std::uint64_t session_id, const std::string &data)
+{
+    if (data.empty()) {
+        return;
+    }
+    auto state_it = client_states_.find(session_id);
+    if (state_it == client_states_.end()) {
+        return;
+    }
+
+    auto &state = state_it->second;
+    state.nmea_buffer += data;
+    if (state.nmea_buffer.size() > 8192) {
+        state.nmea_buffer.erase(0, state.nmea_buffer.size() - 8192);
+    }
+
+    if (auto report = parse_latest_nmea_gga(state.nmea_buffer)) {
+        update_client_position_locked(session_id, *report);
+    }
+
+    const auto last_line_break = state.nmea_buffer.find_last_of("\r\n");
+    if (last_line_break != std::string::npos) {
+        state.nmea_buffer.erase(0, last_line_break + 1);
+    }
+}
+
+void WorkerCore::update_mount_position_locked(const std::string &mount, const PositionReport &report)
+{
+    if (mount.empty() || !report.position.valid) {
+        return;
+    }
+    auto &state = mounts_[mount];
+    state.base_position = report.position;
+    state.base_position.updated_at_ms = steady_time_ms();
+    state.base_position_source = report.source;
+    ++state.base_position_report_count;
+
+    if (redis_boundary_) {
+        if (redis_boundary_->report_mount_position(mount, state.base_position)) {
+            ++redis_position_report_count_;
+        } else {
+            ++redis_position_report_error_count_;
+            ++redis_error_count_;
+        }
+    }
+}
+
+void WorkerCore::update_client_position_locked(std::uint64_t session_id, const PositionReport &report)
+{
+    if (!report.position.valid) {
+        return;
+    }
+    auto state_it = client_states_.find(session_id);
+    if (state_it == client_states_.end()) {
+        return;
+    }
+
+    auto &state = state_it->second;
+    state.position = report.position;
+    state.position.updated_at_ms = steady_time_ms();
+    state.position_source = report.source;
+    ++state.position_report_count;
+
+    if (redis_boundary_) {
+        if (redis_boundary_->report_client_position(state.member_key, state.position)) {
+            ++redis_position_report_count_;
+        } else {
+            ++redis_position_report_error_count_;
+            ++redis_error_count_;
+        }
+    }
+}
+
+std::string WorkerCore::client_member_key(std::uint64_t session_id) const
+{
+    std::string prefix = redis_boundary_ ? redis_boundary_->runtime_id() : std::string("local-runtime");
+    return prefix + ":worker-" + std::to_string(worker_id_) + ":client-" + std::to_string(session_id);
 }
 
 void WorkerCore::fanout_to_mount_clients_locked(
@@ -320,6 +470,7 @@ void WorkerCore::detach_source_locked(std::uint64_t session_id)
     if (mount_it != mounts_.end() && mount_it->second.source_id == session_id) {
         mount_it->second.source_id = 0;
     }
+    source_decoders_.erase(session_id);
     erase_mount_if_empty_locked(mount);
 }
 
@@ -343,6 +494,7 @@ void WorkerCore::detach_client_locked(std::uint64_t session_id)
             }
         }
     }
+    client_states_.erase(session_id);
     erase_mount_if_empty_locked(mount);
 }
 

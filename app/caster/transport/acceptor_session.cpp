@@ -54,8 +54,8 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
     });
 
     if (method == "GET") {
-        info.type = ConnectType::Client;
         info.mount = trim_mount(target);
+        info.type = info.mount.empty() ? ConnectType::SourceTable : ConnectType::Client;
     } else if (method == "POST" || method == "SOURCE") {
         info.type = ConnectType::Source;
         if (method == "SOURCE" && !target.empty() && target.front() != '/' && input >> third) {

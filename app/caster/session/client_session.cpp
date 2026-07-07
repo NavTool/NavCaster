@@ -16,8 +16,13 @@ ClientSession::ClientSession(
     std::uint64_t session_id,
     std::uint32_t worker_id,
     HandoffMessage handoff,
+    DataCallback on_data,
     ClosedCallback on_closed)
-    : session_id_(session_id), worker_id_(worker_id), handoff_(std::move(handoff)), on_closed_(std::move(on_closed))
+    : session_id_(session_id),
+      worker_id_(worker_id),
+      handoff_(std::move(handoff)),
+      on_data_(std::move(on_data)),
+      on_closed_(std::move(on_closed))
 {
 }
 
@@ -44,7 +49,6 @@ bool ClientSession::start(event_base *base)
 
     bufferevent_setcb(bev_, &ClientSession::on_read, nullptr, &ClientSession::on_event, this);
     bufferevent_enable(bev_, EV_READ | EV_WRITE);
-    handoff_.initial_bytes.clear();
 
     if (bufferevent_write(bev_, kNtripOkResponse, std::char_traits<char>::length(kNtripOkResponse)) != 0) {
         log_warn("client session failed to write NTRIP response worker=" + std::to_string(worker_id_));
@@ -85,7 +89,16 @@ void ClientSession::handle_read()
         return;
     }
     evbuffer *input = bufferevent_get_input(bev_);
-    evbuffer_drain(input, evbuffer_get_length(input));
+    const auto length = evbuffer_get_length(input);
+    if (length == 0) {
+        return;
+    }
+
+    std::string data(length, '\0');
+    evbuffer_remove(input, &data[0], length);
+    if (on_data_) {
+        on_data_(session_id_, std::move(data));
+    }
 }
 
 void ClientSession::handle_event(short events)

@@ -1,16 +1,102 @@
 #include "runtime/runtime_manager.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <sstream>
 #include <thread>
 #include <utility>
 
 #include <event2/event.h>
 
+#if defined(_WIN32)
+#include <winsock2.h>
+#else
+#include <fcntl.h>
+#include <sys/socket.h>
+#endif
+
+#include "domain/connect_info.h"
+#include "domain/sourcetable.h"
 #include "infra/logger.h"
 #include "infra/socket_util.h"
 
 namespace navcaster::caster {
+namespace {
+
+std::vector<SourcetableEntry> sourcetable_entries_from_metrics(const RuntimeMetricsSnapshot &snapshot)
+{
+    std::vector<SourcetableEntry> entries;
+    for (const auto &worker : snapshot.workers) {
+        for (const auto &mount : worker.mounts) {
+            if (!mount.source_online || mount.mount.empty()) {
+                continue;
+            }
+            SourcetableEntry entry;
+            entry.mount = mount.mount;
+            entry.identifier = mount.mount;
+            entry.position = mount.base_position;
+            entries.push_back(std::move(entry));
+        }
+    }
+    std::sort(entries.begin(), entries.end(), [](const SourcetableEntry &left, const SourcetableEntry &right) {
+        return left.mount < right.mount;
+    });
+    return entries;
+}
+
+bool send_all_and_close(evutil_socket_t fd, const std::string &payload)
+{
+    if (fd < 0) {
+        return false;
+    }
+
+#if defined(_WIN32)
+    u_long nonblocking = 0;
+    ioctlsocket(fd, FIONBIO, &nonblocking);
+#else
+    const int flags_current = fcntl(fd, F_GETFL, 0);
+    if (flags_current >= 0) {
+        fcntl(fd, F_SETFL, flags_current & ~O_NONBLOCK);
+    }
+#endif
+    std::size_t sent = 0;
+    bool ok = true;
+    while (sent < payload.size()) {
+#if defined(_WIN32)
+        const int chunk = static_cast<int>(std::min<std::size_t>(payload.size() - sent, 64 * 1024));
+        const int written = ::send(fd, payload.data() + sent, chunk, 0);
+#else
+        int flags = 0;
+#if defined(MSG_NOSIGNAL)
+        flags = MSG_NOSIGNAL;
+#endif
+        const auto written = ::send(fd, payload.data() + sent, payload.size() - sent, flags);
+#endif
+        if (written <= 0) {
+            ok = false;
+            break;
+        }
+        sent += static_cast<std::size_t>(written);
+    }
+    close_socket(fd);
+    return ok;
+}
+
+std::string build_source_table_response(const std::string &body)
+{
+    std::ostringstream response;
+    response << "SOURCETABLE 200 OK\r\n"
+             << "Server: NavCaster\r\n"
+             << "Content-Type: text/plain\r\n"
+             << "Content-Length: " << body.size() << "\r\n"
+             << "Connection: close\r\n"
+             << "\r\n"
+             << body;
+    return response.str();
+}
+
+} // namespace
 
 RuntimeManager::RuntimeManager(RuntimeConfig config)
     : config_(std::move(config))
@@ -153,6 +239,10 @@ void RuntimeManager::runtime_loop()
 
 bool RuntimeManager::dispatch_handoff(HandoffMessage message)
 {
+    if (message.connect_info.type == ConnectType::SourceTable) {
+        return respond_source_table(std::move(message));
+    }
+
     if (!worker_manager_) {
         if (message.fd >= 0) {
             close_socket(message.fd);
@@ -161,6 +251,20 @@ bool RuntimeManager::dispatch_handoff(HandoffMessage message)
     }
 
     return worker_manager_->dispatch_handoff(std::move(message));
+}
+
+bool RuntimeManager::respond_source_table(HandoffMessage message)
+{
+    const auto entries = sourcetable_entries_from_metrics(metrics_snapshot());
+    const auto body = build_sourcetable(entries);
+    const auto response = build_source_table_response(body);
+    const auto fd = message.fd;
+    message.fd = -1;
+    const bool ok = send_all_and_close(fd, response);
+    if (!ok) {
+        log_warn("failed to write source table response");
+    }
+    return ok;
 }
 
 } // namespace navcaster::caster

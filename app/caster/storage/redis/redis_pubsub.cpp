@@ -15,6 +15,8 @@ namespace {
 
 constexpr const char *kV2StreamChannelPrefix = "v2:stream:mount:";
 constexpr const char *kPayloadMagic = "NCV2BUS1";
+constexpr const char *kMountPositionKey = "MPT:GEO";
+constexpr const char *kClientPositionKey = "USR:GEO";
 
 std::string encode_payload(const std::string &runtime_id, const std::string &mount, const std::string &payload)
 {
@@ -247,6 +249,54 @@ bool WorkerRedisBoundary::unsubscribe_mount(const std::string &mount)
     subscribed_mounts_.erase(subscribed);
     if (status != REDIS_OK) {
         log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=unsubscribe");
+        return false;
+    }
+    return true;
+}
+
+bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const GeoPosition &position)
+{
+    if (mount.empty() || !position.valid || !command.raw()) {
+        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_mount_position");
+        return false;
+    }
+
+    const int status = redisAsyncCommand(
+        command.raw(),
+        nullptr,
+        nullptr,
+        "GEOADD %s %.12f %.12f %b",
+        kMountPositionKey,
+        position.longitude_deg,
+        position.latitude_deg,
+        mount.data(),
+        mount.size());
+    if (status != REDIS_OK) {
+        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_mount_position");
+        return false;
+    }
+    return true;
+}
+
+bool WorkerRedisBoundary::report_client_position(const std::string &member_key, const GeoPosition &position)
+{
+    if (member_key.empty() || !position.valid || !command.raw()) {
+        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_client_position");
+        return false;
+    }
+
+    const int status = redisAsyncCommand(
+        command.raw(),
+        nullptr,
+        nullptr,
+        "GEOADD %s %.12f %.12f %b",
+        kClientPositionKey,
+        position.longitude_deg,
+        position.latitude_deg,
+        member_key.data(),
+        member_key.size());
+    if (status != REDIS_OK) {
+        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_client_position");
         return false;
     }
     return true;

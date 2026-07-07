@@ -11,15 +11,25 @@ file(GLOB_RECURSE NAVCASTER_CASTER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
 
-add_executable(navcaster-caster ${NAVCASTER_CASTER_SOURCES})
+set(NAVCASTER_CASTER_CORE_SOURCES ${NAVCASTER_CASTER_SOURCES})
+list(REMOVE_ITEM NAVCASTER_CASTER_CORE_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/app/main.cpp)
+file(GLOB_RECURSE NAVCASTER_CASTER_TEST_SOURCES
+    CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp
+)
+foreach(TEST_SOURCE IN LISTS NAVCASTER_CASTER_TEST_SOURCES)
+    list(REMOVE_ITEM NAVCASTER_CASTER_CORE_SOURCES ${TEST_SOURCE})
+endforeach()
 
-target_include_directories(navcaster-caster PRIVATE
+add_library(navcaster-caster-core STATIC ${NAVCASTER_CASTER_CORE_SOURCES})
+
+target_include_directories(navcaster-caster-core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}
     ${JSON_INCLUDE_PATH}
 )
 
-target_link_libraries(navcaster-caster PRIVATE
+target_link_libraries(navcaster-caster-core PUBLIC
     event
     event_core
     event_extra
@@ -28,9 +38,18 @@ target_link_libraries(navcaster-caster PRIVATE
 )
 
 if(NOT WIN32)
-    target_link_libraries(navcaster-caster PRIVATE event_pthreads)
+    target_link_libraries(navcaster-caster-core PUBLIC event_pthreads)
 endif()
 
 if(WIN32)
-    target_link_libraries(navcaster-caster PRIVATE ws2_32)
+    target_link_libraries(navcaster-caster-core PUBLIC ws2_32)
+endif()
+
+add_executable(navcaster-caster app/main.cpp)
+target_link_libraries(navcaster-caster PRIVATE navcaster-caster-core)
+
+if(BUILD_TESTING)
+    add_executable(navcaster-caster-basic-smoke tests/caster_basic_smoke.cpp)
+    target_link_libraries(navcaster-caster-basic-smoke PRIVATE navcaster-caster-core)
+    add_test(NAME navcaster-caster-basic-smoke COMMAND navcaster-caster-basic-smoke)
 endif()

@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_set>
 
+#include "domain/position.h"
 #include "storage/redis/redis_async_context.h"
 
 struct event_base;
@@ -31,6 +32,8 @@ struct WorkerRedisBoundary {
     bool publish_mount_data(const std::string &mount, const std::string &payload);
     bool subscribe_mount(const std::string &mount);
     bool unsubscribe_mount(const std::string &mount);
+    bool report_mount_position(const std::string &mount, const GeoPosition &position);
+    bool report_client_position(const std::string &member_key, const GeoPosition &position);
     bool connected() const;
     std::uint64_t subscribed_mount_count() const;
 

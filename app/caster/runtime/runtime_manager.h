@@ -38,6 +38,7 @@ public:
 private:
     void runtime_loop();
     bool dispatch_handoff(HandoffMessage message);
+    bool respond_source_table(HandoffMessage message);
 
     RuntimeConfig config_;
     std::unique_ptr<WorkerManager> worker_manager_;
