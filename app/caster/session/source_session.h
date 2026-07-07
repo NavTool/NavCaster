@@ -9,6 +9,7 @@
 #include <event2/bufferevent.h>
 #include <event2/event.h>
 
+#include "domain/http_chunked_codec.h"
 #include "transport/handoff_message.h"
 
 namespace navcaster::caster {
@@ -30,13 +31,17 @@ public:
     SourceSession &operator=(const SourceSession &) = delete;
 
     bool start(event_base *base);
+    std::string consume_initial_bytes();
     void close();
 
     const std::string &mount() const { return handoff_.connect_info.mount; }
     std::uint64_t session_id() const { return session_id_; }
     std::uint64_t bytes_in() const { return bytes_in_; }
+    bool input_failed() const { return chunked_decoder_.failed(); }
+    bool input_complete() const { return chunked_decoder_.complete(); }
 
 private:
+    std::string decode_incoming(std::string data);
     void handle_read();
     void handle_event(short events);
     void release_bev();
@@ -50,8 +55,10 @@ private:
     HandoffMessage handoff_;
     DataCallback on_data_;
     ClosedCallback on_closed_;
+    HttpChunkedDecoder chunked_decoder_;
     bufferevent *bev_ = nullptr;
     bool closed_notified_ = false;
+    bool request_body_chunked_ = false;
     std::uint64_t bytes_in_ = 0;
 };
 

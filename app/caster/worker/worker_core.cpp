@@ -115,8 +115,6 @@ void WorkerCore::set_draining(bool draining)
 void WorkerCore::create_source_locked(HandoffMessage message)
 {
     const std::string mount = message.connect_info.mount;
-    std::string initial_bytes = std::move(message.initial_bytes);
-    message.initial_bytes.clear();
 
     const auto existing_source_id = mounts_[mount].source_id;
     if (existing_source_id != 0) {
@@ -145,8 +143,13 @@ void WorkerCore::create_source_locked(HandoffMessage message)
     mount_state.source_id = session_id;
     source_decoders_[session_id] = Rtcm3Parser{};
     sources_[session_id] = std::move(session);
-    if (!initial_bytes.empty()) {
-        handle_source_data_locked(session_id, initial_bytes);
+    const auto initial_payload = sources_[session_id]->consume_initial_bytes();
+    if (!initial_payload.empty()) {
+        handle_source_data_locked(session_id, initial_payload);
+    }
+    if (sources_.find(session_id) != sources_.end() &&
+        (sources_[session_id]->input_failed() || sources_[session_id]->input_complete())) {
+        close_source_locked(session_id);
     }
 }
 
@@ -154,8 +157,6 @@ void WorkerCore::create_client_locked(HandoffMessage message)
 {
     const std::string mount = message.connect_info.mount;
     const std::string initial_gga = message.connect_info.initial_gga;
-    std::string initial_bytes = std::move(message.initial_bytes);
-    message.initial_bytes.clear();
     const std::uint64_t session_id = next_session_id_++;
     auto session = std::make_unique<ClientSession>(
         session_id,
@@ -186,8 +187,18 @@ void WorkerCore::create_client_locked(HandoffMessage message)
     if (!initial_gga.empty()) {
         handle_client_data_locked(session_id, initial_gga);
     }
-    if (!initial_bytes.empty()) {
-        handle_client_data_locked(session_id, initial_bytes);
+    if (clients_.find(session_id) != clients_.end()) {
+        const auto initial_payload = clients_[session_id]->consume_initial_bytes();
+        if (!initial_payload.empty()) {
+            handle_client_data_locked(session_id, initial_payload);
+        }
+    }
+    if (clients_.find(session_id) != clients_.end() &&
+        (clients_[session_id]->input_failed() || clients_[session_id]->input_complete())) {
+        close_client_locked(session_id);
+    }
+    if (clients_.find(session_id) == clients_.end()) {
+        return;
     }
     if (redis_boundary_ && should_subscribe) {
         if (redis_boundary_->subscribe_mount(mount)) {

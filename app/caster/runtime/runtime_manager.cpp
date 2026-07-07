@@ -17,6 +17,7 @@
 #endif
 
 #include "domain/connect_info.h"
+#include "domain/http_chunked_codec.h"
 #include "domain/sourcetable.h"
 #include "infra/logger.h"
 #include "infra/socket_util.h"
@@ -83,8 +84,30 @@ bool send_all_and_close(evutil_socket_t fd, const std::string &payload)
     return ok;
 }
 
-std::string build_source_table_response(const std::string &body)
+std::string build_source_table_response(const ConnectInfo &info, const std::string &body)
 {
+    if (info.ntrip2) {
+        const bool chunked = info.accepts_chunked_response;
+        std::ostringstream response;
+        response << "HTTP/1.1 200 OK\r\n"
+                 << "Server: NavCaster\r\n"
+                 << "Ntrip-Version: Ntrip/2.0\r\n"
+                 << "Content-Type: text/plain\r\n";
+        if (chunked) {
+            response << "Transfer-Encoding: chunked\r\n";
+        } else {
+            response << "Content-Length: " << body.size() << "\r\n";
+        }
+        response << "Connection: close\r\n"
+                 << "\r\n";
+        if (chunked) {
+            response << encode_http_chunk(body) << encode_http_last_chunk();
+        } else {
+            response << body;
+        }
+        return response.str();
+    }
+
     std::ostringstream response;
     response << "SOURCETABLE 200 OK\r\n"
              << "Server: NavCaster\r\n"
@@ -257,7 +280,7 @@ bool RuntimeManager::respond_source_table(HandoffMessage message)
 {
     const auto entries = sourcetable_entries_from_metrics(metrics_snapshot());
     const auto body = build_sourcetable(entries);
-    const auto response = build_source_table_response(body);
+    const auto response = build_source_table_response(message.connect_info, body);
     const auto fd = message.fd;
     message.fd = -1;
     const bool ok = send_all_and_close(fd, response);

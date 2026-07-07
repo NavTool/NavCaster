@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "domain/connect_info.h"
+#include "domain/http_chunked_codec.h"
 #include "domain/nmea_gga_parser.h"
 #include "domain/position.h"
 #include "domain/rtcm3_parser.h"
@@ -140,6 +141,20 @@ void test_acceptor_parser()
     auto source = parser.parse_request_head("SOURCE pass /BASE2\r\nSource-Agent: test\r\n\r\n");
     expect_true(source.type == navcaster::caster::ConnectType::Source, "SOURCE is source");
     expect_true(source.mount == "BASE2", "SOURCE mount parsed");
+
+    auto ntrip2_source = parser.parse_request_head(
+        "POST /BASE3 HTTP/1.1\r\nHost: caster\r\nNtrip-Version: Ntrip/2.0\r\nTransfer-Encoding: chunked\r\n\r\n");
+    expect_true(ntrip2_source.type == navcaster::caster::ConnectType::Source, "NTRIP2 POST is source");
+    expect_true(ntrip2_source.mount == "BASE3", "NTRIP2 source mount parsed");
+    expect_true(ntrip2_source.ntrip2, "NTRIP2 source version parsed");
+    expect_true(ntrip2_source.request_body_chunked, "NTRIP2 source chunked request parsed");
+
+    auto ntrip2_client = parser.parse_request_head(
+        "GET /BASE3 HTTP/1.1\r\nHost: caster\r\nNtrip-Version: Ntrip/2.0\r\nTE: chunked\r\n\r\n");
+    expect_true(ntrip2_client.type == navcaster::caster::ConnectType::Client, "NTRIP2 GET mount is client");
+    expect_true(ntrip2_client.ntrip2, "NTRIP2 client version parsed");
+    expect_true(ntrip2_client.accepts_chunked_response, "NTRIP2 client TE chunked parsed");
+    expect_true(!ntrip2_client.request_body_chunked, "NTRIP2 client has no chunked request body");
 }
 
 void test_nmea()
@@ -174,6 +189,19 @@ void test_rtcm()
     expect_true(reports[0].message_type == 1005, "RTCM message type");
     expect_near(reports[0].position.latitude_deg, latitude, 0.00001, "RTCM latitude");
     expect_near(reports[0].position.longitude_deg, longitude, 0.00001, "RTCM longitude");
+}
+
+void test_http_chunked_codec()
+{
+    const std::string payload = "abc\r\nxyz";
+    const auto encoded = navcaster::caster::encode_http_chunk(payload) + navcaster::caster::encode_http_last_chunk();
+
+    navcaster::caster::HttpChunkedDecoder decoder;
+    auto decoded = decoder.feed(encoded.substr(0, 4));
+    decoded += decoder.feed(encoded.substr(4));
+    expect_true(decoded == payload, "chunked decode payload");
+    expect_true(decoder.complete(), "chunked decode complete");
+    expect_true(!decoder.failed(), "chunked decode not failed");
 }
 
 void test_sourcetable()
@@ -243,6 +271,7 @@ int main()
     test_acceptor_parser();
     test_nmea();
     test_rtcm();
+    test_http_chunked_codec();
     test_sourcetable();
     test_metrics_json();
 

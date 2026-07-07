@@ -10,6 +10,18 @@ namespace {
 
 constexpr const char *kNtripOkResponse = "ICY 200 OK\r\n\r\n";
 
+std::string source_ok_response(const ConnectInfo &info)
+{
+    if (!info.ntrip2) {
+        return kNtripOkResponse;
+    }
+    return "HTTP/1.1 200 OK\r\n"
+           "Server: NavCaster\r\n"
+           "Ntrip-Version: Ntrip/2.0\r\n"
+           "Connection: close\r\n"
+           "\r\n";
+}
+
 } // namespace
 
 SourceSession::SourceSession(
@@ -22,7 +34,8 @@ SourceSession::SourceSession(
       worker_id_(worker_id),
       handoff_(std::move(handoff)),
       on_data_(std::move(on_data)),
-      on_closed_(std::move(on_closed))
+      on_closed_(std::move(on_closed)),
+      request_body_chunked_(handoff_.connect_info.request_body_chunked)
 {
 }
 
@@ -50,17 +63,40 @@ bool SourceSession::start(event_base *base)
     bufferevent_setcb(bev_, &SourceSession::on_read, nullptr, &SourceSession::on_event, this);
     bufferevent_enable(bev_, EV_READ | EV_WRITE);
 
-    if (bufferevent_write(bev_, kNtripOkResponse, std::char_traits<char>::length(kNtripOkResponse)) != 0) {
+    const auto response = source_ok_response(handoff_.connect_info);
+    if (bufferevent_write(bev_, response.data(), response.size()) != 0) {
         log_warn("source session failed to write NTRIP response worker=" + std::to_string(worker_id_));
         return false;
     }
     return true;
 }
 
+std::string SourceSession::consume_initial_bytes()
+{
+    std::string data = std::move(handoff_.initial_bytes);
+    handoff_.initial_bytes.clear();
+    return decode_incoming(std::move(data));
+}
+
 void SourceSession::close()
 {
     closed_notified_ = true;
     release_bev();
+}
+
+std::string SourceSession::decode_incoming(std::string data)
+{
+    if (data.empty()) {
+        return {};
+    }
+    if (!request_body_chunked_) {
+        return data;
+    }
+    auto decoded = chunked_decoder_.feed(data);
+    if (chunked_decoder_.failed()) {
+        log_warn("source session received invalid chunked body worker=" + std::to_string(worker_id_));
+    }
+    return decoded;
 }
 
 void SourceSession::handle_read()
@@ -77,9 +113,14 @@ void SourceSession::handle_read()
 
     std::string data(length, '\0');
     evbuffer_remove(input, &data[0], length);
+    data = decode_incoming(std::move(data));
     bytes_in_ += static_cast<std::uint64_t>(data.size());
-    if (on_data_) {
+    if (on_data_ && !data.empty()) {
         on_data_(session_id_, std::move(data));
+    }
+    if (chunked_decoder_.failed() || chunked_decoder_.complete()) {
+        release_bev();
+        notify_closed();
     }
 }
 

@@ -39,6 +39,19 @@ std::string trim_header_value(std::string value)
     return value;
 }
 
+std::string lower_copy(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+bool contains_token_ci(const std::string &value, const std::string &token)
+{
+    return lower_copy(value).find(lower_copy(token)) != std::string::npos;
+}
+
 } // namespace
 
 ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request_head) const
@@ -49,16 +62,20 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
     std::string target;
     std::string third;
     input >> method >> target;
+    input >> third;
     std::transform(method.begin(), method.end(), method.begin(), [](unsigned char ch) {
         return static_cast<char>(std::toupper(ch));
     });
+    if (third.rfind("HTTP/", 0) == 0) {
+        info.http_version = third;
+    }
 
     if (method == "GET") {
         info.mount = trim_mount(target);
         info.type = info.mount.empty() ? ConnectType::SourceTable : ConnectType::Client;
     } else if (method == "POST" || method == "SOURCE") {
         info.type = ConnectType::Source;
-        if (method == "SOURCE" && !target.empty() && target.front() != '/' && input >> third) {
+        if (method == "SOURCE" && !target.empty() && target.front() != '/' && !third.empty() && third.rfind("HTTP/", 0) != 0) {
             target = third;
         }
         info.mount = trim_mount(target);
@@ -70,15 +87,29 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
         if (colon == std::string::npos) {
             continue;
         }
-        std::string key = line.substr(0, colon);
-        std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
-            return static_cast<char>(std::tolower(ch));
-        });
+        std::string key = lower_copy(line.substr(0, colon));
+        const std::string value = trim_header_value(line.substr(colon + 1));
         if (key == "authorization") {
-            info.auth_header = trim_header_value(line.substr(colon + 1));
+            info.auth_header = value;
         } else if (key == "ntrip-gga") {
-            info.initial_gga = trim_header_value(line.substr(colon + 1));
+            info.initial_gga = value;
+        } else if (key == "ntrip-version") {
+            info.ntrip_version = value;
+            info.ntrip2 = contains_token_ci(value, "ntrip/2.0");
+        } else if (key == "transfer-encoding") {
+            if (contains_token_ci(value, "chunked")) {
+                info.request_body_chunked = true;
+            }
+        } else if (key == "te") {
+            if (contains_token_ci(value, "chunked")) {
+                info.accepts_chunked_response = true;
+            }
         }
+    }
+
+    if (info.type == ConnectType::SourceTable || info.type == ConnectType::Client) {
+        info.accepts_chunked_response = info.ntrip2 && (info.accepts_chunked_response || info.request_body_chunked);
+        info.request_body_chunked = false;
     }
 
     return info;

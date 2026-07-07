@@ -10,6 +10,24 @@ namespace {
 
 constexpr const char *kNtripOkResponse = "ICY 200 OK\r\n\r\n";
 
+std::string client_ok_response(const ConnectInfo &info)
+{
+    if (!info.ntrip2) {
+        return kNtripOkResponse;
+    }
+
+    std::string response =
+        "HTTP/1.1 200 OK\r\n"
+        "Server: NavCaster\r\n"
+        "Ntrip-Version: Ntrip/2.0\r\n"
+        "Content-Type: gnss/data\r\n";
+    if (info.accepts_chunked_response) {
+        response += "Transfer-Encoding: chunked\r\n";
+    }
+    response += "Connection: close\r\n\r\n";
+    return response;
+}
+
 } // namespace
 
 ClientSession::ClientSession(
@@ -22,7 +40,9 @@ ClientSession::ClientSession(
       worker_id_(worker_id),
       handoff_(std::move(handoff)),
       on_data_(std::move(on_data)),
-      on_closed_(std::move(on_closed))
+      on_closed_(std::move(on_closed)),
+      request_body_chunked_(handoff_.connect_info.request_body_chunked),
+      response_chunked_(handoff_.connect_info.accepts_chunked_response)
 {
 }
 
@@ -50,11 +70,19 @@ bool ClientSession::start(event_base *base)
     bufferevent_setcb(bev_, &ClientSession::on_read, nullptr, &ClientSession::on_event, this);
     bufferevent_enable(bev_, EV_READ | EV_WRITE);
 
-    if (bufferevent_write(bev_, kNtripOkResponse, std::char_traits<char>::length(kNtripOkResponse)) != 0) {
+    const auto response = client_ok_response(handoff_.connect_info);
+    if (bufferevent_write(bev_, response.data(), response.size()) != 0) {
         log_warn("client session failed to write NTRIP response worker=" + std::to_string(worker_id_));
         return false;
     }
     return true;
+}
+
+std::string ClientSession::consume_initial_bytes()
+{
+    std::string data = std::move(handoff_.initial_bytes);
+    handoff_.initial_bytes.clear();
+    return decode_incoming(std::move(data));
 }
 
 bool ClientSession::write_bytes(const char *data, std::size_t length)
@@ -62,7 +90,8 @@ bool ClientSession::write_bytes(const char *data, std::size_t length)
     if (!bev_ || !data || length == 0) {
         return false;
     }
-    if (bufferevent_write(bev_, data, length) != 0) {
+    const auto output = response_chunked_ ? encode_http_chunk(data, length) : std::string(data, length);
+    if (output.empty() || bufferevent_write(bev_, output.data(), output.size()) != 0) {
         return false;
     }
     bytes_out_ += static_cast<std::uint64_t>(length);
@@ -83,6 +112,21 @@ std::size_t ClientSession::pending_output_bytes() const
     return evbuffer_get_length(bufferevent_get_output(bev_));
 }
 
+std::string ClientSession::decode_incoming(std::string data)
+{
+    if (data.empty()) {
+        return {};
+    }
+    if (!request_body_chunked_) {
+        return data;
+    }
+    auto decoded = chunked_decoder_.feed(data);
+    if (chunked_decoder_.failed()) {
+        log_warn("client session received invalid chunked body worker=" + std::to_string(worker_id_));
+    }
+    return decoded;
+}
+
 void ClientSession::handle_read()
 {
     if (!bev_) {
@@ -96,8 +140,13 @@ void ClientSession::handle_read()
 
     std::string data(length, '\0');
     evbuffer_remove(input, &data[0], length);
-    if (on_data_) {
+    data = decode_incoming(std::move(data));
+    if (on_data_ && !data.empty()) {
         on_data_(session_id_, std::move(data));
+    }
+    if (chunked_decoder_.failed() || chunked_decoder_.complete()) {
+        release_bev();
+        notify_closed();
     }
 }
 
