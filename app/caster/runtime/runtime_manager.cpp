@@ -8,6 +8,7 @@
 #include <event2/event.h>
 #include <nlohmann/json.hpp>
 
+#include "domain/connect_key.h"
 #include "domain/connect_info.h"
 #include "domain/sourcetable.h"
 #include "infra/logger.h"
@@ -221,15 +222,15 @@ bool RuntimeManager::create_source_session(HandoffMessage message)
         return false;
     }
 
-    const std::uint64_t session_id = _next_source_session_id++;
+    const std::string connect_key = ensure_connect_key(message);
     auto session = std::make_unique<SourceSession>(
-        session_id,
+        connect_key,
         std::move(message),
         [this](const ConnectInfo &info) {
             return source_table_body(info);
         },
-        [this](std::uint64_t closed_session_id) {
-            handle_source_closed(closed_session_id);
+        [this](const std::string &closed_connect_key) {
+            handle_source_closed(closed_connect_key);
         });
 
     if (!session->start(_base.get())) {
@@ -237,7 +238,7 @@ bool RuntimeManager::create_source_session(HandoffMessage message)
         return false;
     }
 
-    _source_sessions[session_id] = std::move(session);
+    _source_sessions[connect_key] = std::move(session);
     return true;
 }
 
@@ -248,9 +249,19 @@ std::string RuntimeManager::source_table_body(const ConnectInfo &info) const
     return build_sourcetable(entries);
 }
 
-void RuntimeManager::handle_source_closed(std::uint64_t session_id)
+std::string RuntimeManager::ensure_connect_key(HandoffMessage &message) const
 {
-    _pending_source_cleanup.insert(session_id);
+    if (!message.connect_key.empty()) {
+        return message.connect_key;
+    }
+    message.connect_key =
+        make_connect_key(_config.runtime_id, message.accepted_at_ms, message.remote_addr, message.remote_port);
+    return message.connect_key;
+}
+
+void RuntimeManager::handle_source_closed(const std::string &connect_key)
+{
+    _pending_source_cleanup.insert(connect_key);
     schedule_source_cleanup();
 }
 
@@ -267,8 +278,8 @@ void RuntimeManager::schedule_source_cleanup()
 void RuntimeManager::run_source_cleanup()
 {
     _source_cleanup_scheduled = false;
-    for (const auto session_id : _pending_source_cleanup) {
-        _source_sessions.erase(session_id);
+    for (const auto &connect_key : _pending_source_cleanup) {
+        _source_sessions.erase(connect_key);
     }
     _pending_source_cleanup.clear();
 }

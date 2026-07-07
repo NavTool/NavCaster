@@ -16,10 +16,10 @@ namespace navcaster::caster {
 class SourceSession {
 public:
     using BodyProvider = std::function<std::string(const ConnectInfo &)>;
-    using ClosedCallback = std::function<void(std::uint64_t)>;
+    using ClosedCallback = std::function<void(const std::string &)>;
 
     SourceSession(
-        std::uint64_t session_id,
+        std::string connect_key,
         HandoffMessage handoff,
         BodyProvider body_provider,
         ClosedCallback on_closed);
@@ -31,7 +31,7 @@ public:
     bool start(event_base *base);
     void close();
 
-    std::uint64_t session_id() const { return _session_id; }
+    const std::string &connect_key() const { return _connect_key; }
     const ConnectInfo &connect_info() const { return _handoff.connect_info; }
 
 private:
@@ -43,7 +43,7 @@ private:
     static void on_write(bufferevent *bev, void *arg);
     static void on_event(bufferevent *bev, short events, void *arg);
 
-    std::uint64_t _session_id = 0;
+    std::string _connect_key;
     HandoffMessage _handoff;
     BodyProvider _body_provider;
     ClosedCallback _on_closed;

@@ -22,10 +22,16 @@ class AcceptorSession {
 public:
     using HandoffSink = std::function<bool(HandoffMessage)>;
 
-    static bool start(event_base *base, evutil_socket_t fd, sockaddr *address, int socklen, HandoffSink sink);
+    static bool start(
+        event_base *base,
+        evutil_socket_t fd,
+        sockaddr *address,
+        int socklen,
+        std::string runtime_id,
+        HandoffSink sink);
 
 private:
-    AcceptorSession(evutil_socket_t fd, sockaddr *address, int socklen, HandoffSink sink);
+    AcceptorSession(evutil_socket_t fd, sockaddr *address, int socklen, std::string runtime_id, HandoffSink sink);
     ~AcceptorSession();
 
     AcceptorSession(const AcceptorSession &) = delete;

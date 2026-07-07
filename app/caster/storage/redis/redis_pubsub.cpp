@@ -278,9 +278,9 @@ bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const 
     return true;
 }
 
-bool WorkerRedisBoundary::report_client_position(const std::string &member_key, const GeoPosition &position)
+bool WorkerRedisBoundary::report_client_position(const std::string &connect_key, const GeoPosition &position)
 {
-    if (member_key.empty() || !position.valid || !command.raw()) {
+    if (connect_key.empty() || !position.valid || !command.raw()) {
         log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
         return false;
     }
@@ -293,8 +293,8 @@ bool WorkerRedisBoundary::report_client_position(const std::string &member_key, 
         kClientPositionKey,
         position.longitude_deg,
         position.latitude_deg,
-        member_key.data(),
-        member_key.size());
+        connect_key.data(),
+        connect_key.size());
     if (status != REDIS_OK) {
         log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
         return false;

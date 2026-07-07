@@ -9,6 +9,7 @@
 #include <event2/util.h>
 #include <nlohmann/json.hpp>
 
+#include "domain/connect_key.h"
 #include "domain/connect_info.h"
 #include "domain/http_chunked_codec.h"
 #include "domain/nmea_gga_parser.h"
@@ -175,16 +176,18 @@ std::string source_session_response(navcaster::caster::ConnectInfo info, const s
     navcaster::caster::HandoffMessage message;
     message.fd = sockets[0];
     message.connect_info = std::move(info);
+    message.connect_key = "test-source-connect";
 
     bool closed = false;
+    const std::string connect_key = message.connect_key;
     navcaster::caster::SourceSession session(
-        1,
+        connect_key,
         std::move(message),
         [&body](const navcaster::caster::ConnectInfo &) {
             return body;
         },
-        [&closed, &base](std::uint64_t session_id) {
-            closed = session_id == 1;
+        [&closed, &base, &connect_key](const std::string &closed_connect_key) {
+            closed = closed_connect_key == connect_key;
             event_base_loopbreak(base.get());
         });
 
@@ -304,6 +307,14 @@ void test_sourcetable()
     expect_true(fields[11] == "0", "source table NMEA field");
 }
 
+void test_connect_key()
+{
+    const auto first = navcaster::caster::make_connect_key("test-runtime", 123, "127.0.0.1", 2101);
+    const auto second = navcaster::caster::make_connect_key("test-runtime", 123, "127.0.0.1", 2101);
+    expect_true(first != second, "connect key unique");
+    expect_true(first.find("test-runtime:conn:") == 0, "connect key prefix");
+}
+
 void test_source_session()
 {
     const std::string body = "STR;BASE1;BASE1;RTCM 3.3;1074(1),1084(1),1094(1),1124(1);2;GPS;SNIP;CHN;30.00000000;120.00000000;0;0;NavCaster;none;B;N;0;\r\nENDSOURCETABLE\r\n";
@@ -363,8 +374,7 @@ void test_metrics_json()
 
     navcaster::caster::ClientMetricsSnapshot client;
     client.worker_id = 1;
-    client.session_id = 7;
-    client.member_key = "test-runtime:worker-1:client-7";
+    client.connect_key = "test-runtime:conn:process:123:7:127.0.0.1:2101";
     client.mount = "BASE1";
     client.position_source = navcaster::caster::PositionSource::NmeaGga;
     client.position.valid = true;
@@ -385,6 +395,12 @@ void test_metrics_json()
     expect_true(metrics["mounts"][0]["server_bytes_in"] == 128, "metrics mount server bytes in");
     expect_true(metrics["mounts"][0]["server_rtcm_frame_count"] == 3, "metrics mount server rtcm count");
     expect_true(metrics["mounts"][0]["base_position_source"] == "rtcm_1005", "metrics base source");
+    expect_true(metrics["clients"][0]["connect_key"] == "test-runtime:conn:process:123:7:127.0.0.1:2101",
+                "metrics client connect key");
+    const auto legacy_session_key = std::string("session") + "_id";
+    const auto legacy_member_field = std::string("member") + "_key";
+    expect_true(!metrics["clients"][0].contains(legacy_session_key), "metrics client no legacy session key");
+    expect_true(!metrics["clients"][0].contains(legacy_member_field), "metrics client no legacy member key");
     expect_true(metrics["clients"][0]["position_source"] == "nmea_gga", "metrics client source");
 }
 
@@ -397,6 +413,7 @@ int main()
     test_rtcm();
     test_http_chunked_codec();
     test_sourcetable();
+    test_connect_key();
     test_source_session();
     test_metrics_json();
 

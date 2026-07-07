@@ -7,6 +7,7 @@
 
 #include <event2/buffer.h>
 
+#include "domain/connect_key.h"
 #include "infra/logger.h"
 #include "infra/socket_util.h"
 #include "infra/timer.h"
@@ -115,9 +116,15 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
     return info;
 }
 
-bool AcceptorSession::start(event_base *base, evutil_socket_t fd, sockaddr *address, int socklen, HandoffSink sink)
+bool AcceptorSession::start(
+    event_base *base,
+    evutil_socket_t fd,
+    sockaddr *address,
+    int socklen,
+    std::string runtime_id,
+    HandoffSink sink)
 {
-    auto *session = new AcceptorSession(fd, address, socklen, std::move(sink));
+    auto *session = new AcceptorSession(fd, address, socklen, std::move(runtime_id), std::move(sink));
     if (!session->attach(base)) {
         delete session;
         return false;
@@ -125,7 +132,12 @@ bool AcceptorSession::start(event_base *base, evutil_socket_t fd, sockaddr *addr
     return true;
 }
 
-AcceptorSession::AcceptorSession(evutil_socket_t fd, sockaddr *address, int socklen, HandoffSink sink)
+AcceptorSession::AcceptorSession(
+    evutil_socket_t fd,
+    sockaddr *address,
+    int socklen,
+    std::string runtime_id,
+    HandoffSink sink)
     : _sink(std::move(sink))
 {
     const auto peer = peer_address_from_sockaddr(address, socklen);
@@ -133,6 +145,8 @@ AcceptorSession::AcceptorSession(evutil_socket_t fd, sockaddr *address, int sock
     _message.accepted_at_ms = steady_time_ms();
     _message.remote_addr = peer.host;
     _message.remote_port = peer.port;
+    _message.connect_key =
+        make_connect_key(runtime_id, _message.accepted_at_ms, _message.remote_addr, _message.remote_port);
     _message.connect_info.remote_addr = peer.host;
     _message.connect_info.remote_port = peer.port;
 }

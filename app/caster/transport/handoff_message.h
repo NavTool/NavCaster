@@ -11,6 +11,7 @@ namespace navcaster::caster {
 
 struct HandoffMessage {
     evutil_socket_t fd = -1;
+    std::string connect_key;
     ConnectInfo connect_info;
     std::string initial_bytes;
     std::string remote_addr;

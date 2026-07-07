@@ -31,12 +31,12 @@ std::string client_ok_response(const ConnectInfo &info)
 } // namespace
 
 ClientSession::ClientSession(
-    std::uint64_t session_id,
+    std::string connect_key,
     std::uint32_t worker_id,
     HandoffMessage handoff,
     DataCallback on_data,
     ClosedCallback on_closed)
-    : _session_id(session_id),
+    : _connect_key(std::move(connect_key)),
       _worker_id(worker_id),
       _handoff(std::move(handoff)),
       _on_data(std::move(on_data)),
@@ -44,6 +44,9 @@ ClientSession::ClientSession(
       _request_body_chunked(_handoff.connect_info.request_body_chunked),
       _response_chunked(_handoff.connect_info.accepts_chunked_response)
 {
+    if (_handoff.connect_key.empty()) {
+        _handoff.connect_key = _connect_key;
+    }
 }
 
 ClientSession::~ClientSession()
@@ -142,7 +145,7 @@ void ClientSession::handle_read()
     evbuffer_remove(input, &data[0], length);
     data = decode_incoming(std::move(data));
     if (_on_data && !data.empty()) {
-        _on_data(_session_id, std::move(data));
+        _on_data(_connect_key, std::move(data));
     }
     if (_chunked_decoder.failed() || _chunked_decoder.complete()) {
         release_bev();
@@ -174,7 +177,7 @@ void ClientSession::notify_closed()
     }
     _closed_notified = true;
     if (_on_closed) {
-        _on_closed(_session_id);
+        _on_closed(_connect_key);
     }
 }
 

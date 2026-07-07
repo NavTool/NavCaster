@@ -110,7 +110,7 @@ void Acceptor::on_accept(evconnlistener *listener, evutil_socket_t fd, sockaddr 
     }
 
     event_base *base = evconnlistener_get_base(listener);
-    if (!AcceptorSession::start(base, fd, address, socklen, acceptor->_sink)) {
+    if (!AcceptorSession::start(base, fd, address, socklen, acceptor->_config.runtime_id, acceptor->_sink)) {
         close_socket(fd);
     }
 }

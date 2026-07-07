@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "domain/connect_key.h"
 #include "domain/connect_info.h"
 #include "domain/nmea_gga_parser.h"
 #include "infra/logger.h"
@@ -79,8 +80,8 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
         MountMetricsSnapshot mount;
         mount.worker_id = _worker_id;
         mount.mount = item.first;
-        mount.server_online = state.server_id != 0;
-        mount.client_count = static_cast<std::uint64_t>(state.client_ids.size());
+        mount.server_online = !state.server_connect_key.empty();
+        mount.client_count = static_cast<std::uint64_t>(state.client_connect_keys.size());
         mount.server_bytes_in = state.server_bytes_in;
         mount.server_rtcm_frame_count = state.server_rtcm_frame_count;
         mount.base_position_report_count = state.base_position_report_count;
@@ -93,8 +94,7 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
         const auto &state = item.second;
         ClientMetricsSnapshot client;
         client.worker_id = _worker_id;
-        client.session_id = item.first;
-        client.member_key = state.member_key;
+        client.connect_key = state.connect_key;
         client.mount = state.mount;
         client.remote_addr = state.remote_addr;
         client.remote_port = state.remote_port;
@@ -116,21 +116,21 @@ void WorkerCore::create_server_locked(HandoffMessage message)
 {
     const std::string mount = message.connect_info.mount;
 
-    const auto existing_server_id = _mounts[mount].server_id;
-    if (existing_server_id != 0) {
-        close_server_locked(existing_server_id);
+    const auto existing_server_connect_key = _mounts[mount].server_connect_key;
+    if (!existing_server_connect_key.empty()) {
+        close_server_locked(existing_server_connect_key);
     }
 
-    const std::uint64_t session_id = _next_session_id++;
+    const std::string connect_key = ensure_connect_key(message);
     auto session = std::make_unique<ServerSession>(
-        session_id,
+        connect_key,
         _worker_id,
         std::move(message),
-        [this](std::uint64_t server_id, std::string data) {
-            handle_server_data(server_id, std::move(data));
+        [this](const std::string &server_connect_key, std::string data) {
+            handle_server_data(server_connect_key, std::move(data));
         },
-        [this](std::uint64_t server_id) {
-            handle_server_closed(server_id);
+        [this](const std::string &server_connect_key) {
+            handle_server_closed(server_connect_key);
         });
 
     if (!session->start(_base)) {
@@ -140,16 +140,16 @@ void WorkerCore::create_server_locked(HandoffMessage message)
     }
 
     auto &mount_state = _mounts[mount];
-    mount_state.server_id = session_id;
-    _server_decoders[session_id] = Rtcm3Parser{};
-    _servers[session_id] = std::move(session);
-    const auto initial_payload = _servers[session_id]->consume_initial_bytes();
+    mount_state.server_connect_key = connect_key;
+    _server_decoders[connect_key] = Rtcm3Parser{};
+    _servers[connect_key] = std::move(session);
+    const auto initial_payload = _servers[connect_key]->consume_initial_bytes();
     if (!initial_payload.empty()) {
-        handle_server_data_locked(session_id, initial_payload);
+        handle_server_data_locked(connect_key, initial_payload);
     }
-    if (_servers.find(session_id) != _servers.end() &&
-        (_servers[session_id]->input_failed() || _servers[session_id]->input_complete())) {
-        close_server_locked(session_id);
+    if (_servers.find(connect_key) != _servers.end() &&
+        (_servers[connect_key]->input_failed() || _servers[connect_key]->input_complete())) {
+        close_server_locked(connect_key);
     }
 }
 
@@ -157,16 +157,16 @@ void WorkerCore::create_client_locked(HandoffMessage message)
 {
     const std::string mount = message.connect_info.mount;
     const std::string initial_gga = message.connect_info.initial_gga;
-    const std::uint64_t session_id = _next_session_id++;
+    const std::string connect_key = ensure_connect_key(message);
     auto session = std::make_unique<ClientSession>(
-        session_id,
+        connect_key,
         _worker_id,
         std::move(message),
-        [this](std::uint64_t client_id, std::string data) {
-            handle_client_data(client_id, std::move(data));
+        [this](const std::string &client_connect_key, std::string data) {
+            handle_client_data(client_connect_key, std::move(data));
         },
-        [this](std::uint64_t client_id) {
-            handle_client_closed(client_id);
+        [this](const std::string &client_connect_key) {
+            handle_client_closed(client_connect_key);
         });
 
     if (!session->start(_base)) {
@@ -175,29 +175,29 @@ void WorkerCore::create_client_locked(HandoffMessage message)
     }
 
     auto &mount_state = _mounts[mount];
-    const bool should_subscribe = mount_state.client_ids.empty();
-    mount_state.client_ids.insert(session_id);
+    const bool should_subscribe = mount_state.client_connect_keys.empty();
+    mount_state.client_connect_keys.insert(connect_key);
     ClientRuntimeState client_state;
+    client_state.connect_key = connect_key;
     client_state.mount = mount;
     client_state.remote_addr = session->remote_addr();
     client_state.remote_port = session->remote_port();
-    client_state.member_key = client_member_key(session_id);
-    _client_states[session_id] = std::move(client_state);
-    _clients[session_id] = std::move(session);
+    _client_states[connect_key] = std::move(client_state);
+    _clients[connect_key] = std::move(session);
     if (!initial_gga.empty()) {
-        handle_client_data_locked(session_id, initial_gga);
+        handle_client_data_locked(connect_key, initial_gga);
     }
-    if (_clients.find(session_id) != _clients.end()) {
-        const auto initial_payload = _clients[session_id]->consume_initial_bytes();
+    if (_clients.find(connect_key) != _clients.end()) {
+        const auto initial_payload = _clients[connect_key]->consume_initial_bytes();
         if (!initial_payload.empty()) {
-            handle_client_data_locked(session_id, initial_payload);
+            handle_client_data_locked(connect_key, initial_payload);
         }
     }
-    if (_clients.find(session_id) != _clients.end() &&
-        (_clients[session_id]->input_failed() || _clients[session_id]->input_complete())) {
-        close_client_locked(session_id);
+    if (_clients.find(connect_key) != _clients.end() &&
+        (_clients[connect_key]->input_failed() || _clients[connect_key]->input_complete())) {
+        close_client_locked(connect_key);
     }
-    if (_clients.find(session_id) == _clients.end()) {
+    if (_clients.find(connect_key) == _clients.end()) {
         return;
     }
     if (_redis_boundary && should_subscribe) {
@@ -219,31 +219,31 @@ void WorkerCore::reject_handoff_locked(HandoffMessage &message, const std::strin
              " type=" + connect_type_name(message.connect_info.type) + " mount=" + message.connect_info.mount);
 }
 
-void WorkerCore::handle_server_data(std::uint64_t session_id, std::string data)
+void WorkerCore::handle_server_data(const std::string &connect_key, std::string data)
 {
     std::lock_guard<std::mutex> lock(_mutex);
-    handle_server_data_locked(session_id, data);
+    handle_server_data_locked(connect_key, data);
 }
 
-void WorkerCore::handle_client_data(std::uint64_t session_id, std::string data)
+void WorkerCore::handle_client_data(const std::string &connect_key, std::string data)
 {
     std::lock_guard<std::mutex> lock(_mutex);
-    handle_client_data_locked(session_id, data);
+    handle_client_data_locked(connect_key, data);
 }
 
-void WorkerCore::handle_server_closed(std::uint64_t session_id)
+void WorkerCore::handle_server_closed(const std::string &connect_key)
 {
     std::lock_guard<std::mutex> lock(_mutex);
-    detach_server_locked(session_id);
-    _pending_server_cleanup.insert(session_id);
+    detach_server_locked(connect_key);
+    _pending_server_cleanup.insert(connect_key);
     schedule_deferred_cleanup_locked();
 }
 
-void WorkerCore::handle_client_closed(std::uint64_t session_id)
+void WorkerCore::handle_client_closed(const std::string &connect_key)
 {
     std::lock_guard<std::mutex> lock(_mutex);
-    detach_client_locked(session_id);
-    _pending_client_cleanup.insert(session_id);
+    detach_client_locked(connect_key);
+    _pending_client_cleanup.insert(connect_key);
     schedule_deferred_cleanup_locked();
 }
 
@@ -274,9 +274,9 @@ void WorkerCore::handle_redis_error(const std::string &operation)
     }
 }
 
-void WorkerCore::handle_server_data_locked(std::uint64_t session_id, const std::string &data)
+void WorkerCore::handle_server_data_locked(const std::string &connect_key, const std::string &data)
 {
-    const auto server_it = _servers.find(session_id);
+    const auto server_it = _servers.find(connect_key);
     if (server_it == _servers.end() || data.empty()) {
         return;
     }
@@ -286,7 +286,7 @@ void WorkerCore::handle_server_data_locked(std::uint64_t session_id, const std::
     auto &mount_state = _mounts[mount];
     mount_state.server_bytes_in += static_cast<std::uint64_t>(data.size());
 
-    auto decoder_it = _server_decoders.find(session_id);
+    auto decoder_it = _server_decoders.find(connect_key);
     if (decoder_it != _server_decoders.end()) {
         const auto reports = decoder_it->second.feed(data);
         mount_state.server_rtcm_frame_count += static_cast<std::uint64_t>(reports.size());
@@ -309,12 +309,12 @@ void WorkerCore::handle_server_data_locked(std::uint64_t session_id, const std::
     }
 }
 
-void WorkerCore::handle_client_data_locked(std::uint64_t session_id, const std::string &data)
+void WorkerCore::handle_client_data_locked(const std::string &connect_key, const std::string &data)
 {
     if (data.empty()) {
         return;
     }
-    auto state_it = _client_states.find(session_id);
+    auto state_it = _client_states.find(connect_key);
     if (state_it == _client_states.end()) {
         return;
     }
@@ -326,7 +326,7 @@ void WorkerCore::handle_client_data_locked(std::uint64_t session_id, const std::
     }
 
     if (auto report = parse_latest_nmea_gga(state.nmea_buffer)) {
-        update_client_position_locked(session_id, *report);
+        update_client_position_locked(connect_key, *report);
     }
 
     const auto last_line_break = state.nmea_buffer.find_last_of("\r\n");
@@ -356,12 +356,12 @@ void WorkerCore::update_mount_position_locked(const std::string &mount, const Po
     }
 }
 
-void WorkerCore::update_client_position_locked(std::uint64_t session_id, const PositionReport &report)
+void WorkerCore::update_client_position_locked(const std::string &connect_key, const PositionReport &report)
 {
     if (!report.position.valid) {
         return;
     }
-    auto state_it = _client_states.find(session_id);
+    auto state_it = _client_states.find(connect_key);
     if (state_it == _client_states.end()) {
         return;
     }
@@ -373,7 +373,7 @@ void WorkerCore::update_client_position_locked(std::uint64_t session_id, const P
     ++state.position_report_count;
 
     if (_redis_boundary) {
-        if (_redis_boundary->report_client_position(state.member_key, state.position)) {
+        if (_redis_boundary->report_client_position(state.connect_key, state.position)) {
             ++_redis_position_report_count;
         } else {
             ++_redis_position_report_error_count;
@@ -382,10 +382,14 @@ void WorkerCore::update_client_position_locked(std::uint64_t session_id, const P
     }
 }
 
-std::string WorkerCore::client_member_key(std::uint64_t session_id) const
+std::string WorkerCore::ensure_connect_key(HandoffMessage &message) const
 {
-    std::string prefix = _redis_boundary ? _redis_boundary->runtime_id() : std::string("local-runtime");
-    return prefix + ":worker-" + std::to_string(_worker_id) + ":client-" + std::to_string(session_id);
+    if (!message.connect_key.empty()) {
+        return message.connect_key;
+    }
+    const std::string runtime_id = _redis_boundary ? _redis_boundary->runtime_id() : std::string("local-runtime");
+    message.connect_key = make_connect_key(runtime_id, message.accepted_at_ms, message.remote_addr, message.remote_port);
+    return message.connect_key;
 }
 
 void WorkerCore::fanout_to_mount_clients_locked(
@@ -399,14 +403,14 @@ void WorkerCore::fanout_to_mount_clients_locked(
     if (mount_it == _mounts.end()) {
         return;
     }
-    std::vector<std::uint64_t> client_ids;
-    client_ids.reserve(mount_it->second.client_ids.size());
-    for (const auto client_id : mount_it->second.client_ids) {
-        client_ids.push_back(client_id);
+    std::vector<std::string> client_connect_keys;
+    client_connect_keys.reserve(mount_it->second.client_connect_keys.size());
+    for (const auto &client_connect_key : mount_it->second.client_connect_keys) {
+        client_connect_keys.push_back(client_connect_key);
     }
 
-    for (const auto client_id : client_ids) {
-        auto client_it = _clients.find(client_id);
+    for (const auto &client_connect_key : client_connect_keys) {
+        auto client_it = _clients.find(client_connect_key);
         if (client_it == _clients.end()) {
             continue;
         }
@@ -417,11 +421,11 @@ void WorkerCore::fanout_to_mount_clients_locked(
         if (client->pending_output_bytes() + data.size() > kMaxClientOutputBufferBytes) {
             ++_slow_client_disconnect_count;
             ++_output_buffer_limit_count;
-            close_client_locked(client_id);
+            close_client_locked(client_connect_key);
             continue;
         }
         if (!client->write_bytes(data.data(), data.size())) {
-            close_client_locked(client_id);
+            close_client_locked(client_connect_key);
             continue;
         }
         if (write_bytes) {
@@ -436,25 +440,25 @@ void WorkerCore::fanout_to_mount_clients_locked(
     }
 }
 
-void WorkerCore::close_server_locked(std::uint64_t session_id)
+void WorkerCore::close_server_locked(const std::string &connect_key)
 {
-    auto server_it = _servers.find(session_id);
+    auto server_it = _servers.find(connect_key);
     if (server_it == _servers.end()) {
         return;
     }
 
-    detach_server_locked(session_id);
+    detach_server_locked(connect_key);
     _servers.erase(server_it);
 }
 
-void WorkerCore::close_client_locked(std::uint64_t session_id)
+void WorkerCore::close_client_locked(const std::string &connect_key)
 {
-    auto client_it = _clients.find(session_id);
+    auto client_it = _clients.find(connect_key);
     if (client_it == _clients.end()) {
         return;
     }
 
-    detach_client_locked(session_id);
+    detach_client_locked(connect_key);
     _clients.erase(client_it);
 }
 
@@ -464,30 +468,30 @@ void WorkerCore::erase_mount_if_empty_locked(const std::string &mount)
     if (mount_it == _mounts.end()) {
         return;
     }
-    if (mount_it->second.server_id == 0 && mount_it->second.client_ids.empty()) {
+    if (mount_it->second.server_connect_key.empty() && mount_it->second.client_connect_keys.empty()) {
         _mounts.erase(mount_it);
     }
 }
 
-void WorkerCore::detach_server_locked(std::uint64_t session_id)
+void WorkerCore::detach_server_locked(const std::string &connect_key)
 {
-    auto server_it = _servers.find(session_id);
+    auto server_it = _servers.find(connect_key);
     if (server_it == _servers.end()) {
         return;
     }
 
     const std::string mount = server_it->second->mount();
     auto mount_it = _mounts.find(mount);
-    if (mount_it != _mounts.end() && mount_it->second.server_id == session_id) {
-        mount_it->second.server_id = 0;
+    if (mount_it != _mounts.end() && mount_it->second.server_connect_key == connect_key) {
+        mount_it->second.server_connect_key.clear();
     }
-    _server_decoders.erase(session_id);
+    _server_decoders.erase(connect_key);
     erase_mount_if_empty_locked(mount);
 }
 
-void WorkerCore::detach_client_locked(std::uint64_t session_id)
+void WorkerCore::detach_client_locked(const std::string &connect_key)
 {
-    auto client_it = _clients.find(session_id);
+    auto client_it = _clients.find(connect_key);
     if (client_it == _clients.end()) {
         return;
     }
@@ -495,8 +499,8 @@ void WorkerCore::detach_client_locked(std::uint64_t session_id)
     const std::string mount = client_it->second->mount();
     auto mount_it = _mounts.find(mount);
     if (mount_it != _mounts.end()) {
-        mount_it->second.client_ids.erase(session_id);
-        if (mount_it->second.client_ids.empty() && _redis_boundary) {
+        mount_it->second.client_connect_keys.erase(connect_key);
+        if (mount_it->second.client_connect_keys.empty() && _redis_boundary) {
             if (!_redis_boundary->unsubscribe_mount(mount)) {
                 ++_redis_error_count;
             }
@@ -505,7 +509,7 @@ void WorkerCore::detach_client_locked(std::uint64_t session_id)
             }
         }
     }
-    _client_states.erase(session_id);
+    _client_states.erase(connect_key);
     erase_mount_if_empty_locked(mount);
 }
 
@@ -522,12 +526,12 @@ void WorkerCore::run_deferred_cleanup()
 {
     std::lock_guard<std::mutex> lock(_mutex);
     _cleanup_scheduled = false;
-    for (const auto session_id : _pending_server_cleanup) {
-        _servers.erase(session_id);
+    for (const auto &connect_key : _pending_server_cleanup) {
+        _servers.erase(connect_key);
     }
     _pending_server_cleanup.clear();
-    for (const auto session_id : _pending_client_cleanup) {
-        _clients.erase(session_id);
+    for (const auto &connect_key : _pending_client_cleanup) {
+        _clients.erase(connect_key);
     }
     _pending_client_cleanup.clear();
 }
