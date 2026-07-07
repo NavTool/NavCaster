@@ -140,16 +140,16 @@ void test_acceptor_parser()
     expect_true(client.mount == "BASE1", "client mount parsed");
     expect_true(!client.initial_gga.empty(), "Ntrip-GGA parsed");
 
-    auto source = parser.parse_request_head("SOURCE pass /BASE2\r\nSource-Agent: test\r\n\r\n");
-    expect_true(source.type == navcaster::caster::ConnectType::Source, "SOURCE is source");
-    expect_true(source.mount == "BASE2", "SOURCE mount parsed");
+    auto server = parser.parse_request_head("SOURCE pass /BASE2\r\nSource-Agent: test\r\n\r\n");
+    expect_true(server.type == navcaster::caster::ConnectType::Server, "SOURCE is server");
+    expect_true(server.mount == "BASE2", "SOURCE mount parsed");
 
-    auto ntrip2_source = parser.parse_request_head(
+    auto ntrip2_server = parser.parse_request_head(
         "POST /BASE3 HTTP/1.1\r\nHost: caster\r\nNtrip-Version: Ntrip/2.0\r\nTransfer-Encoding: chunked\r\n\r\n");
-    expect_true(ntrip2_source.type == navcaster::caster::ConnectType::Source, "NTRIP2 POST is source");
-    expect_true(ntrip2_source.mount == "BASE3", "NTRIP2 source mount parsed");
-    expect_true(ntrip2_source.ntrip2, "NTRIP2 source version parsed");
-    expect_true(ntrip2_source.request_body_chunked, "NTRIP2 source chunked request parsed");
+    expect_true(ntrip2_server.type == navcaster::caster::ConnectType::Server, "NTRIP2 POST is server");
+    expect_true(ntrip2_server.mount == "BASE3", "NTRIP2 server mount parsed");
+    expect_true(ntrip2_server.ntrip2, "NTRIP2 server version parsed");
+    expect_true(ntrip2_server.request_body_chunked, "NTRIP2 server chunked request parsed");
 
     auto ntrip2_client = parser.parse_request_head(
         "GET /BASE3 HTTP/1.1\r\nHost: caster\r\nNtrip-Version: Ntrip/2.0\r\nTE: chunked\r\n\r\n");
@@ -235,12 +235,17 @@ void test_metrics_json()
     navcaster::caster::WorkerMetricsSnapshot worker;
     worker.worker_id = 1;
     worker.running = true;
+    worker.server_count = 1;
+    worker.client_count = 1;
+    worker.active_sessions = 2;
     worker.redis_position_report_count = 2;
 
     navcaster::caster::MountMetricsSnapshot mount;
     mount.worker_id = 1;
     mount.mount = "BASE1";
-    mount.source_online = true;
+    mount.server_online = true;
+    mount.server_bytes_in = 128;
+    mount.server_rtcm_frame_count = 3;
     mount.base_position_source = navcaster::caster::PositionSource::Rtcm1005;
     mount.base_position.valid = true;
     mount.base_position.latitude_deg = 48.1173;
@@ -265,6 +270,11 @@ void test_metrics_json()
     expect_true(metrics["clients"].is_array(), "metrics clients array");
     expect_true(metrics["mounts"].size() == 1, "metrics mount count");
     expect_true(metrics["clients"].size() == 1, "metrics client count");
+    expect_true(metrics["server_count"] == 1, "metrics server count");
+    expect_true(metrics["workers"][0]["server_count"] == 1, "metrics worker server count");
+    expect_true(metrics["mounts"][0]["server_online"], "metrics mount server online");
+    expect_true(metrics["mounts"][0]["server_bytes_in"] == 128, "metrics mount server bytes in");
+    expect_true(metrics["mounts"][0]["server_rtcm_frame_count"] == 3, "metrics mount server rtcm count");
     expect_true(metrics["mounts"][0]["base_position_source"] == "rtcm_1005", "metrics base source");
     expect_true(metrics["clients"][0]["position_source"] == "nmea_gga", "metrics client source");
 }

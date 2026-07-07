@@ -8,7 +8,7 @@ namespace navcaster::caster {
 enum class ConnectType {
     Unknown,
     SourceTable,
-    Source,
+    Server,
     Client,
     Near,
     RelayPull,

@@ -33,7 +33,7 @@ std::vector<SourcetableEntry> sourcetable_entries_from_metrics(const RuntimeMetr
     std::vector<SourcetableEntry> entries;
     for (const auto &worker : snapshot.workers) {
         for (const auto &mount : worker.mounts) {
-            if (!mount.source_online || mount.mount.empty()) {
+            if (!mount.server_online || mount.mount.empty()) {
                 continue;
             }
             SourcetableEntry entry;

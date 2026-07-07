@@ -11,7 +11,7 @@
 
 #include "domain/rtcm3_parser.h"
 #include "session/client_session.h"
-#include "session/source_session.h"
+#include "session/server_session.h"
 #include "storage/redis/redis_pubsub.h"
 #include "transport/handoff_message.h"
 #include "worker/worker_metrics.h"
@@ -30,10 +30,10 @@ public:
 
 private:
     struct MountSessions {
-        std::uint64_t source_id = 0;
+        std::uint64_t server_id = 0;
         std::unordered_set<std::uint64_t> client_ids;
-        std::uint64_t source_bytes_in = 0;
-        std::uint64_t source_rtcm_frame_count = 0;
+        std::uint64_t server_bytes_in = 0;
+        std::uint64_t server_rtcm_frame_count = 0;
         std::uint64_t base_position_report_count = 0;
         PositionSource base_position_source = PositionSource::Unknown;
         GeoPosition base_position;
@@ -50,16 +50,16 @@ private:
         GeoPosition position;
     };
 
-    void create_source_locked(HandoffMessage message);
+    void create_server_locked(HandoffMessage message);
     void create_client_locked(HandoffMessage message);
     void reject_handoff_locked(HandoffMessage &message, const std::string &reason);
 
-    void handle_source_data(std::uint64_t session_id, std::string data);
+    void handle_server_data(std::uint64_t session_id, std::string data);
     void handle_client_data(std::uint64_t session_id, std::string data);
-    void handle_source_closed(std::uint64_t session_id);
+    void handle_server_closed(std::uint64_t session_id);
     void handle_client_closed(std::uint64_t session_id);
 
-    void handle_source_data_locked(std::uint64_t session_id, const std::string &data);
+    void handle_server_data_locked(std::uint64_t session_id, const std::string &data);
     void handle_client_data_locked(std::uint64_t session_id, const std::string &data);
     void update_mount_position_locked(const std::string &mount, const PositionReport &report);
     void update_client_position_locked(std::uint64_t session_id, const PositionReport &report);
@@ -70,10 +70,10 @@ private:
         bool remote,
         std::uint64_t *write_count,
         std::uint64_t *write_bytes);
-    void close_source_locked(std::uint64_t session_id);
+    void close_server_locked(std::uint64_t session_id);
     void close_client_locked(std::uint64_t session_id);
     void erase_mount_if_empty_locked(const std::string &mount);
-    void detach_source_locked(std::uint64_t session_id);
+    void detach_server_locked(std::uint64_t session_id);
     void detach_client_locked(std::uint64_t session_id);
     void schedule_deferred_cleanup_locked();
     void run_deferred_cleanup();
@@ -103,12 +103,12 @@ private:
     std::uint64_t _slow_client_disconnect_count = 0;
     std::uint64_t _output_buffer_limit_count = 0;
 
-    std::unordered_map<std::uint64_t, std::unique_ptr<SourceSession>> _sources;
+    std::unordered_map<std::uint64_t, std::unique_ptr<ServerSession>> _servers;
     std::unordered_map<std::uint64_t, std::unique_ptr<ClientSession>> _clients;
     std::unordered_map<std::string, MountSessions> _mounts;
-    std::unordered_map<std::uint64_t, Rtcm3Parser> _source_decoders;
+    std::unordered_map<std::uint64_t, Rtcm3Parser> _server_decoders;
     std::unordered_map<std::uint64_t, ClientRuntimeState> _client_states;
-    std::unordered_set<std::uint64_t> _pending_source_cleanup;
+    std::unordered_set<std::uint64_t> _pending_server_cleanup;
     std::unordered_set<std::uint64_t> _pending_client_cleanup;
     mutable std::mutex _mutex;
     bool _cleanup_scheduled = false;
