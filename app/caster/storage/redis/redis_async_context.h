@@ -23,18 +23,18 @@ public:
     bool connect(event_base *base);
     void disconnect();
 
-    bool connected() const { return connected_; }
-    const std::string &role() const { return role_; }
-    const std::string &host() const { return host_; }
-    int port() const { return port_; }
-    redisAsyncContext *raw() const { return context_; }
+    bool connected() const { return _connected; }
+    const std::string &role() const { return _role; }
+    const std::string &host() const { return _host; }
+    int port() const { return _port; }
+    redisAsyncContext *raw() const { return _context; }
 
 private:
-    std::string role_;
-    std::string host_ = "127.0.0.1";
-    int port_ = 6379;
-    redisAsyncContext *context_ = nullptr;
-    bool connected_ = false;
+    std::string _role;
+    std::string _host = "127.0.0.1";
+    int _port = 6379;
+    redisAsyncContext *_context = nullptr;
+    bool _connected = false;
 };
 
 } // namespace navcaster::caster

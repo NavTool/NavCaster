@@ -10,7 +10,7 @@
 namespace navcaster::caster {
 
 RedisAsyncContext::RedisAsyncContext(std::string role, std::string host, int port)
-    : role_(std::move(role)), host_(std::move(host)), port_(port)
+    : _role(std::move(role)), _host(std::move(host)), _port(port)
 {
 }
 
@@ -28,55 +28,55 @@ RedisAsyncContext &RedisAsyncContext::operator=(RedisAsyncContext &&other) noexc
 {
     if (this != &other) {
         disconnect();
-        role_ = std::move(other.role_);
-        host_ = std::move(other.host_);
-        port_ = other.port_;
-        context_ = other.context_;
-        connected_ = other.connected_;
-        other.context_ = nullptr;
-        other.connected_ = false;
+        _role = std::move(other._role);
+        _host = std::move(other._host);
+        _port = other._port;
+        _context = other._context;
+        _connected = other._connected;
+        other._context = nullptr;
+        other._connected = false;
     }
     return *this;
 }
 
 bool RedisAsyncContext::connect(event_base *base)
 {
-    if (!base || connected_) {
-        return connected_;
+    if (!base || _connected) {
+        return _connected;
     }
 
-    context_ = redisAsyncConnect(host_.c_str(), port_);
-    if (!context_) {
-        log_warn("redis context allocation failed for role=" + role_);
+    _context = redisAsyncConnect(_host.c_str(), _port);
+    if (!_context) {
+        log_warn("redis context allocation failed for role=" + _role);
         return false;
     }
 
-    if (context_->err) {
-        const std::string error = context_->errstr ? context_->errstr : "unknown";
-        log_warn("redis async connect failed for role=" + role_ + ": " + error);
-        redisAsyncFree(context_);
-        context_ = nullptr;
+    if (_context->err) {
+        const std::string error = _context->errstr ? _context->errstr : "unknown";
+        log_warn("redis async connect failed for role=" + _role + ": " + error);
+        redisAsyncFree(_context);
+        _context = nullptr;
         return false;
     }
 
-    if (redisLibeventAttach(context_, base) != REDIS_OK) {
-        log_warn("redis libevent attach failed for role=" + role_);
-        redisAsyncFree(context_);
-        context_ = nullptr;
+    if (redisLibeventAttach(_context, base) != REDIS_OK) {
+        log_warn("redis libevent attach failed for role=" + _role);
+        redisAsyncFree(_context);
+        _context = nullptr;
         return false;
     }
 
-    connected_ = true;
+    _connected = true;
     return true;
 }
 
 void RedisAsyncContext::disconnect()
 {
-    if (context_) {
-        redisAsyncDisconnect(context_);
-        context_ = nullptr;
+    if (_context) {
+        redisAsyncDisconnect(_context);
+        _context = nullptr;
     }
-    connected_ = false;
+    _connected = false;
 }
 
 } // namespace navcaster::caster

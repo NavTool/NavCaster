@@ -16,14 +16,14 @@ SocketRuntimeGuard::SocketRuntimeGuard()
 {
 #if defined(_WIN32)
     WSADATA data;
-    ok_ = WSAStartup(MAKEWORD(2, 2), &data) == 0;
+    _ok = WSAStartup(MAKEWORD(2, 2), &data) == 0;
 #endif
 }
 
 SocketRuntimeGuard::~SocketRuntimeGuard()
 {
 #if defined(_WIN32)
-    if (ok_) {
+    if (_ok) {
         WSACleanup();
     }
 #endif

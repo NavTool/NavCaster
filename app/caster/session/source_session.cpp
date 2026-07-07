@@ -10,6 +10,18 @@ namespace {
 
 constexpr const char *kNtripOkResponse = "ICY 200 OK\r\n\r\n";
 
+std::string source_ok_response(const ConnectInfo &info)
+{
+    if (!info.ntrip2) {
+        return kNtripOkResponse;
+    }
+    return "HTTP/1.1 200 OK\r\n"
+           "Server: NavCaster\r\n"
+           "Ntrip-Version: Ntrip/2.0\r\n"
+           "Connection: close\r\n"
+           "\r\n";
+}
+
 } // namespace
 
 SourceSession::SourceSession(
@@ -18,58 +30,82 @@ SourceSession::SourceSession(
     HandoffMessage handoff,
     DataCallback on_data,
     ClosedCallback on_closed)
-    : session_id_(session_id),
-      worker_id_(worker_id),
-      handoff_(std::move(handoff)),
-      on_data_(std::move(on_data)),
-      on_closed_(std::move(on_closed))
+    : _session_id(session_id),
+      _worker_id(worker_id),
+      _handoff(std::move(handoff)),
+      _on_data(std::move(on_data)),
+      _on_closed(std::move(on_closed)),
+      _request_body_chunked(_handoff.connect_info.request_body_chunked)
 {
 }
 
 SourceSession::~SourceSession()
 {
     release_bev();
-    if (handoff_.fd >= 0) {
-        close_socket(handoff_.fd);
-        handoff_.fd = -1;
+    if (_handoff.fd >= 0) {
+        close_socket(_handoff.fd);
+        _handoff.fd = -1;
     }
 }
 
 bool SourceSession::start(event_base *base)
 {
-    if (!base || handoff_.fd < 0) {
+    if (!base || _handoff.fd < 0) {
         return false;
     }
 
-    bev_ = bufferevent_socket_new(base, handoff_.fd, BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS);
-    if (!bev_) {
+    _bev = bufferevent_socket_new(base, _handoff.fd, BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS);
+    if (!_bev) {
         return false;
     }
-    handoff_.fd = -1;
+    _handoff.fd = -1;
 
-    bufferevent_setcb(bev_, &SourceSession::on_read, nullptr, &SourceSession::on_event, this);
-    bufferevent_enable(bev_, EV_READ | EV_WRITE);
+    bufferevent_setcb(_bev, &SourceSession::on_read, nullptr, &SourceSession::on_event, this);
+    bufferevent_enable(_bev, EV_READ | EV_WRITE);
 
-    if (bufferevent_write(bev_, kNtripOkResponse, std::char_traits<char>::length(kNtripOkResponse)) != 0) {
-        log_warn("source session failed to write NTRIP response worker=" + std::to_string(worker_id_));
+    const auto response = source_ok_response(_handoff.connect_info);
+    if (bufferevent_write(_bev, response.data(), response.size()) != 0) {
+        log_warn("source session failed to write NTRIP response worker=" + std::to_string(_worker_id));
         return false;
     }
     return true;
 }
 
+std::string SourceSession::consume_initial_bytes()
+{
+    std::string data = std::move(_handoff.initial_bytes);
+    _handoff.initial_bytes.clear();
+    return decode_incoming(std::move(data));
+}
+
 void SourceSession::close()
 {
-    closed_notified_ = true;
+    _closed_notified = true;
     release_bev();
+}
+
+std::string SourceSession::decode_incoming(std::string data)
+{
+    if (data.empty()) {
+        return {};
+    }
+    if (!_request_body_chunked) {
+        return data;
+    }
+    auto decoded = _chunked_decoder.feed(data);
+    if (_chunked_decoder.failed()) {
+        log_warn("source session received invalid chunked body worker=" + std::to_string(_worker_id));
+    }
+    return decoded;
 }
 
 void SourceSession::handle_read()
 {
-    if (!bev_) {
+    if (!_bev) {
         return;
     }
 
-    evbuffer *input = bufferevent_get_input(bev_);
+    evbuffer *input = bufferevent_get_input(_bev);
     const auto length = evbuffer_get_length(input);
     if (length == 0) {
         return;
@@ -77,9 +113,14 @@ void SourceSession::handle_read()
 
     std::string data(length, '\0');
     evbuffer_remove(input, &data[0], length);
-    bytes_in_ += static_cast<std::uint64_t>(data.size());
-    if (on_data_) {
-        on_data_(session_id_, std::move(data));
+    data = decode_incoming(std::move(data));
+    _bytes_in += static_cast<std::uint64_t>(data.size());
+    if (_on_data && !data.empty()) {
+        _on_data(_session_id, std::move(data));
+    }
+    if (_chunked_decoder.failed() || _chunked_decoder.complete()) {
+        release_bev();
+        notify_closed();
     }
 }
 
@@ -93,21 +134,21 @@ void SourceSession::handle_event(short events)
 
 void SourceSession::release_bev()
 {
-    if (bev_) {
-        bufferevent_setcb(bev_, nullptr, nullptr, nullptr, nullptr);
-        bufferevent_free(bev_);
-        bev_ = nullptr;
+    if (_bev) {
+        bufferevent_setcb(_bev, nullptr, nullptr, nullptr, nullptr);
+        bufferevent_free(_bev);
+        _bev = nullptr;
     }
 }
 
 void SourceSession::notify_closed()
 {
-    if (closed_notified_) {
+    if (_closed_notified) {
         return;
     }
-    closed_notified_ = true;
-    if (on_closed_) {
-        on_closed_(session_id_);
+    _closed_notified = true;
+    if (_on_closed) {
+        _on_closed(_session_id);
     }
 }
 

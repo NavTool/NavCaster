@@ -8,10 +8,10 @@ namespace navcaster::caster {
 
 class NearSession {
 public:
-    explicit NearSession(HandoffMessage handoff) : handoff_(std::move(handoff)) {}
+    explicit NearSession(HandoffMessage handoff) : _handoff(std::move(handoff)) {}
 
 private:
-    HandoffMessage handoff_;
+    HandoffMessage _handoff;
 };
 
 } // namespace navcaster::caster

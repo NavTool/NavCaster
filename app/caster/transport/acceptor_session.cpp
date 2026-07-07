@@ -39,6 +39,19 @@ std::string trim_header_value(std::string value)
     return value;
 }
 
+std::string lower_copy(std::string value)
+{
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+bool contains_token_ci(const std::string &value, const std::string &token)
+{
+    return lower_copy(value).find(lower_copy(token)) != std::string::npos;
+}
+
 } // namespace
 
 ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request_head) const
@@ -49,16 +62,20 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
     std::string target;
     std::string third;
     input >> method >> target;
+    input >> third;
     std::transform(method.begin(), method.end(), method.begin(), [](unsigned char ch) {
         return static_cast<char>(std::toupper(ch));
     });
+    if (third.rfind("HTTP/", 0) == 0) {
+        info.http_version = third;
+    }
 
     if (method == "GET") {
-        info.type = ConnectType::Client;
         info.mount = trim_mount(target);
+        info.type = info.mount.empty() ? ConnectType::SourceTable : ConnectType::Client;
     } else if (method == "POST" || method == "SOURCE") {
         info.type = ConnectType::Source;
-        if (method == "SOURCE" && !target.empty() && target.front() != '/' && input >> third) {
+        if (method == "SOURCE" && !target.empty() && target.front() != '/' && !third.empty() && third.rfind("HTTP/", 0) != 0) {
             target = third;
         }
         info.mount = trim_mount(target);
@@ -70,15 +87,29 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
         if (colon == std::string::npos) {
             continue;
         }
-        std::string key = line.substr(0, colon);
-        std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
-            return static_cast<char>(std::tolower(ch));
-        });
+        std::string key = lower_copy(line.substr(0, colon));
+        const std::string value = trim_header_value(line.substr(colon + 1));
         if (key == "authorization") {
-            info.auth_header = trim_header_value(line.substr(colon + 1));
+            info.auth_header = value;
         } else if (key == "ntrip-gga") {
-            info.initial_gga = trim_header_value(line.substr(colon + 1));
+            info.initial_gga = value;
+        } else if (key == "ntrip-version") {
+            info.ntrip_version = value;
+            info.ntrip2 = contains_token_ci(value, "ntrip/2.0");
+        } else if (key == "transfer-encoding") {
+            if (contains_token_ci(value, "chunked")) {
+                info.request_body_chunked = true;
+            }
+        } else if (key == "te") {
+            if (contains_token_ci(value, "chunked")) {
+                info.accepts_chunked_response = true;
+            }
         }
+    }
+
+    if (info.type == ConnectType::SourceTable || info.type == ConnectType::Client) {
+        info.accepts_chunked_response = info.ntrip2 && (info.accepts_chunked_response || info.request_body_chunked);
+        info.request_body_chunked = false;
     }
 
     return info;
@@ -95,59 +126,59 @@ bool AcceptorSession::start(event_base *base, evutil_socket_t fd, sockaddr *addr
 }
 
 AcceptorSession::AcceptorSession(evutil_socket_t fd, sockaddr *address, int socklen, HandoffSink sink)
-    : sink_(std::move(sink))
+    : _sink(std::move(sink))
 {
     const auto peer = peer_address_from_sockaddr(address, socklen);
-    message_.fd = fd;
-    message_.accepted_at_ms = steady_time_ms();
-    message_.remote_addr = peer.host;
-    message_.remote_port = peer.port;
-    message_.connect_info.remote_addr = peer.host;
-    message_.connect_info.remote_port = peer.port;
+    _message.fd = fd;
+    _message.accepted_at_ms = steady_time_ms();
+    _message.remote_addr = peer.host;
+    _message.remote_port = peer.port;
+    _message.connect_info.remote_addr = peer.host;
+    _message.connect_info.remote_port = peer.port;
 }
 
 AcceptorSession::~AcceptorSession()
 {
-    if (bev_) {
-        bufferevent_free(bev_);
-        bev_ = nullptr;
+    if (_bev) {
+        bufferevent_free(_bev);
+        _bev = nullptr;
     }
 }
 
 bool AcceptorSession::attach(event_base *base)
 {
-    if (!base || message_.fd < 0) {
+    if (!base || _message.fd < 0) {
         return false;
     }
 
-    bev_ = bufferevent_socket_new(base, message_.fd, BEV_OPT_DEFER_CALLBACKS);
-    if (!bev_) {
+    _bev = bufferevent_socket_new(base, _message.fd, BEV_OPT_DEFER_CALLBACKS);
+    if (!_bev) {
         return false;
     }
 
-    bufferevent_setcb(bev_, &AcceptorSession::on_read, nullptr, &AcceptorSession::on_event, this);
-    bufferevent_enable(bev_, EV_READ);
+    bufferevent_setcb(_bev, &AcceptorSession::on_read, nullptr, &AcceptorSession::on_event, this);
+    bufferevent_enable(_bev, EV_READ);
     return true;
 }
 
 void AcceptorSession::read_available()
 {
-    evbuffer *input = bufferevent_get_input(bev_);
+    evbuffer *input = bufferevent_get_input(_bev);
     const auto length = evbuffer_get_length(input);
     if (length > 0) {
         std::string chunk(length, '\0');
         evbuffer_remove(input, &chunk[0], length);
-        read_buffer_ += chunk;
+        _read_buffer += chunk;
     }
 
-    if (read_buffer_.size() > kMaxHeaderBytes) {
+    if (_read_buffer.size() > kMaxHeaderBytes) {
         log_warn("acceptor session header exceeds max bytes");
         close_and_destroy();
         return;
     }
 
-    const auto header_end = read_buffer_.find("\r\n\r\n");
-    const auto alt_header_end = read_buffer_.find("\n\n");
+    const auto header_end = _read_buffer.find("\r\n\r\n");
+    const auto alt_header_end = _read_buffer.find("\n\n");
     std::size_t end = std::string::npos;
     std::size_t delimiter_size = 0;
     if (header_end != std::string::npos) {
@@ -162,22 +193,22 @@ void AcceptorSession::read_available()
         return;
     }
 
-    const std::string request_head = read_buffer_.substr(0, end + delimiter_size);
-    message_.initial_bytes = read_buffer_.substr(end + delimiter_size);
-    message_.connect_info = parser_.parse_request_head(request_head);
-    message_.connect_info.remote_addr = message_.remote_addr;
-    message_.connect_info.remote_port = message_.remote_port;
+    const std::string request_head = _read_buffer.substr(0, end + delimiter_size);
+    _message.initial_bytes = _read_buffer.substr(end + delimiter_size);
+    _message.connect_info = _parser.parse_request_head(request_head);
+    _message.connect_info.remote_addr = _message.remote_addr;
+    _message.connect_info.remote_port = _message.remote_port;
     dispatch_or_close();
 }
 
 void AcceptorSession::dispatch_or_close()
 {
-    bufferevent_disable(bev_, EV_READ | EV_WRITE);
-    const auto fd = bufferevent_getfd(bev_);
-    message_.fd = fd;
+    bufferevent_disable(_bev, EV_READ | EV_WRITE);
+    const auto fd = bufferevent_getfd(_bev);
+    _message.fd = fd;
 
-    if (sink_ && sink_(std::move(message_))) {
-        message_.fd = -1;
+    if (_sink && _sink(std::move(_message))) {
+        _message.fd = -1;
         destroy_after_handoff();
         return;
     }
@@ -187,17 +218,17 @@ void AcceptorSession::dispatch_or_close()
 
 void AcceptorSession::close_and_destroy()
 {
-    if (message_.fd >= 0) {
-        close_socket(message_.fd);
-        message_.fd = -1;
+    if (_message.fd >= 0) {
+        close_socket(_message.fd);
+        _message.fd = -1;
     }
     delete this;
 }
 
 void AcceptorSession::destroy_after_handoff()
 {
-    if (bev_) {
-        bufferevent_setfd(bev_, -1);
+    if (_bev) {
+        bufferevent_setfd(_bev, -1);
     }
     delete this;
 }

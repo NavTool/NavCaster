@@ -7,6 +7,7 @@ option(BUILD_NAVCASTER_CASTER "Build v2 navcaster-caster runtime." ON)
 option(HOTLOAD_ENABLED "Enable hot reload" OFF)
 
 include(CTest)
+find_package(Threads REQUIRED)
 
 #版本14以下可能会导致abseil不支持
 set(CMAKE_CXX_STANDARD 17)
@@ -185,7 +186,18 @@ set(DISABLE_TESTS ON CACHE BOOL "force set this option"  FORCE)
 add_subdirectory(third_party/hiredis)
 
 #json
-set(JSON_INCLUDE_PATH "${CMAKE_SOURCE_DIR}/third_party/json/include")
+set(JSON_BuildTests OFF CACHE BOOL "Disable nlohmann/json tests" FORCE)
+set(JSON_Install OFF CACHE BOOL "Disable nlohmann/json install targets" FORCE)
+add_subdirectory(third_party/json EXCLUDE_FROM_ALL)
+
+#spdlog
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "Disable spdlog examples" FORCE)
+set(SPDLOG_BUILD_EXAMPLE_HO OFF CACHE BOOL "Disable spdlog header-only examples" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Disable spdlog tests" FORCE)
+set(SPDLOG_BUILD_TESTS_HO OFF CACHE BOOL "Disable spdlog header-only tests" FORCE)
+set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "Disable spdlog benchmarks" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "Disable spdlog install targets" FORCE)
+add_subdirectory(third_party/spdlog EXCLUDE_FROM_ALL)
 
 if(BUILD_NAVCASTER_CASTER)
     add_subdirectory(app/caster)
@@ -234,6 +246,4 @@ message(STATUS "")
 message(STATUS "CMAKE_CXX_FLAGS_DEBUG   : ${CMAKE_CXX_FLAGS_DEBUG}")
 message(STATUS "CMAKE_CXX_FLAGS_RELEASE : ${CMAKE_CXX_FLAGS_RELEASE}")
 message(STATUS "CMAKE_BUILD_TYPE        : ${CMAKE_BUILD_TYPE}")
-
-
 

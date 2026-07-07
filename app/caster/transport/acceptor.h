@@ -24,15 +24,15 @@ public:
 
     bool start(event_base *base);
     void stop();
-    bool running() const { return listener_ != nullptr; }
+    bool running() const { return _listener != nullptr; }
 
 private:
     static void on_accept(evconnlistener *listener, evutil_socket_t fd, sockaddr *address, int socklen, void *arg);
     static void on_accept_error(evconnlistener *listener, void *arg);
 
-    RuntimeConfig config_;
-    HandoffSink sink_;
-    evconnlistener *listener_ = nullptr;
+    RuntimeConfig _config;
+    HandoffSink _sink;
+    evconnlistener *_listener = nullptr;
 };
 
 } // namespace navcaster::caster

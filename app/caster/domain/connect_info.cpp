@@ -5,6 +5,8 @@ namespace navcaster::caster {
 std::string connect_type_name(ConnectType type)
 {
     switch (type) {
+    case ConnectType::SourceTable:
+        return "source_table";
     case ConnectType::Source:
         return "source";
     case ConnectType::Client:

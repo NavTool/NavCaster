@@ -7,9 +7,9 @@ namespace navcaster::caster {
 EventThreadingGuard::EventThreadingGuard()
 {
 #if defined(_WIN32)
-    ok_ = evthread_use_windows_threads() == 0;
+    _ok = evthread_use_windows_threads() == 0;
 #else
-    ok_ = evthread_use_pthreads() == 0;
+    _ok = evthread_use_pthreads() == 0;
 #endif
 }
 

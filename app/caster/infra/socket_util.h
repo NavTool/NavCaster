@@ -20,10 +20,10 @@ public:
     SocketRuntimeGuard(const SocketRuntimeGuard &) = delete;
     SocketRuntimeGuard &operator=(const SocketRuntimeGuard &) = delete;
 
-    bool ok() const { return ok_; }
+    bool ok() const { return _ok; }
 
 private:
-    bool ok_ = true;
+    bool _ok = true;
 };
 
 PeerAddress peer_address_from_sockaddr(const sockaddr *address, int socklen);

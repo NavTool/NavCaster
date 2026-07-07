@@ -11,7 +11,7 @@
 namespace navcaster::caster {
 
 CasterWorker::CasterWorker(std::uint32_t worker_id, std::string runtime_id, RedisEndpoint redis)
-    : worker_id_(worker_id), runtime_id_(std::move(runtime_id)), redis_endpoint_(std::move(redis))
+    : _worker_id(worker_id), _runtime_id(std::move(runtime_id)), _redis_endpoint(std::move(redis))
 {
 }
 
@@ -22,13 +22,13 @@ CasterWorker::~CasterWorker()
 
 bool CasterWorker::start()
 {
-    if (running_.load()) {
+    if (_running.load()) {
         return true;
     }
 
-    stop_requested_.store(false);
-    running_.store(true);
-    thread_ = std::thread(&CasterWorker::thread_main, this);
+    _stop_requested.store(false);
+    _running.store(true);
+    _thread = std::thread(&CasterWorker::thread_main, this);
     if (wait_until_ready()) {
         return true;
     }
@@ -39,50 +39,50 @@ bool CasterWorker::start()
 
 void CasterWorker::stop()
 {
-    if (!running_.load() && !thread_.joinable()) {
+    if (!_running.load() && !_thread.joinable()) {
         return;
     }
 
-    stop_requested_.store(true);
-    if (base_) {
-        event_base_loopbreak(base_.get());
+    _stop_requested.store(true);
+    if (_base) {
+        event_base_loopbreak(_base.get());
     }
-    if (thread_.joinable()) {
-        thread_.join();
+    if (_thread.joinable()) {
+        _thread.join();
     }
 }
 
 bool CasterWorker::post_handoff(HandoffMessage message)
 {
-    if (!ready_.load() || !mailbox_) {
+    if (!_ready.load() || !_mailbox) {
         return false;
     }
 
-    return mailbox_->post([this, message = std::move(message)]() mutable {
-        if (core_) {
-            core_->accept_handoff(std::move(message));
+    return _mailbox->post([this, message = std::move(message)]() mutable {
+        if (_core) {
+            _core->accept_handoff(std::move(message));
         }
     });
 }
 
 bool CasterWorker::post_probe()
 {
-    if (!ready_.load() || !mailbox_) {
+    if (!_ready.load() || !_mailbox) {
         return false;
     }
 
-    return mailbox_->post([]() {});
+    return _mailbox->post([]() {});
 }
 
 void CasterWorker::set_draining(bool draining)
 {
-    if (!ready_.load() || !mailbox_) {
+    if (!_ready.load() || !_mailbox) {
         return;
     }
 
-    mailbox_->post([this, draining]() {
-        if (core_) {
-            core_->set_draining(draining);
+    _mailbox->post([this, draining]() {
+        if (_core) {
+            _core->set_draining(draining);
         }
     });
 }
@@ -90,87 +90,87 @@ void CasterWorker::set_draining(bool draining)
 WorkerMetricsSnapshot CasterWorker::snapshot() const
 {
     WorkerMetricsSnapshot snapshot;
-    if (core_) {
-        snapshot = core_->snapshot();
+    if (_core) {
+        snapshot = _core->snapshot();
     } else {
-        snapshot.worker_id = worker_id_;
+        snapshot.worker_id = _worker_id;
     }
-    snapshot.running = running_.load();
-    if (mailbox_) {
-        snapshot.mailbox_messages = mailbox_->posted_count();
+    snapshot.running = _running.load();
+    if (_mailbox) {
+        snapshot.mailbox_messages = _mailbox->posted_count();
     }
     return snapshot;
 }
 
 void CasterWorker::thread_main()
 {
-    base_ = make_event_base();
-    if (!base_) {
-        log_error("worker " + std::to_string(worker_id_) + " failed to create event_base");
-        running_.store(false);
+    _base = make_event_base();
+    if (!_base) {
+        log_error("worker " + std::to_string(_worker_id) + " failed to create event_base");
+        _running.store(false);
         {
-            std::lock_guard<std::mutex> lock(state_mutex_);
-            ready_.store(false);
+            std::lock_guard<std::mutex> lock(_state_mutex);
+            _ready.store(false);
         }
-        ready_cv_.notify_all();
+        _ready_cv.notify_all();
         return;
     }
 
-    redis_boundary_ = std::make_unique<WorkerRedisBoundary>(runtime_id_, worker_id_, redis_endpoint_.host, redis_endpoint_.port);
-    core_ = std::make_unique<WorkerCore>(worker_id_, base_.get(), redis_boundary_.get());
-    mailbox_ = std::make_unique<WorkerMailbox>();
-    if (!mailbox_->attach(base_.get())) {
-        log_error("worker " + std::to_string(worker_id_) + " failed to attach mailbox");
-        running_.store(false);
+    _redis_boundary = std::make_unique<WorkerRedisBoundary>(_runtime_id, _worker_id, _redis_endpoint.host, _redis_endpoint.port);
+    _core = std::make_unique<WorkerCore>(_worker_id, _base.get(), _redis_boundary.get());
+    _mailbox = std::make_unique<WorkerMailbox>();
+    if (!_mailbox->attach(_base.get())) {
+        log_error("worker " + std::to_string(_worker_id) + " failed to attach mailbox");
+        _running.store(false);
         {
-            std::lock_guard<std::mutex> lock(state_mutex_);
-            ready_.store(false);
+            std::lock_guard<std::mutex> lock(_state_mutex);
+            _ready.store(false);
         }
-        ready_cv_.notify_all();
+        _ready_cv.notify_all();
         return;
     }
 
-    redis_boundary_->start(
-        base_.get(),
+    _redis_boundary->start(
+        _base.get(),
         [this](std::string origin_runtime_id, std::string mount, std::string payload) {
-            if (core_) {
-                core_->handle_redis_mount_data(std::move(origin_runtime_id), std::move(mount), std::move(payload));
+            if (_core) {
+                _core->handle_redis_mount_data(std::move(origin_runtime_id), std::move(mount), std::move(payload));
             }
         },
         [this](std::string operation) {
-            if (core_) {
-                core_->handle_redis_error(operation);
+            if (_core) {
+                _core->handle_redis_error(operation);
             }
         });
 
     {
-        std::lock_guard<std::mutex> lock(state_mutex_);
-        ready_.store(true);
+        std::lock_guard<std::mutex> lock(_state_mutex);
+        _ready.store(true);
     }
-    ready_cv_.notify_all();
+    _ready_cv.notify_all();
 
-    event_base_loop(base_.get(), EVLOOP_NO_EXIT_ON_EMPTY);
+    event_base_loop(_base.get(), EVLOOP_NO_EXIT_ON_EMPTY);
 
-    if (mailbox_) {
-        mailbox_->detach();
+    if (_mailbox) {
+        _mailbox->detach();
     }
-    if (redis_boundary_) {
-        redis_boundary_->stop();
+    if (_redis_boundary) {
+        _redis_boundary->stop();
     }
-    mailbox_.reset();
-    core_.reset();
-    redis_boundary_.reset();
-    base_.reset();
-    ready_.store(false);
-    running_.store(false);
+    _mailbox.reset();
+    _core.reset();
+    _redis_boundary.reset();
+    _base.reset();
+    _ready.store(false);
+    _running.store(false);
 }
 
 bool CasterWorker::wait_until_ready()
 {
-    std::unique_lock<std::mutex> lock(state_mutex_);
-    return ready_cv_.wait_for(lock, std::chrono::seconds(5), [this]() {
-        return ready_.load() || !running_.load();
-    }) && ready_.load();
+    std::unique_lock<std::mutex> lock(_state_mutex);
+    return _ready_cv.wait_for(lock, std::chrono::seconds(5), [this]() {
+        return _ready.load() || !_running.load();
+    }) && _ready.load();
 }
 
 } // namespace navcaster::caster

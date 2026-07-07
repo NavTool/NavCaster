@@ -31,9 +31,9 @@ public:
 private:
     std::uint32_t choose_worker(const std::vector<WorkerMetricsSnapshot> &workers) const;
 
-    mutable std::mutex mutex_;
-    std::unordered_map<std::string, std::uint32_t> mount_to_worker_;
-    std::unordered_set<std::uint32_t> draining_workers_;
+    mutable std::mutex _mutex;
+    std::unordered_map<std::string, std::uint32_t> _mount_to_worker;
+    std::unordered_set<std::uint32_t> _draining_workers;
 };
 
 } // namespace navcaster::caster
