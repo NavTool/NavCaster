@@ -4,13 +4,34 @@
 
 #include <event2/buffer.h>
 #include <event2/http.h>
+#include <nlohmann/json.hpp>
 
 #include "infra/logger.h"
 
 namespace navcaster::caster {
+namespace {
+
+using Json = nlohmann::ordered_json;
+
+std::string health_json(const RuntimeMetricsSnapshot &snapshot)
+{
+    return Json{
+        {"ok", snapshot.running},
+        {"runtime_id", snapshot.runtime_id},
+    }.dump();
+}
+
+std::string error_json(const std::string &error)
+{
+    return Json{
+        {"error", error},
+    }.dump();
+}
+
+} // namespace
 
 RuntimeHealthServer::RuntimeHealthServer(RuntimeConfig config, SnapshotProvider snapshot_provider)
-    : config_(std::move(config)), snapshot_provider_(std::move(snapshot_provider))
+    : _config(std::move(config)), _snapshot_provider(std::move(snapshot_provider))
 {
 }
 
@@ -21,19 +42,19 @@ RuntimeHealthServer::~RuntimeHealthServer()
 
 bool RuntimeHealthServer::start(event_base *base)
 {
-    if (!base || http_) {
-        return http_ != nullptr;
+    if (!base || _http) {
+        return _http != nullptr;
     }
 
-    http_ = evhttp_new(base);
-    if (!http_) {
+    _http = evhttp_new(base);
+    if (!_http) {
         log_error("failed to create runtime health server");
         return false;
     }
 
-    evhttp_set_gencb(http_, &RuntimeHealthServer::on_request, this);
-    if (evhttp_bind_socket(http_, config_.health_host.c_str(), config_.health_port) != 0) {
-        log_error("failed to bind runtime health server on " + config_.health_host + ":" + std::to_string(config_.health_port));
+    evhttp_set_gencb(_http, &RuntimeHealthServer::on_request, this);
+    if (evhttp_bind_socket(_http, _config.health_host.c_str(), _config.health_port) != 0) {
+        log_error("failed to bind runtime health server on " + _config.health_host + ":" + std::to_string(_config.health_port));
         stop();
         return false;
     }
@@ -42,9 +63,9 @@ bool RuntimeHealthServer::start(event_base *base)
 
 void RuntimeHealthServer::stop()
 {
-    if (http_) {
-        evhttp_free(http_);
-        http_ = nullptr;
+    if (_http) {
+        evhttp_free(_http);
+        _http = nullptr;
     }
 }
 
@@ -60,12 +81,10 @@ void RuntimeHealthServer::handle_request(evhttp_request *request)
 {
     const char *uri = evhttp_request_get_uri(request);
     const std::string path = uri ? uri : "/";
-    const auto snapshot = snapshot_provider_ ? snapshot_provider_() : RuntimeMetricsSnapshot{};
+    const auto snapshot = _snapshot_provider ? _snapshot_provider() : RuntimeMetricsSnapshot{};
 
     if (path == "/health" || path == "/healthz" || path == "/api/v1/runtime-local/health") {
-        const std::string body = std::string("{\"ok\":") + (snapshot.running ? "true" : "false") +
-            ",\"runtime_id\":\"" + snapshot.runtime_id + "\"}";
-        send_json(request, snapshot.running ? 200 : 503, body);
+        send_json(request, snapshot.running ? 200 : 503, health_json(snapshot));
         return;
     }
     if (path == "/metrics" || path == "/metrics.json" || path == "/api/v1/runtime-local/metrics") {
@@ -73,7 +92,7 @@ void RuntimeHealthServer::handle_request(evhttp_request *request)
         return;
     }
 
-    send_json(request, 404, "{\"error\":\"not_found\"}");
+    send_json(request, 404, error_json("not_found"));
 }
 
 void RuntimeHealthServer::send_json(evhttp_request *request, int status, const std::string &body)

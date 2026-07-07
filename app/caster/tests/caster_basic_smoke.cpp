@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
 #include "domain/connect_info.h"
 #include "domain/http_chunked_codec.h"
 #include "domain/nmea_gga_parser.h"
@@ -55,12 +57,12 @@ public:
     void write_unsigned(std::uint64_t value, int bits)
     {
         for (int i = bits - 1; i >= 0; --i) {
-            if ((bit_offset_ % 8) == 0) {
-                data_.push_back(0);
+            if ((_bit_offset % 8) == 0) {
+                _data.push_back(0);
             }
             const auto bit = static_cast<std::uint8_t>((value >> i) & 0x01U);
-            data_.back() |= static_cast<std::uint8_t>(bit << (7 - (bit_offset_ % 8)));
-            ++bit_offset_;
+            _data.back() |= static_cast<std::uint8_t>(bit << (7 - (_bit_offset % 8)));
+            ++_bit_offset;
         }
     }
 
@@ -72,11 +74,11 @@ public:
         write_unsigned(raw, bits);
     }
 
-    const std::vector<std::uint8_t> &data() const { return data_; }
+    const std::vector<std::uint8_t> &data() const { return _data; }
 
 private:
-    std::vector<std::uint8_t> data_;
-    int bit_offset_ = 0;
+    std::vector<std::uint8_t> _data;
+    int _bit_offset = 0;
 };
 
 std::vector<std::uint8_t> build_rtcm_1005(double latitude, double longitude, double height)
@@ -257,11 +259,14 @@ void test_metrics_json()
     worker.clients.push_back(client);
     snapshot.workers.push_back(worker);
 
-    const auto json = navcaster::caster::runtime_metrics_to_json(snapshot);
-    expect_true(json.find("\"mounts\":[") != std::string::npos, "metrics mounts array");
-    expect_true(json.find("\"clients\":[") != std::string::npos, "metrics clients array");
-    expect_true(json.find("\"base_position_source\":\"rtcm_1005\"") != std::string::npos, "metrics base source");
-    expect_true(json.find("\"position_source\":\"nmea_gga\"") != std::string::npos, "metrics client source");
+    const auto metrics_text = navcaster::caster::runtime_metrics_to_json(snapshot);
+    const auto metrics = nlohmann::json::parse(metrics_text);
+    expect_true(metrics["mounts"].is_array(), "metrics mounts array");
+    expect_true(metrics["clients"].is_array(), "metrics clients array");
+    expect_true(metrics["mounts"].size() == 1, "metrics mount count");
+    expect_true(metrics["clients"].size() == 1, "metrics client count");
+    expect_true(metrics["mounts"][0]["base_position_source"] == "rtcm_1005", "metrics base source");
+    expect_true(metrics["clients"][0]["position_source"] == "nmea_gga", "metrics client source");
 }
 
 } // namespace

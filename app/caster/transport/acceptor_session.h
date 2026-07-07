@@ -40,11 +40,11 @@ private:
     static void on_read(bufferevent *bev, void *arg);
     static void on_event(bufferevent *bev, short events, void *arg);
 
-    HandoffSink sink_;
-    AcceptorSessionParser parser_;
-    bufferevent *bev_ = nullptr;
-    HandoffMessage message_;
-    std::string read_buffer_;
+    HandoffSink _sink;
+    AcceptorSessionParser _parser;
+    bufferevent *_bev = nullptr;
+    HandoffMessage _message;
+    std::string _read_buffer;
 };
 
 } // namespace navcaster::caster

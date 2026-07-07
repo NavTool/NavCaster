@@ -30,7 +30,7 @@ public:
 
     bool start();
     void stop();
-    bool running() const { return running_.load(); }
+    bool running() const { return _running.load(); }
 
     RuntimeMetricsSnapshot metrics_snapshot() const;
     RuntimeSelfTestResult run_self_test();
@@ -40,14 +40,14 @@ private:
     bool dispatch_handoff(HandoffMessage message);
     bool respond_source_table(HandoffMessage message);
 
-    RuntimeConfig config_;
-    std::unique_ptr<WorkerManager> worker_manager_;
-    std::unique_ptr<RuntimeHealthServer> health_server_;
-    std::unique_ptr<Acceptor> acceptor_;
-    EventBasePtr base_;
-    std::thread runtime_thread_;
-    std::chrono::steady_clock::time_point started_at_{};
-    std::atomic<bool> running_{false};
+    RuntimeConfig _config;
+    std::unique_ptr<WorkerManager> _worker_manager;
+    std::unique_ptr<RuntimeHealthServer> _health_server;
+    std::unique_ptr<Acceptor> _acceptor;
+    EventBasePtr _base;
+    std::thread _runtime_thread;
+    std::chrono::steady_clock::time_point _started_at{};
+    std::atomic<bool> _running{false};
 };
 
 } // namespace navcaster::caster

@@ -7,7 +7,7 @@
 namespace navcaster::caster {
 
 WorkerManager::WorkerManager(RuntimeConfig config)
-    : config_(std::move(config))
+    : _config(std::move(config))
 {
 }
 
@@ -18,45 +18,45 @@ WorkerManager::~WorkerManager()
 
 bool WorkerManager::start()
 {
-    if (running_) {
+    if (_running) {
         return true;
     }
 
-    workers_.reserve(config_.worker_count);
-    for (std::uint32_t index = 0; index < config_.worker_count; ++index) {
+    _workers.reserve(_config.worker_count);
+    for (std::uint32_t index = 0; index < _config.worker_count; ++index) {
         const std::uint32_t worker_id = index + 1;
-        auto worker = std::make_unique<CasterWorker>(worker_id, config_.runtime_id, config_.redis);
+        auto worker = std::make_unique<CasterWorker>(worker_id, _config.runtime_id, _config.redis);
         if (!worker->start()) {
             log_error("failed to start worker " + std::to_string(worker_id));
             stop();
             return false;
         }
-        workers_.push_back(std::move(worker));
+        _workers.push_back(std::move(worker));
     }
 
-    running_ = true;
+    _running = true;
     return true;
 }
 
 void WorkerManager::stop()
 {
-    for (auto &worker : workers_) {
+    for (auto &worker : _workers) {
         if (worker) {
             worker->stop();
         }
     }
-    workers_.clear();
-    running_ = false;
+    _workers.clear();
+    _running = false;
 }
 
 bool WorkerManager::dispatch_handoff(HandoffMessage message)
 {
-    if (!running_) {
+    if (!_running) {
         return false;
     }
 
     const auto snapshots = metrics_snapshot();
-    const auto worker_id = mount_registry_.resolve_or_assign(message.connect_info.mount, snapshots);
+    const auto worker_id = _mount_registry.resolve_or_assign(message.connect_info.mount, snapshots);
     CasterWorker *worker = find_worker(worker_id);
     if (!worker) {
         return false;
@@ -67,8 +67,8 @@ bool WorkerManager::dispatch_handoff(HandoffMessage message)
 
 bool WorkerManager::post_probe_to_all()
 {
-    bool ok = running_;
-    for (auto &worker : workers_) {
+    bool ok = _running;
+    for (auto &worker : _workers) {
         if (!worker || !worker->post_probe()) {
             ok = false;
         }
@@ -78,7 +78,7 @@ bool WorkerManager::post_probe_to_all()
 
 void WorkerManager::set_worker_draining(std::uint32_t worker_id, bool draining)
 {
-    mount_registry_.set_worker_draining(worker_id, draining);
+    _mount_registry.set_worker_draining(worker_id, draining);
     if (auto *worker = find_worker(worker_id)) {
         worker->set_draining(draining);
     }
@@ -87,8 +87,8 @@ void WorkerManager::set_worker_draining(std::uint32_t worker_id, bool draining)
 std::vector<WorkerMetricsSnapshot> WorkerManager::metrics_snapshot() const
 {
     std::vector<WorkerMetricsSnapshot> snapshots;
-    snapshots.reserve(workers_.size());
-    for (const auto &worker : workers_) {
+    snapshots.reserve(_workers.size());
+    for (const auto &worker : _workers) {
         if (worker) {
             snapshots.push_back(worker->snapshot());
         }
@@ -98,7 +98,7 @@ std::vector<WorkerMetricsSnapshot> WorkerManager::metrics_snapshot() const
 
 CasterWorker *WorkerManager::find_worker(std::uint32_t worker_id) const
 {
-    for (const auto &worker : workers_) {
+    for (const auto &worker : _workers) {
         if (worker && worker->id() == worker_id) {
             return worker.get();
         }

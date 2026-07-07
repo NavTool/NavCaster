@@ -22,23 +22,23 @@ public:
 
     bool start();
     void stop();
-    bool running() const { return running_; }
+    bool running() const { return _running; }
 
     bool dispatch_handoff(HandoffMessage message);
     bool post_probe_to_all();
     void set_worker_draining(std::uint32_t worker_id, bool draining);
 
     std::vector<WorkerMetricsSnapshot> metrics_snapshot() const;
-    MountOwnerRegistry &mount_owners() { return mount_registry_; }
-    const MountOwnerRegistry &mount_owners() const { return mount_registry_; }
+    MountOwnerRegistry &mount_owners() { return _mount_registry; }
+    const MountOwnerRegistry &mount_owners() const { return _mount_registry; }
 
 private:
     CasterWorker *find_worker(std::uint32_t worker_id) const;
 
-    RuntimeConfig config_;
-    std::vector<std::unique_ptr<CasterWorker>> workers_;
-    MountOwnerRegistry mount_registry_;
-    bool running_ = false;
+    RuntimeConfig _config;
+    std::vector<std::unique_ptr<CasterWorker>> _workers;
+    MountOwnerRegistry _mount_registry;
+    bool _running = false;
 };
 
 } // namespace navcaster::caster

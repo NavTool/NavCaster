@@ -8,6 +8,7 @@
 #include <utility>
 
 #include <event2/event.h>
+#include <nlohmann/json.hpp>
 
 #if defined(_WIN32)
 #include <winsock2.h>
@@ -24,6 +25,8 @@
 
 namespace navcaster::caster {
 namespace {
+
+using Json = nlohmann::ordered_json;
 
 std::vector<SourcetableEntry> sourcetable_entries_from_metrics(const RuntimeMetricsSnapshot &snapshot)
 {
@@ -119,10 +122,28 @@ std::string build_source_table_response(const ConnectInfo &info, const std::stri
     return response.str();
 }
 
+std::string self_test_start_failed_report()
+{
+    return Json{
+        {"ok", false},
+        {"error", "start_failed"},
+    }.dump();
+}
+
+std::string self_test_report_json(bool ok, bool handoff_ok, bool probes_ok, const RuntimeMetricsSnapshot &snapshot)
+{
+    return Json{
+        {"ok", ok},
+        {"handoff_ok", handoff_ok},
+        {"probes_ok", probes_ok},
+        {"snapshot", Json::parse(runtime_metrics_to_json(snapshot))},
+    }.dump();
+}
+
 } // namespace
 
 RuntimeManager::RuntimeManager(RuntimeConfig config)
-    : config_(std::move(config))
+    : _config(std::move(config))
 {
 }
 
@@ -133,81 +154,81 @@ RuntimeManager::~RuntimeManager()
 
 bool RuntimeManager::start()
 {
-    if (running_.load()) {
+    if (_running.load()) {
         return true;
     }
 
-    base_ = make_event_base();
-    if (!base_) {
+    _base = make_event_base();
+    if (!_base) {
         log_error("runtime manager failed to create control event_base");
         return false;
     }
 
-    worker_manager_ = std::make_unique<WorkerManager>(config_);
-    if (!worker_manager_->start()) {
+    _worker_manager = std::make_unique<WorkerManager>(_config);
+    if (!_worker_manager->start()) {
         stop();
         return false;
     }
 
-    if (config_.enable_health_api) {
-        health_server_ = std::make_unique<RuntimeHealthServer>(config_, [this]() {
+    if (_config.enable_health_api) {
+        _health_server = std::make_unique<RuntimeHealthServer>(_config, [this]() {
             return metrics_snapshot();
         });
-        if (!health_server_->start(base_.get())) {
+        if (!_health_server->start(_base.get())) {
             stop();
             return false;
         }
     }
 
-    if (config_.enable_acceptor) {
-        acceptor_ = std::make_unique<Acceptor>(config_, [this](HandoffMessage message) {
+    if (_config.enable_acceptor) {
+        _acceptor = std::make_unique<Acceptor>(_config, [this](HandoffMessage message) {
             return dispatch_handoff(std::move(message));
         });
-        if (!acceptor_->start(base_.get())) {
+        if (!_acceptor->start(_base.get())) {
             stop();
             return false;
         }
     }
 
-    started_at_ = std::chrono::steady_clock::now();
-    running_.store(true);
-    runtime_thread_ = std::thread(&RuntimeManager::runtime_loop, this);
+    _started_at = std::chrono::steady_clock::now();
+    _running.store(true);
+    _runtime_thread = std::thread(&RuntimeManager::runtime_loop, this);
     return true;
 }
 
 void RuntimeManager::stop()
 {
-    running_.store(false);
-    if (base_) {
-        event_base_loopbreak(base_.get());
+    _running.store(false);
+    if (_base) {
+        event_base_loopbreak(_base.get());
     }
-    if (runtime_thread_.joinable()) {
-        runtime_thread_.join();
+    if (_runtime_thread.joinable()) {
+        _runtime_thread.join();
     }
 
-    acceptor_.reset();
-    health_server_.reset();
-    if (worker_manager_) {
-        worker_manager_->stop();
-        worker_manager_.reset();
+    _acceptor.reset();
+    _health_server.reset();
+    if (_worker_manager) {
+        _worker_manager->stop();
+        _worker_manager.reset();
     }
-    base_.reset();
+    _base.reset();
 }
 
 RuntimeMetricsSnapshot RuntimeManager::metrics_snapshot() const
 {
     RuntimeMetricsSnapshot snapshot;
-    snapshot.runtime_id = config_.runtime_id;
-    snapshot.running = running_.load();
+    snapshot.runtime_id = _config.runtime_id;
+    snapshot.running = _running.load();
     if (snapshot.running) {
-        const auto elapsed = std::chrono::steady_clock::now() - started_at_;
+        const auto elapsed = std::chrono::steady_clock::now() - _started_at;
         snapshot.uptime_ms = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
     }
-    if (worker_manager_) {
-        snapshot.workers = worker_manager_->metrics_snapshot();
+    if (_worker_manager) {
+        snapshot.workers = _worker_manager->metrics_snapshot();
         snapshot.worker_count = static_cast<std::uint32_t>(snapshot.workers.size());
-        snapshot.mount_count = worker_manager_->mount_owners().mount_count();
-        snapshot.mount_owners = worker_manager_->mount_owners().snapshot();
+        snapshot.mount_count = _worker_manager->mount_owners().mount_count();
+        snapshot.mount_owners = _worker_manager->mount_owners().snapshot();
     }
     return snapshot;
 }
@@ -216,38 +237,32 @@ RuntimeSelfTestResult RuntimeManager::run_self_test()
 {
     RuntimeSelfTestResult result;
     if (!start()) {
-        result.report_json = "{\"ok\":false,\"error\":\"start_failed\"}";
+        result.report_json = self_test_start_failed_report();
         return result;
     }
 
     bool handoff_ok = false;
-    if (worker_manager_) {
-        const auto owner_id = worker_manager_->mount_owners().resolve_or_assign("SELFTEST", worker_manager_->metrics_snapshot());
+    if (_worker_manager) {
+        const auto owner_id = _worker_manager->mount_owners().resolve_or_assign("SELFTEST", _worker_manager->metrics_snapshot());
         handoff_ok = owner_id != 0;
     }
-    const bool probes_ok = worker_manager_ && worker_manager_->post_probe_to_all();
+    const bool probes_ok = _worker_manager && _worker_manager->post_probe_to_all();
 
-    if (worker_manager_) {
-        worker_manager_->set_worker_draining(1, true);
-        worker_manager_->set_worker_draining(1, false);
+    if (_worker_manager) {
+        _worker_manager->set_worker_draining(1, true);
+        _worker_manager->set_worker_draining(1, false);
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(config_.self_test_duration_ms));
+    std::this_thread::sleep_for(std::chrono::milliseconds(_config.self_test_duration_ms));
     const auto snapshot = metrics_snapshot();
 
-    bool workers_ok = snapshot.worker_count == config_.worker_count;
+    bool workers_ok = snapshot.worker_count == _config.worker_count;
     for (const auto &worker : snapshot.workers) {
         workers_ok = workers_ok && worker.running && worker.mailbox_messages > 0;
     }
 
     result.ok = handoff_ok && probes_ok && workers_ok && snapshot.mount_count == 1;
-    std::ostringstream out;
-    out << "{\"ok\":" << (result.ok ? "true" : "false")
-        << ",\"handoff_ok\":" << (handoff_ok ? "true" : "false")
-        << ",\"probes_ok\":" << (probes_ok ? "true" : "false")
-        << ",\"snapshot\":" << runtime_metrics_to_json(snapshot)
-        << "}";
-    result.report_json = out.str();
+    result.report_json = self_test_report_json(result.ok, handoff_ok, probes_ok, snapshot);
 
     stop();
     return result;
@@ -255,8 +270,8 @@ RuntimeSelfTestResult RuntimeManager::run_self_test()
 
 void RuntimeManager::runtime_loop()
 {
-    if (base_) {
-        event_base_dispatch(base_.get());
+    if (_base) {
+        event_base_dispatch(_base.get());
     }
 }
 
@@ -266,14 +281,14 @@ bool RuntimeManager::dispatch_handoff(HandoffMessage message)
         return respond_source_table(std::move(message));
     }
 
-    if (!worker_manager_) {
+    if (!_worker_manager) {
         if (message.fd >= 0) {
             close_socket(message.fd);
         }
         return false;
     }
 
-    return worker_manager_->dispatch_handoff(std::move(message));
+    return _worker_manager->dispatch_handoff(std::move(message));
 }
 
 bool RuntimeManager::respond_source_table(HandoffMessage message)

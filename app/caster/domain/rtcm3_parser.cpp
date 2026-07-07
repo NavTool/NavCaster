@@ -28,22 +28,22 @@ std::uint32_t crc24q(const std::uint8_t *data, std::size_t length)
 class BitReader {
 public:
     BitReader(const std::uint8_t *data, std::size_t length)
-        : data_(data), bit_count_(length * 8)
+        : _data(data), _bit_count(length * 8)
     {
     }
 
     bool read_unsigned(int bits, std::uint64_t &value)
     {
-        if (bits < 0 || bits > 64 || bit_offset_ + static_cast<std::size_t>(bits) > bit_count_) {
+        if (bits < 0 || bits > 64 || _bit_offset + static_cast<std::size_t>(bits) > _bit_count) {
             return false;
         }
         value = 0;
         for (int i = 0; i < bits; ++i) {
-            const auto byte_index = (bit_offset_ + static_cast<std::size_t>(i)) / 8;
-            const auto bit_index = 7 - ((bit_offset_ + static_cast<std::size_t>(i)) % 8);
-            value = (value << 1) | ((data_[byte_index] >> bit_index) & 0x01U);
+            const auto byte_index = (_bit_offset + static_cast<std::size_t>(i)) / 8;
+            const auto bit_index = 7 - ((_bit_offset + static_cast<std::size_t>(i)) % 8);
+            value = (value << 1) | ((_data[byte_index] >> bit_index) & 0x01U);
         }
-        bit_offset_ += static_cast<std::size_t>(bits);
+        _bit_offset += static_cast<std::size_t>(bits);
         return true;
     }
 
@@ -64,9 +64,9 @@ public:
     }
 
 private:
-    const std::uint8_t *data_ = nullptr;
-    std::size_t bit_count_ = 0;
-    std::size_t bit_offset_ = 0;
+    const std::uint8_t *_data = nullptr;
+    std::size_t _bit_count = 0;
+    std::size_t _bit_offset = 0;
 };
 
 std::optional<PositionReport> parse_reference_station_frame(const std::uint8_t *payload, std::size_t length)
@@ -138,62 +138,62 @@ std::vector<PositionReport> Rtcm3Parser::feed(const char *data, std::size_t leng
     }
 
     const auto *bytes = reinterpret_cast<const std::uint8_t *>(data);
-    buffer_.insert(buffer_.end(), bytes, bytes + length);
+    _buffer.insert(_buffer.end(), bytes, bytes + length);
 
-    while (buffer_.size() >= 3) {
-        const auto preamble = std::find(buffer_.begin(), buffer_.end(), kRtcm3Preamble);
-        if (preamble == buffer_.end()) {
-            buffer_.clear();
+    while (_buffer.size() >= 3) {
+        const auto preamble = std::find(_buffer.begin(), _buffer.end(), kRtcm3Preamble);
+        if (preamble == _buffer.end()) {
+            _buffer.clear();
             break;
         }
-        if (preamble != buffer_.begin()) {
-            buffer_.erase(buffer_.begin(), preamble);
+        if (preamble != _buffer.begin()) {
+            _buffer.erase(_buffer.begin(), preamble);
         }
-        if (buffer_.size() < 3) {
+        if (_buffer.size() < 3) {
             break;
         }
-        if ((buffer_[1] & 0xFCU) != 0) {
-            buffer_.erase(buffer_.begin());
+        if ((_buffer[1] & 0xFCU) != 0) {
+            _buffer.erase(_buffer.begin());
             continue;
         }
 
         const std::size_t payload_length =
-            (static_cast<std::size_t>(buffer_[1] & 0x03U) << 8U) | static_cast<std::size_t>(buffer_[2]);
+            (static_cast<std::size_t>(_buffer[1] & 0x03U) << 8U) | static_cast<std::size_t>(_buffer[2]);
         if (payload_length > kRtcm3MaxPayloadBytes) {
-            buffer_.erase(buffer_.begin());
+            _buffer.erase(_buffer.begin());
             continue;
         }
 
         const std::size_t frame_length = 3 + payload_length + 3;
-        if (buffer_.size() < frame_length) {
+        if (_buffer.size() < frame_length) {
             break;
         }
 
         const std::uint32_t expected_crc =
-            (static_cast<std::uint32_t>(buffer_[3 + payload_length]) << 16U) |
-            (static_cast<std::uint32_t>(buffer_[3 + payload_length + 1]) << 8U) |
-            static_cast<std::uint32_t>(buffer_[3 + payload_length + 2]);
-        const std::uint32_t actual_crc = crc24q(buffer_.data(), 3 + payload_length);
+            (static_cast<std::uint32_t>(_buffer[3 + payload_length]) << 16U) |
+            (static_cast<std::uint32_t>(_buffer[3 + payload_length + 1]) << 8U) |
+            static_cast<std::uint32_t>(_buffer[3 + payload_length + 2]);
+        const std::uint32_t actual_crc = crc24q(_buffer.data(), 3 + payload_length);
         if (expected_crc != actual_crc) {
-            buffer_.erase(buffer_.begin());
+            _buffer.erase(_buffer.begin());
             continue;
         }
 
-        if (auto report = parse_reference_station_frame(buffer_.data() + 3, payload_length)) {
+        if (auto report = parse_reference_station_frame(_buffer.data() + 3, payload_length)) {
             reports.push_back(*report);
         }
-        buffer_.erase(buffer_.begin(), buffer_.begin() + static_cast<std::ptrdiff_t>(frame_length));
+        _buffer.erase(_buffer.begin(), _buffer.begin() + static_cast<std::ptrdiff_t>(frame_length));
     }
 
-    if (buffer_.size() > kRtcm3MaxPayloadBytes + 6) {
-        buffer_.erase(buffer_.begin(), buffer_.end() - static_cast<std::ptrdiff_t>(kRtcm3MaxPayloadBytes + 6));
+    if (_buffer.size() > kRtcm3MaxPayloadBytes + 6) {
+        _buffer.erase(_buffer.begin(), _buffer.end() - static_cast<std::ptrdiff_t>(kRtcm3MaxPayloadBytes + 6));
     }
     return reports;
 }
 
 void Rtcm3Parser::reset()
 {
-    buffer_.clear();
+    _buffer.clear();
 }
 
 } // namespace navcaster::caster

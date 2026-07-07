@@ -30,11 +30,11 @@ public:
 private:
     static void on_mailbox_event(evutil_socket_t fd, short what, void *arg);
 
-    mutable std::mutex mutex_;
-    std::queue<Message> queue_;
-    event_base *base_ = nullptr;
-    bool attached_ = false;
-    std::uint64_t posted_count_ = 0;
+    mutable std::mutex _mutex;
+    std::queue<Message> _queue;
+    event_base *_base = nullptr;
+    bool _attached = false;
+    std::uint64_t _posted_count = 0;
 };
 
 } // namespace navcaster::caster

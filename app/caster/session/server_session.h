@@ -8,10 +8,10 @@ namespace navcaster::caster {
 
 class ServerSession {
 public:
-    explicit ServerSession(HandoffMessage handoff) : handoff_(std::move(handoff)) {}
+    explicit ServerSession(HandoffMessage handoff) : _handoff(std::move(handoff)) {}
 
 private:
-    HandoffMessage handoff_;
+    HandoffMessage _handoff;
 };
 
 } // namespace navcaster::caster

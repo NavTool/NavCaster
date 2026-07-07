@@ -36,14 +36,14 @@ public:
     void close();
 
     std::size_t pending_output_bytes() const;
-    const std::string &mount() const { return handoff_.connect_info.mount; }
-    const std::string &remote_addr() const { return handoff_.connect_info.remote_addr; }
-    std::uint16_t remote_port() const { return handoff_.connect_info.remote_port; }
-    std::uint64_t session_id() const { return session_id_; }
-    std::uint64_t bytes_out() const { return bytes_out_; }
-    bool input_failed() const { return chunked_decoder_.failed(); }
-    bool input_complete() const { return chunked_decoder_.complete(); }
-    bool response_chunked() const { return response_chunked_; }
+    const std::string &mount() const { return _handoff.connect_info.mount; }
+    const std::string &remote_addr() const { return _handoff.connect_info.remote_addr; }
+    std::uint16_t remote_port() const { return _handoff.connect_info.remote_port; }
+    std::uint64_t session_id() const { return _session_id; }
+    std::uint64_t bytes_out() const { return _bytes_out; }
+    bool input_failed() const { return _chunked_decoder.failed(); }
+    bool input_complete() const { return _chunked_decoder.complete(); }
+    bool response_chunked() const { return _response_chunked; }
 
 private:
     std::string decode_incoming(std::string data);
@@ -55,17 +55,17 @@ private:
     static void on_read(bufferevent *bev, void *arg);
     static void on_event(bufferevent *bev, short events, void *arg);
 
-    std::uint64_t session_id_ = 0;
-    std::uint32_t worker_id_ = 0;
-    HandoffMessage handoff_;
-    DataCallback on_data_;
-    ClosedCallback on_closed_;
-    HttpChunkedDecoder chunked_decoder_;
-    bufferevent *bev_ = nullptr;
-    bool closed_notified_ = false;
-    bool request_body_chunked_ = false;
-    bool response_chunked_ = false;
-    std::uint64_t bytes_out_ = 0;
+    std::uint64_t _session_id = 0;
+    std::uint32_t _worker_id = 0;
+    HandoffMessage _handoff;
+    DataCallback _on_data;
+    ClosedCallback _on_closed;
+    HttpChunkedDecoder _chunked_decoder;
+    bufferevent *_bev = nullptr;
+    bool _closed_notified = false;
+    bool _request_body_chunked = false;
+    bool _response_chunked = false;
+    std::uint64_t _bytes_out = 0;
 };
 
 } // namespace navcaster::caster

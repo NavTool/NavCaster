@@ -10,10 +10,10 @@ class EventThreadingGuard {
 public:
     EventThreadingGuard();
 
-    bool ok() const { return ok_; }
+    bool ok() const { return _ok; }
 
 private:
-    bool ok_ = false;
+    bool _ok = false;
 };
 
 struct EventBaseDeleter {

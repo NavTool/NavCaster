@@ -16,7 +16,7 @@ public:
     void reset();
 
 private:
-    std::vector<std::uint8_t> buffer_;
+    std::vector<std::uint8_t> _buffer;
 };
 
 } // namespace navcaster::caster

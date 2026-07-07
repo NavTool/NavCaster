@@ -8,10 +8,10 @@ namespace navcaster::caster {
 
 class RelayPushSession {
 public:
-    explicit RelayPushSession(HandoffMessage handoff) : handoff_(std::move(handoff)) {}
+    explicit RelayPushSession(HandoffMessage handoff) : _handoff(std::move(handoff)) {}
 
 private:
-    HandoffMessage handoff_;
+    HandoffMessage _handoff;
 };
 
 } // namespace navcaster::caster

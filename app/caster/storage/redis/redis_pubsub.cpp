@@ -131,8 +131,8 @@ void on_subscribe(redisAsyncContext *, void *reply, void *privdata)
 WorkerRedisBoundary::WorkerRedisBoundary(std::string runtime_id, std::uint32_t worker_id, const std::string &host, int port)
     : command("worker-command", host, port),
       pubsub("worker-pubsub", host, port),
-      runtime_id_(std::move(runtime_id)),
-      worker_id_(worker_id)
+      _runtime_id(std::move(runtime_id)),
+      _worker_id(worker_id)
 {
 }
 
@@ -143,44 +143,44 @@ WorkerRedisBoundary::~WorkerRedisBoundary()
 
 bool WorkerRedisBoundary::start(event_base *base, MountMessageCallback on_mount_message, ErrorCallback on_error)
 {
-    if (started_) {
+    if (_started) {
         return true;
     }
 
-    on_mount_message_ = std::move(on_mount_message);
-    on_error_ = std::move(on_error);
+    _on_mount_message = std::move(on_mount_message);
+    _on_error = std::move(on_error);
 
     const bool command_ok = command.connect(base);
     const bool pubsub_ok = pubsub.connect(base);
-    started_ = command_ok && pubsub_ok;
+    _started = command_ok && pubsub_ok;
     if (!command_ok) {
         report_error("connect_command");
     }
     if (!pubsub_ok) {
         report_error("connect_pubsub");
     }
-    return started_;
+    return _started;
 }
 
 void WorkerRedisBoundary::stop()
 {
-    subscribed_mounts_.clear();
-    on_mount_message_ = nullptr;
-    on_error_ = nullptr;
+    _subscribed_mounts.clear();
+    _on_mount_message = nullptr;
+    _on_error = nullptr;
     pubsub.disconnect();
     command.disconnect();
-    started_ = false;
+    _started = false;
 }
 
 bool WorkerRedisBoundary::publish_mount_data(const std::string &mount, const std::string &payload)
 {
     if (mount.empty() || payload.empty() || !command.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=publish");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=publish");
         return false;
     }
 
     const auto channel = channel_for_mount(mount);
-    const auto envelope = encode_payload(runtime_id_, mount, payload);
+    const auto envelope = encode_payload(_runtime_id, mount, payload);
     const int status = redisAsyncCommand(
         command.raw(),
         &on_publish,
@@ -191,7 +191,7 @@ bool WorkerRedisBoundary::publish_mount_data(const std::string &mount, const std
         envelope.data(),
         envelope.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=publish");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=publish");
         return false;
     }
     return true;
@@ -202,11 +202,11 @@ bool WorkerRedisBoundary::subscribe_mount(const std::string &mount)
     if (mount.empty()) {
         return false;
     }
-    if (subscribed_mounts_.find(mount) != subscribed_mounts_.end()) {
+    if (_subscribed_mounts.find(mount) != _subscribed_mounts.end()) {
         return true;
     }
     if (!pubsub.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=subscribe");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe");
         return false;
     }
 
@@ -219,22 +219,22 @@ bool WorkerRedisBoundary::subscribe_mount(const std::string &mount)
         channel.data(),
         channel.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=subscribe");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe");
         return false;
     }
-    subscribed_mounts_.insert(mount);
+    _subscribed_mounts.insert(mount);
     return true;
 }
 
 bool WorkerRedisBoundary::unsubscribe_mount(const std::string &mount)
 {
-    const auto subscribed = subscribed_mounts_.find(mount);
-    if (subscribed == subscribed_mounts_.end()) {
+    const auto subscribed = _subscribed_mounts.find(mount);
+    if (subscribed == _subscribed_mounts.end()) {
         return true;
     }
     if (!pubsub.raw()) {
-        subscribed_mounts_.erase(subscribed);
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=unsubscribe");
+        _subscribed_mounts.erase(subscribed);
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=unsubscribe");
         return false;
     }
 
@@ -246,9 +246,9 @@ bool WorkerRedisBoundary::unsubscribe_mount(const std::string &mount)
         "UNSUBSCRIBE %b",
         channel.data(),
         channel.size());
-    subscribed_mounts_.erase(subscribed);
+    _subscribed_mounts.erase(subscribed);
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=unsubscribe");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=unsubscribe");
         return false;
     }
     return true;
@@ -257,7 +257,7 @@ bool WorkerRedisBoundary::unsubscribe_mount(const std::string &mount)
 bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const GeoPosition &position)
 {
     if (mount.empty() || !position.valid || !command.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_mount_position");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_mount_position");
         return false;
     }
 
@@ -272,7 +272,7 @@ bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const 
         mount.data(),
         mount.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_mount_position");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_mount_position");
         return false;
     }
     return true;
@@ -281,7 +281,7 @@ bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const 
 bool WorkerRedisBoundary::report_client_position(const std::string &member_key, const GeoPosition &position)
 {
     if (member_key.empty() || !position.valid || !command.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_client_position");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
         return false;
     }
 
@@ -296,7 +296,7 @@ bool WorkerRedisBoundary::report_client_position(const std::string &member_key, 
         member_key.data(),
         member_key.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=report_client_position");
+        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
         return false;
     }
     return true;
@@ -309,7 +309,7 @@ bool WorkerRedisBoundary::connected() const
 
 std::uint64_t WorkerRedisBoundary::subscribed_mount_count() const
 {
-    return static_cast<std::uint64_t>(subscribed_mounts_.size());
+    return static_cast<std::uint64_t>(_subscribed_mounts.size());
 }
 
 void WorkerRedisBoundary::handle_publish_reply(void *reply)
@@ -353,11 +353,11 @@ void WorkerRedisBoundary::handle_subscribe_reply(void *reply)
         return;
     }
 
-    if (origin_runtime_id == runtime_id_) {
+    if (origin_runtime_id == _runtime_id) {
         return;
     }
-    if (on_mount_message_) {
-        on_mount_message_(std::move(origin_runtime_id), std::move(mount), std::move(payload));
+    if (_on_mount_message) {
+        _on_mount_message(std::move(origin_runtime_id), std::move(mount), std::move(payload));
     }
 }
 
@@ -368,10 +368,10 @@ std::string WorkerRedisBoundary::channel_for_mount(const std::string &mount) con
 
 void WorkerRedisBoundary::report_error(const std::string &operation)
 {
-    if (on_error_) {
-        on_error_(operation);
+    if (_on_error) {
+        _on_error(operation);
     }
-    log_warn("v2 redis bus worker=" + std::to_string(worker_id_) + " operation=" + operation);
+    log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=" + operation);
 }
 
 } // namespace navcaster::caster

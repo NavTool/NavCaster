@@ -33,28 +33,28 @@ public:
     void set_draining(bool draining);
 
     WorkerMetricsSnapshot snapshot() const;
-    std::uint32_t id() const { return worker_id_; }
-    bool running() const { return running_.load(); }
-    bool ready() const { return ready_.load(); }
+    std::uint32_t id() const { return _worker_id; }
+    bool running() const { return _running.load(); }
+    bool ready() const { return _ready.load(); }
 
 private:
     void thread_main();
     bool wait_until_ready();
 
-    std::uint32_t worker_id_ = 0;
-    std::string runtime_id_;
-    RedisEndpoint redis_endpoint_;
-    std::thread thread_;
-    EventBasePtr base_;
-    std::unique_ptr<WorkerMailbox> mailbox_;
-    std::unique_ptr<WorkerCore> core_;
-    std::unique_ptr<WorkerRedisBoundary> redis_boundary_;
+    std::uint32_t _worker_id = 0;
+    std::string _runtime_id;
+    RedisEndpoint _redis_endpoint;
+    std::thread _thread;
+    EventBasePtr _base;
+    std::unique_ptr<WorkerMailbox> _mailbox;
+    std::unique_ptr<WorkerCore> _core;
+    std::unique_ptr<WorkerRedisBoundary> _redis_boundary;
 
-    mutable std::mutex state_mutex_;
-    std::condition_variable ready_cv_;
-    std::atomic<bool> running_{false};
-    std::atomic<bool> ready_{false};
-    std::atomic<bool> stop_requested_{false};
+    mutable std::mutex _state_mutex;
+    std::condition_variable _ready_cv;
+    std::atomic<bool> _running{false};
+    std::atomic<bool> _ready{false};
+    std::atomic<bool> _stop_requested{false};
 };
 
 } // namespace navcaster::caster

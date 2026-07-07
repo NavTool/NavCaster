@@ -1,58 +1,45 @@
 #include "infra/logger.h"
 
-#include <chrono>
-#include <ctime>
-#include <iomanip>
-#include <iostream>
-#include <mutex>
-#include <sstream>
+#include <memory>
+
+#include <spdlog/sinks/stdout_sinks.h>
+#include <spdlog/spdlog.h>
 
 namespace navcaster::caster {
 namespace {
 
-std::mutex &log_mutex()
+std::shared_ptr<spdlog::logger> create_logger()
 {
-    static std::mutex mutex;
-    return mutex;
+    if (auto logger = spdlog::get("navcaster-caster")) {
+        return logger;
+    }
+    auto logger = spdlog::stderr_logger_mt("navcaster-caster");
+    logger->set_pattern("%Y-%m-%d %H:%M:%S [%l] %v");
+    logger->flush_on(spdlog::level::warn);
+    return logger;
 }
 
-std::string now_text()
+std::shared_ptr<spdlog::logger> &logger()
 {
-    const auto now = std::chrono::system_clock::now();
-    const auto seconds = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_value{};
-#if defined(_WIN32)
-    localtime_s(&tm_value, &seconds);
-#else
-    localtime_r(&seconds, &tm_value);
-#endif
-
-    std::ostringstream out;
-    out << std::put_time(&tm_value, "%Y-%m-%d %H:%M:%S");
-    return out.str();
-}
-
-void write_log(const char *level, const std::string &message)
-{
-    std::lock_guard<std::mutex> lock(log_mutex());
-    std::cerr << now_text() << " [" << level << "] " << message << std::endl;
+    static auto instance = create_logger();
+    return instance;
 }
 
 } // namespace
 
 void log_info(const std::string &message)
 {
-    write_log("info", message);
+    logger()->info("{}", message);
 }
 
 void log_warn(const std::string &message)
 {
-    write_log("warn", message);
+    logger()->warn("{}", message);
 }
 
 void log_error(const std::string &message)
 {
-    write_log("error", message);
+    logger()->error("{}", message);
 }
 
 } // namespace navcaster::caster

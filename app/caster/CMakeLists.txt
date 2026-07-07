@@ -26,7 +26,6 @@ add_library(navcaster-caster-core STATIC ${NAVCASTER_CASTER_CORE_SOURCES})
 target_include_directories(navcaster-caster-core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_BINARY_DIR}
-    ${JSON_INCLUDE_PATH}
 )
 
 target_link_libraries(navcaster-caster-core PUBLIC
@@ -34,6 +33,8 @@ target_link_libraries(navcaster-caster-core PUBLIC
     event_core
     event_extra
     hiredis
+    nlohmann_json::nlohmann_json
+    spdlog::spdlog_header_only
     Threads::Threads
 )
 

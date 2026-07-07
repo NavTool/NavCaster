@@ -31,37 +31,37 @@ bool parse_hex_size(const std::string &line, std::size_t &size)
 std::string HttpChunkedDecoder::feed(const char *data, std::size_t length)
 {
     std::string decoded;
-    if (!data || length == 0 || complete_ || failed_) {
+    if (!data || length == 0 || _complete || _failed) {
         return decoded;
     }
 
-    buffer_.append(data, length);
-    if (buffer_.size() > kMaxBufferedChunkBytes) {
-        failed_ = true;
+    _buffer.append(data, length);
+    if (_buffer.size() > kMaxBufferedChunkBytes) {
+        _failed = true;
         return {};
     }
 
-    while (!complete_ && !failed_) {
-        if (waiting_for_size_) {
+    while (!_complete && !_failed) {
+        if (_waiting_for_size) {
             if (!parse_next_size()) {
                 break;
             }
-            if (complete_) {
+            if (_complete) {
                 break;
             }
         }
 
-        if (buffer_.size() < current_chunk_size_ + 2) {
+        if (_buffer.size() < _current_chunk_size + 2) {
             break;
         }
-        if (buffer_[current_chunk_size_] != '\r' || buffer_[current_chunk_size_ + 1] != '\n') {
-            failed_ = true;
+        if (_buffer[_current_chunk_size] != '\r' || _buffer[_current_chunk_size + 1] != '\n') {
+            _failed = true;
             break;
         }
-        decoded.append(buffer_.data(), current_chunk_size_);
-        buffer_.erase(0, current_chunk_size_ + 2);
-        waiting_for_size_ = true;
-        current_chunk_size_ = 0;
+        decoded.append(_buffer.data(), _current_chunk_size);
+        _buffer.erase(0, _current_chunk_size + 2);
+        _waiting_for_size = true;
+        _current_chunk_size = 0;
     }
 
     return decoded;
@@ -69,39 +69,39 @@ std::string HttpChunkedDecoder::feed(const char *data, std::size_t length)
 
 void HttpChunkedDecoder::reset()
 {
-    buffer_.clear();
-    current_chunk_size_ = 0;
-    waiting_for_size_ = true;
-    complete_ = false;
-    failed_ = false;
+    _buffer.clear();
+    _current_chunk_size = 0;
+    _waiting_for_size = true;
+    _complete = false;
+    _failed = false;
 }
 
 bool HttpChunkedDecoder::parse_next_size()
 {
-    const auto end = buffer_.find("\r\n");
+    const auto end = _buffer.find("\r\n");
     if (end == std::string::npos) {
-        if (buffer_.size() > kMaxChunkSizeLine) {
-            failed_ = true;
+        if (_buffer.size() > kMaxChunkSizeLine) {
+            _failed = true;
         }
         return false;
     }
     if (end > kMaxChunkSizeLine) {
-        failed_ = true;
+        _failed = true;
         return false;
     }
 
     std::size_t size = 0;
-    if (!parse_hex_size(buffer_.substr(0, end), size)) {
-        failed_ = true;
+    if (!parse_hex_size(_buffer.substr(0, end), size)) {
+        _failed = true;
         return false;
     }
-    buffer_.erase(0, end + 2);
+    _buffer.erase(0, end + 2);
     if (size == 0) {
-        complete_ = true;
+        _complete = true;
         return true;
     }
-    current_chunk_size_ = size;
-    waiting_for_size_ = false;
+    _current_chunk_size = size;
+    _waiting_for_size = false;
     return true;
 }
 
