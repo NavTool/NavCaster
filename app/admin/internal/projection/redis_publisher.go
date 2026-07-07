@@ -3,9 +3,11 @@ package projection
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"navcaster-admin/internal/control"
+	"navcaster-admin/internal/identity"
 )
 
 type RedisCommandClient interface {
@@ -160,12 +162,65 @@ func (p *RedisPublisher) PublishAgentHeartbeat(heartbeat control.AgentHeartbeatP
 	return p.setJSON(key, heartbeat, 45*time.Second)
 }
 
+func (p *RedisPublisher) ProjectAccessAccount(ctx context.Context, projection identity.AccessAccountAuthProjection) error {
+	if p == nil || p.client == nil || !p.client.Configured() {
+		return nil
+	}
+	key, err := p.registry.AccessAccountAuthKey(projection.UsernameNorm)
+	if err != nil {
+		return err
+	}
+	if err := p.setJSONWithContext(ctx, key, projection, 0); err != nil {
+		return err
+	}
+	versionKey, err := p.registry.AuthVersionKey()
+	if err != nil {
+		return err
+	}
+	if err := p.client.Set(ctx, versionKey, []byte(strconv.FormatInt(projection.ProjectionVersion, 10)), 0); err != nil {
+		return err
+	}
+	channel, err := p.registry.ControlKickChannel()
+	if err != nil {
+		return err
+	}
+	payload, err := json.Marshal(AuthProjectionNotify{
+		Projection:        "v2:auth:access-account",
+		Kind:              "access_account_projection_updated",
+		Key:               key,
+		AccessAccountID:   projection.AccessAccountID,
+		UsernameNorm:      projection.UsernameNorm,
+		Status:            string(projection.Status),
+		OwnerAccountID:    projection.OwnerAccountID,
+		OwnerStatus:       string(projection.OwnerStatus),
+		ProjectionVersion: projection.ProjectionVersion,
+		Published:         time.Now().UTC(),
+	})
+	if err != nil {
+		return err
+	}
+	return p.client.Publish(ctx, channel, payload)
+}
+
 func (p *RedisPublisher) setJSON(key string, value any, ttl time.Duration) error {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return p.client.Set(ctx, key, payload, ttl)
+}
+
+func (p *RedisPublisher) setJSONWithContext(ctx context.Context, key string, value any, ttl time.Duration) error {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return p.client.Set(ctx, key, payload, ttl)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	return p.client.Set(ctx, key, payload, ttl)
 }
@@ -234,6 +289,19 @@ type ControlConfigNotify struct {
 	Version        int64     `json:"version"`
 	DesiredVersion int64     `json:"desired_version,omitempty"`
 	Published      time.Time `json:"published_at"`
+}
+
+type AuthProjectionNotify struct {
+	Projection        string    `json:"projection"`
+	Kind              string    `json:"kind"`
+	Key               string    `json:"key"`
+	AccessAccountID   string    `json:"access_account_id"`
+	UsernameNorm      string    `json:"username_norm"`
+	Status            string    `json:"status"`
+	OwnerAccountID    string    `json:"owner_account_id"`
+	OwnerStatus       string    `json:"owner_status"`
+	ProjectionVersion int64     `json:"projection_version"`
+	Published         time.Time `json:"published_at"`
 }
 
 func runtimeActualProjectionStatus(actual control.ActualSnapshot) string {

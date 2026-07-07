@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"navcaster-admin/internal/agent"
 	"navcaster-admin/internal/config"
 	"navcaster-admin/internal/control"
+	"navcaster-admin/internal/identity"
 	"navcaster-admin/internal/projection"
 	redisStore "navcaster-admin/internal/storage/redis"
 )
@@ -98,6 +100,134 @@ func TestAgentRegisterHeartbeatDesiredState(t *testing.T) {
 	runtime := desiredEnvelope.Data.Runtimes[0]
 	if runtime.DesiredState != "running" || runtime.RestartPolicy != "on_failure" {
 		t.Fatalf("unexpected runtime desired: %#v", runtime)
+	}
+}
+
+func TestIdentityRegisterLoginAndAccessAccountLifecycle(t *testing.T) {
+	server := newTestServer()
+	handler := server.Handler()
+
+	registerRec := doJSON(handler, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"password123","display_name":"Alice"}`)
+	if registerRec.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body = %s", registerRec.Code, registerRec.Body.String())
+	}
+	duplicateRec := doJSON(handler, http.MethodPost, "/api/v1/auth/register", `{"username":"alice","password":"password123","display_name":"Alice 2"}`)
+	if duplicateRec.Code != http.StatusConflict {
+		t.Fatalf("duplicate register status = %d body = %s", duplicateRec.Code, duplicateRec.Body.String())
+	}
+	assertErrorCode(t, duplicateRec, "username_reserved")
+
+	token := loginToken(t, handler, "alice", "password123")
+	sessionRec := doJSONAuth(handler, http.MethodGet, "/api/v1/auth/session", "", token)
+	if sessionRec.Code != http.StatusOK {
+		t.Fatalf("session status = %d body = %s", sessionRec.Code, sessionRec.Body.String())
+	}
+
+	createAccessRec := doJSONAuth(handler, http.MethodPost, "/api/v1/me/access-accounts", `{"username":"field-rover-a01","password":"password123","display_name":"Rover A01","concurrency_limit":1}`, token)
+	if createAccessRec.Code != http.StatusCreated {
+		t.Fatalf("create access status = %d body = %s", createAccessRec.Code, createAccessRec.Body.String())
+	}
+	var accessEnvelope struct {
+		Data struct {
+			ID     string `json:"access_account_id"`
+			Status string `json:"status"`
+		} `json:"data"`
+	}
+	decodeBody(t, createAccessRec, &accessEnvelope)
+	if accessEnvelope.Data.ID == "" || accessEnvelope.Data.Status != "active" {
+		t.Fatalf("unexpected access response: %#v", accessEnvelope.Data)
+	}
+
+	disableRec := doJSONAuth(handler, http.MethodPut, "/api/v1/me/access-accounts/"+accessEnvelope.Data.ID+"/status", `{"status":"disabled"}`, token)
+	if disableRec.Code != http.StatusOK {
+		t.Fatalf("disable access status = %d body = %s", disableRec.Code, disableRec.Body.String())
+	}
+	deleteRec := doJSONAuth(handler, http.MethodDelete, "/api/v1/me/access-accounts/"+accessEnvelope.Data.ID, "", token)
+	if deleteRec.Code != http.StatusOK {
+		t.Fatalf("delete access status = %d body = %s", deleteRec.Code, deleteRec.Body.String())
+	}
+	recreateRec := doJSONAuth(handler, http.MethodPost, "/api/v1/me/access-accounts", `{"username":"field-rover-a01","password":"password123","display_name":"Rover A01"}`, token)
+	if recreateRec.Code != http.StatusConflict {
+		t.Fatalf("recreate deleted access status = %d body = %s", recreateRec.Code, recreateRec.Body.String())
+	}
+	assertErrorCode(t, recreateRec, "access_username_reserved")
+}
+
+func TestIdentityAdminDeleteDisablesAccessAndLocksName(t *testing.T) {
+	server, identityRepo := newTestServerWithIdentity()
+	handler := server.Handler()
+	adminToken := seedAndLogin(t, handler, identityRepo, "admin", identity.RoleAdmin)
+
+	createUserRec := doJSONAuth(handler, http.MethodPost, "/api/v1/admin/accounts", `{"username":"bob","password":"password123","display_name":"Bob","role":"user","status":"active"}`, adminToken)
+	if createUserRec.Code != http.StatusCreated {
+		t.Fatalf("admin create user status = %d body = %s", createUserRec.Code, createUserRec.Body.String())
+	}
+	var userEnvelope struct {
+		Data struct {
+			ID string `json:"account_id"`
+		} `json:"data"`
+	}
+	decodeBody(t, createUserRec, &userEnvelope)
+	userToken := loginToken(t, handler, "bob", "password123")
+	createAccessRec := doJSONAuth(handler, http.MethodPost, "/api/v1/me/access-accounts", `{"username":"bob-device","password":"password123","display_name":"Bob Device"}`, userToken)
+	if createAccessRec.Code != http.StatusCreated {
+		t.Fatalf("create access status = %d body = %s", createAccessRec.Code, createAccessRec.Body.String())
+	}
+
+	deleteUserRec := doJSONAuth(handler, http.MethodDelete, "/api/v1/admin/accounts/"+userEnvelope.Data.ID, "", adminToken)
+	if deleteUserRec.Code != http.StatusOK {
+		t.Fatalf("delete user status = %d body = %s", deleteUserRec.Code, deleteUserRec.Body.String())
+	}
+	var deleteEnvelope struct {
+		Data struct {
+			Status                     string `json:"status"`
+			DisabledAccessAccountCount int    `json:"disabled_access_account_count"`
+		} `json:"data"`
+	}
+	decodeBody(t, deleteUserRec, &deleteEnvelope)
+	if deleteEnvelope.Data.Status != "deleted" || deleteEnvelope.Data.DisabledAccessAccountCount != 1 {
+		t.Fatalf("unexpected delete response: %#v", deleteEnvelope.Data)
+	}
+
+	reregisterRec := doJSON(handler, http.MethodPost, "/api/v1/auth/register", `{"username":"bob","password":"password123","display_name":"Bob Again"}`)
+	if reregisterRec.Code != http.StatusConflict {
+		t.Fatalf("reregister deleted username status = %d body = %s", reregisterRec.Code, reregisterRec.Body.String())
+	}
+	assertErrorCode(t, reregisterRec, "username_reserved")
+}
+
+func TestIdentityPermissionBoundaries(t *testing.T) {
+	server, identityRepo := newTestServerWithIdentity()
+	handler := server.Handler()
+	adminToken := seedAndLogin(t, handler, identityRepo, "admin2", identity.RoleAdmin)
+
+	_ = doJSON(handler, http.MethodPost, "/api/v1/auth/register", `{"username":"charlie","password":"password123","display_name":"Charlie"}`)
+	charlieToken := loginToken(t, handler, "charlie", "password123")
+	adminRec := doJSONAuth(handler, http.MethodGet, "/api/v1/admin/accounts", "", charlieToken)
+	if adminRec.Code != http.StatusForbidden {
+		t.Fatalf("user admin list status = %d body = %s", adminRec.Code, adminRec.Body.String())
+	}
+
+	_ = doJSON(handler, http.MethodPost, "/api/v1/auth/register", `{"username":"dana","password":"password123","display_name":"Dana"}`)
+	danaToken := loginToken(t, handler, "dana", "password123")
+	danaAccessRec := doJSONAuth(handler, http.MethodPost, "/api/v1/me/access-accounts", `{"username":"dana-device","password":"password123","display_name":"Dana Device"}`, danaToken)
+	if danaAccessRec.Code != http.StatusCreated {
+		t.Fatalf("dana access status = %d body = %s", danaAccessRec.Code, danaAccessRec.Body.String())
+	}
+	var accessEnvelope struct {
+		Data struct {
+			ID string `json:"access_account_id"`
+		} `json:"data"`
+	}
+	decodeBody(t, danaAccessRec, &accessEnvelope)
+	foreignRec := doJSONAuth(handler, http.MethodGet, "/api/v1/me/access-accounts/"+accessEnvelope.Data.ID, "", charlieToken)
+	if foreignRec.Code != http.StatusNotFound {
+		t.Fatalf("foreign access status = %d body = %s", foreignRec.Code, foreignRec.Body.String())
+	}
+
+	adminListRec := doJSONAuth(handler, http.MethodGet, "/api/v1/admin/access-accounts", "", adminToken)
+	if adminListRec.Code != http.StatusOK {
+		t.Fatalf("admin access list status = %d body = %s", adminListRec.Code, adminListRec.Body.String())
 	}
 }
 
@@ -368,14 +498,22 @@ func TestProjectionKeyEndpoint(t *testing.T) {
 }
 
 func newTestServer() Server {
+	server, _ := newTestServerWithIdentity()
+	return server
+}
+
+func newTestServerWithIdentity() (Server, *identity.MemoryRepository) {
 	cfg := config.Config{ServiceVersion: "test", HeartbeatInterval: 5 * time.Second}
 	repo := control.NewMemoryRepository()
-	return NewServer(
+	identityRepo := identity.NewMemoryRepository()
+	server := NewServer(
 		cfg,
 		agent.NewService(cfg, repo),
 		control.NewService(repo),
+		identity.NewService(identityRepo, nil),
 		projection.NewRegistry(redisStore.DefaultRegistry()),
 	)
+	return server, identityRepo
 }
 
 func registerTestAgent(t *testing.T, handler http.Handler) (string, string) {
@@ -405,9 +543,74 @@ func doJSON(handler http.Handler, method string, path string, body string) *http
 	return rec
 }
 
+func doJSONAuth(handler http.Handler, method string, path string, body string, token string) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
 func decodeBody(t *testing.T, rec *httptest.ResponseRecorder, dst any) {
 	t.Helper()
 	if err := json.Unmarshal(rec.Body.Bytes(), dst); err != nil {
 		t.Fatalf("decode response failed: %v body=%s", err, rec.Body.String())
+	}
+}
+
+func loginToken(t *testing.T, handler http.Handler, username string, password string) string {
+	t.Helper()
+	rec := doJSON(handler, http.MethodPost, "/api/v1/auth/login", `{"username":"`+username+`","password":"`+password+`"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login %s status = %d body = %s", username, rec.Code, rec.Body.String())
+	}
+	var envelope struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	decodeBody(t, rec, &envelope)
+	if envelope.Data.Token == "" {
+		t.Fatalf("missing login token: %s", rec.Body.String())
+	}
+	return envelope.Data.Token
+}
+
+func seedAndLogin(t *testing.T, handler http.Handler, repo *identity.MemoryRepository, username string, role identity.Role) string {
+	t.Helper()
+	hash, algo, params, err := identity.HashPassword("password123")
+	if err != nil {
+		t.Fatalf("hash seed password: %v", err)
+	}
+	_, err = repo.CreateAccount(context.Background(), identity.AccountCreate{
+		Username:       username,
+		UsernameNorm:   identity.NormalizeUsername(username),
+		DisplayName:    username,
+		Role:           role,
+		Status:         identity.AccountStatusActive,
+		PasswordHash:   hash,
+		PasswordAlgo:   algo,
+		PasswordParams: params,
+		CreatedVia:     identity.CreatedViaAdmin,
+	})
+	if err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	return loginToken(t, handler, username, "password123")
+}
+
+func assertErrorCode(t *testing.T, rec *httptest.ResponseRecorder, code string) {
+	t.Helper()
+	var envelope struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	decodeBody(t, rec, &envelope)
+	if envelope.Error.Code != code {
+		t.Fatalf("error code = %q want %q body=%s", envelope.Error.Code, code, rec.Body.String())
 	}
 }

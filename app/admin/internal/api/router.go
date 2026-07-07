@@ -8,6 +8,7 @@ import (
 	"navcaster-admin/internal/agent"
 	"navcaster-admin/internal/config"
 	"navcaster-admin/internal/control"
+	"navcaster-admin/internal/identity"
 	"navcaster-admin/internal/projection"
 	postgresStore "navcaster-admin/internal/storage/postgres"
 	redisStore "navcaster-admin/internal/storage/redis"
@@ -17,14 +18,16 @@ type Server struct {
 	cfg        config.Config
 	agent      agent.Service
 	control    control.Service
+	identity   identity.Service
 	projection projection.Registry
 }
 
-func NewServer(cfg config.Config, agentSvc agent.Service, controlSvc control.Service, registry projection.Registry) Server {
+func NewServer(cfg config.Config, agentSvc agent.Service, controlSvc control.Service, identitySvc identity.Service, registry projection.Registry) Server {
 	return Server{
 		cfg:        cfg,
 		agent:      agentSvc,
 		control:    controlSvc,
+		identity:   identitySvc,
 		projection: registry,
 	}
 }
@@ -32,11 +35,32 @@ func NewServer(cfg config.Config, agentSvc agent.Service, controlSvc control.Ser
 func (s Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", s.health)
+	mux.HandleFunc("POST /api/v1/auth/register", s.registerUser)
+	mux.HandleFunc("POST /api/v1/auth/login", s.login)
+	mux.HandleFunc("POST /api/v1/auth/logout", s.logout)
+	mux.HandleFunc("GET /api/v1/auth/session", s.sessionInfo)
 	mux.HandleFunc("POST /api/v1/agents/register", s.registerAgent)
 	mux.HandleFunc("POST /api/v1/agents/heartbeat", s.heartbeatAgent)
 	mux.HandleFunc("GET /api/v1/agents/{agent_id}/desired-state", s.agentDesiredState)
 	mux.HandleFunc("POST /api/v1/agents/{agent_id}/runtime-events", s.agentRuntimeEvents)
 	mux.HandleFunc("POST /api/v1/agents/{agent_id}/runtime-metrics", s.agentRuntimeMetrics)
+	mux.HandleFunc("GET /api/v1/admin/accounts", s.listAccounts)
+	mux.HandleFunc("POST /api/v1/admin/accounts", s.createAccount)
+	mux.HandleFunc("GET /api/v1/admin/accounts/{account_id}", s.getAccount)
+	mux.HandleFunc("PUT /api/v1/admin/accounts/{account_id}", s.updateAccount)
+	mux.HandleFunc("PUT /api/v1/admin/accounts/{account_id}/status", s.updateAccountStatus)
+	mux.HandleFunc("PUT /api/v1/admin/accounts/{account_id}/password", s.resetAccountPassword)
+	mux.HandleFunc("DELETE /api/v1/admin/accounts/{account_id}", s.deleteAccount)
+	mux.HandleFunc("GET /api/v1/admin/access-accounts", s.listAdminAccessAccounts)
+	mux.HandleFunc("GET /api/v1/me/profile", s.getProfile)
+	mux.HandleFunc("PUT /api/v1/me/profile", s.updateMyProfile)
+	mux.HandleFunc("GET /api/v1/me/access-accounts", s.listMyAccessAccounts)
+	mux.HandleFunc("POST /api/v1/me/access-accounts", s.createMyAccessAccount)
+	mux.HandleFunc("GET /api/v1/me/access-accounts/{access_account_id}", s.getMyAccessAccount)
+	mux.HandleFunc("PUT /api/v1/me/access-accounts/{access_account_id}", s.updateMyAccessAccount)
+	mux.HandleFunc("PUT /api/v1/me/access-accounts/{access_account_id}/password", s.updateMyAccessAccountPassword)
+	mux.HandleFunc("PUT /api/v1/me/access-accounts/{access_account_id}/status", s.updateMyAccessAccountStatus)
+	mux.HandleFunc("DELETE /api/v1/me/access-accounts/{access_account_id}", s.deleteMyAccessAccount)
 	mux.HandleFunc("GET /api/v1/control/hosts", s.listHosts)
 	mux.HandleFunc("GET /api/v1/control/hosts/{host_id}", s.getHost)
 	mux.HandleFunc("GET /api/v1/control/runtimes", s.listRuntimes)

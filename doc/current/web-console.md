@@ -64,6 +64,21 @@ POST /api/v1/control/runtimes/{runtime_id}/actions/{action}
 前端不再提供 `VITE_NAVCASTER_V2_MOCK`、mock data 或 demo adapter fallback。
 Workers 和 Config versions 页面保留真实空态，等待 AdminService 后续补充 API。
 
+NC-117 身份与接入账号契约是后续实现输入，不表示当前 `app/web` 已实现登录、
+自助注册、用户账号管理或接入账号管理。后续 NC-120 需要新增：
+
+```text
+/login
+/register
+/admin/control/users
+/admin/control/access-accounts
+/access-accounts
+/profile
+```
+
+当前 Web 若调用 `GET /api/v1/auth/session`，后端未实现时必须以未登录或
+session unavailable 状态处理，不能用 mock session 作为验收通过证据。
+
 ## 验证命令
 
 ```powershell
