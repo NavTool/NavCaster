@@ -11,10 +11,10 @@ namespace navcaster::caster {
 struct MountMetricsSnapshot {
     std::uint32_t worker_id = 0;
     std::string mount;
-    bool source_online = false;
+    bool server_online = false;
     std::uint64_t client_count = 0;
-    std::uint64_t source_bytes_in = 0;
-    std::uint64_t source_rtcm_frame_count = 0;
+    std::uint64_t server_bytes_in = 0;
+    std::uint64_t server_rtcm_frame_count = 0;
     std::uint64_t base_position_report_count = 0;
     PositionSource base_position_source = PositionSource::Unknown;
     GeoPosition base_position;
@@ -40,7 +40,7 @@ struct WorkerMetricsSnapshot {
     std::uint64_t handoff_received = 0;
     std::uint64_t active_sessions = 0;
     std::uint64_t active_mounts = 0;
-    std::uint64_t source_count = 0;
+    std::uint64_t server_count = 0;
     std::uint64_t client_count = 0;
     std::uint64_t bytes_in = 0;
     std::uint64_t bytes_out = 0;

@@ -26,10 +26,10 @@ Json mount_to_json(const MountMetricsSnapshot &mount)
     return Json{
         {"worker_id", mount.worker_id},
         {"mount", mount.mount},
-        {"source_online", mount.source_online},
+        {"server_online", mount.server_online},
         {"client_count", mount.client_count},
-        {"source_bytes_in", mount.source_bytes_in},
-        {"source_rtcm_frame_count", mount.source_rtcm_frame_count},
+        {"server_bytes_in", mount.server_bytes_in},
+        {"server_rtcm_frame_count", mount.server_rtcm_frame_count},
         {"base_position_report_count", mount.base_position_report_count},
         {"base_position_source", position_source_name(mount.base_position_source)},
         {"base_position", position_to_json(mount.base_position)},
@@ -59,7 +59,7 @@ WorkerMetricsSnapshot totals_for(const std::vector<WorkerMetricsSnapshot> &worke
         totals.handoff_received += worker.handoff_received;
         totals.active_sessions += worker.active_sessions;
         totals.active_mounts += worker.active_mounts;
-        totals.source_count += worker.source_count;
+        totals.server_count += worker.server_count;
         totals.client_count += worker.client_count;
         totals.bytes_in += worker.bytes_in;
         totals.bytes_out += worker.bytes_out;
@@ -115,7 +115,7 @@ Json worker_to_json(const WorkerMetricsSnapshot &worker)
         {"handoff_received", worker.handoff_received},
         {"active_sessions", worker.active_sessions},
         {"active_mounts", worker.active_mounts},
-        {"source_count", worker.source_count},
+        {"server_count", worker.server_count},
         {"client_count", worker.client_count},
         {"bytes_in", worker.bytes_in},
         {"bytes_out", worker.bytes_out},
@@ -166,7 +166,7 @@ std::string runtime_metrics_to_json(const RuntimeMetricsSnapshot &snapshot)
         {"worker_count", snapshot.worker_count},
         {"mount_count", snapshot.mount_count},
         {"connection_count", totals.active_sessions},
-        {"source_count", totals.source_count},
+        {"server_count", totals.server_count},
         {"client_count", totals.client_count},
         {"bytes_in", totals.bytes_in},
         {"bytes_out", totals.bytes_out},

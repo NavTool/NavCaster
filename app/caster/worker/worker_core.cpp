@@ -32,8 +32,8 @@ void WorkerCore::accept_handoff(HandoffMessage message)
     }
 
     switch (message.connect_info.type) {
-    case ConnectType::Source:
-        create_source_locked(std::move(message));
+    case ConnectType::Server:
+        create_server_locked(std::move(message));
         break;
     case ConnectType::Client:
         create_client_locked(std::move(message));
@@ -51,9 +51,9 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
     snapshot.worker_id = _worker_id;
     snapshot.draining = _draining;
     snapshot.handoff_received = _handoff_received;
-    snapshot.source_count = static_cast<std::uint64_t>(_sources.size());
+    snapshot.server_count = static_cast<std::uint64_t>(_servers.size());
     snapshot.client_count = static_cast<std::uint64_t>(_clients.size());
-    snapshot.active_sessions = snapshot.source_count + snapshot.client_count;
+    snapshot.active_sessions = snapshot.server_count + snapshot.client_count;
     snapshot.active_mounts = static_cast<std::uint64_t>(_mounts.size());
     snapshot.bytes_in = _bytes_in;
     snapshot.bytes_out = _bytes_out;
@@ -79,10 +79,10 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
         MountMetricsSnapshot mount;
         mount.worker_id = _worker_id;
         mount.mount = item.first;
-        mount.source_online = state.source_id != 0;
+        mount.server_online = state.server_id != 0;
         mount.client_count = static_cast<std::uint64_t>(state.client_ids.size());
-        mount.source_bytes_in = state.source_bytes_in;
-        mount.source_rtcm_frame_count = state.source_rtcm_frame_count;
+        mount.server_bytes_in = state.server_bytes_in;
+        mount.server_rtcm_frame_count = state.server_rtcm_frame_count;
         mount.base_position_report_count = state.base_position_report_count;
         mount.base_position_source = state.base_position_source;
         mount.base_position = state.base_position;
@@ -112,44 +112,44 @@ void WorkerCore::set_draining(bool draining)
     _draining = draining;
 }
 
-void WorkerCore::create_source_locked(HandoffMessage message)
+void WorkerCore::create_server_locked(HandoffMessage message)
 {
     const std::string mount = message.connect_info.mount;
 
-    const auto existing_source_id = _mounts[mount].source_id;
-    if (existing_source_id != 0) {
-        close_source_locked(existing_source_id);
+    const auto existing_server_id = _mounts[mount].server_id;
+    if (existing_server_id != 0) {
+        close_server_locked(existing_server_id);
     }
 
     const std::uint64_t session_id = _next_session_id++;
-    auto session = std::make_unique<SourceSession>(
+    auto session = std::make_unique<ServerSession>(
         session_id,
         _worker_id,
         std::move(message),
-        [this](std::uint64_t source_id, std::string data) {
-            handle_source_data(source_id, std::move(data));
+        [this](std::uint64_t server_id, std::string data) {
+            handle_server_data(server_id, std::move(data));
         },
-        [this](std::uint64_t source_id) {
-            handle_source_closed(source_id);
+        [this](std::uint64_t server_id) {
+            handle_server_closed(server_id);
         });
 
     if (!session->start(_base)) {
-        log_warn("worker " + std::to_string(_worker_id) + " failed to start source session mount=" + mount);
+        log_warn("worker " + std::to_string(_worker_id) + " failed to start server session mount=" + mount);
         erase_mount_if_empty_locked(mount);
         return;
     }
 
     auto &mount_state = _mounts[mount];
-    mount_state.source_id = session_id;
-    _source_decoders[session_id] = Rtcm3Parser{};
-    _sources[session_id] = std::move(session);
-    const auto initial_payload = _sources[session_id]->consume_initial_bytes();
+    mount_state.server_id = session_id;
+    _server_decoders[session_id] = Rtcm3Parser{};
+    _servers[session_id] = std::move(session);
+    const auto initial_payload = _servers[session_id]->consume_initial_bytes();
     if (!initial_payload.empty()) {
-        handle_source_data_locked(session_id, initial_payload);
+        handle_server_data_locked(session_id, initial_payload);
     }
-    if (_sources.find(session_id) != _sources.end() &&
-        (_sources[session_id]->input_failed() || _sources[session_id]->input_complete())) {
-        close_source_locked(session_id);
+    if (_servers.find(session_id) != _servers.end() &&
+        (_servers[session_id]->input_failed() || _servers[session_id]->input_complete())) {
+        close_server_locked(session_id);
     }
 }
 
@@ -219,10 +219,10 @@ void WorkerCore::reject_handoff_locked(HandoffMessage &message, const std::strin
              " type=" + connect_type_name(message.connect_info.type) + " mount=" + message.connect_info.mount);
 }
 
-void WorkerCore::handle_source_data(std::uint64_t session_id, std::string data)
+void WorkerCore::handle_server_data(std::uint64_t session_id, std::string data)
 {
     std::lock_guard<std::mutex> lock(_mutex);
-    handle_source_data_locked(session_id, data);
+    handle_server_data_locked(session_id, data);
 }
 
 void WorkerCore::handle_client_data(std::uint64_t session_id, std::string data)
@@ -231,11 +231,11 @@ void WorkerCore::handle_client_data(std::uint64_t session_id, std::string data)
     handle_client_data_locked(session_id, data);
 }
 
-void WorkerCore::handle_source_closed(std::uint64_t session_id)
+void WorkerCore::handle_server_closed(std::uint64_t session_id)
 {
     std::lock_guard<std::mutex> lock(_mutex);
-    detach_source_locked(session_id);
-    _pending_source_cleanup.insert(session_id);
+    detach_server_locked(session_id);
+    _pending_server_cleanup.insert(session_id);
     schedule_deferred_cleanup_locked();
 }
 
@@ -274,22 +274,22 @@ void WorkerCore::handle_redis_error(const std::string &operation)
     }
 }
 
-void WorkerCore::handle_source_data_locked(std::uint64_t session_id, const std::string &data)
+void WorkerCore::handle_server_data_locked(std::uint64_t session_id, const std::string &data)
 {
-    const auto source_it = _sources.find(session_id);
-    if (source_it == _sources.end() || data.empty()) {
+    const auto server_it = _servers.find(session_id);
+    if (server_it == _servers.end() || data.empty()) {
         return;
     }
 
-    const std::string mount = source_it->second->mount();
+    const std::string mount = server_it->second->mount();
     _bytes_in += static_cast<std::uint64_t>(data.size());
     auto &mount_state = _mounts[mount];
-    mount_state.source_bytes_in += static_cast<std::uint64_t>(data.size());
+    mount_state.server_bytes_in += static_cast<std::uint64_t>(data.size());
 
-    auto decoder_it = _source_decoders.find(session_id);
-    if (decoder_it != _source_decoders.end()) {
+    auto decoder_it = _server_decoders.find(session_id);
+    if (decoder_it != _server_decoders.end()) {
         const auto reports = decoder_it->second.feed(data);
-        mount_state.source_rtcm_frame_count += static_cast<std::uint64_t>(reports.size());
+        mount_state.server_rtcm_frame_count += static_cast<std::uint64_t>(reports.size());
         for (const auto &report : reports) {
             update_mount_position_locked(mount, report);
         }
@@ -436,15 +436,15 @@ void WorkerCore::fanout_to_mount_clients_locked(
     }
 }
 
-void WorkerCore::close_source_locked(std::uint64_t session_id)
+void WorkerCore::close_server_locked(std::uint64_t session_id)
 {
-    auto source_it = _sources.find(session_id);
-    if (source_it == _sources.end()) {
+    auto server_it = _servers.find(session_id);
+    if (server_it == _servers.end()) {
         return;
     }
 
-    detach_source_locked(session_id);
-    _sources.erase(source_it);
+    detach_server_locked(session_id);
+    _servers.erase(server_it);
 }
 
 void WorkerCore::close_client_locked(std::uint64_t session_id)
@@ -464,24 +464,24 @@ void WorkerCore::erase_mount_if_empty_locked(const std::string &mount)
     if (mount_it == _mounts.end()) {
         return;
     }
-    if (mount_it->second.source_id == 0 && mount_it->second.client_ids.empty()) {
+    if (mount_it->second.server_id == 0 && mount_it->second.client_ids.empty()) {
         _mounts.erase(mount_it);
     }
 }
 
-void WorkerCore::detach_source_locked(std::uint64_t session_id)
+void WorkerCore::detach_server_locked(std::uint64_t session_id)
 {
-    auto source_it = _sources.find(session_id);
-    if (source_it == _sources.end()) {
+    auto server_it = _servers.find(session_id);
+    if (server_it == _servers.end()) {
         return;
     }
 
-    const std::string mount = source_it->second->mount();
+    const std::string mount = server_it->second->mount();
     auto mount_it = _mounts.find(mount);
-    if (mount_it != _mounts.end() && mount_it->second.source_id == session_id) {
-        mount_it->second.source_id = 0;
+    if (mount_it != _mounts.end() && mount_it->second.server_id == session_id) {
+        mount_it->second.server_id = 0;
     }
-    _source_decoders.erase(session_id);
+    _server_decoders.erase(session_id);
     erase_mount_if_empty_locked(mount);
 }
 
@@ -522,10 +522,10 @@ void WorkerCore::run_deferred_cleanup()
 {
     std::lock_guard<std::mutex> lock(_mutex);
     _cleanup_scheduled = false;
-    for (const auto session_id : _pending_source_cleanup) {
-        _sources.erase(session_id);
+    for (const auto session_id : _pending_server_cleanup) {
+        _servers.erase(session_id);
     }
-    _pending_source_cleanup.clear();
+    _pending_server_cleanup.clear();
     for (const auto session_id : _pending_client_cleanup) {
         _clients.erase(session_id);
     }

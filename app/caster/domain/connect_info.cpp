@@ -7,8 +7,8 @@ std::string connect_type_name(ConnectType type)
     switch (type) {
     case ConnectType::SourceTable:
         return "source_table";
-    case ConnectType::Source:
-        return "source";
+    case ConnectType::Server:
+        return "server";
     case ConnectType::Client:
         return "client";
     case ConnectType::Near:

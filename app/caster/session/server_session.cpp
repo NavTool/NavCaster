@@ -1,4 +1,4 @@
-#include "session/source_session.h"
+#include "session/server_session.h"
 
 #include <event2/buffer.h>
 
@@ -10,7 +10,7 @@ namespace {
 
 constexpr const char *kNtripOkResponse = "ICY 200 OK\r\n\r\n";
 
-std::string source_ok_response(const ConnectInfo &info)
+std::string server_ok_response(const ConnectInfo &info)
 {
     if (!info.ntrip2) {
         return kNtripOkResponse;
@@ -24,7 +24,7 @@ std::string source_ok_response(const ConnectInfo &info)
 
 } // namespace
 
-SourceSession::SourceSession(
+ServerSession::ServerSession(
     std::uint64_t session_id,
     std::uint32_t worker_id,
     HandoffMessage handoff,
@@ -39,7 +39,7 @@ SourceSession::SourceSession(
 {
 }
 
-SourceSession::~SourceSession()
+ServerSession::~ServerSession()
 {
     release_bev();
     if (_handoff.fd >= 0) {
@@ -48,7 +48,7 @@ SourceSession::~SourceSession()
     }
 }
 
-bool SourceSession::start(event_base *base)
+bool ServerSession::start(event_base *base)
 {
     if (!base || _handoff.fd < 0) {
         return false;
@@ -60,31 +60,31 @@ bool SourceSession::start(event_base *base)
     }
     _handoff.fd = -1;
 
-    bufferevent_setcb(_bev, &SourceSession::on_read, nullptr, &SourceSession::on_event, this);
+    bufferevent_setcb(_bev, &ServerSession::on_read, nullptr, &ServerSession::on_event, this);
     bufferevent_enable(_bev, EV_READ | EV_WRITE);
 
-    const auto response = source_ok_response(_handoff.connect_info);
+    const auto response = server_ok_response(_handoff.connect_info);
     if (bufferevent_write(_bev, response.data(), response.size()) != 0) {
-        log_warn("source session failed to write NTRIP response worker=" + std::to_string(_worker_id));
+        log_warn("server session failed to write NTRIP response worker=" + std::to_string(_worker_id));
         return false;
     }
     return true;
 }
 
-std::string SourceSession::consume_initial_bytes()
+std::string ServerSession::consume_initial_bytes()
 {
     std::string data = std::move(_handoff.initial_bytes);
     _handoff.initial_bytes.clear();
     return decode_incoming(std::move(data));
 }
 
-void SourceSession::close()
+void ServerSession::close()
 {
     _closed_notified = true;
     release_bev();
 }
 
-std::string SourceSession::decode_incoming(std::string data)
+std::string ServerSession::decode_incoming(std::string data)
 {
     if (data.empty()) {
         return {};
@@ -94,12 +94,12 @@ std::string SourceSession::decode_incoming(std::string data)
     }
     auto decoded = _chunked_decoder.feed(data);
     if (_chunked_decoder.failed()) {
-        log_warn("source session received invalid chunked body worker=" + std::to_string(_worker_id));
+        log_warn("server session received invalid chunked body worker=" + std::to_string(_worker_id));
     }
     return decoded;
 }
 
-void SourceSession::handle_read()
+void ServerSession::handle_read()
 {
     if (!_bev) {
         return;
@@ -124,7 +124,7 @@ void SourceSession::handle_read()
     }
 }
 
-void SourceSession::handle_event(short events)
+void ServerSession::handle_event(short events)
 {
     if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR | BEV_EVENT_TIMEOUT)) {
         release_bev();
@@ -132,7 +132,7 @@ void SourceSession::handle_event(short events)
     }
 }
 
-void SourceSession::release_bev()
+void ServerSession::release_bev()
 {
     if (_bev) {
         bufferevent_setcb(_bev, nullptr, nullptr, nullptr, nullptr);
@@ -141,7 +141,7 @@ void SourceSession::release_bev()
     }
 }
 
-void SourceSession::notify_closed()
+void ServerSession::notify_closed()
 {
     if (_closed_notified) {
         return;
@@ -152,17 +152,17 @@ void SourceSession::notify_closed()
     }
 }
 
-void SourceSession::on_read(bufferevent *, void *arg)
+void ServerSession::on_read(bufferevent *, void *arg)
 {
-    auto *session = static_cast<SourceSession *>(arg);
+    auto *session = static_cast<ServerSession *>(arg);
     if (session) {
         session->handle_read();
     }
 }
 
-void SourceSession::on_event(bufferevent *, short events, void *arg)
+void ServerSession::on_event(bufferevent *, short events, void *arg)
 {
-    auto *session = static_cast<SourceSession *>(arg);
+    auto *session = static_cast<ServerSession *>(arg);
     if (session) {
         session->handle_event(events);
     }

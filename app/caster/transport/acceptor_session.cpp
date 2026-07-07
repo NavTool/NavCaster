@@ -74,7 +74,7 @@ ConnectInfo AcceptorSessionParser::parse_request_head(const std::string &request
         info.mount = trim_mount(target);
         info.type = info.mount.empty() ? ConnectType::SourceTable : ConnectType::Client;
     } else if (method == "POST" || method == "SOURCE") {
-        info.type = ConnectType::Source;
+        info.type = ConnectType::Server;
         if (method == "SOURCE" && !target.empty() && target.front() != '/' && !third.empty() && third.rfind("HTTP/", 0) != 0) {
             target = third;
         }
