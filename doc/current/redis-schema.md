@@ -121,7 +121,8 @@ Redis Open Source 8.4.0+。部署和命令校验见 `deployment/redis.md`。
 
 ## v2 AdminService projection
 
-NC-091 起 `app/admin/` Go AdminService 使用全新 `v2:` Redis key，不兼容旧 `ACT:*`、
+NC-126 起当前 Redis key/channel 不再使用 `v2:` 前缀；`app/admin/` Go AdminService
+仍不兼容旧 `ACT:*`、
 `MPT:*`、`STR:*`、`PULL:*`、`PUSH:*`、`CASTER:*` key。PostgreSQL 仍是 source of
 truth，Redis 只保存 projection / runtime TTL state / bus。
 
@@ -129,12 +130,15 @@ truth，Redis 只保存 projection / runtime TTL state / bus。
 
 | Key | Type | TTL | 写入者 | 读取者 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| `v2:config:runtime:<runtime_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | 单 Runtime desired/config projection，字段来自 `runtime_desired_states`。 |
-| `v2:control:desired-state:<host_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent | Host 级 desired-state projection，shape 与 `GET /api/v1/agents/{agent_id}/desired-state` 一致。 |
-| `v2:control:intent:<intent_id>` | STRING JSON | 无 | navcaster-admin | navcaster-admin / navcaster-agent / QA | action intent projection，包含 intent lifecycle、request_id、desired_version 和对应 desired runtime。 |
-| `v2:control:config` | PUB/SUB JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | Runtime / Host desired projection 和 action intent 变更通知。payload 包含 projection key、runtime_id 或 host_id、intent_id、desired_version、intent_status、version。 |
-| `v2:runtime:actual:<runtime_id>` | STRING JSON | 60s | navcaster-admin runtime-metrics ingest | navcaster-admin / Web | 最新 runtime actual snapshot projection，payload 顶层带 `status=observed|failed`、`stale`、`last_error` 和 `observed_desired_version`。长期事实写 PostgreSQL `runtime_actual_snapshots`。 |
-| `v2:agent:heartbeat:<agent_id>` | STRING JSON | 45s | navcaster-admin heartbeat ingest | navcaster-admin / Web | 最新 Agent heartbeat projection。 |
+| `config:runtime:<runtime_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | 单 Runtime desired/config projection，字段来自 `runtime_desired_states`。 |
+| `control:desired-state:<host_id>` | STRING JSON | 无 | navcaster-admin | navcaster-agent | Host 级 desired-state projection，shape 与 `GET /api/v1/agents/{agent_id}/desired-state` 一致。 |
+| `control:intent:<intent_id>` | STRING JSON | 无 | navcaster-admin | navcaster-admin / navcaster-agent / QA | action intent projection，包含 intent lifecycle、request_id、desired_version 和对应 desired runtime。 |
+| `control:config` | PUB/SUB JSON | 无 | navcaster-admin | navcaster-agent / navcaster-caster | Runtime / Host desired projection 和 action intent 变更通知。payload 包含 projection key、runtime_id 或 host_id、intent_id、desired_version、intent_status、version。 |
+| `runtime:actual:<runtime_id>` | STRING JSON | 60s | navcaster-admin runtime-metrics ingest | navcaster-admin / Web | 最新 runtime actual snapshot projection，payload 顶层带 `status=observed|failed`、`stale`、`last_error` 和 `observed_desired_version`。长期事实写 PostgreSQL `runtime_actual_snapshots`。 |
+| `agent:heartbeat:<agent_id>` | STRING JSON | 45s | navcaster-admin heartbeat ingest | navcaster-admin / Web | 最新 Agent heartbeat projection。 |
+| `sourcetable:runtime:<runtime_id>` | STRING JSON | 10-30s | navcaster-caster | navcaster-caster | 单 Runtime 当前可服务 mount 的源列表快照。 |
+| `sourcetable:index` | SET 或 STRING JSON | 10-30s | navcaster-caster | navcaster-caster | 可选 runtime sourcetable 快照索引；实现也可用受控刷新路径重建。 |
+| `sourcetable:changed` | PUB/SUB JSON | 无 | navcaster-caster | navcaster-caster | 可选源列表快照变更通知。 |
 
 NC-101 后 action intent 生命周期为：
 
@@ -151,7 +155,7 @@ AdminService 在 PostgreSQL 事务中写 desired state 和 `control_intents`，R
 `reconcile_failed`、`runtime_failed` 时推进到 `failed`。新 action 会把同 runtime 旧 open
 intent 标记为 `superseded`。
 
-`GET /api/v1/control/projection-keys` 返回当前 v2 Redis key registry。新增 v2 key 必须先登记
+`GET /api/v1/control/projection-keys` 返回当前 Redis key registry。新增当前 Redis key 必须先登记
 `app/admin/internal/storage/redis/registry.go`，并同步本文件。
 - Auth 写侧维护 `ACT:SESSION:<account>`；NC-016 至 NC-023 已覆盖读侧、真实 NTRIP 写入、续期、连接数、匿名、广播踢线和禁用账号矩阵。
 - `STR:ACTIVE` 当前仅作为 legacy fallback；当前源码未发现新的写入路径。

@@ -10,8 +10,15 @@
 
 namespace navcaster::caster {
 
-CasterWorker::CasterWorker(std::uint32_t worker_id, std::string runtime_id, RedisEndpoint redis)
-    : _worker_id(worker_id), _runtime_id(std::move(runtime_id)), _redis_endpoint(std::move(redis))
+CasterWorker::CasterWorker(
+    std::uint32_t worker_id,
+    std::string runtime_id,
+    RedisEndpoint redis,
+    std::shared_ptr<ClusterSourcetableCache> sourcetable_cache)
+    : _worker_id(worker_id),
+      _runtime_id(std::move(runtime_id)),
+      _redis_endpoint(std::move(redis)),
+      _sourcetable_cache(std::move(sourcetable_cache))
 {
 }
 
@@ -117,7 +124,7 @@ void CasterWorker::thread_main()
     }
 
     _redis_boundary = std::make_unique<WorkerRedisBoundary>(_runtime_id, _worker_id, _redis_endpoint.host, _redis_endpoint.port);
-    _core = std::make_unique<WorkerCore>(_worker_id, _base.get(), _redis_boundary.get());
+    _core = std::make_unique<WorkerCore>(_worker_id, _base.get(), _redis_boundary.get(), _sourcetable_cache);
     _mailbox = std::make_unique<WorkerMailbox>();
     if (!_mailbox->attach(_base.get())) {
         log_error("worker " + std::to_string(_worker_id) + " failed to attach mailbox");
@@ -140,6 +147,11 @@ void CasterWorker::thread_main()
         [this](std::string operation) {
             if (_core) {
                 _core->handle_redis_error(operation);
+            }
+        },
+        [this](std::string payload) {
+            if (_core) {
+                _core->handle_sourcetable_snapshot(std::move(payload));
             }
         });
 

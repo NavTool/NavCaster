@@ -76,7 +76,7 @@ paths:
   /api/v1/agents/{agent_id}/desired-state:
     get:
       summary: Poll desired runtime state for an agent
-      description: Returns desired state from PostgreSQL source-of-truth. When Redis is configured, AdminService also publishes the same host-level projection to v2:control:desired-state:{host_id}.
+      description: Returns desired state from PostgreSQL source-of-truth. When Redis is configured, AdminService also publishes the same host-level projection to control:desired-state:{host_id}.
       parameters:
         - name: agent_id
           in: path
@@ -175,7 +175,7 @@ paths:
           description: Runtime list.
     post:
       summary: Create a runtime desired state
-      description: Creates PostgreSQL desired state and Redis v2 projection when Redis is configured. AdminService does not start processes.
+      description: Creates PostgreSQL desired state and Redis projection when Redis is configured. AdminService does not start processes.
       requestBody:
         required: true
         content:
@@ -273,7 +273,7 @@ paths:
   /api/v1/control/runtimes/{runtime_id}/actions/start:
     post:
       summary: Record runtime start action intent
-      description: Persists action intent, supersedes prior open intents for the runtime, bumps desired version, publishes Redis v2 projections, and returns the intent lifecycle status. It does not execute a process directly.
+      description: Persists action intent, supersedes prior open intents for the runtime, bumps desired version, publishes Redis projections, and returns the intent lifecycle status. It does not execute a process directly.
       requestBody:
         content:
           application/json:
@@ -328,7 +328,7 @@ paths:
           description: Undrain intent accepted.
   /api/v1/control/projection-keys:
     get:
-      summary: List v2 Redis projection key registry
+      summary: List Redis projection key registry
       responses:
         "200":
           description: Redis key registry.

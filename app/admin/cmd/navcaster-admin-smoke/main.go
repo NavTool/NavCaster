@@ -69,8 +69,8 @@ func main() {
 		"restart_policy":    "on_failure",
 		"start_immediately": false,
 	}, http.StatusCreated, &created))
-	requireRedisJSON(redisAddr, "v2:config:runtime:"+created.Data.RuntimeID, "runtime_id", created.Data.RuntimeID)
-	requireRedisJSON(redisAddr, "v2:control:desired-state:"+register.Data.HostID, "host_id", register.Data.HostID)
+	requireRedisJSON(redisAddr, "config:runtime:"+created.Data.RuntimeID, "runtime_id", created.Data.RuntimeID)
+	requireRedisJSON(redisAddr, "control:desired-state:"+register.Data.HostID, "host_id", register.Data.HostID)
 
 	var action struct {
 		Data struct {
@@ -90,7 +90,7 @@ func main() {
 	if action.Data.IntentID == "" || action.Data.Status != "projected" {
 		die("action intent was not projected: %#v", action.Data)
 	}
-	requireRedisJSON(redisAddr, "v2:control:intent:"+action.Data.IntentID, "intent_id", action.Data.IntentID)
+	requireRedisJSON(redisAddr, "control:intent:"+action.Data.IntentID, "intent_id", action.Data.IntentID)
 
 	must(do(client, http.MethodPost, baseURL+"/api/v1/agents/"+register.Data.AgentID+"/runtime-metrics", map[string]any{
 		"agent_id": register.Data.AgentID,
@@ -107,7 +107,7 @@ func main() {
 			"updated_at":               time.Now().UTC().Format(time.RFC3339Nano),
 		}},
 	}, http.StatusAccepted, nil))
-	requireRedisJSON(redisAddr, "v2:runtime:actual:"+created.Data.RuntimeID, "status", "observed")
+	requireRedisJSON(redisAddr, "runtime:actual:"+created.Data.RuntimeID, "status", "observed")
 
 	must(do(client, http.MethodPost, baseURL+"/api/v1/agents/"+register.Data.AgentID+"/runtime-events", map[string]any{
 		"agent_id": register.Data.AgentID,

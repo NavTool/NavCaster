@@ -303,7 +303,7 @@ on_source_data(mount, bytes):
   maybe_decode_rtcm(mount, bytes)
   local_subscribers = mount_subscriptions[mount]
   fan-out to local_subscribers
-  publish to Redis v2:stream:mount:<mount>
+  publish to Redis stream:mount:<mount>
   periodically refresh runtime/session TTL
 ```
 
@@ -347,16 +347,40 @@ Redis Pub/Sub -> subscribed Worker -> local clients
 最小 Redis bus 契约：
 
 ```text
-channel: v2:stream:mount:<mount>
+channel: stream:mount:<mount>
 payload: NCV2BUS1 envelope + raw bytes
 origin_runtime_id: envelope field; subscribed runtime ignores its own messages
 ```
 
 本 channel 不兼容旧 `MPT:<mount>` channel。Worker 只在本地 client 订阅 mount 时订阅
-对应 v2 channel；source 数据进入后先本地 fan-out，再发布到 Redis。Redis subscribe 回调
+对应当前 channel；source 数据进入后先本地 fan-out，再发布到 Redis。Redis subscribe 回调
 只能在该 Worker 的 event loop 内向本 Worker client fan-out，不得跨 Worker 访问 session map。
 
 第一版保留普通 Pub/Sub。只有当指标显示 Redis 成为共享瓶颈时，再评估 Sharded Pub/Sub。
+
+### 8.4 SourceTable 请求
+
+源列表请求使用同一 NTRIP acceptor 入口，但进入 worker 后作为特殊短连接
+SourceTable client 处理：
+
+```text
+GET /
+  -> Acceptor 解析为 ConnectType::SourceTable
+  -> WorkerManager 选择一个非 draining worker
+  -> Worker 创建 SourceTable session
+  -> session 读取 ClusterSourcetableCache immutable snapshot
+  -> 构建 sourcetable 响应并关闭连接
+```
+
+SourceTable session 不绑定真实 mount owner，不加入 `_clients` / `mount_subscriptions`，
+不订阅 `stream:mount:<mount>`，不计入普通 `client_count`。Runtime metrics 单独暴露
+`sourcetable_request_count`、`sourcetable_cache_entry_count` 和 `sourcetable_cache_age_ms`。
+
+每个 Caster 维护本地 `ClusterSourcetableCache`。本 runtime 从 worker 内 source 上线、
+下线和位置更新事件维护本地源列表，并通过 `sourcetable:runtime:<runtime_id>` 发布短 TTL
+快照，同时发布 `sourcetable:changed`。其他 runtime 的快照通过订阅
+`sourcetable:changed` 进入本地 cache。源列表请求路径只能读取当前 cache snapshot，
+不得 Redis scan，也不得跨 worker 遍历 live session/map。
 
 ## 9. Worker Count 调整
 

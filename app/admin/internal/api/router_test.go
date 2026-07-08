@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -490,9 +491,10 @@ func TestProjectionKeyEndpoint(t *testing.T) {
 	if len(envelope.Data) == 0 {
 		t.Fatal("expected registry entries")
 	}
+	legacyPrefix := "v2" + ":"
 	for _, key := range envelope.Data {
-		if len(key.Pattern) < 3 || key.Pattern[:3] != "v2:" {
-			t.Fatalf("non-v2 key in endpoint: %q", key.Pattern)
+		if strings.HasPrefix(key.Pattern, legacyPrefix) {
+			t.Fatalf("v2-prefixed key in endpoint: %q", key.Pattern)
 		}
 	}
 }

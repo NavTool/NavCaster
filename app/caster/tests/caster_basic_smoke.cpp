@@ -18,6 +18,7 @@
 #include "domain/sourcetable.h"
 #include "infra/event_loop.h"
 #include "infra/socket_util.h"
+#include "runtime/cluster_sourcetable_cache.h"
 #include "runtime/runtime_metrics.h"
 #include "session/source_session.h"
 #include "transport/acceptor_session.h"
@@ -345,6 +346,32 @@ void test_source_session()
     }
 }
 
+void test_cluster_sourcetable_cache()
+{
+    navcaster::caster::ClusterSourcetableCache cache("runtime-a");
+
+    navcaster::caster::SourcetableEntry local;
+    local.mount = "BASE_A";
+    local.identifier = "BASE_A";
+    local.position.valid = true;
+    local.position.latitude_deg = 30.0;
+    local.position.longitude_deg = 120.0;
+    cache.upsert_local_entry(local);
+
+    const auto local_json = cache.local_snapshot_json();
+    navcaster::caster::ClusterSourcetableCache remote("runtime-b");
+    expect_true(remote.apply_remote_snapshot_json(local_json), "cluster sourcetable applies remote snapshot");
+    const auto remote_entries = remote.snapshot_entries();
+    expect_true(remote_entries.size() == 1, "cluster sourcetable remote entry count");
+    expect_true(!remote_entries.empty() && remote_entries[0].mount == "BASE_A", "cluster sourcetable remote mount");
+
+    cache.remove_local_mount("BASE_A");
+    const auto empty_entries = cache.snapshot_entries();
+    expect_true(empty_entries.empty(), "cluster sourcetable local remove");
+    const auto metrics = remote.metrics();
+    expect_true(metrics.entry_count == 1, "cluster sourcetable metrics entry count");
+}
+
 void test_metrics_json()
 {
     navcaster::caster::RuntimeMetricsSnapshot snapshot;
@@ -357,6 +384,7 @@ void test_metrics_json()
     worker.running = true;
     worker.server_count = 1;
     worker.client_count = 1;
+    worker.sourcetable_request_count = 2;
     worker.active_sessions = 2;
     worker.redis_position_report_count = 2;
 
@@ -382,6 +410,8 @@ void test_metrics_json()
     client.position.longitude_deg = 11.516666667;
     worker.clients.push_back(client);
     snapshot.workers.push_back(worker);
+    snapshot.sourcetable_cache_entry_count = 1;
+    snapshot.sourcetable_cache_age_ms = 12;
 
     const auto metrics_text = navcaster::caster::runtime_metrics_to_json(snapshot);
     const auto metrics = nlohmann::json::parse(metrics_text);
@@ -390,7 +420,13 @@ void test_metrics_json()
     expect_true(metrics["mounts"].size() == 1, "metrics mount count");
     expect_true(metrics["clients"].size() == 1, "metrics client count");
     expect_true(metrics["server_count"] == 1, "metrics server count");
+    expect_true(metrics["client_count"] == 1, "metrics client count total");
+    expect_true(metrics["sourcetable_request_count"] == 2, "metrics sourcetable request count");
+    expect_true(metrics["sourcetable_cache_entry_count"] == 1, "metrics sourcetable cache entry count");
+    expect_true(metrics["sourcetable_cache_age_ms"] == 12, "metrics sourcetable cache age");
     expect_true(metrics["workers"][0]["server_count"] == 1, "metrics worker server count");
+    expect_true(metrics["workers"][0]["client_count"] == 1, "metrics worker client count");
+    expect_true(metrics["workers"][0]["sourcetable_request_count"] == 2, "metrics worker sourcetable request count");
     expect_true(metrics["mounts"][0]["server_online"], "metrics mount server online");
     expect_true(metrics["mounts"][0]["server_bytes_in"] == 128, "metrics mount server bytes in");
     expect_true(metrics["mounts"][0]["server_rtcm_frame_count"] == 3, "metrics mount server rtcm count");
@@ -415,6 +451,7 @@ int main()
     test_sourcetable();
     test_connect_key();
     test_source_session();
+    test_cluster_sourcetable_cache();
     test_metrics_json();
 
     if (g_failures != 0) {

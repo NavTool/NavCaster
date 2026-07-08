@@ -13,7 +13,10 @@
 namespace navcaster::caster {
 namespace {
 
-constexpr const char *kV2StreamChannelPrefix = "v2:stream:mount:";
+constexpr const char *kStreamChannelPrefix = "stream:mount:";
+constexpr const char *kSourcetableRuntimeKeyPrefix = "sourcetable:runtime:";
+constexpr const char *kSourcetableChangedChannel = "sourcetable:changed";
+constexpr int kSourcetableSnapshotTtlSeconds = 30;
 constexpr const char *kPayloadMagic = "NCV2BUS1";
 constexpr const char *kMountPositionKey = "MPT:GEO";
 constexpr const char *kClientPositionKey = "USR:GEO";
@@ -141,7 +144,11 @@ WorkerRedisBoundary::~WorkerRedisBoundary()
     stop();
 }
 
-bool WorkerRedisBoundary::start(event_base *base, MountMessageCallback on_mount_message, ErrorCallback on_error)
+bool WorkerRedisBoundary::start(
+    event_base *base,
+    MountMessageCallback on_mount_message,
+    ErrorCallback on_error,
+    SourcetableSnapshotCallback on_sourcetable_snapshot)
 {
     if (_started) {
         return true;
@@ -149,6 +156,7 @@ bool WorkerRedisBoundary::start(event_base *base, MountMessageCallback on_mount_
 
     _on_mount_message = std::move(on_mount_message);
     _on_error = std::move(on_error);
+    _on_sourcetable_snapshot = std::move(on_sourcetable_snapshot);
 
     const bool command_ok = command.connect(base);
     const bool pubsub_ok = pubsub.connect(base);
@@ -159,6 +167,9 @@ bool WorkerRedisBoundary::start(event_base *base, MountMessageCallback on_mount_
     if (!pubsub_ok) {
         report_error("connect_pubsub");
     }
+    if (_started && !subscribe_sourcetable_changes()) {
+        report_error("subscribe_sourcetable");
+    }
     return _started;
 }
 
@@ -167,6 +178,8 @@ void WorkerRedisBoundary::stop()
     _subscribed_mounts.clear();
     _on_mount_message = nullptr;
     _on_error = nullptr;
+    _on_sourcetable_snapshot = nullptr;
+    _sourcetable_subscribed = false;
     pubsub.disconnect();
     command.disconnect();
     _started = false;
@@ -175,7 +188,7 @@ void WorkerRedisBoundary::stop()
 bool WorkerRedisBoundary::publish_mount_data(const std::string &mount, const std::string &payload)
 {
     if (mount.empty() || payload.empty() || !command.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=publish");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=publish");
         return false;
     }
 
@@ -191,7 +204,7 @@ bool WorkerRedisBoundary::publish_mount_data(const std::string &mount, const std
         envelope.data(),
         envelope.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=publish");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=publish");
         return false;
     }
     return true;
@@ -206,7 +219,7 @@ bool WorkerRedisBoundary::subscribe_mount(const std::string &mount)
         return true;
     }
     if (!pubsub.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe");
         return false;
     }
 
@@ -219,7 +232,7 @@ bool WorkerRedisBoundary::subscribe_mount(const std::string &mount)
         channel.data(),
         channel.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe");
         return false;
     }
     _subscribed_mounts.insert(mount);
@@ -234,7 +247,7 @@ bool WorkerRedisBoundary::unsubscribe_mount(const std::string &mount)
     }
     if (!pubsub.raw()) {
         _subscribed_mounts.erase(subscribed);
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=unsubscribe");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=unsubscribe");
         return false;
     }
 
@@ -248,16 +261,78 @@ bool WorkerRedisBoundary::unsubscribe_mount(const std::string &mount)
         channel.size());
     _subscribed_mounts.erase(subscribed);
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=unsubscribe");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=unsubscribe");
         return false;
     }
+    return true;
+}
+
+bool WorkerRedisBoundary::publish_sourcetable_snapshot(const std::string &payload)
+{
+    if (payload.empty() || !command.raw()) {
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=publish_sourcetable");
+        return false;
+    }
+
+    const auto key = sourcetable_runtime_key();
+    int status = redisAsyncCommand(
+        command.raw(),
+        nullptr,
+        nullptr,
+        "SETEX %b %d %b",
+        key.data(),
+        key.size(),
+        kSourcetableSnapshotTtlSeconds,
+        payload.data(),
+        payload.size());
+    if (status != REDIS_OK) {
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=set_sourcetable");
+        return false;
+    }
+
+    status = redisAsyncCommand(
+        command.raw(),
+        &on_publish,
+        this,
+        "PUBLISH %s %b",
+        kSourcetableChangedChannel,
+        payload.data(),
+        payload.size());
+    if (status != REDIS_OK) {
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=publish_sourcetable");
+        return false;
+    }
+    return true;
+}
+
+bool WorkerRedisBoundary::subscribe_sourcetable_changes()
+{
+    if (_sourcetable_subscribed) {
+        return true;
+    }
+    if (!pubsub.raw()) {
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe_sourcetable");
+        return false;
+    }
+
+    const int status = redisAsyncCommand(
+        pubsub.raw(),
+        &on_subscribe,
+        this,
+        "SUBSCRIBE %s",
+        kSourcetableChangedChannel);
+    if (status != REDIS_OK) {
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=subscribe_sourcetable");
+        return false;
+    }
+    _sourcetable_subscribed = true;
     return true;
 }
 
 bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const GeoPosition &position)
 {
     if (mount.empty() || !position.valid || !command.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_mount_position");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=report_mount_position");
         return false;
     }
 
@@ -272,7 +347,7 @@ bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const 
         mount.data(),
         mount.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_mount_position");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=report_mount_position");
         return false;
     }
     return true;
@@ -281,7 +356,7 @@ bool WorkerRedisBoundary::report_mount_position(const std::string &mount, const 
 bool WorkerRedisBoundary::report_client_position(const std::string &connect_key, const GeoPosition &position)
 {
     if (connect_key.empty() || !position.valid || !command.raw()) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
         return false;
     }
 
@@ -296,7 +371,7 @@ bool WorkerRedisBoundary::report_client_position(const std::string &connect_key,
         connect_key.data(),
         connect_key.size());
     if (status != REDIS_OK) {
-        log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
+        log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=report_client_position");
         return false;
     }
     return true;
@@ -339,9 +414,18 @@ void WorkerRedisBoundary::handle_subscribe_reply(void *reply)
         return;
     }
 
+    redisReply *channel = redis_reply->element[1];
     redisReply *message = redis_reply->element[2];
+    const auto channel_name = reply_string(channel);
     if (!message || !message->str || message->len == 0) {
         report_error("decode");
+        return;
+    }
+
+    if (channel_name == kSourcetableChangedChannel) {
+        if (_on_sourcetable_snapshot) {
+            _on_sourcetable_snapshot(std::string(message->str, message->len));
+        }
         return;
     }
 
@@ -363,7 +447,12 @@ void WorkerRedisBoundary::handle_subscribe_reply(void *reply)
 
 std::string WorkerRedisBoundary::channel_for_mount(const std::string &mount) const
 {
-    return std::string(kV2StreamChannelPrefix) + mount;
+    return std::string(kStreamChannelPrefix) + mount;
+}
+
+std::string WorkerRedisBoundary::sourcetable_runtime_key() const
+{
+    return std::string(kSourcetableRuntimeKeyPrefix) + _runtime_id;
 }
 
 void WorkerRedisBoundary::report_error(const std::string &operation)
@@ -371,7 +460,7 @@ void WorkerRedisBoundary::report_error(const std::string &operation)
     if (_on_error) {
         _on_error(operation);
     }
-    log_warn("v2 redis bus worker=" + std::to_string(_worker_id) + " operation=" + operation);
+    log_warn("redis bus worker=" + std::to_string(_worker_id) + " operation=" + operation);
 }
 
 } // namespace navcaster::caster

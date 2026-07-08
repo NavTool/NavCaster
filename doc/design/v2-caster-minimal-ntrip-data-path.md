@@ -13,8 +13,8 @@
 - `WorkerCore` 只在 Worker event loop 上创建正式 `SourceSession` / `ClientSession` bufferevent。
 - Worker 内维护 `mount -> source/client ids`、source session map 和 client session map。
 - source 数据优先 fan-out 给同 Worker 同 mount 的本地 client。
-- source 数据写入 v2 Redis bus：`v2:stream:mount:<mount>`，同时保留同 Worker 本地 fan-out。
-- client 建立后按 mount 订阅 v2 Redis bus，收到其他 Runtime 发布的数据后只向本 Worker 本地 client fan-out。
+- source 数据写入 Redis bus：`stream:mount:<mount>`，同时保留同 Worker 本地 fan-out。
+- client 建立后按 mount 订阅 Redis bus，收到其他 Runtime 发布的数据后只向本 Worker 本地 client fan-out。
 - Redis bus 不写旧 `MPT:<mount>` channel/key，不兼容旧 Caster Pub/Sub。
 - 慢客户端 output buffer 限制占位为 1 MiB，超限断开并递增 `slow_client_disconnect_count` / `output_buffer_limit_count`。
 
@@ -36,12 +36,12 @@ ICY 200 OK\r\n\r\n
 
 本切片不实现完整 Auth、计费、供应商、Relay、PG 热路径、旧 protobuf 或旧实时数据包装。
 
-## v2 Redis Bus
+## Redis Bus
 
 最小跨 Runtime 数据面使用普通 Redis Pub/Sub：
 
 ```text
-channel = v2:stream:mount:<mount>
+channel = stream:mount:<mount>
 payload = NCV2BUS1 envelope + raw bytes
 ```
 

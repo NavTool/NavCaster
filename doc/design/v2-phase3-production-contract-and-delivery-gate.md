@@ -73,7 +73,7 @@ Phase 2 已通过：
 
 ```text
 真实 PostgreSQL + Redis Admin gate。
-Redis desired projection 和 v2:control:config notify。
+Redis desired projection 和 control:config notify。
 Agent 从 Admin desired state 启动真实 navcaster-caster。
 Caster health/metrics。
 双 Runtime Redis Pub/Sub payload round trip。
@@ -134,7 +134,7 @@ Caster health/metrics 不依赖 AdminService 存活。
 Caster 热路径不访问 PostgreSQL，不同步调用 AdminService。
 Agent/Caster 异常恢复有 runtime-events 和 actual snapshots。
 Web 对 stale/offline/failed/pending 有明确展示，不把 accepted 当作完成。
-测试结束后清理进程、端口、PG fixture、Redis v2 测试 key 和临时目录。
+测试结束后清理进程、端口、PG fixture、当前 Redis 测试 key 和临时目录。
 ```
 
 最低证据：
@@ -163,7 +163,7 @@ Web 显示 desired_state、actual_state、observed_desired_version、updated_at�
 
 ```text
 SQL 检查 desired/control_intents/runtime_events/runtime_actual_snapshots。
-redis-cli 检查 v2:config:runtime、v2:control:desired-state、v2:control:config notify、runtime TTL。
+redis-cli 检查 config:runtime、control:desired-state、control:config notify、runtime TTL。
 AdminService control API 返回 desired + actual + lifecycle status。
 Caster /metrics 输出 worker/pubsub/fan-out counters。
 Web 浏览器 smoke 记录 console error count 和页面状态。
@@ -265,7 +265,7 @@ Caster 是实时数据面 Runtime：
 Worker 独占 event_base、session map、bufferevent、Redis async contexts。
 Acceptor 只做轻量 header parse 和 fd handoff。
 mount ownership 稳定，已有连接不跨 Worker 迁移。
-source -> local fan-out -> Redis v2 Pub/Sub。
+source -> local fan-out -> Redis Pub/Sub。
 Redis Pub/Sub -> subscriber Worker -> local clients。
 暴露 local health/metrics 给 Agent。
 ```
@@ -346,21 +346,24 @@ Phase 3 系统 gate 至少检查：
 
 | Key / Channel | Type | 期望 |
 | --- | --- | --- |
-| `v2:config:runtime:<runtime_id>` | STRING JSON | desired/config projection，带 runtime_id/version/checksum 或等价字段。 |
-| `v2:control:desired-state:<host_id>` | STRING JSON | Agent polling 等价 desired projection。 |
-| `v2:control:config` | Pub/Sub JSON | projection notify，包含 projection key、host_id 或 runtime_id、version。 |
-| `v2:agent:heartbeat:<agent_id>` | STRING JSON + TTL | Agent 在线 TTL。 |
-| `v2:runtime:actual:<runtime_id>` | STRING JSON + TTL | Runtime actual operational view。 |
-| `v2:runtime:worker-stat:<runtime_id>` | HASH + TTL | worker metrics snapshot。 |
-| `v2:runtime:mount-owner:<runtime_id>` | HASH + TTL | mount -> worker owner。 |
-| `v2:stream:mount:<mount>` | Pub/Sub binary | NCV2BUS1 envelope + raw bytes。 |
+| `config:runtime:<runtime_id>` | STRING JSON | desired/config projection，带 runtime_id/version/checksum 或等价字段。 |
+| `control:desired-state:<host_id>` | STRING JSON | Agent polling 等价 desired projection。 |
+| `control:config` | Pub/Sub JSON | projection notify，包含 projection key、host_id 或 runtime_id、version。 |
+| `agent:heartbeat:<agent_id>` | STRING JSON + TTL | Agent 在线 TTL。 |
+| `runtime:actual:<runtime_id>` | STRING JSON + TTL | Runtime actual operational view。 |
+| `runtime:worker-stat:<runtime_id>` | HASH + TTL | worker metrics snapshot。 |
+| `runtime:mount-owner:<runtime_id>` | HASH + TTL | mount -> worker owner。 |
+| `stream:mount:<mount>` | Pub/Sub binary | NCV2BUS1 envelope + raw bytes。 |
+| `sourcetable:runtime:<runtime_id>` | STRING JSON + TTL | 单 Runtime 源列表快照。 |
+| `sourcetable:index` | SET 或 STRING JSON + TTL | 可选 Runtime 源列表快照索引。 |
+| `sourcetable:changed` | Pub/Sub JSON | 可选源列表快照变更通知。 |
 
 一致性通过标准：
 
 ```text
 PG desired 写入成功后 Redis projection 最终可读。
 Redis projection version 不得新于不存在的 PG desired version。
-订阅 v2:control:config 后，desired/config 更新能收到 notify。
+订阅 control:config 后，desired/config 更新能收到 notify。
 删除 projection 后可由 PG rebuild，或明确记录为阻断缺口。
 runtime TTL 丢失只影响 operational view，不丢失 PG source-of-truth。
 旧 ACT:*、MPT:*、STR:*、PULL:*、PUSH:*、CASTER:* 不作为 v2 通过证据。
@@ -519,7 +522,7 @@ Worker 不跨线程共享 session map、bufferevent 或 Redis async context。
 
 ```text
 Runtime A source -> Runtime A local fan-out。
-Runtime A publish v2:stream:mount:<mount>。
+Runtime A publish stream:mount:<mount>。
 Runtime B subscribe -> remote fan-out -> Runtime B client。
 payload 使用 NCV2BUS1 envelope + raw bytes。
 subscriber 忽略 origin_runtime_id 等于本 runtime 的 echo。

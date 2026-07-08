@@ -32,7 +32,7 @@ func TestRedisPublisherPublishesControlConfigNotify(t *testing.T) {
 	if len(client.sets) != 1 {
 		t.Fatalf("expected one projection SET, got %d", len(client.sets))
 	}
-	if client.sets[0].key != "v2:config:runtime:rt_001" {
+	if client.sets[0].key != "config:runtime:rt_001" {
 		t.Fatalf("projection key = %q", client.sets[0].key)
 	}
 	var desired RuntimeDesiredProjection
@@ -45,7 +45,7 @@ func TestRedisPublisherPublishesControlConfigNotify(t *testing.T) {
 	if len(client.publishes) != 1 {
 		t.Fatalf("expected one config notify publish, got %d", len(client.publishes))
 	}
-	if client.publishes[0].channel != "v2:control:config" {
+	if client.publishes[0].channel != "control:config" {
 		t.Fatalf("notify channel = %q", client.publishes[0].channel)
 	}
 
@@ -72,7 +72,7 @@ func TestRedisPublisherPublishesHostDesiredStateNotify(t *testing.T) {
 	if len(client.sets) != 1 {
 		t.Fatalf("expected one host desired SET, got %d", len(client.sets))
 	}
-	if client.sets[0].key != "v2:control:desired-state:host_001" {
+	if client.sets[0].key != "control:desired-state:host_001" {
 		t.Fatalf("host desired key = %q", client.sets[0].key)
 	}
 	if len(client.publishes) != 1 {
@@ -117,7 +117,7 @@ func TestRedisPublisherPublishesActionIntentProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PublishActionIntent returned error: %v", err)
 	}
-	if len(client.sets) != 1 || client.sets[0].key != "v2:control:intent:intent_001" {
+	if len(client.sets) != 1 || client.sets[0].key != "control:intent:intent_001" {
 		t.Fatalf("unexpected action intent SETs: %#v", client.sets)
 	}
 	var projection ActionIntentProjection
@@ -152,7 +152,7 @@ func TestRedisPublisherPublishesActualStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PublishRuntimeActual returned error: %v", err)
 	}
-	if len(client.sets) != 1 || client.sets[0].key != "v2:runtime:actual:rt_001" || client.sets[0].ttl != 60*time.Second {
+	if len(client.sets) != 1 || client.sets[0].key != "runtime:actual:rt_001" || client.sets[0].ttl != 60*time.Second {
 		t.Fatalf("unexpected actual SETs: %#v", client.sets)
 	}
 	var projection RuntimeActualProjection

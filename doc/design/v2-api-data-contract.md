@@ -471,15 +471,15 @@ config_versions 发布后不可原地修改，只能创建新版本或 rollback 
 
 ## 8. Redis key registry
 
-Redis key 使用 `v2:` 前缀，避免和旧 key 混淆。
+当前 Redis key/channel 不使用版本前缀；不能复用旧 key 作为兼容义务。
 
 ### 8.1 Auth projection
 
 | Key | Type | 说明 |
 | --- | --- | --- |
-| `v2:auth:access-account:<username>` | STRING JSON | AccessAccountAuthIndex。 |
-| `v2:auth:policy:<access_account_id>` | STRING JSON | 访问策略投影。 |
-| `v2:auth:version` | STRING | 鉴权投影版本。 |
+| `auth:access-account:<username>` | STRING JSON | AccessAccountAuthIndex。 |
+| `auth:policy:<access_account_id>` | STRING JSON | 访问策略投影。 |
+| `auth:version` | STRING | 鉴权投影版本。 |
 
 AccessAccountAuthIndex：
 
@@ -504,35 +504,38 @@ AccessAccountAuthIndex：
 
 | Key | Type | 说明 |
 | --- | --- | --- |
-| `v2:config:runtime:<runtime_id>` | STRING JSON | Runtime 当前配置投影。 |
-| `v2:config:version` | STRING | 全局配置投影版本。 |
-| `v2:control:config` | PUB/SUB | 配置变更通知。 |
+| `config:runtime:<runtime_id>` | STRING JSON | Runtime 当前配置投影。 |
+| `config:version` | STRING | 全局配置投影版本。 |
+| `control:config` | PUB/SUB | 配置变更通知。 |
 
 ### 8.3 Runtime actual state
 
 | Key | Type | TTL | 说明 |
 | --- | --- | --- | --- |
-| `v2:agent:heartbeat:<agent_id>` | STRING JSON | 是 | Agent 心跳。 |
-| `v2:runtime:actual:<runtime_id>` | STRING JSON | 是 | Runtime actual snapshot。 |
-| `v2:runtime:worker-stat:<runtime_id>` | HASH | 是 | worker_id -> WorkerStat JSON。 |
-| `v2:runtime:mount-owner:<runtime_id>` | HASH | 是 | mount -> worker_id。 |
+| `agent:heartbeat:<agent_id>` | STRING JSON | 是 | Agent 心跳。 |
+| `runtime:actual:<runtime_id>` | STRING JSON | 是 | Runtime actual snapshot。 |
+| `runtime:worker-stat:<runtime_id>` | HASH | 是 | worker_id -> WorkerStat JSON。 |
+| `runtime:mount-owner:<runtime_id>` | HASH | 是 | mount -> worker_id。 |
 
 ### 8.4 Online sessions
 
 | Key | Type | TTL | 说明 |
 | --- | --- | --- | --- |
-| `v2:session:access-account:<access_account_id>` | HASH | 是 | connect_key -> OnlineSession JSON。 |
-| `v2:session:account:<account_id>` | HASH | 是 | connect_key -> OnlineSession JSON。 |
-| `v2:session:mount:<mount>` | HASH | 是 | connect_key -> summary JSON。 |
+| `session:access-account:<access_account_id>` | HASH | 是 | connect_key -> OnlineSession JSON。 |
+| `session:account:<account_id>` | HASH | 是 | connect_key -> OnlineSession JSON。 |
+| `session:mount:<mount>` | HASH | 是 | connect_key -> summary JSON。 |
 
 ### 8.5 Data bus
 
 | Key / Channel | Type | 说明 |
 | --- | --- | --- |
-| `v2:stream:mount:<mount>` | Pub/Sub | mount 数据流。 |
-| `v2:stream:runtime:<runtime_id>` | Pub/Sub | runtime 内控制或观测事件。 |
-| `v2:control:kick` | Pub/Sub | 踢线和策略变更通知。 |
-| `v2:control:config` | Pub/Sub | 配置投影变化。 |
+| `stream:mount:<mount>` | Pub/Sub | mount 数据流。 |
+| `stream:runtime:<runtime_id>` | Pub/Sub | runtime 内控制或观测事件。 |
+| `control:kick` | Pub/Sub | 踢线和策略变更通知。 |
+| `control:config` | Pub/Sub | 配置投影变化。 |
+| `sourcetable:runtime:<runtime_id>` | STRING JSON + TTL | 单 Runtime 当前可服务 mount 的源列表快照。 |
+| `sourcetable:index` | SET 或 STRING JSON + TTL | 可选 Runtime 源列表快照索引。 |
+| `sourcetable:changed` | Pub/Sub | 可选源列表快照变更通知。 |
 
 说明：
 
@@ -542,7 +545,7 @@ AccessAccountAuthIndex：
 单个超级热门 mount 的单频道瓶颈不能仅靠 Redis Cluster 自动解决。
 ```
 
-`v2:stream:mount:<mount>` 的最小 Caster payload 为二进制 envelope：
+`stream:mount:<mount>` 的最小 Caster payload 为二进制 envelope：
 
 ```text
 magic: NCV2BUS1
@@ -552,6 +555,35 @@ body: raw NTRIP/RTCM/NMEA bytes
 
 订阅端必须忽略 `origin_runtime_id` 等于本 runtime 的消息。该 channel 不兼容旧
 `MPT:<mount>` channel，也不写 legacy data key。
+
+### 8.6 Sourcetable cache
+
+源列表请求 `GET /` 按协议入口进入 Caster worker，但作为特殊短连接
+SourceTable client 处理：
+
+```text
+GET /
+  -> Acceptor 解析为 SourceTable
+  -> WorkerManager 选择 worker
+  -> Worker 创建短连接 SourceTable session
+  -> session 读取本进程 ClusterSourcetableCache immutable snapshot
+  -> 构建 sourcetable 响应并关闭连接
+```
+
+约束：
+
+```text
+不绑定真实 mount owner。
+不订阅 stream:mount:<mount>。
+不计入普通 client_count。
+单独递增 sourcetable_request_count。
+请求路径不得 Redis scan，也不得跨线程遍历其他 worker 的 live session/map。
+```
+
+每个 Caster 维护本地 `ClusterSourcetableCache`。本 runtime 从 worker snapshot 生成
+local sourcetable snapshot，并通过 `sourcetable:runtime:<runtime_id>` 发布短 TTL JSON。
+其他 runtime 的快照通过周期刷新或 `sourcetable:changed` 通知进入本地 cache。cache
+最终一致即可，允许秒级延迟；读取端只读取当前 immutable snapshot。
 
 ## 9. PG -> Redis 投影
 
@@ -567,7 +599,7 @@ Projection worker:
   read changed rows / outbox
   build projection JSON
   write Redis key with version/checksum
-  publish v2:control:* notification
+  publish control:* notification
 
 Caster Runtime:
   receive notification or poll version
@@ -612,7 +644,7 @@ Web 展示需标注 updated_at 和 stale 状态。
 ```text
 1. Acceptor 解析 NTRIP 方法、mount、Basic Auth 和初始 GGA。
 2. Worker 通过本地 auth cache 查 username。
-3. cache miss 时读取 Redis v2:auth:access-account:<username>。
+3. cache miss 时读取 Redis auth:access-account:<username>。
 4. 校验 access account、owner account、密码、状态、过期、IP、分组权限。
 5. 校验并发、余额或订阅快照。
 6. 建立 OnlineSession。

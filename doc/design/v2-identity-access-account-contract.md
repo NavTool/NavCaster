@@ -327,7 +327,7 @@ deleted -> disabled
 status=disabled
 disabled_at=now()
 projection_version += 1
-删除或更新 v2:auth:access-account:<username_norm> 为 disabled
+删除或更新 auth:access-account:<username_norm> 为 disabled
 新连接必须拒绝
 ```
 
@@ -338,7 +338,7 @@ status=deleted
 deleted_at=now()
 projection_version += 1
 access_name_locks.locked_reason=deleted
-删除 v2:auth:access-account:<username_norm> 或写 disabled/deleted projection
+删除 auth:access-account:<username_norm> 或写 disabled/deleted projection
 新连接必须拒绝
 ```
 
@@ -404,13 +404,13 @@ projection_unavailable
 Key：
 
 ```text
-v2:auth:access-account:<username_norm>
-v2:auth:policy:<access_account_id>
-v2:auth:version
-v2:control:kick
+auth:access-account:<username_norm>
+auth:policy:<access_account_id>
+auth:version
+control:kick
 ```
 
-`v2:auth:access-account:<username_norm>` JSON：
+`auth:access-account:<username_norm>` JSON：
 
 ```json
 {
@@ -438,14 +438,14 @@ Account active + AccessAccount active -> 写 active projection。
 Account disabled/deleted -> 删除其名下 AccessAccount projection 或写 disabled projection。
 AccessAccount disabled/deleted -> 删除 projection 或写 disabled/deleted projection。
 删除 key 与写 disabled projection 二选一，但 Caster 行为必须一致：拒绝新连接。
-v2:auth:version 每次成功投影后单调递增或记录最新 projection_version。
+auth:version 每次成功投影后单调递增或记录最新 projection_version。
 ```
 
 Caster 读取规则：
 
 ```text
 cache hit -> 使用本地缓存校验。
-cache miss -> GET v2:auth:access-account:<username_norm>。
+cache miss -> GET auth:access-account:<username_norm>。
 missing -> reject unknown_access_account。
 status != active -> reject access_account_disabled。
 owner_status != active -> reject owner_account_disabled。
