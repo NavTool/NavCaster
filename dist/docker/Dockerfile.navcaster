@@ -1,0 +1,29 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        libatomic1 \
+        libgcc-s1 \
+        libssl3 \
+        libstdc++6 \
+        procps \
+        tzdata; \
+    ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/navcaster
+COPY package/ /opt/navcaster/
+
+RUN set -eux; \
+    chmod +x /opt/navcaster/bin/navcaster-admin \
+        /opt/navcaster/bin/navcaster-agent \
+        /opt/navcaster/bin/navcaster-caster; \
+    mkdir -p /var/lib/navcaster-agent /var/log/navcaster
+
+ENV PATH="/opt/navcaster/bin:${PATH}"

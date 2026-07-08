@@ -29,7 +29,7 @@ services:
     container_name: caster_container
     ports:
       - "4202:4202"   # Ntrip caster
-      - "8080:8080"   # HTTP / Web UI
+      - "8080:8080"   # Runtime health / metrics
     depends_on:
       - redis
     restart: unless-stopped
