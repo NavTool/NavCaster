@@ -43,7 +43,7 @@ func DefaultRegistry() Registry {
 	return NewRegistry([]KeyDefinition{
 		{
 			Name:        "access_account_auth",
-			Pattern:     "v2:auth:access-account:{username}",
+			Pattern:     "auth:access-account:{username}",
 			Scope:       "auth_projection",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -54,7 +54,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "access_account_policy",
-			Pattern:     "v2:auth:policy:{access_account_id}",
+			Pattern:     "auth:policy:{access_account_id}",
 			Scope:       "auth_projection",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -65,7 +65,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "auth_version",
-			Pattern:     "v2:auth:version",
+			Pattern:     "auth:version",
 			Scope:       "auth_projection",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -76,7 +76,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "runtime_config",
-			Pattern:     "v2:config:runtime:{runtime_id}",
+			Pattern:     "config:runtime:{runtime_id}",
 			Scope:       "config_projection",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -87,7 +87,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "host_desired_state",
-			Pattern:     "v2:control:desired-state:{host_id}",
+			Pattern:     "control:desired-state:{host_id}",
 			Scope:       "config_projection",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -98,7 +98,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "config_version",
-			Pattern:     "v2:config:version",
+			Pattern:     "config:version",
 			Scope:       "config_projection",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -109,7 +109,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "config_pubsub",
-			Pattern:     "v2:control:config",
+			Pattern:     "control:config",
 			Scope:       "pubsub",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -120,7 +120,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "action_intent",
-			Pattern:     "v2:control:intent:{intent_id}",
+			Pattern:     "control:intent:{intent_id}",
 			Scope:       "control_projection",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
@@ -131,7 +131,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "runtime_actual",
-			Pattern:     "v2:runtime:actual:{runtime_id}",
+			Pattern:     "runtime:actual:{runtime_id}",
 			Scope:       "runtime_state",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin runtime-metrics ingest",
@@ -143,7 +143,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "worker_stat",
-			Pattern:     "v2:runtime:worker-stat:{runtime_id}",
+			Pattern:     "runtime:worker-stat:{runtime_id}",
 			Scope:       "runtime_state",
 			Owner:       "navcaster-caster",
 			Writer:      "navcaster-caster",
@@ -155,7 +155,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "runtime_mount_owner",
-			Pattern:     "v2:runtime:mount-owner:{runtime_id}",
+			Pattern:     "runtime:mount-owner:{runtime_id}",
 			Scope:       "runtime_state",
 			Owner:       "navcaster-caster",
 			Writer:      "navcaster-caster",
@@ -167,7 +167,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "agent_heartbeat",
-			Pattern:     "v2:agent:heartbeat:{agent_id}",
+			Pattern:     "agent:heartbeat:{agent_id}",
 			Scope:       "runtime_state",
 			Owner:       "navcaster-agent",
 			Writer:      "navcaster-agent",
@@ -179,7 +179,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "access_account_session",
-			Pattern:     "v2:session:access-account:{access_account_id}",
+			Pattern:     "session:access-account:{access_account_id}",
 			Scope:       "online_session",
 			Owner:       "navcaster-caster",
 			Writer:      "navcaster-caster",
@@ -191,7 +191,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "account_session",
-			Pattern:     "v2:session:account:{account_id}",
+			Pattern:     "session:account:{account_id}",
 			Scope:       "online_session",
 			Owner:       "navcaster-caster",
 			Writer:      "navcaster-caster",
@@ -203,7 +203,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "mount_session",
-			Pattern:     "v2:session:mount:{mount}",
+			Pattern:     "session:mount:{mount}",
 			Scope:       "online_session",
 			Owner:       "navcaster-caster",
 			Writer:      "navcaster-caster",
@@ -214,8 +214,43 @@ func DefaultRegistry() Registry {
 			Description: "Online sessions grouped by mount.",
 		},
 		{
+			Name:        "sourcetable_runtime",
+			Pattern:     "sourcetable:runtime:{runtime_id}",
+			Scope:       "sourcetable",
+			Owner:       "navcaster-caster",
+			Writer:      "navcaster-caster",
+			Reader:      "navcaster-caster",
+			ValueType:   "string json: runtime sourcetable snapshot",
+			TTLSeconds:  30,
+			Persistence: PersistenceRuntimeTTL,
+			Description: "Short-lived sourcetable snapshot for a single runtime.",
+		},
+		{
+			Name:        "sourcetable_index",
+			Pattern:     "sourcetable:index",
+			Scope:       "sourcetable",
+			Owner:       "navcaster-caster",
+			Writer:      "navcaster-caster",
+			Reader:      "navcaster-caster",
+			ValueType:   "set or string json: runtime sourcetable snapshot index",
+			TTLSeconds:  30,
+			Persistence: PersistenceRuntimeTTL,
+			Description: "Optional runtime sourcetable snapshot index for controlled refresh.",
+		},
+		{
+			Name:        "sourcetable_changed",
+			Pattern:     "sourcetable:changed",
+			Scope:       "sourcetable",
+			Owner:       "navcaster-caster",
+			Writer:      "navcaster-caster",
+			Reader:      "navcaster-caster",
+			ValueType:   "json sourcetable change event",
+			Persistence: PersistencePubSub,
+			Description: "Optional sourcetable snapshot change notification bus.",
+		},
+		{
 			Name:        "mount_stream",
-			Pattern:     "v2:stream:mount:{mount}",
+			Pattern:     "stream:mount:{mount}",
 			Scope:       "pubsub",
 			Owner:       "navcaster-caster",
 			Writer:      "navcaster-caster",
@@ -226,7 +261,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "runtime_stream",
-			Pattern:     "v2:stream:runtime:{runtime_id}",
+			Pattern:     "stream:runtime:{runtime_id}",
 			Scope:       "pubsub",
 			Owner:       "navcaster-caster",
 			Writer:      "navcaster-caster",
@@ -237,7 +272,7 @@ func DefaultRegistry() Registry {
 		},
 		{
 			Name:        "control_kick",
-			Pattern:     "v2:control:kick",
+			Pattern:     "control:kick",
 			Scope:       "pubsub",
 			Owner:       "navcaster-admin",
 			Writer:      "navcaster-admin projection worker",
