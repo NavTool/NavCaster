@@ -94,7 +94,7 @@ go run ./cmd/navcaster-admin-selfcheck
 ```
 
 配置 `NAVCASTER_ADMIN_POSTGRES_DSN` 后 self-check 覆盖 PostgreSQL source-of-truth 和
-migration 路径；配置 `NAVCASTER_ADMIN_REDIS_ADDR` 后还覆盖 Redis v2 projection 写入。
+migration 路径；配置 `NAVCASTER_ADMIN_REDIS_ADDR` 后还覆盖 Redis projection 写入。
 无 PG/Redis 环境时允许使用内存仓储降级 self-check，但 QA 记录必须明确真实 PG/Redis 未运行原因。
 
 ## 文档治理任务 QA 口径

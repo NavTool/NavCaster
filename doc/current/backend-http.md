@@ -182,7 +182,7 @@ NC-091 起 `app/admin/` 下的 Go `navcaster-admin` 从 foundation 内存骨架�
 - 未配置 PostgreSQL 时仍使用内存仓储，只用于本地开发和 self-check 降级；配置了
   PostgreSQL 但连接或 migration 失败时服务直接启动失败，不静默回退。
 - 配置 `NAVCASTER_ADMIN_REDIS_ADDR` 后，desired/action/actual/heartbeat 写入会同步
-  发布 v2 Redis projection；未配置 Redis 时 projection disabled，不影响内存或 PG
+  发布 Redis projection；未配置 Redis 时 projection disabled，不影响内存或 PG
   source-of-truth 路径。
 - `GET /api/v1/control/runtimes` 和 `GET /api/v1/control/runtimes/{runtime_id}` 返回
   desired state、最新 Agent runtime-metrics ingest 后的 actual snapshot，以及

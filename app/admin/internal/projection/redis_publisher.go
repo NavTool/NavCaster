@@ -34,7 +34,7 @@ func (p *RedisPublisher) PublishRuntimeDesired(desired control.DesiredRuntime) e
 		return err
 	}
 	payload := RuntimeDesiredProjection{
-		Projection: "v2:config:runtime",
+		Projection: "config:runtime",
 		Key:        key,
 		Version:    desired.Version,
 		Runtime:    desired,
@@ -44,7 +44,7 @@ func (p *RedisPublisher) PublishRuntimeDesired(desired control.DesiredRuntime) e
 		return err
 	}
 	return p.publishControlConfigNotify(ControlConfigNotify{
-		Projection: "v2:control:config",
+		Projection: "control:config",
 		Kind:       "runtime_desired_updated",
 		Key:        key,
 		RuntimeID:  desired.RuntimeID,
@@ -69,7 +69,7 @@ func (p *RedisPublisher) PublishHostDesiredState(hostID string, states []control
 		}
 	}
 	payload := HostDesiredStateProjection{
-		Projection:  "v2:control:desired-state",
+		Projection:  "control:desired-state",
 		Key:         key,
 		HostID:      hostID,
 		Version:     version,
@@ -80,7 +80,7 @@ func (p *RedisPublisher) PublishHostDesiredState(hostID string, states []control
 		return err
 	}
 	return p.publishControlConfigNotify(ControlConfigNotify{
-		Projection: "v2:control:config",
+		Projection: "control:config",
 		Kind:       "host_desired_state_updated",
 		Key:        key,
 		HostID:     hostID,
@@ -98,7 +98,7 @@ func (p *RedisPublisher) PublishActionIntent(intent control.ActionIntent, desire
 		return err
 	}
 	payload := ActionIntentProjection{
-		Projection: "v2:control:intent",
+		Projection: "control:intent",
 		Key:        key,
 		Intent:     intent,
 		Runtime:    desired,
@@ -108,7 +108,7 @@ func (p *RedisPublisher) PublishActionIntent(intent control.ActionIntent, desire
 		return err
 	}
 	return p.publishControlConfigNotify(ControlConfigNotify{
-		Projection:     "v2:control:config",
+		Projection:     "control:config",
 		Kind:           "action_intent_projected",
 		Key:            key,
 		RuntimeID:      intent.RuntimeID,
@@ -133,7 +133,7 @@ func (p *RedisPublisher) PublishRuntimeActual(actual control.ActualSnapshot) err
 		actual.UpdatedAt = time.Now().UTC()
 	}
 	payload := RuntimeActualProjection{
-		Projection:             "v2:runtime:actual",
+		Projection:             "runtime:actual",
 		Key:                    key,
 		RuntimeID:              actual.RuntimeID,
 		HostID:                 actual.HostID,
@@ -185,7 +185,7 @@ func (p *RedisPublisher) ProjectAccessAccount(ctx context.Context, projection id
 		return err
 	}
 	payload, err := json.Marshal(AuthProjectionNotify{
-		Projection:        "v2:auth:access-account",
+		Projection:        "auth:access-account",
 		Kind:              "access_account_projection_updated",
 		Key:               key,
 		AccessAccountID:   projection.AccessAccountID,

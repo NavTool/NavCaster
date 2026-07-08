@@ -117,7 +117,7 @@ func (r *ProjectingRepository) ApplyHeartbeat(hostID string, agentID string, at 
 		HostID:     hostID,
 		ObservedAt: at,
 		Service:    "navcaster-admin",
-		Projection: "v2:agent:heartbeat",
+		Projection: "agent:heartbeat",
 	})
 }
 
