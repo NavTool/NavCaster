@@ -374,13 +374,13 @@ GET /
 
 SourceTable session 不绑定真实 mount owner，不加入 `_clients` / `mount_subscriptions`，
 不订阅 `stream:mount:<mount>`，不计入普通 `client_count`。Runtime metrics 单独暴露
-`sourcetable_request_count`；可选暴露 `sourcetable_cache_entry_count` 和
-`sourcetable_cache_age_ms`。
+`sourcetable_request_count`、`sourcetable_cache_entry_count` 和 `sourcetable_cache_age_ms`。
 
-每个 Caster 维护本地 `ClusterSourcetableCache`。本 runtime 从 worker snapshot 聚合
-本机 online mount，并发布 `sourcetable:runtime:<runtime_id>` 短 TTL 快照；其他 runtime
-快照通过周期刷新或 `sourcetable:changed` 通知进入本地 cache。源列表请求路径只能读取
-当前 cache snapshot，不得 Redis scan，也不得跨 worker 遍历 live session/map。
+每个 Caster 维护本地 `ClusterSourcetableCache`。本 runtime 从 worker 内 source 上线、
+下线和位置更新事件维护本地源列表，并通过 `sourcetable:runtime:<runtime_id>` 发布短 TTL
+快照，同时发布 `sourcetable:changed`。其他 runtime 的快照通过订阅
+`sourcetable:changed` 进入本地 cache。源列表请求路径只能读取当前 cache snapshot，
+不得 Redis scan，也不得跨 worker 遍历 live session/map。
 
 ## 9. Worker Count 调整
 

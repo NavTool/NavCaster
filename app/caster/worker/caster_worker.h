@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "infra/event_loop.h"
+#include "runtime/cluster_sourcetable_cache.h"
 #include "runtime/runtime_config.h"
 #include "storage/redis/redis_pubsub.h"
 #include "transport/handoff_message.h"
@@ -19,7 +20,11 @@ namespace navcaster::caster {
 
 class CasterWorker {
 public:
-    CasterWorker(std::uint32_t worker_id, std::string runtime_id, RedisEndpoint redis);
+    CasterWorker(
+        std::uint32_t worker_id,
+        std::string runtime_id,
+        RedisEndpoint redis,
+        std::shared_ptr<ClusterSourcetableCache> sourcetable_cache);
     ~CasterWorker();
 
     CasterWorker(const CasterWorker &) = delete;
@@ -44,6 +49,7 @@ private:
     std::uint32_t _worker_id = 0;
     std::string _runtime_id;
     RedisEndpoint _redis_endpoint;
+    std::shared_ptr<ClusterSourcetableCache> _sourcetable_cache;
     std::thread _thread;
     EventBasePtr _base;
     std::unique_ptr<WorkerMailbox> _mailbox;

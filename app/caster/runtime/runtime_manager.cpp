@@ -1,6 +1,5 @@
 #include "runtime/runtime_manager.h"
 
-#include <algorithm>
 #include <chrono>
 #include <thread>
 #include <utility>
@@ -8,9 +7,7 @@
 #include <event2/event.h>
 #include <nlohmann/json.hpp>
 
-#include "domain/connect_key.h"
 #include "domain/connect_info.h"
-#include "domain/sourcetable.h"
 #include "infra/logger.h"
 #include "infra/socket_util.h"
 
@@ -18,27 +15,6 @@ namespace navcaster::caster {
 namespace {
 
 using Json = nlohmann::ordered_json;
-
-std::vector<SourcetableEntry> sourcetable_entries_from_metrics(const RuntimeMetricsSnapshot &snapshot)
-{
-    std::vector<SourcetableEntry> entries;
-    for (const auto &worker : snapshot.workers) {
-        for (const auto &mount : worker.mounts) {
-            if (!mount.server_online || mount.mount.empty()) {
-                continue;
-            }
-            SourcetableEntry entry;
-            entry.mount = mount.mount;
-            entry.identifier = mount.mount;
-            entry.position = mount.base_position;
-            entries.push_back(std::move(entry));
-        }
-    }
-    std::sort(entries.begin(), entries.end(), [](const SourcetableEntry &left, const SourcetableEntry &right) {
-        return left.mount < right.mount;
-    });
-    return entries;
-}
 
 std::string self_test_start_failed_report()
 {
@@ -126,9 +102,6 @@ void RuntimeManager::stop()
 
     _acceptor.reset();
     _health_server.reset();
-    _pending_source_cleanup.clear();
-    _source_cleanup_scheduled = false;
-    _source_sessions.clear();
     if (_worker_manager) {
         _worker_manager->stop();
         _worker_manager.reset();
@@ -150,6 +123,9 @@ RuntimeMetricsSnapshot RuntimeManager::metrics_snapshot() const
         snapshot.worker_count = static_cast<std::uint32_t>(snapshot.workers.size());
         snapshot.mount_count = _worker_manager->mount_owners().mount_count();
         snapshot.mount_owners = _worker_manager->mount_owners().snapshot();
+        const auto cache_metrics = _worker_manager->sourcetable_cache_metrics();
+        snapshot.sourcetable_cache_entry_count = cache_metrics.entry_count;
+        snapshot.sourcetable_cache_age_ms = cache_metrics.age_ms;
     }
     return snapshot;
 }
@@ -198,10 +174,6 @@ void RuntimeManager::runtime_loop()
 
 bool RuntimeManager::dispatch_handoff(HandoffMessage message)
 {
-    if (message.connect_info.type == ConnectType::SourceTable) {
-        return create_source_session(std::move(message));
-    }
-
     if (!_worker_manager) {
         if (message.fd >= 0) {
             close_socket(message.fd);
@@ -210,86 +182,6 @@ bool RuntimeManager::dispatch_handoff(HandoffMessage message)
     }
 
     return _worker_manager->dispatch_handoff(std::move(message));
-}
-
-bool RuntimeManager::create_source_session(HandoffMessage message)
-{
-    if (!_base || message.fd < 0) {
-        if (message.fd >= 0) {
-            close_socket(message.fd);
-            message.fd = -1;
-        }
-        return false;
-    }
-
-    const std::string connect_key = ensure_connect_key(message);
-    auto session = std::make_unique<SourceSession>(
-        connect_key,
-        std::move(message),
-        [this](const ConnectInfo &info) {
-            return source_table_body(info);
-        },
-        [this](const std::string &closed_connect_key) {
-            handle_source_closed(closed_connect_key);
-        });
-
-    if (!session->start(_base.get())) {
-        log_warn("failed to start source session");
-        return false;
-    }
-
-    _source_sessions[connect_key] = std::move(session);
-    return true;
-}
-
-std::string RuntimeManager::source_table_body(const ConnectInfo &info) const
-{
-    (void)info;
-    const auto entries = sourcetable_entries_from_metrics(metrics_snapshot());
-    return build_sourcetable(entries);
-}
-
-std::string RuntimeManager::ensure_connect_key(HandoffMessage &message) const
-{
-    if (!message.connect_key.empty()) {
-        return message.connect_key;
-    }
-    message.connect_key =
-        make_connect_key(_config.runtime_id, message.accepted_at_ms, message.remote_addr, message.remote_port);
-    return message.connect_key;
-}
-
-void RuntimeManager::handle_source_closed(const std::string &connect_key)
-{
-    _pending_source_cleanup.insert(connect_key);
-    schedule_source_cleanup();
-}
-
-void RuntimeManager::schedule_source_cleanup()
-{
-    if (_source_cleanup_scheduled || !_base) {
-        return;
-    }
-
-    _source_cleanup_scheduled =
-        event_base_once(_base.get(), -1, EV_TIMEOUT, &RuntimeManager::on_source_cleanup, this, nullptr) == 0;
-}
-
-void RuntimeManager::run_source_cleanup()
-{
-    _source_cleanup_scheduled = false;
-    for (const auto &connect_key : _pending_source_cleanup) {
-        _source_sessions.erase(connect_key);
-    }
-    _pending_source_cleanup.clear();
-}
-
-void RuntimeManager::on_source_cleanup(evutil_socket_t, short, void *arg)
-{
-    auto *runtime = static_cast<RuntimeManager *>(arg);
-    if (runtime) {
-        runtime->run_source_cleanup();
-    }
 }
 
 } // namespace navcaster::caster
