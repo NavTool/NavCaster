@@ -15,6 +15,8 @@ struct RuntimeMetricsSnapshot {
     std::uint64_t uptime_ms = 0;
     std::uint32_t worker_count = 0;
     std::uint64_t mount_count = 0;
+    std::uint64_t sourcetable_cache_entry_count = 0;
+    std::uint64_t sourcetable_cache_age_ms = 0;
     std::vector<MountOwnerSnapshot> mount_owners;
     std::vector<WorkerMetricsSnapshot> workers;
 };

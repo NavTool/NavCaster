@@ -353,7 +353,7 @@ Phase 3 系统 gate 至少检查：
 | `v2:runtime:actual:<runtime_id>` | STRING JSON + TTL | Runtime actual operational view。 |
 | `v2:runtime:worker-stat:<runtime_id>` | HASH + TTL | worker metrics snapshot。 |
 | `v2:runtime:mount-owner:<runtime_id>` | HASH + TTL | mount -> worker owner。 |
-| `v2:stream:mount:<mount>` | Pub/Sub binary | NCV2BUS1 envelope + raw bytes。 |
+| `stream:mount:<mount>` | Pub/Sub binary | NCV2BUS1 envelope + raw bytes。 |
 
 一致性通过标准：
 
@@ -519,7 +519,7 @@ Worker 不跨线程共享 session map、bufferevent 或 Redis async context。
 
 ```text
 Runtime A source -> Runtime A local fan-out。
-Runtime A publish v2:stream:mount:<mount>。
+Runtime A publish stream:mount:<mount>。
 Runtime B subscribe -> remote fan-out -> Runtime B client。
 payload 使用 NCV2BUS1 envelope + raw bytes。
 subscriber 忽略 origin_runtime_id 等于本 runtime 的 echo。

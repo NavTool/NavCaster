@@ -529,8 +529,8 @@ AccessAccountAuthIndex：
 
 | Key / Channel | Type | 说明 |
 | --- | --- | --- |
-| `v2:stream:mount:<mount>` | Pub/Sub | mount 数据流。 |
-| `v2:stream:runtime:<runtime_id>` | Pub/Sub | runtime 内控制或观测事件。 |
+| `stream:mount:<mount>` | Pub/Sub | mount 数据流。 |
+| `stream:runtime:<runtime_id>` | Pub/Sub | runtime 内控制或观测事件。 |
 | `v2:control:kick` | Pub/Sub | 踢线和策略变更通知。 |
 | `v2:control:config` | Pub/Sub | 配置投影变化。 |
 
@@ -542,7 +542,7 @@ AccessAccountAuthIndex：
 单个超级热门 mount 的单频道瓶颈不能仅靠 Redis Cluster 自动解决。
 ```
 
-`v2:stream:mount:<mount>` 的最小 Caster payload 为二进制 envelope：
+`stream:mount:<mount>` 的最小 Caster payload 为二进制 envelope：
 
 ```text
 magic: NCV2BUS1

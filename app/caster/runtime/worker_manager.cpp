@@ -7,7 +7,8 @@
 namespace navcaster::caster {
 
 WorkerManager::WorkerManager(RuntimeConfig config)
-    : _config(std::move(config))
+    : _config(std::move(config)),
+      _sourcetable_cache(std::make_shared<ClusterSourcetableCache>(_config.runtime_id))
 {
 }
 
@@ -25,7 +26,7 @@ bool WorkerManager::start()
     _workers.reserve(_config.worker_count);
     for (std::uint32_t index = 0; index < _config.worker_count; ++index) {
         const std::uint32_t worker_id = index + 1;
-        auto worker = std::make_unique<CasterWorker>(worker_id, _config.runtime_id, _config.redis);
+        auto worker = std::make_unique<CasterWorker>(worker_id, _config.runtime_id, _config.redis, _sourcetable_cache);
         if (!worker->start()) {
             log_error("failed to start worker " + std::to_string(worker_id));
             stop();
@@ -94,6 +95,11 @@ std::vector<WorkerMetricsSnapshot> WorkerManager::metrics_snapshot() const
         }
     }
     return snapshots;
+}
+
+ClusterSourcetableCacheMetrics WorkerManager::sourcetable_cache_metrics() const
+{
+    return _sourcetable_cache ? _sourcetable_cache->metrics() : ClusterSourcetableCacheMetrics{};
 }
 
 CasterWorker *WorkerManager::find_worker(std::uint32_t worker_id) const

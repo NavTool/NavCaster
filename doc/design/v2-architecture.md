@@ -491,7 +491,7 @@ v2:config:version
 v2:runtime:actual:<runtime_id>
 v2:runtime:worker-stat:<runtime_id>
 v2:session:access-account:<access_account_id>
-v2:stream:mount:<mount>
+stream:mount:<mount>
 v2:control:config
 v2:agent:heartbeat:<agent_id>
 ```

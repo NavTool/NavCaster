@@ -104,7 +104,7 @@ Agent 启动、停止、守护本机真实 navcaster-caster 进程。
 Agent 采集 Caster health/metrics，并通过 runtime-metrics 上报 actual snapshot。
 Agent 通过 runtime-events 上报关键进程和健康事件。
 Caster 暴露本机 health/metrics，保留热路径不访问 PostgreSQL。
-Caster 使用 v2 Redis Pub/Sub 完成跨 Runtime 最小 source/client 链路。
+Caster 使用 Redis Pub/Sub 完成跨 Runtime 最小 source/client 链路。
 Web 通过真实 AdminService v2 API 展示 Host/Runtime desired vs actual 和 intent 状态。
 QA 给出真实 PG/Redis、Admin-Agent-Caster-Web smoke 和未运行项记录规则。
 ```
@@ -236,8 +236,8 @@ Redis 数据必须可由 PostgreSQL 或 Runtime/Agent 观测重新生成。Redis
 | `v2:session:access-account:<access_account_id>` | HASH | 60s | Caster | Caster | AdminService | connect_key -> OnlineSession。 |
 | `v2:session:account:<account_id>` | HASH | 60s | Caster | Caster | AdminService | account 维度在线会话。 |
 | `v2:session:mount:<mount>` | HASH | 60s | Caster | Caster | AdminService | mount 维度在线会话。 |
-| `v2:stream:mount:<mount>` | Pub/Sub binary | none | Caster | Caster | Caster | 跨 Runtime mount 数据流。 |
-| `v2:stream:runtime:<runtime_id>` | Pub/Sub JSON | none | Caster | Caster | Agent | Runtime 观测事件。 |
+| `stream:mount:<mount>` | Pub/Sub binary | none | Caster | Caster | Caster | 跨 Runtime mount 数据流。 |
+| `stream:runtime:<runtime_id>` | Pub/Sub JSON | none | Caster | Caster | Agent | Runtime 观测事件。 |
 | `v2:control:kick` | Pub/Sub JSON | none | AdminService | projection worker | Caster | kick / policy 变更通知。 |
 
 TTL hash 使用 key-level expiry；Phase 2 不要求依赖 Redis per-field TTL。
@@ -587,20 +587,20 @@ runtime actual 写 Redis TTL 后必须可由 AdminService 或 Web operational vi
 Phase 2 跨 Runtime 最小链路使用：
 
 ```text
-channel: v2:stream:mount:<mount>
+channel: stream:mount:<mount>
 payload: raw NTRIP/RTCM data bytes
 ```
 
 发送路径：
 
 ```text
-source session -> owner Worker local fan-out -> Redis publish v2:stream:mount:<mount>
+source session -> owner Worker local fan-out -> Redis publish stream:mount:<mount>
 ```
 
 接收路径：
 
 ```text
-Redis subscribe v2:stream:mount:<mount> -> subscriber Worker -> local clients
+Redis subscribe stream:mount:<mount> -> subscriber Worker -> local clients
 ```
 
 Phase 2 最小语义：

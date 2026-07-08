@@ -1,11 +1,13 @@
 #include "worker/worker_core.h"
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 #include "domain/connect_key.h"
 #include "domain/connect_info.h"
 #include "domain/nmea_gga_parser.h"
+#include "domain/sourcetable.h"
 #include "infra/logger.h"
 #include "infra/socket_util.h"
 #include "infra/timer.h"
@@ -14,12 +16,26 @@ namespace navcaster::caster {
 namespace {
 
 constexpr std::size_t kMaxClientOutputBufferBytes = 1024 * 1024;
+constexpr timeval kSourcetablePublishInterval{5, 0};
 
 } // namespace
 
-WorkerCore::WorkerCore(std::uint32_t worker_id, event_base *base, WorkerRedisBoundary *redis_boundary)
-    : _worker_id(worker_id), _base(base), _redis_boundary(redis_boundary)
+WorkerCore::WorkerCore(
+    std::uint32_t worker_id,
+    event_base *base,
+    WorkerRedisBoundary *redis_boundary,
+    std::shared_ptr<ClusterSourcetableCache> sourcetable_cache)
+    : _worker_id(worker_id),
+      _base(base),
+      _redis_boundary(redis_boundary),
+      _sourcetable_cache(std::move(sourcetable_cache))
 {
+    start_sourcetable_publish_timer();
+}
+
+WorkerCore::~WorkerCore()
+{
+    stop_sourcetable_publish_timer();
 }
 
 void WorkerCore::accept_handoff(HandoffMessage message)
@@ -27,12 +43,16 @@ void WorkerCore::accept_handoff(HandoffMessage message)
     std::lock_guard<std::mutex> lock(_mutex);
     ++_handoff_received;
 
-    if (!_base || message.fd < 0 || message.connect_info.mount.empty() || message.connect_info.type == ConnectType::Unknown) {
+    if (!_base || message.fd < 0 || message.connect_info.type == ConnectType::Unknown ||
+        (message.connect_info.type != ConnectType::SourceTable && message.connect_info.mount.empty())) {
         reject_handoff_locked(message, "invalid_handoff");
         return;
     }
 
     switch (message.connect_info.type) {
+    case ConnectType::SourceTable:
+        create_source_table_locked(std::move(message));
+        break;
     case ConnectType::Server:
         create_server_locked(std::move(message));
         break;
@@ -54,6 +74,7 @@ WorkerMetricsSnapshot WorkerCore::snapshot() const
     snapshot.handoff_received = _handoff_received;
     snapshot.server_count = static_cast<std::uint64_t>(_servers.size());
     snapshot.client_count = static_cast<std::uint64_t>(_clients.size());
+    snapshot.sourcetable_request_count = _sourcetable_request_count;
     snapshot.active_sessions = snapshot.server_count + snapshot.client_count;
     snapshot.active_mounts = static_cast<std::uint64_t>(_mounts.size());
     snapshot.bytes_in = _bytes_in;
@@ -112,6 +133,28 @@ void WorkerCore::set_draining(bool draining)
     _draining = draining;
 }
 
+void WorkerCore::create_source_table_locked(HandoffMessage message)
+{
+    const std::string connect_key = ensure_connect_key(message);
+    auto session = std::make_unique<SourceSession>(
+        connect_key,
+        std::move(message),
+        [this](const ConnectInfo &) {
+            return source_table_body();
+        },
+        [this](const std::string &source_connect_key) {
+            handle_source_closed(source_connect_key);
+        });
+
+    ++_sourcetable_request_count;
+    if (!session->start(_base)) {
+        log_warn("worker " + std::to_string(_worker_id) + " failed to start source table session");
+        return;
+    }
+
+    _source_sessions[connect_key] = std::move(session);
+}
+
 void WorkerCore::create_server_locked(HandoffMessage message)
 {
     const std::string mount = message.connect_info.mount;
@@ -141,6 +184,8 @@ void WorkerCore::create_server_locked(HandoffMessage message)
 
     auto &mount_state = _mounts[mount];
     mount_state.server_connect_key = connect_key;
+    upsert_sourcetable_mount_locked(mount);
+    publish_sourcetable_snapshot_locked();
     _server_decoders[connect_key] = Rtcm3Parser{};
     _servers[connect_key] = std::move(session);
     const auto initial_payload = _servers[connect_key]->consume_initial_bytes();
@@ -231,6 +276,13 @@ void WorkerCore::handle_client_data(const std::string &connect_key, std::string 
     handle_client_data_locked(connect_key, data);
 }
 
+void WorkerCore::handle_source_closed(const std::string &connect_key)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+    _pending_source_cleanup.insert(connect_key);
+    schedule_deferred_cleanup_locked();
+}
+
 void WorkerCore::handle_server_closed(const std::string &connect_key)
 {
     std::lock_guard<std::mutex> lock(_mutex);
@@ -265,6 +317,17 @@ void WorkerCore::handle_redis_mount_data(std::string origin_runtime_id, std::str
     _redis_remote_fanout_bytes += bytes;
 }
 
+void WorkerCore::handle_sourcetable_snapshot(std::string payload)
+{
+    if (!_sourcetable_cache || payload.empty()) {
+        return;
+    }
+    if (!_sourcetable_cache->apply_remote_snapshot_json(payload)) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        ++_redis_error_count;
+    }
+}
+
 void WorkerCore::handle_redis_error(const std::string &operation)
 {
     std::lock_guard<std::mutex> lock(_mutex);
@@ -272,6 +335,14 @@ void WorkerCore::handle_redis_error(const std::string &operation)
     if (operation == "publish") {
         ++_redis_publish_error_count;
     }
+}
+
+std::string WorkerCore::source_table_body() const
+{
+    if (!_sourcetable_cache) {
+        return build_sourcetable({});
+    }
+    return build_sourcetable(_sourcetable_cache->snapshot_entries());
 }
 
 void WorkerCore::handle_server_data_locked(const std::string &connect_key, const std::string &data)
@@ -354,6 +425,9 @@ void WorkerCore::update_mount_position_locked(const std::string &mount, const Po
             ++_redis_error_count;
         }
     }
+
+    upsert_sourcetable_mount_locked(mount);
+    publish_sourcetable_snapshot_locked();
 }
 
 void WorkerCore::update_client_position_locked(const std::string &connect_key, const PositionReport &report)
@@ -379,6 +453,42 @@ void WorkerCore::update_client_position_locked(const std::string &connect_key, c
             ++_redis_position_report_error_count;
             ++_redis_error_count;
         }
+    }
+}
+
+void WorkerCore::upsert_sourcetable_mount_locked(const std::string &mount)
+{
+    if (!_sourcetable_cache || mount.empty()) {
+        return;
+    }
+    const auto mount_it = _mounts.find(mount);
+    if (mount_it == _mounts.end() || mount_it->second.server_connect_key.empty()) {
+        return;
+    }
+
+    SourcetableEntry entry;
+    entry.mount = mount;
+    entry.identifier = mount;
+    entry.misc = _redis_boundary ? _redis_boundary->runtime_id() : std::string("local-runtime");
+    entry.position = mount_it->second.base_position;
+    _sourcetable_cache->upsert_local_entry(std::move(entry));
+}
+
+void WorkerCore::remove_sourcetable_mount_locked(const std::string &mount)
+{
+    if (_sourcetable_cache) {
+        _sourcetable_cache->remove_local_mount(mount);
+    }
+}
+
+void WorkerCore::publish_sourcetable_snapshot_locked()
+{
+    if (!_sourcetable_cache || !_redis_boundary || !_redis_boundary->connected()) {
+        return;
+    }
+    const auto payload = _sourcetable_cache->local_snapshot_json();
+    if (!_redis_boundary->publish_sourcetable_snapshot(payload)) {
+        ++_redis_error_count;
     }
 }
 
@@ -481,11 +591,17 @@ void WorkerCore::detach_server_locked(const std::string &connect_key)
     }
 
     const std::string mount = server_it->second->mount();
+    bool detached_current_server = false;
     auto mount_it = _mounts.find(mount);
     if (mount_it != _mounts.end() && mount_it->second.server_connect_key == connect_key) {
         mount_it->second.server_connect_key.clear();
+        detached_current_server = true;
     }
     _server_decoders.erase(connect_key);
+    if (detached_current_server) {
+        remove_sourcetable_mount_locked(mount);
+        publish_sourcetable_snapshot_locked();
+    }
     erase_mount_if_empty_locked(mount);
 }
 
@@ -534,6 +650,10 @@ void WorkerCore::run_deferred_cleanup()
         _clients.erase(connect_key);
     }
     _pending_client_cleanup.clear();
+    for (const auto &connect_key : _pending_source_cleanup) {
+        _source_sessions.erase(connect_key);
+    }
+    _pending_source_cleanup.clear();
 }
 
 void WorkerCore::on_deferred_cleanup(evutil_socket_t, short, void *arg)
@@ -542,6 +662,36 @@ void WorkerCore::on_deferred_cleanup(evutil_socket_t, short, void *arg)
     if (core) {
         core->run_deferred_cleanup();
     }
+}
+
+void WorkerCore::start_sourcetable_publish_timer()
+{
+    if (_worker_id != 1 || !_base || _sourcetable_publish_timer) {
+        return;
+    }
+    _sourcetable_publish_timer = event_new(_base, -1, EV_PERSIST, &WorkerCore::on_sourcetable_publish_timer, this);
+    if (_sourcetable_publish_timer) {
+        event_add(_sourcetable_publish_timer, &kSourcetablePublishInterval);
+    }
+}
+
+void WorkerCore::stop_sourcetable_publish_timer()
+{
+    if (_sourcetable_publish_timer) {
+        event_del(_sourcetable_publish_timer);
+        event_free(_sourcetable_publish_timer);
+        _sourcetable_publish_timer = nullptr;
+    }
+}
+
+void WorkerCore::on_sourcetable_publish_timer(evutil_socket_t, short, void *arg)
+{
+    auto *core = static_cast<WorkerCore *>(arg);
+    if (!core) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(core->_mutex);
+    core->publish_sourcetable_snapshot_locked();
 }
 
 } // namespace navcaster::caster

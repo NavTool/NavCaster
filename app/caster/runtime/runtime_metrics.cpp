@@ -60,6 +60,7 @@ WorkerMetricsSnapshot totals_for(const std::vector<WorkerMetricsSnapshot> &worke
         totals.active_mounts += worker.active_mounts;
         totals.server_count += worker.server_count;
         totals.client_count += worker.client_count;
+        totals.sourcetable_request_count += worker.sourcetable_request_count;
         totals.bytes_in += worker.bytes_in;
         totals.bytes_out += worker.bytes_out;
         totals.fanout_write_count += worker.fanout_write_count;
@@ -116,6 +117,7 @@ Json worker_to_json(const WorkerMetricsSnapshot &worker)
         {"active_mounts", worker.active_mounts},
         {"server_count", worker.server_count},
         {"client_count", worker.client_count},
+        {"sourcetable_request_count", worker.sourcetable_request_count},
         {"bytes_in", worker.bytes_in},
         {"bytes_out", worker.bytes_out},
         {"fanout_write_count", worker.fanout_write_count},
@@ -164,9 +166,12 @@ std::string runtime_metrics_to_json(const RuntimeMetricsSnapshot &snapshot)
         {"uptime_ms", snapshot.uptime_ms},
         {"worker_count", snapshot.worker_count},
         {"mount_count", snapshot.mount_count},
+        {"sourcetable_cache_entry_count", snapshot.sourcetable_cache_entry_count},
+        {"sourcetable_cache_age_ms", snapshot.sourcetable_cache_age_ms},
         {"connection_count", totals.active_sessions},
         {"server_count", totals.server_count},
         {"client_count", totals.client_count},
+        {"sourcetable_request_count", totals.sourcetable_request_count},
         {"bytes_in", totals.bytes_in},
         {"bytes_out", totals.bytes_out},
         {"fanout_write_count", totals.fanout_write_count},

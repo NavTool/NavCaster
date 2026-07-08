@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 
+#include "runtime/cluster_sourcetable_cache.h"
 #include "runtime/mount_owner_registry.h"
 #include "runtime/runtime_config.h"
 #include "transport/handoff_message.h"
@@ -29,6 +30,7 @@ public:
     void set_worker_draining(std::uint32_t worker_id, bool draining);
 
     std::vector<WorkerMetricsSnapshot> metrics_snapshot() const;
+    ClusterSourcetableCacheMetrics sourcetable_cache_metrics() const;
     MountOwnerRegistry &mount_owners() { return _mount_registry; }
     const MountOwnerRegistry &mount_owners() const { return _mount_registry; }
 
@@ -36,6 +38,7 @@ private:
     CasterWorker *find_worker(std::uint32_t worker_id) const;
 
     RuntimeConfig _config;
+    std::shared_ptr<ClusterSourcetableCache> _sourcetable_cache;
     std::vector<std::unique_ptr<CasterWorker>> _workers;
     MountOwnerRegistry _mount_registry;
     bool _running = false;

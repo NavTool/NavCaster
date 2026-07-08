@@ -41,6 +41,7 @@ struct WorkerMetricsSnapshot {
     std::uint64_t active_mounts = 0;
     std::uint64_t server_count = 0;
     std::uint64_t client_count = 0;
+    std::uint64_t sourcetable_request_count = 0;
     std::uint64_t bytes_in = 0;
     std::uint64_t bytes_out = 0;
     std::uint64_t fanout_write_count = 0;

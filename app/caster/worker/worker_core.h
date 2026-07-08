@@ -10,8 +10,10 @@
 #include <event2/event.h>
 
 #include "domain/rtcm3_parser.h"
+#include "runtime/cluster_sourcetable_cache.h"
 #include "session/client_session.h"
 #include "session/server_session.h"
+#include "session/source_session.h"
 #include "storage/redis/redis_pubsub.h"
 #include "transport/handoff_message.h"
 #include "worker/worker_metrics.h"
@@ -20,12 +22,18 @@ namespace navcaster::caster {
 
 class WorkerCore {
 public:
-    WorkerCore(std::uint32_t worker_id, event_base *base, WorkerRedisBoundary *redis_boundary);
+    WorkerCore(
+        std::uint32_t worker_id,
+        event_base *base,
+        WorkerRedisBoundary *redis_boundary,
+        std::shared_ptr<ClusterSourcetableCache> sourcetable_cache);
+    ~WorkerCore();
 
     void accept_handoff(HandoffMessage message);
     WorkerMetricsSnapshot snapshot() const;
     void set_draining(bool draining);
     void handle_redis_mount_data(std::string origin_runtime_id, std::string mount, std::string data);
+    void handle_sourcetable_snapshot(std::string payload);
     void handle_redis_error(const std::string &operation);
 
 private:
@@ -50,19 +58,27 @@ private:
         GeoPosition position;
     };
 
+    void create_source_table_locked(HandoffMessage message);
     void create_server_locked(HandoffMessage message);
     void create_client_locked(HandoffMessage message);
     void reject_handoff_locked(HandoffMessage &message, const std::string &reason);
 
     void handle_server_data(const std::string &connect_key, std::string data);
     void handle_client_data(const std::string &connect_key, std::string data);
+    void handle_source_closed(const std::string &connect_key);
     void handle_server_closed(const std::string &connect_key);
     void handle_client_closed(const std::string &connect_key);
 
+    std::string source_table_body() const;
     void handle_server_data_locked(const std::string &connect_key, const std::string &data);
     void handle_client_data_locked(const std::string &connect_key, const std::string &data);
     void update_mount_position_locked(const std::string &mount, const PositionReport &report);
     void update_client_position_locked(const std::string &connect_key, const PositionReport &report);
+    void upsert_sourcetable_mount_locked(const std::string &mount);
+    void remove_sourcetable_mount_locked(const std::string &mount);
+    void publish_sourcetable_snapshot_locked();
+    void start_sourcetable_publish_timer();
+    void stop_sourcetable_publish_timer();
     std::string ensure_connect_key(HandoffMessage &message) const;
     void fanout_to_mount_clients_locked(
         const std::string &mount,
@@ -79,12 +95,16 @@ private:
     void run_deferred_cleanup();
 
     static void on_deferred_cleanup(evutil_socket_t fd, short what, void *arg);
+    static void on_sourcetable_publish_timer(evutil_socket_t fd, short what, void *arg);
 
     std::uint32_t _worker_id = 0;
     event_base *_base = nullptr;
     WorkerRedisBoundary *_redis_boundary = nullptr;
+    std::shared_ptr<ClusterSourcetableCache> _sourcetable_cache;
+    struct event *_sourcetable_publish_timer = nullptr;
     bool _draining = false;
     std::uint64_t _handoff_received = 0;
+    std::uint64_t _sourcetable_request_count = 0;
     std::uint64_t _bytes_in = 0;
     std::uint64_t _bytes_out = 0;
     std::uint64_t _fanout_write_count = 0;
@@ -104,11 +124,13 @@ private:
 
     std::unordered_map<std::string, std::unique_ptr<ServerSession>> _servers;
     std::unordered_map<std::string, std::unique_ptr<ClientSession>> _clients;
+    std::unordered_map<std::string, std::unique_ptr<SourceSession>> _source_sessions;
     std::unordered_map<std::string, MountSessions> _mounts;
     std::unordered_map<std::string, Rtcm3Parser> _server_decoders;
     std::unordered_map<std::string, ClientRuntimeState> _client_states;
     std::unordered_set<std::string> _pending_server_cleanup;
     std::unordered_set<std::string> _pending_client_cleanup;
+    std::unordered_set<std::string> _pending_source_cleanup;
     mutable std::mutex _mutex;
     bool _cleanup_scheduled = false;
 };

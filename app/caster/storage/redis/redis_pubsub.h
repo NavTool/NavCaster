@@ -18,6 +18,7 @@ struct WorkerRedisBoundary {
 
     using MountMessageCallback = std::function<void(std::string origin_runtime_id, std::string mount, std::string payload)>;
     using ErrorCallback = std::function<void(std::string operation)>;
+    using SourcetableSnapshotCallback = std::function<void(std::string payload)>;
 
     WorkerRedisBoundary() = default;
     WorkerRedisBoundary(std::string runtime_id, std::uint32_t worker_id, const std::string &host, int port);
@@ -26,12 +27,18 @@ struct WorkerRedisBoundary {
     WorkerRedisBoundary(const WorkerRedisBoundary &) = delete;
     WorkerRedisBoundary &operator=(const WorkerRedisBoundary &) = delete;
 
-    bool start(event_base *base, MountMessageCallback on_mount_message, ErrorCallback on_error);
+    bool start(
+        event_base *base,
+        MountMessageCallback on_mount_message,
+        ErrorCallback on_error,
+        SourcetableSnapshotCallback on_sourcetable_snapshot);
     void stop();
 
     bool publish_mount_data(const std::string &mount, const std::string &payload);
     bool subscribe_mount(const std::string &mount);
     bool unsubscribe_mount(const std::string &mount);
+    bool publish_sourcetable_snapshot(const std::string &payload);
+    bool subscribe_sourcetable_changes();
     bool report_mount_position(const std::string &mount, const GeoPosition &position);
     bool report_client_position(const std::string &connect_key, const GeoPosition &position);
     bool connected() const;
@@ -44,13 +51,16 @@ struct WorkerRedisBoundary {
 
 private:
     std::string channel_for_mount(const std::string &mount) const;
+    std::string sourcetable_runtime_key() const;
     void report_error(const std::string &operation);
 
     std::string _runtime_id;
     std::uint32_t _worker_id = 0;
     MountMessageCallback _on_mount_message;
     ErrorCallback _on_error;
+    SourcetableSnapshotCallback _on_sourcetable_snapshot;
     std::unordered_set<std::string> _subscribed_mounts;
+    bool _sourcetable_subscribed = false;
     bool _started = false;
 };
 
