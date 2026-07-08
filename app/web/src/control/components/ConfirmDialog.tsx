@@ -6,7 +6,7 @@ export function ConfirmDialog({
   title,
   description,
   intentLabel,
-  confirmText = 'Submit intent',
+  confirmText = '提交意图',
   onCancel,
   onConfirm,
 }: {
@@ -41,7 +41,7 @@ export function ConfirmDialog({
       title={title}
       footer={[
         <Button key="cancel" onClick={onCancel}>
-          Cancel
+          取消
         </Button>,
         <Button key="confirm" type="primary" loading={submitting} onClick={handleConfirm}>
           {confirmText}
@@ -52,7 +52,7 @@ export function ConfirmDialog({
     >
       <p className="control-dialog-description">{description}</p>
       <label className="control-field-label" htmlFor="control-intent-reason">
-        Reason
+        原因
       </label>
       <Input.TextArea
         id="control-intent-reason"
@@ -61,7 +61,7 @@ export function ConfirmDialog({
         placeholder={intentLabel}
         onChange={(event) => setReason(event.target.value)}
       />
-      <div className="control-dialog-note">This creates an AdminService intent record. It does not execute a local process action.</div>
+      <div className="control-dialog-note">该操作会创建 AdminService 意图记录，不会直接执行本地进程动作。</div>
     </Modal>
   );
 }

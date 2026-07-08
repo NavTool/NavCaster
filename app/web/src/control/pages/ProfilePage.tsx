@@ -46,13 +46,7 @@ export default function ProfilePage() {
 
   return (
     <div className="identity-page">
-      <div className="control-page-heading">
-        <div>
-          <h1>个人资料</h1>
-          <p>查看当前 Web 登录账号信息，更新显示名和联系方式。</p>
-        </div>
-      </div>
-      {error ? <Alert className="control-table-alert" type="error" showIcon message="个人资料 API 不可用" description={error} /> : null}
+      {error ? <Alert className="control-table-alert" type="error" showIcon message="个人资料接口不可用" description={error} /> : null}
       <section className="identity-profile-grid">
         <section className="control-panel">
           <h2>账号信息</h2>

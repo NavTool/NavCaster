@@ -13,6 +13,7 @@ type Config struct {
 	DevAdminUsername  string
 	DevAdminPassword  string
 	PostgreSQLDSN     string
+	MigrationsDir     string
 	RedisAddress      string
 	HeartbeatInterval time.Duration
 }
@@ -25,6 +26,7 @@ func LoadFromEnv() Config {
 		DevAdminUsername:  envString("NAVCASTER_ADMIN_DEV_ADMIN_USERNAME", "admin"),
 		DevAdminPassword:  os.Getenv("NAVCASTER_ADMIN_DEV_ADMIN_PASSWORD"),
 		PostgreSQLDSN:     os.Getenv("NAVCASTER_ADMIN_POSTGRES_DSN"),
+		MigrationsDir:     os.Getenv("NAVCASTER_ADMIN_MIGRATIONS_DIR"),
 		RedisAddress:      os.Getenv("NAVCASTER_ADMIN_REDIS_ADDR"),
 		HeartbeatInterval: time.Duration(envInt("NAVCASTER_ADMIN_HEARTBEAT_MS", 5000)) * time.Millisecond,
 	}

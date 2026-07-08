@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminService } from '../../api/adminService';
 import type { ControlPlaneOverview, HostSummary, RuntimeSummary } from '../../api/contracts';
 import { ConvergenceBadge, StatusBadge } from '../components/StatusBadge';
+import { desiredRuntimeStateLabel } from '../labels';
 import { formatDateTime } from './useControlPage';
 
 type MetricTone = 'orange' | 'blue' | 'purple' | 'red';
@@ -123,7 +124,7 @@ function DashboardLineChart({
           </span>
         ))}
       </div>
-      <svg viewBox={`0 0 760 ${viewHeight}`} role="img" aria-label="dashboard live metrics chart">
+      <svg viewBox={`0 0 760 ${viewHeight}`} role="img" aria-label="仪表盘实时指标图">
         {gridLines.map((line) => (
           <g key={line.label}>
             <line className="dashboard-chart-grid" x1={left} x2={left + width} y1={line.y} y2={line.y} />
@@ -172,16 +173,16 @@ function DashboardLineChart({
 function RuntimeStatusDonut({ runtimes }: { runtimes: RuntimeSummary[] }) {
   const total = runtimes.length;
   const segments = [
-    { key: 'running', label: 'Running', color: '#22c55e', count: runtimes.filter((item) => item.status === 'running').length },
-    { key: 'pending', label: 'Pending', color: '#f59e0b', count: runtimes.filter((item) => item.status === 'pending' || item.convergence_status === 'pending').length },
-    { key: 'failed', label: 'Failed', color: '#ef4444', count: runtimes.filter((item) => item.status === 'failed' || item.convergence_status === 'failed').length },
-    { key: 'stopped', label: 'Stopped', color: '#94a3b8', count: runtimes.filter((item) => item.status === 'stopped' || item.status === 'offline' || item.status === 'unknown').length },
+    { key: 'running', label: '运行中', color: '#22c55e', count: runtimes.filter((item) => item.status === 'running').length },
+    { key: 'pending', label: '待处理', color: '#f59e0b', count: runtimes.filter((item) => item.status === 'pending' || item.convergence_status === 'pending').length },
+    { key: 'failed', label: '失败', color: '#ef4444', count: runtimes.filter((item) => item.status === 'failed' || item.convergence_status === 'failed').length },
+    { key: 'stopped', label: '已停止', color: '#94a3b8', count: runtimes.filter((item) => item.status === 'stopped' || item.status === 'offline' || item.status === 'unknown').length },
   ].filter((item) => item.count > 0);
   const circumference = 389.6;
   let offset = 0;
 
   return (
-    <div className="dashboard-donut" aria-label="Runtime 状态分布圆环图">
+    <div className="dashboard-donut" aria-label="运行时状态分布圆环图">
       <svg viewBox="0 0 180 180">
         <circle cx="90" cy="90" r="62" fill="none" stroke="#e8eef5" strokeWidth="34" />
         {segments.map((segment) => {
@@ -206,7 +207,7 @@ function RuntimeStatusDonut({ runtimes }: { runtimes: RuntimeSummary[] }) {
       </svg>
       <div className="dashboard-donut-center">
         <strong>{total}</strong>
-        <span>Runtime</span>
+        <span>运行时</span>
       </div>
     </div>
   );
@@ -289,14 +290,14 @@ export default function DashboardPage() {
 
   const runtimeLabels = derived.topRuntimes.map((item) => item.name);
   const throughputSeries: ChartSeries[] = [
-    { name: 'Send bps', color: '#3b82f6', values: derived.topRuntimes.map((item) => item.send_bps) },
-    { name: 'Recv bps', color: '#14b8a6', values: derived.topRuntimes.map((item) => item.recv_bps) },
-    { name: 'Active sessions', color: '#f59e0b', values: derived.topRuntimes.map((item) => item.active_sessions), dashed: true },
+    { name: '下行 bps', color: '#3b82f6', values: derived.topRuntimes.map((item) => item.send_bps) },
+    { name: '上行 bps', color: '#14b8a6', values: derived.topRuntimes.map((item) => item.recv_bps) },
+    { name: '活跃会话', color: '#f59e0b', values: derived.topRuntimes.map((item) => item.active_sessions), dashed: true },
   ];
   const hostLabels = derived.hostRows.map((item) => item.name);
   const hostSeries: ChartSeries[] = [
     { name: 'CPU %', color: '#3b82f6', values: derived.hostRows.map((item) => item.cpu_load) },
-    { name: 'Memory %', color: '#14b8a6', values: derived.hostRows.map(memoryPercent) },
+    { name: '内存 %', color: '#14b8a6', values: derived.hostRows.map(memoryPercent) },
   ];
   const visibleRuntimes = derived.topRuntimes.slice(0, 8);
 
@@ -309,28 +310,28 @@ export default function DashboardPage() {
           value={loading ? '-' : `${data.overview.running_hosts} / ${data.hosts.length}`}
           tone="orange"
           icon={<InboxOutlined />}
-          detail={<><em className="dashboard-money-orange">{data.overview.offline_hosts}</em><span> offline</span></>}
+          detail={<><em className="dashboard-money-orange">{data.overview.offline_hosts}</em><span> 台离线</span></>}
         />
         <DashboardMetric
-          label="运行 Runtime"
+          label="运行时运行数"
           value={loading ? '-' : `${data.overview.running_runtimes} / ${data.runtimes.length}`}
           tone="blue"
           icon={<DatabaseOutlined />}
-          detail={<><em className={derived.failedRuntimes > 0 ? 'dashboard-money-orange' : 'dashboard-money-green'}>{derived.failedRuntimes}</em><span> failed, {derived.pendingRuntimes} pending</span></>}
+          detail={<><em className={derived.failedRuntimes > 0 ? 'dashboard-money-orange' : 'dashboard-money-green'}>{derived.failedRuntimes}</em><span> 个失败，{derived.pendingRuntimes} 个待处理</span></>}
         />
         <DashboardMetric
           label="活跃会话"
           value={loading ? '-' : formatNumber(data.overview.active_sessions)}
           tone="purple"
           icon={<ThunderboltOutlined />}
-          detail={<span>{formatBps(derived.totalRecvBps)} recv / {formatBps(derived.totalSendBps)} send</span>}
+          detail={<span>上行 {formatBps(derived.totalRecvBps)} / 下行 {formatBps(derived.totalSendBps)}</span>}
         />
         <DashboardMetric
-          label="Worker 实际/目标"
+          label="工作线程实际/目标"
           value={loading ? '-' : `${formatNumber(derived.actualWorkers)} / ${formatNumber(derived.desiredWorkers || derived.actualWorkers)}`}
           tone="red"
           icon={<ClockCircleOutlined />}
-          detail={<span>{derived.staleRuntimes} stale metric snapshots</span>}
+          detail={<span>{derived.staleRuntimes} 个指标快照过期</span>}
         />
       </section>
 
@@ -338,7 +339,7 @@ export default function DashboardPage() {
         <div className="dashboard-toolbar-group">
           <span>数据来源:</span>
           <Button className="dashboard-filter-button" icon={<ClusterOutlined />}>
-            AdminService live control API
+            AdminService 实时控制接口
           </Button>
           <Button className="dashboard-filter-button" icon={<CalendarOutlined />}>
             当前快照
@@ -352,7 +353,7 @@ export default function DashboardPage() {
       <section className="dashboard-main-grid">
         <div className="dashboard-panel dashboard-model-panel">
           <div className="dashboard-panel-header">
-            <h3>Runtime 状态分布</h3>
+            <h3>运行时状态分布</h3>
             <div className="dashboard-segmented">
               <button className="active" type="button">状态</button>
               <button type="button">会话</button>
@@ -364,11 +365,11 @@ export default function DashboardPage() {
               <table className="dashboard-model-table">
                 <thead>
                   <tr>
-                    <th>Runtime</th>
+                    <th>运行时</th>
                     <th>状态</th>
                     <th>会话</th>
-                    <th>Worker</th>
-                    <th>Recv</th>
+                    <th>工作线程</th>
+                    <th>上行</th>
                     <th>指标</th>
                   </tr>
                 </thead>
@@ -386,14 +387,14 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             ) : (
-              <Empty description="AdminService 当前没有 Runtime" />
+              <Empty description="AdminService 当前没有运行时" />
             )}
           </div>
         </div>
 
         <div className="dashboard-panel">
           <div className="dashboard-panel-header">
-            <h3>Runtime 当前吞吐</h3>
+            <h3>运行时当前吞吐</h3>
           </div>
           <DashboardLineChart
             compact
@@ -407,7 +408,7 @@ export default function DashboardPage() {
 
       <section className="dashboard-panel dashboard-wide-panel">
         <div className="dashboard-panel-header">
-          <h3>Host 资源快照</h3>
+          <h3>主机资源快照</h3>
         </div>
         <DashboardLineChart
           max={100}
@@ -425,13 +426,13 @@ export default function DashboardPage() {
           <table className="dashboard-model-table">
             <thead>
               <tr>
-                <th>Runtime</th>
-                <th>Host</th>
-                <th>Desired</th>
-                <th>Actual</th>
-                <th>Convergence</th>
-                <th>Config</th>
-                <th>Updated</th>
+                <th>运行时</th>
+                <th>主机</th>
+                <th>期望状态</th>
+                <th>实际状态</th>
+                <th>收敛状态</th>
+                <th>配置</th>
+                <th>更新时间</th>
               </tr>
             </thead>
             <tbody>
@@ -439,7 +440,7 @@ export default function DashboardPage() {
                 <tr key={row.id}>
                   <td><span className="dashboard-model-name">› {row.name}</span></td>
                   <td>{row.host_name}</td>
-                  <td>{row.desired_state}</td>
+                  <td>{desiredRuntimeStateLabel(row.desired_state)}</td>
                   <td>{row.actual_state || '-'}</td>
                   <td><ConvergenceBadge status={row.convergence_status} /></td>
                   <td>{row.current_config_version_id} / {row.target_config_version_id}</td>
@@ -449,7 +450,7 @@ export default function DashboardPage() {
             </tbody>
           </table>
         ) : (
-          <Empty description="AdminService 当前没有返回 Runtime desired/actual 状态" />
+          <Empty description="AdminService 当前没有返回运行时期望/实际状态" />
         )}
       </section>
     </div>

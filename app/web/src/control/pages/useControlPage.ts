@@ -27,7 +27,7 @@ export function useControlPage<T>(
       setTotal(result.total);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load AdminService data');
+      setError(err instanceof Error ? err.message : '加载 AdminService 数据失败');
       setItems([]);
       setTotal(0);
     } finally {
@@ -43,7 +43,7 @@ export function useControlPage<T>(
 }
 
 export function gb(used: number, total: number) {
-  if (!total) return used ? `${used.toFixed(0)} GB used` : '-';
+  if (!total) return used ? `已用 ${used.toFixed(0)} GB` : '-';
   return `${used.toFixed(0)} / ${total.toFixed(0)} GB`;
 }
 

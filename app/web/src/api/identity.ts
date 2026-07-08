@@ -101,14 +101,27 @@ function pageParams(query: PageQuery) {
   };
 }
 
+function normalizeErrorMessage(message: string) {
+  const known: Record<string, string> = {
+    'Network Error': '网络错误，请检查服务是否可用',
+    'Request failed with status code 400': '请求参数不正确',
+    'Request failed with status code 401': '登录已失效，请重新登录',
+    'Request failed with status code 403': '没有权限执行该操作',
+    'Request failed with status code 404': '请求的资源不存在',
+    'Request failed with status code 409': '数据冲突，请刷新后重试',
+    'Request failed with status code 500': '服务端内部错误',
+  };
+  return known[message] ?? message;
+}
+
 export function apiErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'response' in error) {
     const response = (error as { response?: { data?: Envelope<unknown> } }).response;
     const apiError = response?.data?.error;
-    if (apiError?.message) return apiError.message;
-    if (apiError?.code) return apiError.code;
+    if (apiError?.message) return normalizeErrorMessage(apiError.message);
+    if (apiError?.code) return normalizeErrorMessage(apiError.code);
   }
-  return error instanceof Error ? error.message : '请求失败';
+  return error instanceof Error ? normalizeErrorMessage(error.message) : '请求失败';
 }
 
 export async function registerAccount(body: { username: string; password: string; display_name: string }) {
@@ -184,6 +197,11 @@ export async function listAdminAccessAccounts(query: PageQuery & { owner_account
   return unwrapPage<AccessAccount>(response.data, query);
 }
 
+export async function getAdminAccessAccount(accessAccountId: string) {
+  const response = await api.get(`/api/v1/admin/access-accounts/${accessAccountId}`);
+  return unwrap<AccessAccount>(response.data);
+}
+
 export async function getProfile() {
   const response = await api.get('/api/v1/me/profile');
   return unwrap<Account>(response.data);
@@ -197,6 +215,11 @@ export async function updateProfile(body: { display_name: string; email?: string
 export async function listMyAccessAccounts(query: PageQuery) {
   const response = await api.get('/api/v1/me/access-accounts', { params: pageParams(query) });
   return unwrapPage<AccessAccount>(response.data, query);
+}
+
+export async function getMyAccessAccount(accessAccountId: string) {
+  const response = await api.get(`/api/v1/me/access-accounts/${accessAccountId}`);
+  return unwrap<AccessAccount>(response.data);
 }
 
 export async function createMyAccessAccount(body: {

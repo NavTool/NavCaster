@@ -213,6 +213,20 @@ func (s Server) listAdminAccessAccounts(w http.ResponseWriter, r *http.Request) 
 	writePageData(w, r, http.StatusOK, accounts, filter.Limit, filter.Offset, total)
 }
 
+func (s Server) getAdminAccessAccount(w http.ResponseWriter, r *http.Request) {
+	actor, err := s.requireSession(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	access, err := s.identity.GetAccessAccount(r.Context(), actor, r.PathValue("access_account_id"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeData(w, r, http.StatusOK, access)
+}
+
 func (s Server) getProfile(w http.ResponseWriter, r *http.Request) {
 	actor, err := s.requireSession(r)
 	if err != nil {

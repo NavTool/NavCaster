@@ -133,10 +133,55 @@ export interface ControlPlaneOverview {
   active_sessions: number;
 }
 
+export interface AdminHealth {
+  status: string;
+  service: string;
+  version: string;
+  time: string;
+  postgres: string;
+  redis: string;
+  control_plane?: {
+    status?: string;
+    repository?: string;
+    host_count?: number;
+    runtime_count?: number;
+    desired_count?: number;
+    pending_intent_count?: number;
+    failed_intent_count?: number;
+    stale_runtime_count?: number;
+    updated_at?: string;
+  };
+}
+
 export interface RuntimeDesiredStateCommand {
   runtime_id: string;
   desired_state: DesiredRuntimeState;
   reason: string;
+}
+
+export type RuntimeRestartPolicy = 'never' | 'on_failure' | 'always';
+
+export interface RuntimeCreateCommand {
+  host_id: string;
+  name: string;
+  desired_state: DesiredRuntimeState;
+  config_version: number;
+  listen_port: number;
+  worker_count: number;
+  max_worker_count: number;
+  restart_policy: RuntimeRestartPolicy;
+  start_immediately: boolean;
+}
+
+export interface RuntimeConfigCommand {
+  runtime_id: string;
+  desired_state?: DesiredRuntimeState;
+  config_version?: number;
+  listen_port?: number;
+  worker_count?: number;
+  max_worker_count?: number;
+  restart_policy?: RuntimeRestartPolicy;
+  draining?: boolean;
 }
 
 export interface RuntimeActionIntent {
@@ -160,9 +205,12 @@ export interface IntentReceipt {
 }
 
 export interface AdminServiceContract {
+  getHealth(): Promise<AdminHealth>;
   getOverview(): Promise<ControlPlaneOverview>;
   listHosts(params: PageRequest): Promise<PageResult<HostSummary>>;
   listRuntimes(params: PageRequest & { hostId?: string }): Promise<PageResult<RuntimeSummary>>;
+  createRuntime(command: RuntimeCreateCommand): Promise<RuntimeSummary>;
+  updateRuntimeConfig(command: RuntimeConfigCommand): Promise<RuntimeSummary>;
   getRuntime(runtimeId: string): Promise<RuntimeDetail>;
   listRuntimeEvents(runtimeId: string, limit?: number): Promise<RuntimeEvent[]>;
   listWorkers(params: PageRequest & { runtimeId?: string }): Promise<PageResult<WorkerMetric>>;

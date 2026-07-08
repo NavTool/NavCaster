@@ -10,9 +10,44 @@ export interface TableFilters {
   pageSize: number;
 }
 
+const pageSizeOptions = [5, 10, 20, 50];
+
+export function ControlPaginationBar({
+  current,
+  pageSize,
+  total,
+  onChange,
+}: {
+  current: number;
+  pageSize: number;
+  total: number;
+  onChange: (page: number, pageSize: number) => void;
+}) {
+  return (
+    <footer className="control-pagination-bar">
+      <span>共 {total} 条记录</span>
+      <div className="control-pagination-size">
+        <span>每页显示</span>
+        <Select
+          size="small"
+          value={pageSize}
+          options={pageSizeOptions.map((value) => ({ label: String(value), value }))}
+          onChange={(nextPageSize) => onChange(1, nextPageSize)}
+        />
+        <span>条</span>
+      </div>
+      <Pagination
+        current={current}
+        pageSize={pageSize}
+        total={total}
+        showSizeChanger={false}
+        onChange={(page) => onChange(page, pageSize)}
+      />
+    </footer>
+  );
+}
+
 export function TablePage<T extends object>({
-  title,
-  description,
   actions,
   filters,
   onFiltersChange,
@@ -24,8 +59,6 @@ export function TablePage<T extends object>({
   error,
   extraFilters,
 }: {
-  title: string;
-  description?: string;
   actions?: ReactNode;
   filters: TableFilters;
   onFiltersChange: (next: TableFilters) => void;
@@ -39,19 +72,11 @@ export function TablePage<T extends object>({
 }) {
   return (
     <div className="control-table-page">
-      <div className="control-page-heading">
-        <div>
-          <h1>{title}</h1>
-          {description ? <p>{description}</p> : null}
-        </div>
-        {actions ? <Space wrap>{actions}</Space> : null}
-      </div>
-
       <section className="control-table-toolbar">
         <Input.Search
           allowClear
           className="control-search"
-          placeholder="Search name, id, host, or region"
+          placeholder="搜索名称、ID、主机或区域"
           value={filters.search}
           onChange={(event) => onFiltersChange({ ...filters, search: event.target.value, page: 1 })}
         />
@@ -60,18 +85,19 @@ export function TablePage<T extends object>({
           value={filters.status}
           onChange={(status) => onFiltersChange({ ...filters, status, page: 1 })}
           options={[
-            { label: 'All states', value: 'all' },
-            { label: 'Pending', value: 'pending' },
-            { label: 'Running', value: 'running' },
-            { label: 'Failed', value: 'failed' },
-            { label: 'Draining', value: 'draining' },
-            { label: 'Offline', value: 'offline' },
+            { label: '全部状态', value: 'all' },
+            { label: '待处理', value: 'pending' },
+            { label: '运行中', value: 'running' },
+            { label: '失败', value: 'failed' },
+            { label: '排空中', value: 'draining' },
+            { label: '离线', value: 'offline' },
           ]}
         />
         {extraFilters}
         <Button onClick={() => onFiltersChange({ search: '', status: 'all', page: 1, pageSize: filters.pageSize })}>
-          Reset
+          重置
         </Button>
+        {actions ? <Space className="control-table-toolbar-actions" wrap>{actions}</Space> : null}
       </section>
 
       {error ? (
@@ -79,7 +105,7 @@ export function TablePage<T extends object>({
           className="control-table-alert"
           type="error"
           showIcon
-          message="AdminService control API unavailable"
+          message="AdminService 控制接口不可用"
           description={error}
         />
       ) : null}
@@ -93,21 +119,16 @@ export function TablePage<T extends object>({
           rowKey={rowKey}
           size="middle"
           scroll={{ x: 'max-content' }}
-          locale={{ emptyText: <Empty description={error ? 'Control API did not return usable rows' : 'No control-plane rows matched the current filters'} /> }}
+          locale={{ emptyText: <Empty description={error ? '控制接口没有返回可用数据' : '当前筛选条件下没有数据'} /> }}
         />
       </section>
 
-      <footer className="control-pagination-bar">
-        <span>{total} records</span>
-        <Pagination
-          current={filters.page}
-          pageSize={filters.pageSize}
-          total={total}
-          showSizeChanger
-          pageSizeOptions={[5, 10, 20, 50]}
-          onChange={(page, pageSize) => onFiltersChange({ ...filters, page, pageSize })}
-        />
-      </footer>
+      <ControlPaginationBar
+        current={filters.page}
+        pageSize={filters.pageSize}
+        total={total}
+        onChange={(page, pageSize) => onFiltersChange({ ...filters, page, pageSize })}
+      />
     </div>
   );
 }

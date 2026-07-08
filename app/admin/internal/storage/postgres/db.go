@@ -62,13 +62,20 @@ func Open(ctx context.Context, cfg Config) (*sql.DB, error) {
 	return db, nil
 }
 
-func ApplyMigrations(ctx context.Context, db *sql.DB) error {
-	sqlBytes, err := os.ReadFile(defaultMigrationPath())
+func ApplyMigrations(ctx context.Context, db *sql.DB, migrationsDir string) error {
+	sqlBytes, err := os.ReadFile(migrationPath(migrationsDir))
 	if err != nil {
 		return err
 	}
 	_, err = db.ExecContext(ctx, string(sqlBytes))
 	return err
+}
+
+func migrationPath(migrationsDir string) string {
+	if migrationsDir != "" {
+		return filepath.Join(migrationsDir, "0001_v2_adminservice_foundation.sql")
+	}
+	return defaultMigrationPath()
 }
 
 func defaultMigrationPath() string {

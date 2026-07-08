@@ -2,6 +2,7 @@ import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined
 import { Alert, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   apiErrorMessage,
   createMyAccessAccount,
@@ -13,8 +14,10 @@ import {
   type AccessAccount,
   type AccessAccountStatus,
 } from '../../api/identity';
+import { ControlPaginationBar } from '../components/TablePage';
 import { AccountStatusTag } from './IdentityBadges';
 import { formatIdentityTime } from './identityFormat';
+import { accountStatusLabel } from '../labels';
 
 const statuses: Array<AccessAccountStatus | 'all'> = ['all', 'active', 'disabled', 'deleted'];
 
@@ -133,9 +136,10 @@ export default function UserAccessAccountsPage() {
       title: '接入账号',
       dataIndex: 'username',
       fixed: 'left',
+      width: 260,
       render: (_, row) => (
         <div className="control-primary-cell">
-          <strong>{row.username}</strong>
+          <Link to={`/admin/control/user/access-accounts/${row.access_account_id}`}>{row.username}</Link>
           <span>{row.access_account_id}</span>
         </div>
       ),
@@ -149,6 +153,7 @@ export default function UserAccessAccountsPage() {
     {
       title: '操作',
       fixed: 'right',
+      width: 300,
       render: (_, row) => (
         <Space wrap size={4}>
           {row.status === 'active' ? <Button size="small" onClick={() => changeStatus(row, 'disabled')}>停用</Button> : null}
@@ -167,17 +172,6 @@ export default function UserAccessAccountsPage() {
 
   return (
     <div className="identity-page">
-      <div className="control-page-heading">
-        <div>
-          <h1>接入账号管理</h1>
-          <p>接入账号用于设备、客户端或基站接入平台。Web 登录账号和接入账号相互独立。</p>
-        </div>
-        <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>创建接入账号</Button>
-        </Space>
-      </div>
-
       <section className="identity-toolbar">
         <Input.Search
           allowClear
@@ -187,22 +181,32 @@ export default function UserAccessAccountsPage() {
         />
         <Select
           value={query.status}
-          options={statuses.map((status) => ({ label: status === 'all' ? '全部状态' : status, value: status }))}
+          options={statuses.map((status) => ({ label: status === 'all' ? '全部状态' : accountStatusLabel(status), value: status }))}
           onChange={(status) => setQuery((prev) => ({ ...prev, status, page: 1 }))}
         />
+        <Space className="identity-toolbar-actions" wrap>
+          <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>创建接入账号</Button>
+        </Space>
       </section>
 
-      {error ? <Alert className="control-table-alert" type="error" showIcon message="接入账号 API 不可用" description={error} /> : null}
+      {error ? <Alert className="control-table-alert" type="error" showIcon message="接入账号接口不可用" description={error} /> : null}
       <section className="control-table-frame">
         <Table<AccessAccount>
           columns={columns}
           dataSource={rows}
           loading={loading}
           rowKey="access_account_id"
-          pagination={{ current: query.page, pageSize: query.pageSize, total, showSizeChanger: true, onChange: (page, pageSize) => setQuery((prev) => ({ ...prev, page, pageSize })) }}
+          pagination={false}
           scroll={{ x: 'max-content' }}
         />
       </section>
+      <ControlPaginationBar
+        current={query.page}
+        pageSize={query.pageSize}
+        total={total}
+        onChange={(page, pageSize) => setQuery((prev) => ({ ...prev, page, pageSize }))}
+      />
 
       <Modal title={editing ? '编辑接入账号' : '创建接入账号'} open={editorOpen} onCancel={() => setEditorOpen(false)} onOk={() => form.submit()} destroyOnClose>
         <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>

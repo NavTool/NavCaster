@@ -336,6 +336,13 @@ func (s Service) ListAllAccessAccounts(ctx context.Context, actor Principal, fil
 	return s.repo.ListAccessAccounts(ctx, filter)
 }
 
+func (s Service) GetAccessAccount(ctx context.Context, actor Principal, accessAccountID string) (AccessAccount, error) {
+	if err := requireAdmin(actor); err != nil {
+		return AccessAccount{}, err
+	}
+	return s.repo.GetAccessAccount(ctx, accessAccountID)
+}
+
 func (s Service) GetProfile(ctx context.Context, actor Principal) (Account, error) {
 	return s.repo.GetAccount(ctx, actor.AccountID)
 }

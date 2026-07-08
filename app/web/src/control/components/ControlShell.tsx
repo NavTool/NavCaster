@@ -7,6 +7,7 @@ import {
   DashboardOutlined,
   DatabaseOutlined,
   DownOutlined,
+  EnvironmentOutlined,
   GiftOutlined,
   GlobalOutlined,
   HistoryOutlined,
@@ -14,6 +15,7 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  MobileOutlined,
   NodeIndexOutlined,
   NotificationOutlined,
   ProfileOutlined,
@@ -29,11 +31,13 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { getSession, type AuthSessionSubject } from '../../api/session';
 import { getStoredToken, setStoredToken } from '../../api/client';
 import { logout as logoutSession } from '../../api/identity';
+import { accountRoleLabel } from '../labels';
 
 type NavItem = {
   path: string;
   label: string;
   icon: ReactNode;
+  children?: NavItem[];
 };
 
 const navSections: Array<{ title: string; items: NavItem[] }> = [
@@ -42,14 +46,23 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
     items: [
       { path: '/admin/control/dashboard', label: '仪表盘', icon: <DashboardOutlined /> },
       { path: '/admin/control/operations', label: '运维监控', icon: <DatabaseOutlined /> },
+      { path: '/admin/control/instances', label: '实例管理', icon: <CloudServerOutlined /> },
       { path: '/admin/control/nodes', label: '节点管理', icon: <NodeIndexOutlined /> },
+      {
+        path: '/admin/control/access-monitor',
+        label: '接入监控',
+        icon: <ApiOutlined />,
+        children: [
+          { path: '/admin/control/access-monitor/base-stations', label: '基准站', icon: <EnvironmentOutlined /> },
+          { path: '/admin/control/access-monitor/mobile-stations', label: '移动站', icon: <MobileOutlined /> },
+        ],
+      },
       { path: '/admin/control/users', label: '用户管理', icon: <UserOutlined /> },
-      { path: '/admin/control/access', label: '接入账号查询', icon: <IdcardOutlined /> },
+      { path: '/admin/control/access', label: '账号管理', icon: <IdcardOutlined /> },
       { path: '/admin/control/groups', label: '分组管理', icon: <TeamOutlined /> },
       { path: '/admin/control/mounts', label: '挂载点管理', icon: <ClusterOutlined /> },
       { path: '/admin/control/relay', label: '接入管理', icon: <ApiOutlined /> },
       { path: '/admin/control/announcements', label: '公告', icon: <NotificationOutlined /> },
-      { path: '/admin/control/server-nodes', label: '节点管理', icon: <CloudServerOutlined /> },
       { path: '/admin/control/redeem-codes', label: '兑换码', icon: <GiftOutlined /> },
       { path: '/admin/control/coupons', label: '优惠码', icon: <TagsOutlined /> },
       { path: '/admin/control/usage', label: '使用记录', icon: <HistoryOutlined /> },
@@ -59,7 +72,7 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
   {
     title: '用户视图',
     items: [
-      { path: '/admin/control/user/access-accounts', label: '接入账号管理', icon: <IdcardOutlined /> },
+      { path: '/admin/control/user/access-accounts', label: '账号管理', icon: <IdcardOutlined /> },
       { path: '/admin/control/user/usage', label: '使用记录', icon: <HistoryOutlined /> },
       { path: '/admin/control/user/redeem', label: '兑换', icon: <GiftOutlined /> },
       { path: '/admin/control/user/profile', label: '个人资料', icon: <ProfileOutlined /> },
@@ -70,23 +83,27 @@ const navSections: Array<{ title: string; items: NavItem[] }> = [
 const pageTitles: Record<string, string> = {
   '/admin/control/dashboard': '管理控制台',
   '/admin/control/operations': '运维监控',
+  '/admin/control/instances': '实例管理',
   '/admin/control/nodes': '节点管理',
+  '/admin/control/access-monitor/base-stations': '基准站接入监控',
+  '/admin/control/access-monitor/mobile-stations': '移动站接入监控',
+  '/admin/control/access-monitor': '接入监控',
   '/admin/control/users': '用户管理',
-  '/admin/control/access': '接入账号查询',
+  '/admin/control/access': '账号管理',
   '/admin/control/groups': '分组管理',
   '/admin/control/mounts': '挂载点管理',
   '/admin/control/relay': '接入管理',
   '/admin/control/announcements': '公告',
-  '/admin/control/server-nodes': '节点管理',
+  '/admin/control/server-nodes': '实例管理',
   '/admin/control/redeem-codes': '兑换码',
   '/admin/control/coupons': '优惠码',
   '/admin/control/usage': '使用记录',
   '/admin/control/settings': '系统设置',
-  '/admin/control/user/access-accounts': '接入账号管理',
+  '/admin/control/user/access-accounts': '账号管理',
   '/admin/control/user/usage': '使用记录',
   '/admin/control/user/redeem': '兑换',
   '/admin/control/user/profile': '个人资料',
-  '/admin/control/hosts': '节点管理',
+  '/admin/control/hosts': '实例管理',
   '/admin/control/runtimes': '挂载点管理',
   '/admin/control/workers': '运维监控',
   '/admin/control/config': '系统设置',
@@ -95,8 +112,12 @@ const pageTitles: Record<string, string> = {
 const pageSubtitles: Record<string, string> = {
   '/admin/control/dashboard': '系统概览与统计数据',
   '/admin/control/operations': 'NTRIP Caster 节点、挂载点与数据链路监控',
+  '/admin/control/instances': 'Agent 实例、设备资源和实例下 Caster 控制',
+  '/admin/control/nodes': '当前运行的 Caster 节点和控制意图',
+  '/admin/control/access-monitor/base-stations': '实时在线基准站和历史在线记录',
+  '/admin/control/access-monitor/mobile-stations': '实时在线移动站和历史使用记录',
   '/admin/control/users': 'Web 用户账号和登录权限',
-  '/admin/control/access': '全局只读查看设备接入账号',
+  '/admin/control/access': '全局搜索接入账号并查看使用详情',
   '/admin/control/usage': '查看每个用户、每个接入账号的挂载点用量记录',
   '/admin/control/user/access-accounts': '管理当前账号名下的设备接入凭证',
   '/admin/control/user/usage': '查看当前账户下每个接入账号的用量记录',
@@ -105,16 +126,19 @@ const pageSubtitles: Record<string, string> = {
 export function ControlShell() {
   const [collapsed, setCollapsed] = useState(false);
   const [session, setSession] = useState<AuthSessionSubject | null>(null);
-  const [language, setLanguage] = useState(() => localStorage.getItem('navcasterLanguage') || 'CN ZH');
+  const [language, setLanguage] = useState(() => {
+    const stored = localStorage.getItem('navcasterLanguage');
+    return stored && !['CN ZH', 'EN'].includes(stored) ? stored : '简体中文';
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const pageTitle = useMemo(() => {
-    const matched = Object.keys(pageTitles).find((path) => location.pathname.startsWith(path));
-    return matched ? pageTitles[matched] : 'Control plane';
+    const matched = Object.keys(pageTitles).sort((left, right) => right.length - left.length).find((path) => location.pathname.startsWith(path));
+    return matched ? pageTitles[matched] : '控制面';
   }, [location.pathname]);
   const pageSubtitle = useMemo(() => {
-    const matched = Object.keys(pageSubtitles).find((path) => location.pathname.startsWith(path));
-    return matched ? pageSubtitles[matched] : 'AdminService';
+    const matched = Object.keys(pageSubtitles).sort((left, right) => right.length - left.length).find((path) => location.pathname.startsWith(path));
+    return matched ? pageSubtitles[matched] : 'AdminService 控制服务';
   }, [location.pathname]);
   const visibleSections = useMemo(() => {
     if (session?.role === 'admin') return navSections;
@@ -127,7 +151,7 @@ export function ControlShell() {
   }, [session?.role]);
   const userName = session?.username || session?.account_id || '未登录';
   const userInitials = userName.slice(0, 2).toUpperCase();
-  const userRole = session?.role || 'user';
+  const userRole = accountRoleLabel(session?.role || 'user');
 
   const setLanguagePreference = (next: string) => {
     setLanguage(next);
@@ -138,6 +162,8 @@ export function ControlShell() {
     await logoutSession();
     navigate('/login', { replace: true });
   };
+
+  const isPathActive = (path: string) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,30 +194,55 @@ export function ControlShell() {
           </div>
           <div className="control-brand-copy">
             <strong>NavCaster</strong>
-            <span>Control Plane</span>
+            <span>控制面</span>
           </div>
         </div>
-        <nav className="control-nav" aria-label="control plane navigation">
+        <nav className="control-nav" aria-label="控制面导航">
           {visibleSections.map((section) => (
             <div className="control-nav-section" key={section.title}>
               <div className="control-nav-section-title">{section.title}</div>
-              {section.items.map((item) => (
-                <Tooltip
-                  key={item.path}
-                  title={collapsed ? item.label : ''}
-                  placement="right"
-                >
-                  <NavLink to={item.path} className={({ isActive }) => `control-nav-link ${isActive ? 'active' : ''}`}>
-                    {item.icon}
-                    <span className="control-nav-label">{item.label}</span>
-                  </NavLink>
-                </Tooltip>
-              ))}
+              {section.items.map((item) => {
+                const itemActive = isPathActive(item.path);
+                if (item.children?.length) {
+                  return (
+                    <div className={`control-nav-group ${itemActive ? 'active' : ''}`} key={item.path}>
+                      <Tooltip title={collapsed ? item.label : ''} placement="right">
+                        <NavLink to={item.children[0].path} className={`control-nav-link control-nav-parent ${itemActive ? 'active' : ''}`}>
+                          {item.icon}
+                          <span className="control-nav-label">{item.label}</span>
+                        </NavLink>
+                      </Tooltip>
+                      {!collapsed ? (
+                        <div className="control-nav-children">
+                          {item.children.map((child) => (
+                            <NavLink key={child.path} to={child.path} className={({ isActive }) => `control-nav-link control-nav-child ${isActive ? 'active' : ''}`}>
+                              {child.icon}
+                              <span className="control-nav-label">{child.label}</span>
+                            </NavLink>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }
+                return (
+                  <Tooltip
+                    key={item.path}
+                    title={collapsed ? item.label : ''}
+                    placement="right"
+                  >
+                    <NavLink to={item.path} className={({ isActive }) => `control-nav-link ${isActive ? 'active' : ''}`}>
+                      {item.icon}
+                      <span className="control-nav-label">{item.label}</span>
+                    </NavLink>
+                  </Tooltip>
+                );
+              })}
             </div>
           ))}
         </nav>
         <div className="control-sidebar-footer">
-          <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
+          <Tooltip title={collapsed ? '展开侧边栏' : '收起侧边栏'} placement="right">
             <Button
               type="text"
               icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -224,8 +275,7 @@ export function ControlShell() {
               menu={{
                 selectedKeys: [language],
                 items: [
-                  { key: 'CN ZH', label: 'CN ZH' },
-                  { key: 'EN', label: 'EN' },
+                  { key: '简体中文', label: '简体中文' },
                 ],
                 onClick: ({ key }) => setLanguagePreference(String(key)),
               }}

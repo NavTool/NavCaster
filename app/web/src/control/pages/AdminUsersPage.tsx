@@ -13,8 +13,10 @@ import {
   type AccountRole,
   type AccountStatus,
 } from '../../api/identity';
+import { ControlPaginationBar } from '../components/TablePage';
 import { AccountStatusTag, RoleTag } from './IdentityBadges';
 import { formatIdentityTime } from './identityFormat';
+import { accountStatusLabel, createdViaLabel } from '../labels';
 
 const accountStatuses: Array<AccountStatus | 'all'> = ['all', 'active', 'disabled', 'deleted'];
 
@@ -98,6 +100,7 @@ export default function AdminUsersPage() {
       title: '用户账号',
       dataIndex: 'username',
       fixed: 'left',
+      width: 240,
       render: (_, row) => (
         <div className="control-primary-cell">
           <strong>{row.username}</strong>
@@ -108,13 +111,14 @@ export default function AdminUsersPage() {
     { title: '显示名', dataIndex: 'display_name', render: (value) => value || '-' },
     { title: '角色', dataIndex: 'role', render: (role) => <RoleTag role={role} /> },
     { title: '状态', dataIndex: 'status', render: (status) => <AccountStatusTag status={status} /> },
-    { title: '来源', dataIndex: 'created_via', render: (value) => value || '-' },
+    { title: '来源', dataIndex: 'created_via', render: createdViaLabel },
     { title: '接入账号', dataIndex: 'access_account_count', align: 'right', render: (value) => value ?? '-' },
     { title: '活跃会话', dataIndex: 'active_session_count', align: 'right', render: (value) => value ?? '-' },
     { title: '创建时间', dataIndex: 'created_at', render: formatIdentityTime },
     {
       title: '操作',
       fixed: 'right',
+      width: 260,
       render: (_, row) => (
         <Space wrap size={4}>
           {row.status === 'active' ? <Button size="small" onClick={() => changeStatus(row, 'disabled')}>停用</Button> : null}
@@ -132,17 +136,6 @@ export default function AdminUsersPage() {
 
   return (
     <div className="identity-page">
-      <div className="control-page-heading">
-        <div>
-          <h1>用户管理</h1>
-          <p>管理员创建、停用、恢复和删除 Web 用户账号。删除后的用户名会被永久锁定。</p>
-        </div>
-        <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>创建用户</Button>
-        </Space>
-      </div>
-
       <section className="identity-toolbar">
         <Input.Search
           allowClear
@@ -152,21 +145,25 @@ export default function AdminUsersPage() {
         />
         <Select
           value={query.status}
-          options={accountStatuses.map((status) => ({ label: status === 'all' ? '全部状态' : status, value: status }))}
+          options={accountStatuses.map((status) => ({ label: status === 'all' ? '全部状态' : accountStatusLabel(status), value: status }))}
           onChange={(status) => setQuery((prev) => ({ ...prev, status, page: 1 }))}
         />
         <Select
           value={query.role}
           options={[
             { label: '全部角色', value: 'all' },
-            { label: 'admin', value: 'admin' },
-            { label: 'user', value: 'user' },
+            { label: '管理员', value: 'admin' },
+            { label: '普通用户', value: 'user' },
           ]}
           onChange={(role) => setQuery((prev) => ({ ...prev, role, page: 1 }))}
         />
+        <Space className="identity-toolbar-actions" wrap>
+          <Button icon={<ReloadOutlined />} onClick={refresh}>刷新</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>创建用户</Button>
+        </Space>
       </section>
 
-      {error ? <Alert className="control-table-alert" type="error" showIcon message="用户账号 API 不可用" description={error} /> : null}
+      {error ? <Alert className="control-table-alert" type="error" showIcon message="用户账号接口不可用" description={error} /> : null}
 
       <section className="control-table-frame">
         <Table<Account>
@@ -174,10 +171,16 @@ export default function AdminUsersPage() {
           dataSource={rows}
           loading={loading}
           rowKey="account_id"
-          pagination={{ current: query.page, pageSize: query.pageSize, total, showSizeChanger: true, onChange: (page, pageSize) => setQuery((prev) => ({ ...prev, page, pageSize })) }}
+          pagination={false}
           scroll={{ x: 'max-content' }}
         />
       </section>
+      <ControlPaginationBar
+        current={query.page}
+        pageSize={query.pageSize}
+        total={total}
+        onChange={(page, pageSize) => setQuery((prev) => ({ ...prev, page, pageSize }))}
+      />
 
       <Modal title="创建用户账号" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} destroyOnClose>
         <Form form={createForm} layout="vertical" requiredMark={false} initialValues={{ role: 'user', status: 'active' }} onFinish={submitCreate}>
@@ -191,10 +194,10 @@ export default function AdminUsersPage() {
             <Input.Password />
           </Form.Item>
           <Form.Item name="role" label="角色">
-            <Select options={[{ label: 'user', value: 'user' }, { label: 'admin', value: 'admin' }]} />
+            <Select options={[{ label: '普通用户', value: 'user' }, { label: '管理员', value: 'admin' }]} />
           </Form.Item>
           <Form.Item name="status" label="状态">
-            <Select options={[{ label: 'active', value: 'active' }, { label: 'disabled', value: 'disabled' }]} />
+            <Select options={[{ label: accountStatusLabel('active'), value: 'active' }, { label: accountStatusLabel('disabled'), value: 'disabled' }]} />
           </Form.Item>
         </Form>
       </Modal>

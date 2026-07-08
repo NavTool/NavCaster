@@ -4,11 +4,14 @@ import type {
   ConfigVersion,
   ConvergenceStatus,
   DesiredRuntimeState,
+  AdminHealth,
   HostSummary,
   IntentReceipt,
   PageRequest,
   PageResult,
   RuntimeActionIntent,
+  RuntimeConfigCommand,
+  RuntimeCreateCommand,
   RuntimeDesiredStateCommand,
   RuntimeDetail,
   RuntimeEvent,
@@ -412,6 +415,9 @@ function toIntentReceipt(intent: AdminIntent, message: string): IntentReceipt {
 }
 
 const liveAdminService: AdminServiceContract = {
+  async getHealth(): Promise<AdminHealth> {
+    return getData<AdminHealth>('/api/v1/health');
+  },
   async getOverview() {
     const [hosts, runtimes] = await Promise.all([getData<AdminHost[]>('/api/v1/control/hosts'), getData<AdminRuntime[]>('/api/v1/control/runtimes')]);
     const runtimeSummaries = runtimes.map(toRuntimeSummary);
@@ -434,6 +440,32 @@ const liveAdminService: AdminServiceContract = {
     const runtimes = await getData<AdminRuntime[]>('/api/v1/control/runtimes');
     const rows = runtimes.map(toRuntimeSummary).filter((runtime) => !params.hostId || runtime.host_id === params.hostId);
     return pageFromRows(rows, params, ['name', 'id', 'host_name', 'kind']);
+  },
+  async createRuntime(command: RuntimeCreateCommand): Promise<RuntimeSummary> {
+    const runtime = await postData<AdminRuntime>('/api/v1/control/runtimes', {
+      host_id: command.host_id,
+      name: command.name,
+      desired_state: command.desired_state,
+      config_version: command.config_version,
+      listen_port: command.listen_port,
+      worker_count: command.worker_count,
+      max_worker_count: command.max_worker_count,
+      restart_policy: command.restart_policy,
+      start_immediately: command.start_immediately,
+    });
+    return toRuntimeSummary(runtime);
+  },
+  async updateRuntimeConfig(command: RuntimeConfigCommand): Promise<RuntimeSummary> {
+    const runtime = await putData<AdminRuntime>(`/api/v1/control/runtimes/${command.runtime_id}/desired-state`, {
+      desired_state: command.desired_state,
+      config_version: command.config_version,
+      listen_port: command.listen_port,
+      worker_count: command.worker_count,
+      max_worker_count: command.max_worker_count,
+      restart_policy: command.restart_policy,
+      draining: command.draining,
+    });
+    return toRuntimeSummary(runtime);
   },
   async getRuntime(runtimeId: string): Promise<RuntimeDetail> {
     const runtime = await getData<AdminRuntime>(`/api/v1/control/runtimes/${runtimeId}`);

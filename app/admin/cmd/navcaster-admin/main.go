@@ -46,7 +46,7 @@ func buildRepositories(cfg config.Config, registry projection.Registry) (control
 		if err != nil {
 			log.Fatalf("connect postgres: %v", err)
 		}
-		if err := postgresStore.ApplyMigrations(ctx, db); err != nil {
+		if err := postgresStore.ApplyMigrations(ctx, db, cfg.MigrationsDir); err != nil {
 			log.Fatalf("apply postgres migrations: %v", err)
 		}
 		repo = postgresStore.NewControlRepository(db)

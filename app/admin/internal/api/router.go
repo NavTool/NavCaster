@@ -52,6 +52,7 @@ func (s Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/v1/admin/accounts/{account_id}/password", s.resetAccountPassword)
 	mux.HandleFunc("DELETE /api/v1/admin/accounts/{account_id}", s.deleteAccount)
 	mux.HandleFunc("GET /api/v1/admin/access-accounts", s.listAdminAccessAccounts)
+	mux.HandleFunc("GET /api/v1/admin/access-accounts/{access_account_id}", s.getAdminAccessAccount)
 	mux.HandleFunc("GET /api/v1/me/profile", s.getProfile)
 	mux.HandleFunc("PUT /api/v1/me/profile", s.updateMyProfile)
 	mux.HandleFunc("GET /api/v1/me/access-accounts", s.listMyAccessAccounts)

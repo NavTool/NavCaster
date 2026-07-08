@@ -5,8 +5,8 @@ import { useCallback, useState } from 'react';
 import { adminService } from '../../api/adminService';
 import type { ConfigVersion } from '../../api/contracts';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { MetricCard } from '../components/MetricCard';
 import { TablePage } from '../components/TablePage';
+import { configStatusLabel } from '../labels';
 import { formatDateTime, useControlPage } from './useControlPage';
 
 const configStatusColor: Record<ConfigVersion['status'], string> = {
@@ -30,14 +30,15 @@ export default function ConfigVersionsPage() {
 
   const columns: ColumnsType<ConfigVersion> = [
     {
-      title: 'Version',
+      title: '版本',
       dataIndex: 'label',
       fixed: 'left',
+      width: 220,
       render: (_, row) => <div className="control-primary-cell"><strong>{row.label}</strong><span>{row.id}</span></div>,
     },
-    { title: 'Status', dataIndex: 'status', render: (status: ConfigVersion['status']) => <Tag color={configStatusColor[status]}>{status}</Tag> },
+    { title: '状态', dataIndex: 'status', render: (status: ConfigVersion['status']) => <Tag color={configStatusColor[status]}>{configStatusLabel(status)}</Tag> },
     {
-      title: 'Release status',
+      title: '发布状态',
       render: (_, row) => (
         <Progress
           percent={row.target_hosts ? Math.round((row.applied_hosts / row.target_hosts) * 100) : 0}
@@ -46,37 +47,25 @@ export default function ConfigVersionsPage() {
         />
       ),
     },
-    { title: 'Checksum', dataIndex: 'checksum' },
-    { title: 'Created by', dataIndex: 'created_by' },
-    { title: 'Created', dataIndex: 'created_at', render: formatDateTime },
-    { title: 'Summary', dataIndex: 'summary', width: 360 },
+    { title: '校验和', dataIndex: 'checksum' },
+    { title: '创建人', dataIndex: 'created_by' },
+    { title: '创建时间', dataIndex: 'created_at', render: formatDateTime },
+    { title: '摘要', dataIndex: 'summary', width: 360 },
     {
-      title: 'Intent',
+      title: '意图',
       fixed: 'right',
-      render: (_, row) => <Button size="small" icon={<BranchesOutlined />} disabled={row.status === 'active'} onClick={() => setTarget(row)}>Publish</Button>,
+      width: 120,
+      render: (_, row) => <Button size="small" icon={<BranchesOutlined />} disabled={row.status === 'active'} onClick={() => setTarget(row)}>发布</Button>,
     },
   ];
 
-  const active = page.items.filter((item) => item.status === 'active').length;
-  const failed = page.items.filter((item) => item.status === 'failed').length;
-  const targetHosts = page.items.reduce((sum, item) => sum + item.target_hosts, 0);
-  const appliedHosts = page.items.reduce((sum, item) => sum + item.applied_hosts, 0);
-
   return (
     <>
-      <div className="control-metric-grid">
-        <MetricCard label="Visible versions" value={page.items.length} detail="after filters" />
-        <MetricCard label="Active versions" value={active} detail="should converge to one" />
-        <MetricCard label="Failed versions" value={failed} detail="rollout rejected" />
-        <MetricCard label="Applied hosts" value={`${appliedHosts}/${targetHosts}`} detail="visible version sum" />
-      </div>
       <TablePage<ConfigVersion>
-        title="系统设置"
-        description="配置发布以控制面意图提交，Web 不直接写入 Redis、PostgreSQL 或本地文件。"
         actions={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={page.refresh}>Refresh</Button>
-            <Button type="primary" icon={<BranchesOutlined />}>New draft skeleton</Button>
+            <Button icon={<ReloadOutlined />} onClick={page.refresh}>刷新</Button>
+            <Button type="primary" icon={<BranchesOutlined />}>新建草稿模板</Button>
           </Space>
         }
         filters={page.filters}
@@ -90,10 +79,10 @@ export default function ConfigVersionsPage() {
       />
       <ConfirmDialog
         open={Boolean(target)}
-        title="Submit config publish intent"
-        description={target ? `Publish ${target.label} to all hosts through AdminService.` : ''}
-        intentLabel={target ? `Publish ${target.id} to all-hosts` : ''}
-        confirmText="Queue publish intent"
+        title="提交配置发布意图"
+        description={target ? `通过 AdminService 将 ${target.label} 发布到全部主机。` : ''}
+        intentLabel={target ? `发布 ${target.id} 到全部主机` : ''}
+        confirmText="加入发布意图队列"
         onCancel={() => setTarget(null)}
         onConfirm={submitPublishIntent}
       />

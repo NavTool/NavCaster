@@ -1,18 +1,15 @@
 import {
   CalendarOutlined,
-  ClockCircleOutlined,
-  DatabaseOutlined,
   DeleteOutlined,
-  DollarCircleOutlined,
   DownOutlined,
   DownloadOutlined,
-  IdcardOutlined,
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
-import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { ControlPaginationBar } from '../components/TablePage';
 
 type UsageRow = {
   user: string;
@@ -40,22 +37,22 @@ type UsageSeries = {
 };
 
 const usageRows: UsageRow[] = [
-  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '66.9 MB', duration: '6.64s', cost: '$0.046507', firstByte: '3.96s', disconnects: '0', time: '2026/07/03 11:05:10', ip: '172.18.0.1' },
-  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '140.7 MB', duration: '44.43s', cost: '$0.760441', firstByte: '5.55s', disconnects: '0', time: '2026/07/03 11:05:00', ip: '172.18.0.1' },
-  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a02', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE02', direction: '下行 / NTRIP Client', group: 'CodeX', type: '测试', billing: '按量', traffic: '66.9 MB', duration: '10.87s', cost: '$0.045897', firstByte: '5.69s', disconnects: '0', time: '2026/07/03 11:04:59', ip: '172.18.0.1' },
-  { user: 'vendor-relay@navcaster.local #2', accessAccount: 'relay-push-bj-01', ownerAccount: 'vendor-beijing', mountPoint: 'BJGNSS_01', direction: '上行 / Relay Push', group: '供应商', type: '正式', billing: '包月', traffic: '65.4 MB', duration: '8.52s', cost: '$0.042526', firstByte: '5.24s', disconnects: '0', time: '2026/07/03 11:04:47', ip: '172.18.0.2' },
-  { user: 'survey-b@navcaster.local #1', accessAccount: 'rover-b03', ownerAccount: 'survey-team-b', mountPoint: 'SHGNSS_03', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '65.4 MB', duration: '14.25s', cost: '$0.055604', firstByte: '4.51s', disconnects: '0', time: '2026/07/03 11:04:36', ip: '172.18.0.1' },
-  { user: 'survey-c@navcaster.local #1', accessAccount: 'rover-c01', ownerAccount: 'survey-team-c', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP Client', group: 'CodeX', type: '试用', billing: '按量', traffic: '64.9 MB', duration: '21.00s', cost: '$0.064593', firstByte: '4.74s', disconnects: '1', time: '2026/07/03 11:04:18', ip: '172.18.0.1' },
-  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '230.8 MB', duration: '10.44s', cost: '$0.127397', firstByte: '10.19s', disconnects: '0', time: '2026/07/03 11:04:12', ip: '172.18.0.1' },
-  { user: 'vendor-relay@navcaster.local #2', accessAccount: 'relay-pull-sh-02', ownerAccount: 'vendor-shanghai', mountPoint: 'SHGNSS_02', direction: '上行 / Relay Pull', group: '供应商', type: '正式', billing: '包月', traffic: '135.0 MB', duration: '14.82s', cost: '$0.556880', firstByte: '6.86s', disconnects: '0', time: '2026/07/03 11:04:01', ip: '172.18.0.3' },
-  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a02', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE02', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '64.9 MB', duration: '5.62s', cost: '$0.039998', firstByte: '3.46s', disconnects: '0', time: '2026/07/03 11:03:45', ip: '172.18.0.1' },
-  { user: 'survey-b@navcaster.local #1', accessAccount: 'rover-b03', ownerAccount: 'survey-team-b', mountPoint: 'SHGNSS_03', direction: '下行 / NTRIP Client', group: 'CodeX', type: '测试', billing: '按量', traffic: '235.9 MB', duration: '12.63s', cost: '$0.131057', firstByte: '5.92s', disconnects: '0', time: '2026/07/03 11:03:45', ip: '172.18.0.1' },
-  { user: 'survey-d@navcaster.local #1', accessAccount: 'rover-d07', ownerAccount: 'survey-team-d', mountPoint: 'RTCM32_SE04', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '59.8 MB', duration: '11.17s', cost: '$0.066938', firstByte: '5.72s', disconnects: '0', time: '2026/07/03 11:03:33', ip: '172.18.0.1' },
-  { user: 'survey-c@navcaster.local #1', accessAccount: 'rover-c01', ownerAccount: 'survey-team-c', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '234.9 MB', duration: '12.98s', cost: '$0.131700', firstByte: '7.72s', disconnects: '0', time: '2026/07/03 11:03:32', ip: '172.18.0.1' },
-  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '59.3 MB', duration: '12.96s', cost: '$0.050547', firstByte: '3.81s', disconnects: '0', time: '2026/07/03 11:03:00', ip: '172.18.0.1' },
-  { user: 'vendor-relay@navcaster.local #2', accessAccount: 'relay-push-bj-01', ownerAccount: 'vendor-beijing', mountPoint: 'BJGNSS_01', direction: '上行 / Relay Push', group: '供应商', type: '正式', billing: '包月', traffic: '234.4 MB', duration: '10.19s', cost: '$0.124694', firstByte: '7.40s', disconnects: '0', time: '2026/07/03 11:03:14', ip: '172.18.0.2' },
-  { user: 'survey-e@navcaster.local #1', accessAccount: 'rover-e09', ownerAccount: 'survey-team-e', mountPoint: 'RTCM32_SE05', direction: '下行 / NTRIP Client', group: 'CodeX', type: '试用', billing: '按量', traffic: '58.8 MB', duration: '13.93s', cost: '$0.050731', firstByte: '3.52s', disconnects: '0', time: '2026/07/03 11:03:00', ip: '172.18.0.1' },
-  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP Client', group: 'CodeX', type: '正式', billing: '按量', traffic: '231.8 MB', duration: '12.13s', cost: '$0.127649', firstByte: '7.82s', disconnects: '0', time: '2026/07/03 11:02:28', ip: '172.18.0.1' },
+  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '66.9 MB', duration: '6.64s', cost: '$0.046507', firstByte: '3.96s', disconnects: '0', time: '2026/07/03 11:05:10', ip: '172.18.0.1' },
+  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '140.7 MB', duration: '44.43s', cost: '$0.760441', firstByte: '5.55s', disconnects: '0', time: '2026/07/03 11:05:00', ip: '172.18.0.1' },
+  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a02', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE02', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '测试', billing: '按量', traffic: '66.9 MB', duration: '10.87s', cost: '$0.045897', firstByte: '5.69s', disconnects: '0', time: '2026/07/03 11:04:59', ip: '172.18.0.1' },
+  { user: 'vendor-relay@navcaster.local #2', accessAccount: 'relay-push-bj-01', ownerAccount: 'vendor-beijing', mountPoint: 'BJGNSS_01', direction: '上行 / 推流转发', group: '供应商', type: '正式', billing: '包月', traffic: '65.4 MB', duration: '8.52s', cost: '$0.042526', firstByte: '5.24s', disconnects: '0', time: '2026/07/03 11:04:47', ip: '172.18.0.2' },
+  { user: 'survey-b@navcaster.local #1', accessAccount: 'rover-b03', ownerAccount: 'survey-team-b', mountPoint: 'SHGNSS_03', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '65.4 MB', duration: '14.25s', cost: '$0.055604', firstByte: '4.51s', disconnects: '0', time: '2026/07/03 11:04:36', ip: '172.18.0.1' },
+  { user: 'survey-c@navcaster.local #1', accessAccount: 'rover-c01', ownerAccount: 'survey-team-c', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '试用', billing: '按量', traffic: '64.9 MB', duration: '21.00s', cost: '$0.064593', firstByte: '4.74s', disconnects: '1', time: '2026/07/03 11:04:18', ip: '172.18.0.1' },
+  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '230.8 MB', duration: '10.44s', cost: '$0.127397', firstByte: '10.19s', disconnects: '0', time: '2026/07/03 11:04:12', ip: '172.18.0.1' },
+  { user: 'vendor-relay@navcaster.local #2', accessAccount: 'relay-pull-sh-02', ownerAccount: 'vendor-shanghai', mountPoint: 'SHGNSS_02', direction: '上行 / 拉流转发', group: '供应商', type: '正式', billing: '包月', traffic: '135.0 MB', duration: '14.82s', cost: '$0.556880', firstByte: '6.86s', disconnects: '0', time: '2026/07/03 11:04:01', ip: '172.18.0.3' },
+  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a02', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE02', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '64.9 MB', duration: '5.62s', cost: '$0.039998', firstByte: '3.46s', disconnects: '0', time: '2026/07/03 11:03:45', ip: '172.18.0.1' },
+  { user: 'survey-b@navcaster.local #1', accessAccount: 'rover-b03', ownerAccount: 'survey-team-b', mountPoint: 'SHGNSS_03', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '测试', billing: '按量', traffic: '235.9 MB', duration: '12.63s', cost: '$0.131057', firstByte: '5.92s', disconnects: '0', time: '2026/07/03 11:03:45', ip: '172.18.0.1' },
+  { user: 'survey-d@navcaster.local #1', accessAccount: 'rover-d07', ownerAccount: 'survey-team-d', mountPoint: 'RTCM32_SE04', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '59.8 MB', duration: '11.17s', cost: '$0.066938', firstByte: '5.72s', disconnects: '0', time: '2026/07/03 11:03:33', ip: '172.18.0.1' },
+  { user: 'survey-c@navcaster.local #1', accessAccount: 'rover-c01', ownerAccount: 'survey-team-c', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '234.9 MB', duration: '12.98s', cost: '$0.131700', firstByte: '7.72s', disconnects: '0', time: '2026/07/03 11:03:32', ip: '172.18.0.1' },
+  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '59.3 MB', duration: '12.96s', cost: '$0.050547', firstByte: '3.81s', disconnects: '0', time: '2026/07/03 11:03:00', ip: '172.18.0.1' },
+  { user: 'vendor-relay@navcaster.local #2', accessAccount: 'relay-push-bj-01', ownerAccount: 'vendor-beijing', mountPoint: 'BJGNSS_01', direction: '上行 / 推流转发', group: '供应商', type: '正式', billing: '包月', traffic: '234.4 MB', duration: '10.19s', cost: '$0.124694', firstByte: '7.40s', disconnects: '0', time: '2026/07/03 11:03:14', ip: '172.18.0.2' },
+  { user: 'survey-e@navcaster.local #1', accessAccount: 'rover-e09', ownerAccount: 'survey-team-e', mountPoint: 'RTCM32_SE05', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '试用', billing: '按量', traffic: '58.8 MB', duration: '13.93s', cost: '$0.050731', firstByte: '3.52s', disconnects: '0', time: '2026/07/03 11:03:00', ip: '172.18.0.1' },
+  { user: 'survey-a@navcaster.local #1', accessAccount: 'field-rover-a01', ownerAccount: 'survey-team-a', mountPoint: 'RTCM32_SE01', direction: '下行 / NTRIP 客户端', group: 'CodeX', type: '正式', billing: '按量', traffic: '231.8 MB', duration: '12.13s', cost: '$0.127649', firstByte: '7.82s', disconnects: '0', time: '2026/07/03 11:02:28', ip: '172.18.0.1' },
 ];
 
 const trendSeries: UsageSeries[] = [
@@ -65,31 +62,6 @@ const trendSeries: UsageSeries[] = [
 ];
 
 const trendLabels = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00', '00:00', '08:00', '09:00', '10:00', '11:00'];
-
-function UsageMetric({
-  label,
-  value,
-  detail,
-  tone,
-  icon,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  tone: 'blue' | 'orange' | 'green' | 'purple';
-  icon: ReactNode;
-}) {
-  return (
-    <section className={`usage-metric usage-metric-${tone}`}>
-      <div className="usage-metric-icon">{icon}</div>
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-        <p>{detail}</p>
-      </div>
-    </section>
-  );
-}
 
 function DonutCard({
   title,
@@ -196,15 +168,14 @@ function FilterField({ label, value }: { label: string; value: string }) {
 }
 
 export default function UsageRecordsPage() {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const pageCount = Math.max(1, Math.ceil(usageRows.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedUsageRows = usageRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
     <div className="usage-page">
-      <section className="usage-metric-grid">
-        <UsageMetric label="总连接次数" value="3,136" detail="所有接入账号会话" tone="blue" icon={<IdcardOutlined />} />
-        <UsageMetric label="总流量" value="422.29M" detail="下行 395.44M / 上行 26.85M" tone="orange" icon={<DatabaseOutlined />} />
-        <UsageMetric label="总费用" value="$381.8899" detail="成本 $381.8899 / 标准 $381.8899" tone="green" icon={<DollarCircleOutlined />} />
-        <UsageMetric label="平均会话时长" value="17.48s" detail="含客户端断开和源站切换" tone="purple" icon={<ClockCircleOutlined />} />
-      </section>
-
       <section className="usage-toolbar">
         <div><span>时间范围:</span><Button className="dashboard-filter-button" icon={<CalendarOutlined />}>近24小时 <DownOutlined /></Button></div>
         <div><span>粒度:</span><Button className="dashboard-filter-button">按小时 <DownOutlined /></Button></div>
@@ -288,7 +259,7 @@ export default function UsageRecordsPage() {
               </tr>
             </thead>
             <tbody>
-              {usageRows.map((row) => (
+              {pagedUsageRows.map((row) => (
                 <tr key={`${row.user}-${row.accessAccount}-${row.time}`}>
                   <td><a href="#">{row.user}</a></td>
                   <td>{row.accessAccount}</td>
@@ -310,10 +281,15 @@ export default function UsageRecordsPage() {
             </tbody>
           </table>
         </div>
-        <div className="usage-pagination">
-          <span>显示 1 至 {usageRows.length} 共 3136 条结果</span>
-          <div><button type="button">1</button><button type="button">2</button><button type="button">3</button></div>
-        </div>
+        <ControlPaginationBar
+          current={currentPage}
+          pageSize={pageSize}
+          total={usageRows.length}
+          onChange={(nextPage, nextPageSize) => {
+            setPage(nextPage);
+            setPageSize(nextPageSize);
+          }}
+        />
       </section>
     </div>
   );

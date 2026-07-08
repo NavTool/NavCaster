@@ -1,19 +1,20 @@
 import type { ConvergenceStatus, ControlStatus } from '../../api/contracts';
+import { controlStatusLabel, convergenceStatusLabel } from '../labels';
 
 const statusMeta: Record<ControlStatus, { label: string; tone: string }> = {
-  pending: { label: 'Pending', tone: 'pending' },
-  running: { label: 'Running', tone: 'running' },
-  failed: { label: 'Failed', tone: 'failed' },
-  draining: { label: 'Draining', tone: 'draining' },
-  offline: { label: 'Offline', tone: 'offline' },
-  stopped: { label: 'Stopped', tone: 'offline' },
-  unknown: { label: 'Unknown', tone: 'unknown' },
+  pending: { label: controlStatusLabel('pending'), tone: 'pending' },
+  running: { label: controlStatusLabel('running'), tone: 'running' },
+  failed: { label: controlStatusLabel('failed'), tone: 'failed' },
+  draining: { label: controlStatusLabel('draining'), tone: 'draining' },
+  offline: { label: controlStatusLabel('offline'), tone: 'offline' },
+  stopped: { label: controlStatusLabel('stopped'), tone: 'offline' },
+  unknown: { label: controlStatusLabel('unknown'), tone: 'unknown' },
 };
 
 const convergenceMeta: Record<ConvergenceStatus, { label: string; tone: string }> = {
-  converged: { label: 'Converged', tone: 'running' },
-  pending: { label: 'Pending', tone: 'pending' },
-  failed: { label: 'Failed', tone: 'failed' },
+  converged: { label: convergenceStatusLabel('converged'), tone: 'running' },
+  pending: { label: convergenceStatusLabel('pending'), tone: 'pending' },
+  failed: { label: convergenceStatusLabel('failed'), tone: 'failed' },
 };
 
 export function StatusBadge({ status }: { status: ControlStatus }) {
