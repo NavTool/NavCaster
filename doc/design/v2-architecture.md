@@ -482,18 +482,21 @@ usage_facts
 
 ### 8.6 Redis key
 
-Redis key 使用 v2 前缀，不复用旧 key 作为兼容义务：
+当前 Redis key/channel 不使用 `v2:` 前缀，也不复用旧 key 作为兼容义务：
 
 ```text
-v2:auth:access-account:<username>
-v2:config:runtime:<runtime_id>
-v2:config:version
-v2:runtime:actual:<runtime_id>
-v2:runtime:worker-stat:<runtime_id>
-v2:session:access-account:<access_account_id>
-v2:stream:mount:<mount>
-v2:control:config
-v2:agent:heartbeat:<agent_id>
+auth:access-account:<username>
+config:runtime:<runtime_id>
+config:version
+runtime:actual:<runtime_id>
+runtime:worker-stat:<runtime_id>
+session:access-account:<access_account_id>
+stream:mount:<mount>
+control:config
+agent:heartbeat:<agent_id>
+sourcetable:runtime:<runtime_id>
+sourcetable:index
+sourcetable:changed
 ```
 
 旧 `ACT:*`、`MPT:*`、`STR:*`、`PULL:*`、`PUSH:*`、`CASTER:*` 不作为 v2 兼容契约。
