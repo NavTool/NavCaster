@@ -39,14 +39,7 @@ build
 cmake-build-*
 .idea
 package
-dist/*
-!dist/
-!dist/docker/
-!dist/docker/**
-dist/docker/.env
-dist/docker/data/
-dist/docker/logs/
-dist/docker/package/
+dist
 
 .vs
 .cache
