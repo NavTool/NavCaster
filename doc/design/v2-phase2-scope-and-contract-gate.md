@@ -104,7 +104,7 @@ Agent 启动、停止、守护本机真实 navcaster-caster 进程。
 Agent 采集 Caster health/metrics，并通过 runtime-metrics 上报 actual snapshot。
 Agent 通过 runtime-events 上报关键进程和健康事件。
 Caster 暴露本机 health/metrics，保留热路径不访问 PostgreSQL。
-Caster 使用 v2 Redis Pub/Sub 完成跨 Runtime 最小 source/client 链路。
+Caster 使用当前 Redis Pub/Sub 完成跨 Runtime 最小 source/client 链路。
 Web 通过真实 AdminService v2 API 展示 Host/Runtime desired vs actual 和 intent 状态。
 QA 给出真实 PG/Redis、Admin-Agent-Caster-Web smoke 和未运行项记录规则。
 ```
@@ -222,23 +222,26 @@ Redis 数据必须可由 PostgreSQL 或 Runtime/Agent 观测重新生成。Redis
 
 | Key / Channel | Type | TTL | Owner | Writer | Reader | 用途 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `v2:auth:access-account:<username>` | STRING JSON | none | AdminService | projection worker | Caster | AccessAccountAuthIndex。 |
-| `v2:auth:policy:<access_account_id>` | STRING JSON | none | AdminService | projection worker | Caster | 访问策略投影。 |
-| `v2:auth:version` | STRING integer | none | AdminService | projection worker | Caster | Auth projection 版本。 |
-| `v2:config:runtime:<runtime_id>` | STRING JSON | none | AdminService | projection worker | Agent / Caster | Runtime 配置投影。 |
-| `v2:control:desired-state:<host_id>` | STRING JSON | none | AdminService | projection worker | Agent | Host 级 desired-state 投影，shape 与 Agent HTTP polling response 一致。 |
-| `v2:config:version` | STRING integer | none | AdminService | projection worker | Agent / Caster | 全局配置投影版本。 |
-| `v2:control:config` | Pub/Sub JSON | none | AdminService | projection worker | Agent / Caster | Runtime / Host desired projection 变更通知。 |
-| `v2:agent:heartbeat:<agent_id>` | STRING JSON | 45s | Agent | Agent | AdminService | Agent heartbeat TTL。 |
-| `v2:runtime:actual:<runtime_id>` | STRING JSON | 60s | Agent | Agent | AdminService | Runtime actual 快照 TTL。 |
-| `v2:runtime:worker-stat:<runtime_id>` | HASH | 60s | Caster | Caster | AdminService | Worker metrics 快照。 |
-| `v2:runtime:mount-owner:<runtime_id>` | HASH | 60s | Caster | Caster | AdminService | mount -> worker owner 快照。 |
-| `v2:session:access-account:<access_account_id>` | HASH | 60s | Caster | Caster | AdminService | connect_key -> OnlineSession。 |
-| `v2:session:account:<account_id>` | HASH | 60s | Caster | Caster | AdminService | account 维度在线会话。 |
-| `v2:session:mount:<mount>` | HASH | 60s | Caster | Caster | AdminService | mount 维度在线会话。 |
-| `v2:stream:mount:<mount>` | Pub/Sub binary | none | Caster | Caster | Caster | 跨 Runtime mount 数据流。 |
-| `v2:stream:runtime:<runtime_id>` | Pub/Sub JSON | none | Caster | Caster | Agent | Runtime 观测事件。 |
-| `v2:control:kick` | Pub/Sub JSON | none | AdminService | projection worker | Caster | kick / policy 变更通知。 |
+| `auth:access-account:<username>` | STRING JSON | none | AdminService | projection worker | Caster | AccessAccountAuthIndex。 |
+| `auth:policy:<access_account_id>` | STRING JSON | none | AdminService | projection worker | Caster | 访问策略投影。 |
+| `auth:version` | STRING integer | none | AdminService | projection worker | Caster | Auth projection 版本。 |
+| `config:runtime:<runtime_id>` | STRING JSON | none | AdminService | projection worker | Agent / Caster | Runtime 配置投影。 |
+| `control:desired-state:<host_id>` | STRING JSON | none | AdminService | projection worker | Agent | Host 级 desired-state 投影，shape 与 Agent HTTP polling response 一致。 |
+| `config:version` | STRING integer | none | AdminService | projection worker | Agent / Caster | 全局配置投影版本。 |
+| `control:config` | Pub/Sub JSON | none | AdminService | projection worker | Agent / Caster | Runtime / Host desired projection 变更通知。 |
+| `agent:heartbeat:<agent_id>` | STRING JSON | 45s | Agent | Agent | AdminService | Agent heartbeat TTL。 |
+| `runtime:actual:<runtime_id>` | STRING JSON | 60s | Agent | Agent | AdminService | Runtime actual 快照 TTL。 |
+| `runtime:worker-stat:<runtime_id>` | HASH | 60s | Caster | Caster | AdminService | Worker metrics 快照。 |
+| `runtime:mount-owner:<runtime_id>` | HASH | 60s | Caster | Caster | AdminService | mount -> worker owner 快照。 |
+| `session:access-account:<access_account_id>` | HASH | 60s | Caster | Caster | AdminService | connect_key -> OnlineSession。 |
+| `session:account:<account_id>` | HASH | 60s | Caster | Caster | AdminService | account 维度在线会话。 |
+| `session:mount:<mount>` | HASH | 60s | Caster | Caster | AdminService | mount 维度在线会话。 |
+| `stream:mount:<mount>` | Pub/Sub binary | none | Caster | Caster | Caster | 跨 Runtime mount 数据流。 |
+| `stream:runtime:<runtime_id>` | Pub/Sub JSON | none | Caster | Caster | Agent | Runtime 观测事件。 |
+| `control:kick` | Pub/Sub JSON | none | AdminService | projection worker | Caster | kick / policy 变更通知。 |
+| `sourcetable:runtime:<runtime_id>` | STRING JSON | 10-30s | Caster | Caster | Caster | 单 Runtime 源列表快照。 |
+| `sourcetable:index` | SET 或 STRING JSON | 10-30s | Caster | Caster | Caster | 可选 Runtime 源列表快照索引。 |
+| `sourcetable:changed` | Pub/Sub JSON | none | Caster | Caster | Caster | 可选源列表快照变更通知。 |
 
 TTL hash 使用 key-level expiry；Phase 2 不要求依赖 Redis per-field TTL。
 
@@ -257,8 +260,8 @@ Projection worker 或同步投影路径必须幂等：
 
 ```text
 input: PostgreSQL source row + version/checksum
-output: v2 Redis projection key
-notify: PUBLISH v2:control:config with projection key, runtime_id or host_id, and version
+output: Redis projection key
+notify: PUBLISH control:config with projection key, runtime_id or host_id, and version
 retry: safe
 rebuild: full rebuild from PostgreSQL
 ```
@@ -267,7 +270,7 @@ Projection 失败语义：
 
 ```text
 AdminService 可以先持久化 desired intent，但不得宣称 projection 已完成。
-NC-097 闭环 gate 必须使用真实 Redis，并验证投影最终可读且 `v2:control:config` notify 可订阅。
+NC-097 闭环 gate 必须使用真实 Redis，并验证投影最终可读且 `control:config` notify 可订阅。
 Redis 不可用时，Phase 2 系统 smoke 不能标为通过。
 ```
 
@@ -410,7 +413,7 @@ AdminService 聚合规则：
 ```text
 heartbeat.runtime_summaries 用于快速在线摘要。
 runtime-metrics.actual[] 是完整 actual snapshot 的主输入。
-Redis v2:runtime:actual:<runtime_id> 是短 TTL operational view。
+Redis runtime:actual:<runtime_id> 是短 TTL operational view。
 runtime_actual_snapshots 是长期低频历史。
 Web 展示必须标注 updated_at / stale / offline。
 ```
@@ -587,20 +590,20 @@ runtime actual 写 Redis TTL 后必须可由 AdminService 或 Web operational vi
 Phase 2 跨 Runtime 最小链路使用：
 
 ```text
-channel: v2:stream:mount:<mount>
+channel: stream:mount:<mount>
 payload: raw NTRIP/RTCM data bytes
 ```
 
 发送路径：
 
 ```text
-source session -> owner Worker local fan-out -> Redis publish v2:stream:mount:<mount>
+source session -> owner Worker local fan-out -> Redis publish stream:mount:<mount>
 ```
 
 接收路径：
 
 ```text
-Redis subscribe v2:stream:mount:<mount> -> subscriber Worker -> local clients
+Redis subscribe stream:mount:<mount> -> subscriber Worker -> local clients
 ```
 
 Phase 2 最小语义：
@@ -647,7 +650,7 @@ Phase 2 DEV_DONE / QA / Review 的最低闭环证据：
 1. AdminService 真实 PG/Redis 可启动，health 显示 postgres=ok redis=ok。
 2. Web 或 curl 创建 Runtime desired state。
 3. PostgreSQL runtime_desired_states 和 control_intents 可验证。
-4. Redis v2 config/runtime projection 和 `v2:control:config` notify 可验证。
+4. Redis config/runtime projection 和 `control:config` notify 可验证。
 5. Agent 拉取 desired state 并启动真实 navcaster-caster。
 6. Caster local health/metrics 可验证。
 7. Agent 上报 runtime-metrics.actual[] 和 runtime-events。
